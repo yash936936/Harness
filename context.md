@@ -77,5 +77,5 @@ as a placeholder until the real path is confirmed).
   state, then instruct opencode on the next concrete step.
 
 ## Next task
-Run the live model-adapter test against Ollama (see `docs/status.md`), then sub-phase 1.3 —
-tool-registry bundle. See `docs/phases.md`.
+Sub-phase 1.4 — subprocess bundle (env allowlist security test is the key one).
+See `docs/phases.md`.

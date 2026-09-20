@@ -3,6 +3,39 @@
 > Append-only. Every completed coding task gets an entry here, even "no
 > issues found." Newest entries at top.
 
+## DBG-005 — 1.3 tool-registry bundle — 2026-09-20
+**Task:** Build `ctx.tools` (`src/bundles/tool-registry/`): registration,
+listing, validated dispatch, logging, pre/post-execute hooks.
+**Tested:** `tsc --noEmit` clean; 15 new tests pass (40 total, 2 skipped).
+Covers: separate plugin registers with zero registry edits and unregisters
+on dispose; two tools dispatch without cross-calling; duplicate name
+rejected and original kept; registration validation (name, description,
+actionClass, schema); `list()` usable as model-adapter `ToolSpec[]`;
+unknown tool / bad input / throwing tool return `ok:false` without
+throwing; non-string output, truncation; `tool.call` logged before
+execution; fail-closed on log failure (call not run / result not
+returned); pre-execute deny, crashing hook blocks, hooks can't alter the
+executing input; post-execute redaction and fail-closed on hook crash.
+**NOT tested:** anything through the real agent loop (1.5). Hooks are
+exercised only by test listeners; no real policy-gates exist until Phase 5.
+**Found:** nothing new (DBG-002 Cordis notes held: await plugin loading,
+declare `static inject`).
+**Fixed:** n/a. (A duplicate `ajv` line I added to package.json by hand was
+spotted on inspection and removed before shipping.)
+
+## DBG-004 — 1.2 live verification against Ollama — 2026-09-20
+**Tested (owner's machine, Windows, Ollama + `llama3.2:3b`):** 18/18 in
+`test/model-adapter.test.ts` with `HARNESS_LIVE=1`, including the real
+uninstalled-model 404 -> `ollama pull` error and a real completion with
+non-empty text and output tokens.
+**Found:** first live run failed only because vitest's default 5s test
+timeout is shorter than a cold model load. The adapter timeout (120s) was
+not involved. A 32-token reply took about 26s even on the second run, so
+expect slow iterations in the 1.5 loop on this hardware/model.
+**Fixed:** live test given a 180s timeout and 170s adapter timeout.
+**Not covered:** live tool calling (`tools` in the request) with a real
+model; still mock-verified only. First real check comes in 1.5.
+
 ## DBG-003 — 1.2 provider switched Anthropic -> Ollama — 2026-09-20
 **Task:** Replace the Anthropic provider with an Ollama provider (D-018).
 **Tested:** `tsc --noEmit` clean; 25 tests pass, 2 skipped (live). Mocked

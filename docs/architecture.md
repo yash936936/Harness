@@ -36,9 +36,14 @@ harness's data source.
 
 ### tool-registry (`bundle-tool-registry`)
 - **Responsibility:** `ctx.tools` — tools self-register, no central adapter
-  list needed.
+  list needed. Also the single call choke point: logging, schema
+  validation, and the `tools/pre-execute` / `tools/post-execute` hooks
+  (D-019).
 - **Location:** `src/bundles/tool-registry/`
 - **Depends on:** `bundle-session-log`.
+- **Key files:** `index.ts` (`ToolRegistry`), `types.ts` (`ToolDefinition`,
+  `ActionClass`, `ToolResult`, `ToolDeniedError`).
+- **Config surface:** `maxOutputChars`.
 
 ### subprocess (`bundle-subprocess`)
 - **Responsibility:** `ctx.subprocess` — local execution provider for v1.

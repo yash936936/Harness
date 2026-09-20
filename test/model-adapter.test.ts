@@ -266,9 +266,9 @@ describe.skipIf(!live)('live Ollama', () => {
   })
 
   it.skipIf(!process.env['OLLAMA_MODEL'])('real call returns non-empty text', async () => {
-    const ctx = await boot({ model: process.env['OLLAMA_MODEL']! })
+    const ctx = await boot({ model: process.env['OLLAMA_MODEL']!, timeoutMs: 170_000 })
     const res = await ctx.llm.complete(req({ maxTokens: 64, messages: [{ role: 'user', content: 'Reply with the single word: pong' }] }))
     expect(res.text.trim().length).toBeGreaterThan(0)
     expect(res.usage.outputTokens).toBeGreaterThan(0)
-  })
+  }, 180_000) // vitest's default 5s would cut off a cold model load; the adapter's own timeout is 120s
 })

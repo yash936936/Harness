@@ -33,5 +33,26 @@ the touched path) before the threshold check runs. The
 confidence-threshold override, by design — this is the one place in the
 table that should never become conditional.
 
+## Tool call pipeline (`ToolRegistry.call`)
+**Where:** `src/bundles/tool-registry/index.ts`
+**What it does:** log `tool.call` -> lookup -> validate input (JSON Schema)
+-> `tools/pre-execute` -> execute -> `tools/post-execute` -> log
+`tool.result` -> return.
+**Why it's non-obvious:** (1) Order matters: the call is logged before
+anything can run, and the result is logged before it can be returned, so a
+log failure stops the call rather than leaving an unaudited one. (2) Hooks
+fail closed: a crashing pre-hook blocks the call and a crashing post-hook
+withholds the output. (3) Tool-level failures are returned as
+`{ ok:false }`, not thrown; only infrastructure failures (log write) throw.
+(4) Hooks get a deep-frozen copy of the input so a hook can't change what
+executes.
+
+## Model call logging (`LLMService.complete`)
+**Where:** `src/bundles/model-adapter/index.ts`
+**What it does:** appends `model.request` before calling the provider and
+`model.response`/`model.error` after; `sessionId` is a required field.
+**Why it's non-obvious:** it is the only place model calls are logged, so
+the agent loop (1.5) must not log them again (D-016).
+
 ---
 **Next:** Return to [`context.md`](../context.md).

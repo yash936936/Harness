@@ -39,7 +39,7 @@ proven.
   calling code path works unchanged.
 - Failure-mode test: Ollama unreachable or model not installed → clear
   error surfaced, not a silent hang or crash. *(Amended, D-018.)*
-**Status:** Code complete, live-call test pending — 2026-09-20 (see DBG-002, DBG-003). Criterion 1 ("returns a real model response") is unverified until the live test is run against a running Ollama with an installed model.
+**Status:** Done — 2026-09-20. Live test passed on the owner's machine against a real Ollama (`llama3.2:3b`); see DBG-004.
 
 ### 1.3 — tool-registry bundle
 **Goal:** `ctx.tools` — tools self-register, no central list to maintain.
@@ -54,7 +54,7 @@ proven.
   correct dispatch (no cross-calling).
 - Regression test: registering a tool with a duplicate name is rejected or
   clearly flagged, not silently overwritten.
-**Status:** Not started
+**Status:** Done — 2026-09-20 (see DBG-005). Pre/post-execute hooks and required `actionClass` added beyond the listed criteria; see D-019.
 
 ### 1.4 — subprocess bundle
 **Goal:** `ctx.subprocess` — local execution provider for v1.

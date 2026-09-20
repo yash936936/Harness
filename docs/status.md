@@ -2,6 +2,16 @@
 
 > Updated every run. Newest entry at top.
 
+## 2026-09-20 — 1.2 done, 1.3 done
+**Current phase:** Phase 1; 1.1, 1.2, 1.3 done. Next is 1.4.
+**Last debug:** DBG-005 (1.3), DBG-004 (1.2 live).
+**Last decisions:** D-019 (tool registry choke point, hooks, required
+`actionClass`, `ajv`).
+**Watch:** live tool-calling with a real local model is unverified until
+1.5; expect ~25s per reply on the current setup.
+**Next up:** 1.4 subprocess (env allowlist security test is the important
+one), then 1.5 agent-loop, 1.6 profile-minimal.
+
 ## 2026-09-20 — 1.2 switched to Ollama
 **Current phase:** Phase 1, sub-phase 1.2 (live-call verification pending).
 **Last debug:** DBG-003. **Last decisions:** D-018 (Ollama replaces Anthropic).

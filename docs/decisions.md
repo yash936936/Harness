@@ -4,6 +4,31 @@
 > if a decision is reversed, log a new entry that supersedes it and reference
 > the old ID.
 
+## D-019 — Tool registry is the single call choke point — 2026-09-20
+**Decision:** All tool execution goes through `ctx.tools.call()`, which
+logs `tool.call` before executing and `tool.result` before returning
+(fail-closed on log errors), validates input against the tool's JSON
+Schema (ajv, compiled at registration), and emits serial events
+`tools/pre-execute` (throw `ToolDeniedError` to block; any hook error also
+blocks) and `tools/post-execute` (may redact `ev.result`; a hook error
+withholds the output). Hook input is a deep-frozen copy. Tool-level
+failures return `{ ok:false, errorKind }` instead of throwing so the model
+can recover. `actionClass` is REQUIRED per tool so policy-gates can gate
+on it; unclassified tools cannot register. Duplicate names are rejected.
+Output is truncated at `maxOutputChars` (default 50,000).
+**Why:** A call path that skips logging or hooks bypasses both the audit
+trail and policy, so the choke point has to exist from the first version,
+not be retrofitted in Phase 5. Model-produced tool input is untrusted, so
+it is validated. Small local models mis-format arguments often, and a clear
+`invalid_input` message lets the loop retry.
+**Alternatives:** hand-rolled schema check (rejected: bug-prone); leaving
+hooks to Phase 5 (rejected: retrofit risk). This goes beyond the literal
+1.3 criteria and designs the Phase 5 attachment point ahead of use; revisit
+when policy-gates are built.
+**Affects:** `bundle-tool-registry`, new dependency `ajv`; Phase 5
+policy-gates (attach via the events above); 1.5 (map `list()` to
+`ToolSpec[]`, feed `ToolResult` back as `tool_result` with `isError`).
+
 ## D-018 — Built-in provider is Ollama (local models), not Anthropic — 2026-09-20
 **Decision:** `bundle-model-adapter` ships an `OllamaProvider`
 (`POST {host}/api/chat`, `stream:false`) as the built-in. Config:
