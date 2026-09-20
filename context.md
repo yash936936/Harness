@@ -77,5 +77,5 @@ as a placeholder until the real path is confirmed).
   state, then instruct opencode on the next concrete step.
 
 ## Next task
-Phase 1 — `profile-minimal` kernel (session-log, model-adapter, tool-registry,
-subprocess, agent-loop). See `docs/phases.md` for exact files and done-criteria.
+Sub-phase 1.1 — session-log bundle. Phases are now broken into sub-phases,
+each with its own success criteria and test plan — see `docs/phases.md`.

@@ -1,0 +1,627 @@
+# Phases — Coding Harness
+
+> Work through phases and sub-phases in order. Mark a sub-phase done only
+> when its files exist, its success criteria are met, and its test is
+> logged in `debug.md`. Update `status.md` after each sub-phase, not just
+> each phase — sub-phases are the real unit of "a session's work."
+
+## Phase 1 — Kernel skeleton (`profile-minimal`)
+
+### 1.1 — session-log bundle
+**Goal:** Append-only event log with replay/fork/resume.
+**Files touched:** `src/bundles/session-log/`
+**Success criteria:**
+- Every write to the log is immutable (no update/delete API exposed).
+- A log can be replayed to reconstruct the exact sequence of events.
+- A log can be forked at any event index into an independent branch.
+**Testing:**
+- Unit test: write N events, replay, assert output order/content matches.
+- Unit test: fork at event k, write divergent events on each branch, assert
+  branches don't cross-contaminate.
+- Manual check: attempt to mutate a past event via any exposed method;
+  confirm it's rejected or simply not possible via the API surface.
+**Status:** Not started
+
+### 1.2 — model-adapter bundle
+**Goal:** `ctx.llm` — first model provider wired in, plug-and-play shape
+proven.
+**Files touched:** `src/bundles/model-adapter/`
+**Success criteria:**
+- A `ctx.llm.complete()`-style call returns a real model response.
+- Provider/API key are read from config, not hardcoded.
+- A second (mock) provider can be registered without touching the first
+  provider's code — proves the plug-and-play claim, not just one adapter.
+**Testing:**
+- Integration test: live call to the configured provider, assert a
+  non-empty response.
+- Unit test: swap provider config to a mock adapter, assert the same
+  calling code path works unchanged.
+- Failure-mode test: invalid API key → clear error surfaced, not a silent
+  hang or crash.
+**Status:** Not started
+
+### 1.3 — tool-registry bundle
+**Goal:** `ctx.tools` — tools self-register, no central list to maintain.
+**Files touched:** `src/bundles/tool-registry/`
+**Success criteria:**
+- A new tool bundle can register itself on `ctx.tools` with zero edits to
+  `tool-registry` itself.
+- The registry can enumerate all currently-registered tools at runtime.
+- Calling a registered tool by name executes it and returns a result.
+**Testing:**
+- Unit test: register two dummy tools, list them, call each, assert
+  correct dispatch (no cross-calling).
+- Regression test: registering a tool with a duplicate name is rejected or
+  clearly flagged, not silently overwritten.
+**Status:** Not started
+
+### 1.4 — subprocess bundle
+**Goal:** `ctx.subprocess` — local execution provider for v1.
+**Files touched:** `src/bundles/subprocess/`
+**Success criteria:**
+- Can run a shell command in a configured working dir with a configured
+  env allowlist.
+- Env vars outside the allowlist are not visible to the spawned process.
+- Command stdout/stderr/exit code are captured and returned to the caller.
+**Testing:**
+- Unit test: run `echo`, assert stdout captured correctly.
+- Security test: set a secret env var outside the allowlist, run a command
+  that prints all env vars, assert the secret is absent from output.
+- Failure-mode test: run a command that exits non-zero, assert exit code
+  and stderr are surfaced (not swallowed).
+**Status:** Not started
+
+### 1.5 — agent-loop bundle
+**Goal:** `ctx.agents.loop` — a working ReAct loop over 1.2–1.4.
+**Files touched:** `src/bundles/agent-loop/`
+**Success criteria:**
+- Given a task, the loop reasons, selects a tool, calls it via
+  `tool-registry`, observes the result, and repeats until done or
+  `max steps` is hit.
+- Every reasoning step and tool call is written to the session log (1.1).
+- `max steps` and `reflection on/off` config are respected.
+**Testing:**
+- Integration test: a task requiring exactly 2 tool calls (e.g. read a
+  file, then echo its content) completes in the expected number of steps.
+- Boundary test: a task that would loop indefinitely is stopped at
+  `max steps`, not left to run forever.
+- Log-completeness test: after a run, every model call and tool call in
+  the transcript has a matching session-log entry — none missing.
+**Status:** Not started
+
+### 1.6 — `profile-minimal` end-to-end wiring
+**Goal:** All of 1.1–1.5 composed into a runnable profile.
+**Files touched:** `src/profiles/profile-minimal.yml`
+**Success criteria:**
+- `profile-minimal` boots from a single config resolution
+  (`cordis.patch.yml`) with no manual wiring steps.
+- A single-agent, single-task run completes and the session log alone is
+  sufficient to reconstruct what happened (the "model-visible = logged"
+  invariant holds end-to-end, not just per-bundle).
+**Testing:**
+- Smoke test: cold boot → submit one task → task completes → inspect
+  session log only (not app state) → confirm the full story is there.
+- Regression test: re-run the same task twice, confirm no cross-run state
+  leaks (fresh log, fresh agent state each boot unless persistence is
+  explicitly configured).
+**Status:** Not started
+
+---
+
+## Phase 2 — Retrieval pipeline
+
+### 2.1 — retrieval-grep bundle
+**Goal:** `ctx.retrieval.grep` — cheap filter stage.
+**Files touched:** `src/bundles/retrieval-grep/`
+**Success criteria:**
+- Given a query string and a codebase path, returns candidate file
+  matches using ripgrep under the hood.
+- Respects configured ripgrep flags (e.g. ignore patterns).
+**Testing:**
+- Unit test: known string in a fixture repo → returned in results.
+- Unit test: string absent from repo → empty result set, no error.
+- Config test: an ignore-pattern flag excludes a matching file that would
+  otherwise show up.
+**Status:** Not started
+
+### 2.2 — retrieval-treesitter bundle
+**Goal:** `ctx.retrieval.parse` — structural parse stage.
+**Files touched:** `src/bundles/retrieval-treesitter/`
+**Success criteria:**
+- Given a file, returns a structural parse (functions/classes/symbols) for
+  at least one configured language grammar.
+- Malformed/unparseable files fail gracefully (skipped with a logged
+  reason, not a crash).
+**Testing:**
+- Unit test: parse a known-good fixture file, assert expected symbols are
+  extracted.
+- Failure-mode test: feed a syntactically broken file, assert graceful
+  skip + log entry, not a pipeline crash.
+**Status:** Not started
+
+### 2.3 — embeddings bundle
+**Goal:** `ctx.embeddings` — API-based embedding generation.
+**Files touched:** `src/bundles/embeddings/`
+**Success criteria:**
+- Given text, returns a vector from the configured provider/model.
+- Batches multiple texts in one call where the provider supports it
+  (not one API call per chunk).
+**Testing:**
+- Integration test: embed a known string twice, assert identical (or
+  near-identical, provider-dependent) vectors — determinism check.
+- Performance check: batch of N texts takes meaningfully fewer calls than
+  N individual embed calls.
+**Status:** Not started
+
+### 2.4 — vectorstore-lancedb bundle
+**Goal:** `ctx.vectorstore` provider `lancedb`.
+**Files touched:** `src/bundles/vectorstore-lancedb/`
+**Success criteria:**
+- Can upsert vectors with metadata and query top-K nearest neighbors.
+- Data persists across process restarts at the configured local DB path.
+**Testing:**
+- Unit test: insert known vectors, query with a vector close to one of
+  them, assert it's returned in top-K.
+- Persistence test: insert, restart the process, query again, assert data
+  survived.
+**Status:** Not started
+
+### 2.5 — retrieval-rank bundle
+**Goal:** `ctx.retrieval.rank` — hybrid BM25 + embedding ranking over
+2.1–2.4.
+**Files touched:** `src/bundles/retrieval-rank/`
+**Success criteria:**
+- Combines grep/tree-sitter candidates with embedding similarity into a
+  single ranked top-K list.
+- The BM25-vs-embedding weight is configurable and actually changes
+  ranking order on a test query (proves it's wired, not a no-op knob).
+**Testing:**
+- Integration test: fixed query + fixture repo → assert top-K ordering is
+  stable and sane (relevant file ranks above an unrelated one).
+- Config test: set weight fully to BM25, then fully to embedding, assert
+  the resulting ranking differs between the two settings.
+**Status:** Not started
+
+### 2.6 — Retrieval pipeline integration test
+**Goal:** Prove classical RAG works end-to-end and is consumable by the
+Phase 1 agent loop.
+**Files touched:** none new — integration test only.
+**Success criteria:**
+- A query run through 2.1→2.5 returns top-K context that the Phase 1
+  agent loop can accept and use in a real task.
+**Testing:**
+- End-to-end test: agent loop is given a task requiring codebase context
+  it doesn't already have; confirm it retrieves relevant context via this
+  pipeline and the task outcome reflects that context (not a hallucinated
+  answer).
+**Status:** Not started
+
+---
+
+## Phase 3 — Memory + skills
+
+### 3.1 — Episodic memory tier
+**Goal:** Task/approach/result/lesson written as a durable session event
+at turn end.
+**Files touched:** `src/bundles/memory/` (episodic path)
+**Success criteria:**
+- Every completed turn produces exactly one episodic entry, linked to its
+  session-log events.
+- Entries are queryable by task/agent/time range.
+**Testing:**
+- Unit test: run N turns, assert N episodic entries exist with correct
+  linkage back to session-log event IDs.
+- Query test: filter by a time range and agent ID, assert correct subset
+  returned.
+**Status:** Not started
+
+### 3.2 — Hot tier
+**Goal:** Always-loaded, token-capped tier as an early system-prompt-section
+plugin.
+**Files touched:** `src/bundles/memory/` (hot path)
+**Success criteria:**
+- Hot tier content is injected into every agent's system prompt.
+- Token cap is enforced — content is trimmed/prioritized, not silently
+  allowed to exceed the cap.
+**Testing:**
+- Unit test: fill hot tier past its cap, assert it's trimmed to fit and
+  the run doesn't fail.
+- Integration test: a fact placed in hot tier is verifiably visible to the
+  model on the very next turn (via a task that requires it).
+**Status:** Not started
+
+### 3.3 — Semantic tier
+**Goal:** Architecture facts written only when non-trivial to reconstruct
+from code.
+**Files touched:** `src/bundles/memory/` (semantic path)
+**Success criteria:**
+- A semantic entry can be written, retrieved by query, and is
+  distinguishable from episodic entries (different tier, different
+  retention logic).
+**Testing:**
+- Unit test: write a semantic fact, retrieve it via a query unrelated to
+  the exact wording (paraphrase match), assert it's found.
+**Status:** Not started
+
+### 3.4 — Compaction job
+**Goal:** Scheduled `ctx.jobs` task promoting repeated episodic lessons
+into hot rules or procedures.
+**Files touched:** `src/bundles/memory/` (compaction path)
+**Success criteria:**
+- Running compaction on a fixture set with a repeated lesson produces a
+  new hot-tier or procedural entry summarizing it.
+- Compaction is idempotent — running it twice on the same input doesn't
+  duplicate the promoted entry.
+**Testing:**
+- Integration test: seed 3+ episodic entries with the same recurring
+  lesson, run compaction, assert exactly one promoted entry appears.
+- Idempotency test: run compaction again immediately, assert no duplicate.
+**Status:** Not started
+
+### 3.5 — skills bundle
+**Goal:** `ctx.skills` — Agent Skills spec (`SKILL.md`, progressive
+disclosure) mapped to the procedural tier.
+**Files touched:** `src/bundles/skills/`
+**Success criteria:**
+- A `SKILL.md` folder's name+description loads by default; full
+  instructions load only when the task matches; bundled resources load
+  only on demand — all three levels demonstrably different in what's in
+  context at each stage.
+**Testing:**
+- Unit test: inspect context size/content at "default," "task-matched,"
+  and "resource-loaded" stages for one skill — confirm they differ as
+  specified, not all-or-nothing.
+- Integration test: a task matching a skill's description triggers full
+  instruction loading; an unrelated task does not.
+**Status:** Not started
+
+### 3.6 — Memory system integration test
+**Goal:** Prove memory actually improves outcomes across sessions, not
+just accumulates.
+**Files touched:** none new — integration test only.
+**Success criteria:**
+- A lesson learned in session A (via a mistake + correction) measurably
+  changes behavior in session B without the lesson being restated by the
+  user.
+**Testing:**
+- Two-session test: session A hits a known failure mode and gets
+  corrected; compaction runs; session B is given a similar task; assert
+  the failure mode does not recur and the relevant hot/procedural entry
+  was used (visible in session log).
+**Status:** Not started
+
+---
+
+## Phase 4 — Orchestrator + sub-agents
+
+### 4.1 — Planner (orchestrator, planning half)
+**Goal:** `ctx.agents.orchestrator` can decompose a task into subtasks.
+**Files touched:** `src/bundles/orchestrator/`
+**Success criteria:**
+- Given a multi-step task, produces an explicit subtask list/plan before
+  any execution starts.
+- The plan itself is logged (session log) before execution, so it can be
+  inspected independent of the outcome.
+**Testing:**
+- Unit test: feed a known multi-step task, assert the plan contains the
+  expected subtask count/shape.
+- Log test: confirm the plan appears in the session log prior to the
+  first subtask's execution events.
+**Status:** Not started
+
+### 4.2 — Executor (orchestrator, execution half)
+**Goal:** Executes a plan's subtasks against the agent-loop from Phase 1.
+**Files touched:** `src/bundles/orchestrator/`
+**Success criteria:**
+- Each subtask in a plan is dispatched to an agent-loop instance and its
+  result collected.
+- A failed subtask is handled per a defined policy (retry / abort / skip),
+  not left in an undefined state.
+**Testing:**
+- Integration test: a 3-subtask plan executes all 3 and aggregates results
+  correctly.
+- Failure-mode test: force one subtask to fail, assert the configured
+  failure policy is actually applied (not silently ignored).
+**Status:** Not started
+
+### 4.3 — subagent-scope bundle
+**Goal:** `ctx.agents.spawn` — each sub-agent is a scoped `ctx` realm.
+**Files touched:** `src/bundles/subagent-scope/`
+**Success criteria:**
+- A spawned sub-agent only has access to the tools/memory explicitly
+  granted to its scope — no implicit access to the parent's or a
+  sibling's permissions.
+- Scoping is enforced at the `ctx` level, not by convention/trust.
+**Testing:**
+- Security test: spawn two sub-agents with different tool grants, attempt
+  to call an ungranted tool from each, assert both are blocked.
+- Isolation test: write to sub-agent A's memory scope, assert sub-agent B
+  cannot read it directly (only via explicit sharing, if that exists).
+**Status:** Not started
+
+### 4.4 — Multi-agent integration test
+**Goal:** Prove the orchestrator + sub-agent scoping works together on a
+real task.
+**Files touched:** none new — integration test only.
+**Success criteria:**
+- A task requiring at least two distinctly-scoped sub-agents (e.g. one
+  read-only research agent, one code-editing agent) completes correctly,
+  with each agent staying inside its scope for the whole run.
+**Testing:**
+- End-to-end test: run the task, inspect the session log to confirm no
+  scope violations occurred and the final result is correct.
+**Status:** Not started
+
+---
+
+## Phase 5 — Sandbox providers + policy gates
+
+### 5.1 — sandbox-crabbox bundle
+**Goal:** `ctx.sandbox` provider `crabbox` — leased remote execution.
+**Files touched:** `src/bundles/sandbox-crabbox/`
+**Success criteria:**
+- Can lease a remote environment, run a command in it, and return output.
+- Lease is released (not leaked) when the task completes or errors.
+**Testing:**
+- Integration test: lease → run `echo` → assert output → assert lease
+  shows as released afterward (check broker state or equivalent).
+- Failure-mode test: broker unreachable → clear error, no hung lease.
+**Status:** Not started
+
+### 5.2 — sandbox-cubesandbox bundle
+**Goal:** `ctx.sandbox` provider `cubesandbox` — fast VM-isolated
+execution.
+**Files touched:** `src/bundles/sandbox-cubesandbox/`
+**Success criteria:**
+- Can boot and run a command via the E2B-compatible API within the
+  expected fast-boot time budget.
+- Isolation: a command cannot reach the host filesystem outside its
+  sandboxed environment.
+**Testing:**
+- Performance test: measure boot-to-first-output time against the
+  provider's claimed budget; flag if it's meaningfully worse.
+- Security test: attempt to read a host-only path from inside the
+  sandbox, assert it fails.
+**Status:** Not started
+
+### 5.3 — policy-gates: read-only and sandbox-scoped-write rules
+**Goal:** First two rows of the policy table enforced.
+**Files touched:** `src/bundles/policy-gates/`
+**Success criteria:**
+- Read-only actions execute with no approval step.
+- Sandbox-scoped writes execute autonomously but produce a log entry.
+**Testing:**
+- Unit test: dispatch a read-only action, assert no approval-pending
+  event is created.
+- Unit test: dispatch a sandbox-scoped write, assert it executes AND a
+  log entry is created.
+**Status:** Not started
+
+### 5.4 — policy-gates: real-fs-write + confidence scoring
+**Goal:** Third row — approval or confidence-threshold auto-approve.
+**Files touched:** `src/bundles/policy-gates/`
+**Success criteria:**
+- A real-fs-write action's confidence score combines the model's
+  self-reported value with at least one independent heuristic (file
+  criticality, diff size, or test coverage of the touched path) — never
+  the self-reported value alone.
+- Above threshold: auto-allowed and logged. Below: held with a logged
+  approval-pending event.
+**Testing:**
+- Unit test: force a low independent-heuristic signal even with a high
+  self-reported score, assert the combined score still triggers a hold
+  (proves it's not trusting self-report alone).
+- Integration test: approve a held action via the approval mechanism,
+  assert execution then proceeds and the resolution is logged.
+**Status:** Not started
+
+### 5.5 — policy-gates: external-side-effect + deny-list
+**Goal:** Fourth and fifth rows — always-approval and hard-block, both
+with no threshold override.
+**Files touched:** `src/bundles/policy-gates/`
+**Success criteria:**
+- External side-effecting actions always hold for approval regardless of
+  any confidence score.
+- Deny-listed actions are rejected outright, including pattern-matched
+  variants (wrapped/aliased commands), with no override path.
+**Testing:**
+- Regression test: even a maximally "confident" external-side-effect
+  action still holds for approval — confirms no accidental threshold
+  bypass exists for this class.
+- Security test: attempt a deny-listed action via a wrapped/aliased form
+  (e.g. an alias for `rm -rf`), assert it's still blocked by pattern match.
+**Status:** Not started
+
+### 5.6 — Full guardrail integration test
+**Goal:** All five action classes verified together, plus profile-level
+enforcement.
+**Files touched:** none new — integration test only.
+**Success criteria:**
+- A single test run exercises all five action classes and each resolves
+  per the policy table.
+- `profile-coding` cannot boot with `policy-gates` disabled (a
+  profile-level check, not a runtime toggle).
+- `profile-coding` is complete at the end of this sub-phase.
+**Testing:**
+- End-to-end test: scripted run hitting all 5 classes in one session,
+  assert every gate decision appears correctly in the session log.
+- Config test: attempt to boot `profile-coding` with policy-gates
+  disabled, assert boot fails or is rejected.
+**Status:** Not started
+
+---
+
+## Phase 6 — Eval harness
+
+### 6.1 — eval-runner core
+**Goal:** `ctx.eval` — score a completed run from the session log.
+**Files touched:** `src/bundles/eval-runner/`
+**Success criteria:**
+- Given a completed session log and a scoring function, produces a
+  pass/fail (or numeric) result.
+- Works purely from the session log — no dependency on live agent state.
+**Testing:**
+- Unit test: feed a known-good fixture log through a simple scoring
+  function, assert expected result.
+- Determinism test: run the same log through the same scorer twice,
+  assert identical output.
+**Status:** Not started
+
+### 6.2 — Scoring functions + thresholds
+**Goal:** At least one real scoring function per task type this project
+cares about (e.g. "did the code change compile/pass tests").
+**Files touched:** `src/bundles/eval-runner/` (scorers)
+**Success criteria:**
+- A scorer correctly distinguishes a genuinely good run from a genuinely
+  bad one on real (not synthetic) fixture data.
+**Testing:**
+- Calibration test: run the scorer against a hand-labeled set of known
+  good/bad runs, assert it agrees with the labels above an acceptable
+  error rate.
+**Status:** Not started
+
+### 6.3 — eval-langfuse bundle
+**Goal:** `ctx.eval.export` — optional export to Langfuse.
+**Files touched:** `src/bundles/eval-langfuse/`
+**Success criteria:**
+- A scored run can be exported to a configured Langfuse project and shows
+  up there with matching trace/score data.
+**Testing:**
+- Integration test: export a run, query Langfuse's API/UI, confirm the
+  data matches what was sent.
+- Failure-mode test: Langfuse unreachable — export fails gracefully
+  without blocking the underlying eval-runner result.
+**Status:** Not started
+
+### 6.4 — Eval harness integration test
+**Goal:** Prove eval consumes real Phase 1–5 output correctly.
+**Files touched:** none new — integration test only.
+**Success criteria:**
+- A run through the actual `profile-coding` stack (not a synthetic
+  fixture) produces a correct eval score end-to-end.
+**Testing:**
+- End-to-end test: run a real task through the full stack, score it,
+  manually verify the score matches a human judgment of the run's quality.
+**Status:** Not started
+
+---
+
+## Phase 7 — Browser tool (`profile-research`)
+
+### 7.1 — browser bundle wiring
+**Goal:** `ctx.browser` via `vercel-labs/agent-browser`.
+**Files touched:** `src/bundles/browser/`, `src/profiles/profile-research.yml`
+**Success criteria:**
+- A sub-agent can issue a browse/fetch action and get back page content.
+- MCP profile (core/network/state/allowed-domains) config is respected.
+**Testing:**
+- Integration test: fetch a known test page, assert expected content
+  returned.
+- Config test: change the MCP profile, confirm behavior changes
+  accordingly (e.g. network access toggled off blocks fetches).
+**Status:** Not started
+
+### 7.2 — Input guardrails for browser content (Layer 1)
+**Goal:** Content-boundary markers + prompt-injection pattern check applied
+to every fetched page.
+**Files touched:** `src/bundles/browser/`, hook into `agent/pre-step`
+**Success criteria:**
+- Fetched content is wrapped in explicit boundary markers before reaching
+  the model — verifiable by inspecting what's actually in the prompt.
+- A page containing an embedded instruction-like string ("ignore previous
+  instructions") is flagged for policy-gate visibility.
+**Testing:**
+- Unit test: fetch a fixture page with known injection-style text, assert
+  it's flagged and boundary-wrapped, not passed through raw.
+- Regression test: fetch a clean page, assert no false-positive flag.
+**Status:** Not started
+
+### 7.3 — Output guardrails: domain allowlist + egress (Layer 3)
+**Goal:** `--allowed-domains` enforced; expanding it is itself gated;
+secrets never leak into fetched-content logs.
+**Files touched:** `src/bundles/browser/`, `src/bundles/policy-gates/`
+**Success criteria:**
+- A fetch to a non-allowlisted domain is blocked by default.
+- Expanding the allowlist requires going through the policy-gate approval
+  path, same as any other gated action.
+- Post-hoc scan catches an accidentally-leaked secret in fetched output
+  before it's surfaced.
+**Testing:**
+- Security test: attempt a fetch to a disallowed domain, assert blocked.
+- Approval-flow test: request an allowlist expansion, assert it surfaces
+  as a policy-gated approval, not a silent config edit.
+- Leak test: seed a fixture page/response containing a fake secret
+  pattern, assert the post-hoc scan catches and redacts/flags it.
+**Status:** Not started
+
+### 7.4 — Research task integration test
+**Goal:** Prove the full browser + guardrail stack works on a real task.
+**Files touched:** none new — integration test only.
+**Success criteria:**
+- A sub-agent completes a real external research task end-to-end, with
+  every fetch logged, boundary-marked, and domain-checked.
+**Testing:**
+- End-to-end test: run a research task requiring 2+ fetches across
+  different domains (one allowed, one not), confirm correct
+  allow/block behavior and full session-log coverage.
+**Status:** Not started
+
+---
+
+## Phase 8 — Multi-user scale (`profile-full`)
+
+### 8.1 — vectorstore-qdrant bundle
+**Goal:** `ctx.vectorstore` provider `qdrant`, swappable with LanceDB.
+**Files touched:** `src/bundles/vectorstore-qdrant/`
+**Success criteria:**
+- Same upsert/query interface as `vectorstore-lancedb` (2.4) — swapping
+  providers requires only a config change, no calling-code change.
+- Handles concurrent writes from multiple sessions without corruption.
+**Testing:**
+- Interface-parity test: run the same test suite from 2.4 against Qdrant,
+  assert equivalent pass results.
+- Concurrency test: fire concurrent upserts from simulated multiple
+  sessions, assert no data loss/corruption.
+**Status:** Not started
+
+### 8.2 — CubeSandbox as second concurrent provider
+**Goal:** `profile-full` runs crabbox and CubeSandbox side by side.
+**Files touched:** `src/profiles/profile-full.yml`
+**Success criteria:**
+- Two sandbox requests routed to different providers in the same run
+  complete independently without interfering with each other.
+**Testing:**
+- Integration test: dispatch one task to each provider concurrently,
+  assert both complete correctly and neither blocks the other.
+**Status:** Not started
+
+### 8.3 — eval-langfuse enabled by default
+**Goal:** `profile-full` exports every eval run to Langfuse without extra
+config per run.
+**Files touched:** `src/profiles/profile-full.yml`
+**Success criteria:**
+- Every run under `profile-full` produces a corresponding Langfuse trace
+  with no per-run opt-in required.
+**Testing:**
+- Smoke test: run a task under `profile-full`, confirm a matching
+  Langfuse trace appears without manual export steps.
+**Status:** Not started
+
+### 8.4 — Multi-user load test
+**Goal:** Prove `profile-full` actually holds up under concurrent users,
+not just concurrent bundles.
+**Files touched:** none new — integration test only.
+**Success criteria:**
+- N simulated concurrent users, each running independent tasks, complete
+  correctly with no cross-user data leakage (memory, sandbox, or
+  vectorstore) and no unacceptable latency degradation.
+**Testing:**
+- Load test: simulate N concurrent sessions (define N based on realistic
+  expected usage — open, confirm with user before running), assert
+  correctness and capture latency/error-rate numbers as a baseline.
+- Isolation test: confirm no session can read another session's memory,
+  sandbox output, or vector data.
+**Status:** Not started
+
+---
+**Next:** Return to [`context.md`](../context.md).
