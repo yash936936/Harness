@@ -22,14 +22,17 @@ harness's data source.
   "model-visible = logged" as a runtime invariant.
 - **Location:** `src/bundles/session-log/`
 - **Depends on:** none (foundation bundle — everything else depends on it).
-- **Key files:** TBD at implementation (open — confirm with opencode once
-  Phase 1 starts).
+- **Key files:** `index.ts` (`SessionLog` service), `store.ts` (`JsonlStore`,
+  `MemoryStore`), `types.ts`.
 
 ### model-adapter (`bundle-model-adapter`)
 - **Responsibility:** plug-and-play model provider access via `ctx.llm`.
 - **Location:** `src/bundles/model-adapter/`
 - **Depends on:** `bundle-session-log`.
-- **Config surface:** provider (OpenAI/Anthropic/etc.), API key.
+- **Config surface:** `default` provider name, `ollama: { model, baseUrl?, timeoutMs? }` (host also from `OLLAMA_HOST`);
+  further providers register via `ctx.llm.register()` (D-015).
+- **Key files:** `index.ts` (`LLMService`), `types.ts`, `providers/ollama.ts`,
+  `providers/mock.ts`. Logs `model.request/response/error` itself (D-016).
 
 ### tool-registry (`bundle-tool-registry`)
 - **Responsibility:** `ctx.tools` — tools self-register, no central adapter

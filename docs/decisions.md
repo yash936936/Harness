@@ -4,6 +4,76 @@
 > if a decision is reversed, log a new entry that supersedes it and reference
 > the old ID.
 
+## D-018 — Built-in provider is Ollama (local models), not Anthropic — 2026-09-20
+**Decision:** `bundle-model-adapter` ships an `OllamaProvider`
+(`POST {host}/api/chat`, `stream:false`) as the built-in. Config:
+`ollama: { model, baseUrl?, timeoutMs? }`; host falls back to `OLLAMA_HOST`
+then `http://localhost:11434`. No API key anywhere. The Anthropic provider
+was removed. Supersedes the API-key parts of D-017 (raw fetch, no default
+model, and no adapter-level retries still stand).
+**Why:** Owner request: run on local Ollama models.
+**Consequences to watch:** (1) Small local models often lack reliable
+native tool calling, and some models reject `tools` outright (HTTP 400).
+1.5's ReAct loop may need a text-format fallback. (2) First request loads
+the model, hence the 120s default timeout. (3) Credential/secrets-proxy
+guardrails in `trd.md` matter less locally but still apply if a remote
+provider is added later. Phase 1.2 success criteria were amended to match.
+**Affects:** `bundle-model-adapter`, `phases.md` 1.2, 1.5.
+
+## D-017 — Adapter details: raw fetch, no default model, no retries — 2026-09-20
+**Decision:** The Anthropic provider uses `fetch` directly (no SDK). `model`
+is required config (no default in code). API key comes from config or
+`ANTHROPIC_API_KEY`. The adapter does not retry; `LLMError.retryable` is a
+hint for callers.
+**Why:** Fewer dependencies and a stable, tiny surface; model choice is
+configuration; retry policy belongs where task context exists (agent loop).
+**Affects:** `bundle-model-adapter`, 1.5 (retry policy).
+
+## D-016 — Model-adapter owns model-call logging, fail-closed — 2026-09-20
+**Decision:** `ctx.llm.complete()` requires a `sessionId`, appends
+`model.request` before the provider is called and `model.response` /
+`model.error` after. If the log write fails, the model is not called.
+**Why:** Puts the "model-visible = logged" invariant at the single choke
+point instead of trusting every caller.
+**Affects:** 1.5 agent-loop must NOT log model calls itself (it logs its own
+steps and tool calls only); 1.6 invariant test.
+
+## D-015 — `ctx.llm` is a thin provider registry — 2026-09-20
+**Decision:** `ctx.llm.register(name, provider)` (returns a disposer, used
+inside `ctx.effect`) plus `complete({provider?})`. Providers are plain
+objects implementing `LLMProvider.complete`. Native tool-use shapes
+(`ContentBlock`, `ToolSpec`, `toolCalls`) are in the interface now.
+**Why:** `ctx.llm` is a single service key, so multiple providers need a
+name->provider map. This refines architecture.md's "no adapter-registry
+code" wording: the registry is one `Map`, not a framework. Tool-use shapes
+are included now so 1.5 doesn't force a breaking interface change (risk:
+designed ahead of use; revisit at 1.5).
+**Alternatives:** one Cordis service key per provider (rejected: callers
+would need to know provider names at compile time).
+**Affects:** `bundle-model-adapter`, 1.5.
+
+## D-014 — Non-harness Python project removed from repo — 2026-09-20
+**Decision:** `app.py`, `main.py`, `analyser.py`, `tasks.py`,
+`requirements.txt`, `.env.example` (an unrelated "Document Intelligence
+Workbench") moved out of the repo (commit `ac8e13d`). Docs moved under `docs/`.
+**Why:** Contradicted D-001 (Cordis/TypeScript, not Python) and would
+mislead future agents.
+**Affects:** repo root layout.
+
+## D-013 — tsconfig uses `moduleResolution: Bundler` — 2026-09-20
+**Decision:** `module: ESNext`, `moduleResolution: Bundler`.
+**Why:** Cordis's declaration files use extensionless relative imports;
+`NodeNext` breaks its types. Runtime is unaffected (tsx/vitest).
+**Affects:** all bundles' typechecking. Don't "fix" back to NodeNext.
+
+## D-012 — Pin Cordis to exactly `4.0.0-rc.10` — 2026-09-20
+**Decision:** Exact pin, no caret.
+**Why:** It is the only published line (`latest` is a release candidate) and
+its README says the API may change without notice.
+**Affects:** `package.json`. Upgrades are deliberate, logged decisions.
+`npm audit` reports dev-only advisories (vitest toolchain); 0 in
+production dependencies.
+
 ## D-011 — Explicitly out of scope — 2026-09-18
 **Decision:** `cloudflare/agentic-inbox`, `langflow-ai/langflow`, and
 `Panniantong/Agent-Reach` are explicitly excluded.

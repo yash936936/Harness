@@ -77,5 +77,5 @@ as a placeholder until the real path is confirmed).
   state, then instruct opencode on the next concrete step.
 
 ## Next task
-Sub-phase 1.1 — session-log bundle. Phases are now broken into sub-phases,
-each with its own success criteria and test plan — see `docs/phases.md`.
+Run the live model-adapter test against Ollama (see `docs/status.md`), then sub-phase 1.3 —
+tool-registry bundle. See `docs/phases.md`.

@@ -76,4 +76,29 @@ describe('bundle-session-log', () => {
     // a failed append must not burn a seq
     expect((await ctx.log.append('ok', 'x', 1)).seq).toBe(1)
   })
+
+  it('forked branches diverge independently (no cross-contamination)', async () => {
+    const ctx = await boot({ memory: true })
+    for (const t of ['a', 'b', 'c']) await ctx.log.append('main', t)
+    await ctx.log.fork('main', 2, 'branch')
+    await ctx.log.append('main', 'main-only')
+    await ctx.log.append('branch', 'branch-only')
+    expect((await ctx.log.read('main')).map((e) => e.type)).toEqual(['a', 'b', 'c', 'main-only'])
+    expect((await ctx.log.read('branch')).map((e) => e.type)).toEqual(['session.fork', 'a', 'b', 'branch-only'])
+  })
+
+  it('is immutable through its API: no update/delete surface, and returned events are copies', async () => {
+    const ctx = await boot({ memory: true })
+    const proto = Object.getOwnPropertyNames(SessionLog.prototype)
+    expect(proto.filter((n) => /update|delete|remove|set|truncate|clear|edit|patch/i.test(n))).toEqual([])
+
+    const appended = await ctx.log.append('imm', 'orig', { v: 1 })
+    ;(appended.data as any).v = 999
+    const read1 = await ctx.log.read('imm')
+    ;(read1[0]!.data as any).v = 777
+    read1.pop()
+    const read2 = await ctx.log.read('imm')
+    expect(read2).toHaveLength(1)
+    expect((read2[0]!.data as any).v).toBe(1)
+  })
 })

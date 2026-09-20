@@ -20,7 +20,7 @@
   branches don't cross-contaminate.
 - Manual check: attempt to mutate a past event via any exposed method;
   confirm it's rejected or simply not possible via the API surface.
-**Status:** Not started
+**Status:** Done — 2026-09-20 (see DBG-001)
 
 ### 1.2 — model-adapter bundle
 **Goal:** `ctx.llm` — first model provider wired in, plug-and-play shape
@@ -28,7 +28,8 @@ proven.
 **Files touched:** `src/bundles/model-adapter/`
 **Success criteria:**
 - A `ctx.llm.complete()`-style call returns a real model response.
-- Provider/API key are read from config, not hardcoded.
+- Provider/model/host are read from config, not hardcoded. *(Amended
+  2026-09-20, D-018: was "API key"; Ollama needs none.)*
 - A second (mock) provider can be registered without touching the first
   provider's code — proves the plug-and-play claim, not just one adapter.
 **Testing:**
@@ -36,9 +37,9 @@ proven.
   non-empty response.
 - Unit test: swap provider config to a mock adapter, assert the same
   calling code path works unchanged.
-- Failure-mode test: invalid API key → clear error surfaced, not a silent
-  hang or crash.
-**Status:** Not started
+- Failure-mode test: Ollama unreachable or model not installed → clear
+  error surfaced, not a silent hang or crash. *(Amended, D-018.)*
+**Status:** Code complete, live-call test pending — 2026-09-20 (see DBG-002, DBG-003). Criterion 1 ("returns a real model response") is unverified until the live test is run against a running Ollama with an installed model.
 
 ### 1.3 — tool-registry bundle
 **Goal:** `ctx.tools` — tools self-register, no central list to maintain.
