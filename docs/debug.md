@@ -3,6 +3,45 @@
 > Append-only. Every completed coding task gets an entry here, even "no
 > issues found." Newest entries at top.
 
+## DBG-007 — 1.4 subprocess bundle — 2026-09-22
+**Task:** Add `ctx.subprocess`: run a command with no shell and no implicit
+env, capture stdout/stderr/exit code, and surface every failure mode
+(non-zero exit, signal, timeout, abort, command-not-found) as a result
+field rather than a thrown error.
+**Tested:** `tsc --noEmit` clean; 101 tests pass, 3 skipped (all
+pre-existing live-provider tests, unrelated to this bundle). 17 new tests
+in `test/subprocess.test.ts`: happy path, env-allowlist security (secret
+absence, empty-allowlist empty-env, per-call override precedence, additive
+per-call allowlist, unlisted-key throws), failure modes (non-zero exit +
+stderr, unknown command, killed-by-signal), timeout, abort, output
+truncation, and working-directory (default and per-call override). Every
+test runs against `process.execPath` rather than a shell builtin, so the
+suite is identical on Windows and Linux.
+I checked the tests can fail: reverting the env filter to spread
+`process.env` broke 3 security tests; skipping the unlisted-env-key guard
+broke 1; hardcoding a successful exit code in the `close` handler broke 3
+(non-zero exit, killed-by-signal, timeout).
+**NOT tested:**
+- Actually running on Windows. All of the above ran only in this Linux
+  sandbox; the signal test is guarded to skip on `win32` because Windows
+  has no real POSIX signal delivery, but the rest should still be run on
+  the owner's machine to confirm (`npx vitest run test/subprocess.test.ts`).
+- No tool wraps this yet, so it has not been exercised through
+  `tools/pre-execute` or a real agent-loop call.
+- Very large output (multi-hundred-MB) under `maxOutputBytes` truncation —
+  only tested at small (100-byte) caps.
+- Concurrent `run()` calls against the same `Subprocess` instance (nothing
+  in the implementation should conflict, since each call owns its own
+  `child`, but this wasn't specifically tested).
+**Found:** while editing `docs/phases.md`, a Python script mistake
+(`open(path, 'w')` called a second time after the file was already written
+correctly) truncated the file to zero bytes. Caught immediately via
+`wc -l` before it was committed; restored with `git checkout -- docs/phases.md`
+and the edit redone correctly. No file was lost, but noting it here since
+the debug log is supposed to catch exactly this kind of near-miss.
+**Fixed:** n/a (subprocess itself); the `phases.md` truncation was
+caught and reverted before it went anywhere.
+
 ## DBG-006 — 1.2b OpenAI-compatible provider, rate limiter, egress consent — 2026-09-22
 **Task:** Add a cloud provider path (`providers/openai-compatible.ts`), a
 shared `RateLimiter`, the egress consent gate and egress log fields, typed

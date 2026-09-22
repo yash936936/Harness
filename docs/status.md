@@ -2,6 +2,29 @@
 
 > Updated every run. Newest entry at top.
 
+## 2026-09-22 — 1.4 subprocess done
+**Current phase:** Phase 1; 1.1 through 1.4 done. Next is 1.5 (agent-loop).
+**Last debug:** DBG-007 (1.4). Includes a near-miss note: a doc-editing
+script bug briefly truncated `phases.md` to empty; caught via `wc -l`
+before commit and reverted with git, nothing lost.
+**Last decisions:** none new; D-030 (previous entry) still current.
+**Docs changed:** `phases.md` (1.4 marked Done, full detail),
+`architecture.md` (subprocess detail, file tree), `code_logic.md` (env
+allowlist and result-vs-throw logic), `debug.md`, this file.
+**Test state:** 101 passed, 3 skipped (live). 17 new subprocess tests,
+mutation-checked (env leak, skipped allowlist guard, swallowed exit code
+each break the intended test).
+**Not built yet:** no tool wraps `ctx.subprocess` for the agent loop; that
+plus the `sandbox-write`/`real-fs-write` action-class call for a shell-out
+tool is 1.5 and Phase 5 (`policy-gates`).
+**Open for the owner:** unchanged — Electron/Tauri measurement (D-025),
+Needle version to pin (D-026), confirm `qwen2.5-coder:3b-instruct` speed
+and whether the 7B tag is also worth trying (D-030). Also: run
+`npx vitest run test/subprocess.test.ts` on the actual Windows machine to
+confirm it behaves the same there (only run in Linux sandbox so far).
+**Next up:** 1.5 agent-loop — ReAct loop over 1.2 to 1.4, with the retry
+policy from D-023.
+
 ## 2026-09-22 — Reference worker: local Ollama, not OpenRouter
 **What changed:** the owner checked OpenRouter's model search directly —
 "ornith" returns "No results found." Ornith-1.5 9B is confirmed absent from

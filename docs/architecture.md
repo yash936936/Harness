@@ -93,9 +93,19 @@ and size.
 
 ### subprocess (`bundle-subprocess`)
 - **Responsibility:** `ctx.subprocess` — local execution provider for v1.
+  No shell (`spawn(..., { shell: false })`) and no implicit environment: a
+  spawned process sees only the env vars its caller allowlisted, nothing
+  inherited by default. Failures (non-zero exit, a killing signal, timeout,
+  abort, command not found) are outcome fields on the result, never thrown.
 - **Location:** `src/bundles/subprocess/`
 - **Depends on:** none.
-- **Config surface:** working dir, env allowlist.
+- **Config surface:** default `cwd`, `envAllowlist`, `timeoutMs`,
+  `maxOutputBytes`; each is overridable per `run()` call.
+- **Key files:** `index.ts` (`Subprocess`), `types.ts` (`RunOptions`,
+  `RunResult`, `SubprocessError`).
+- **Not built yet:** no tool wraps this for the agent loop yet (that's
+  Phase 5/1.5); `policy-gates` (Phase 5) will decide which shell-out tool
+  calls count as `sandbox-write` vs `real-fs-write`.
 
 ### sandbox-crabbox (`bundle-sandbox-crabbox`)
 - **Responsibility:** `ctx.sandbox` provider `crabbox` — remote or container
@@ -255,7 +265,7 @@ src/
 │   ├── model-store/       (planned, 1B.3)
 │   ├── router/            (planned, 4.5)
 │   ├── tool-registry/
-│   ├── subprocess/
+│   ├── subprocess/        (types.ts, index.ts)
 │   ├── sandbox-crabbox/
 │   ├── sandbox-cubesandbox/
 │   ├── browser/
@@ -283,7 +293,7 @@ app/
 └── desktop/               (planned, 1B.4)
 ```
 Bundles marked planned do not exist yet. The rest match `src/` as of
-2026-09-22 (session-log, model-adapter, tool-registry are built).
+2026-09-22 (session-log, model-adapter, tool-registry, subprocess are built).
 
 ## Policy table (enforced by `bundle-policy-gates` at `tools/pre-execute`)
 | Action class | Gate |

@@ -101,5 +101,40 @@ bodies, and error messages are logged. The scrub runs on the message before
 the `LLMError` is built, so neither the thrown error nor `model.error` can
 carry the key.
 
+## Env allowlist enforcement (`Subprocess.run`)
+**Where:** `src/bundles/subprocess/index.ts`
+**What it does:** builds the child's env from scratch (never spreads
+`process.env`), copying in a key only if it is in the combined allowlist
+(bundle config `envAllowlist` plus this call's own), preferring
+`opts.env[key]` over `process.env[key]` when both are set. Any key in
+`opts.env` that isn't in that combined allowlist throws
+`SubprocessError('config')` before `spawn()` is ever called.
+**Why it's non-obvious:** (1) There is no implicit base allowlist — not
+even `PATH` — so an empty config gives the child an empty environment; a
+caller has to name what a command actually needs. (2) A value can be
+allowlisted by name without being forced to a specific value: if `opts.env`
+doesn't set an allowlisted key, the parent's current value passes through,
+which is what lets a caller allowlist `PATH` once and still get whatever
+`PATH` happens to be at run time. (3) An unlisted `env` key fails loudly
+instead of being silently dropped, because a silently-dropped override
+would look like it worked and quietly not run the command the caller
+expected (e.g. a `PATH` override that got dropped, so a wrong binary runs).
+I mutation-checked this: swapping the base object from `{}` to
+`{ ...process.env }` leaked the whole parent environment and broke 3 tests;
+skipping the unlisted-key check broke 1.
+
+## Subprocess result vs. thrown error (`Subprocess.run`)
+**Where:** `src/bundles/subprocess/index.ts`
+**What it does:** a non-zero exit, a killing signal, a timeout, an aborted
+call, and a command that never started (`spawnError`) are all fields on the
+returned `RunResult`. The only thing `run()` throws is `SubprocessError`
+for a config mistake caught before anything spawns.
+**Why it's non-obvious:** this mirrors `tool-registry.call`'s choice (a
+tool that fails comes back as `{ ok: false }`, not a throw) for the same
+reason one level down: whatever eventually wraps `ctx.subprocess` as a tool
+needs the exit code and stderr to hand back to the model as the tool
+result, not a caught exception to translate. Only a caller bug (a
+mismatched allowlist) is exceptional enough to throw.
+
 ---
 **Next:** Return to [`context.md`](../context.md).

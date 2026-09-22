@@ -85,19 +85,57 @@ run; the 429 wording heuristic is unverified against the real API.
 
 ### 1.4 — subprocess bundle
 **Goal:** `ctx.subprocess` — local execution provider for v1.
-**Files touched:** `src/bundles/subprocess/`
+**Files touched:** `src/bundles/subprocess/` (`types.ts`, `index.ts`)
 **Success criteria:**
-- Can run a shell command in a configured working dir with a configured
-  env allowlist.
-- Env vars outside the allowlist are not visible to the spawned process.
+- Can run a command in a configured working dir with a configured env
+  allowlist. No shell (`spawn(..., { shell: false })`): args are never
+  interpolated into a command line, which also keeps a future deny-list
+  guardrail (D-006) from being bypassed by shell quoting tricks.
+- Env vars outside the allowlist are not visible to the spawned process —
+  there is no implicit base set (not even `PATH`); an empty allowlist means
+  an empty child environment.
 - Command stdout/stderr/exit code are captured and returned to the caller.
-**Testing:**
-- Unit test: run `echo`, assert stdout captured correctly.
-- Security test: set a secret env var outside the allowlist, run a command
-  that prints all env vars, assert the secret is absent from output.
-- Failure-mode test: run a command that exits non-zero, assert exit code
-  and stderr are surfaced (not swallowed).
-**Status:** Not started
+  A non-zero exit, a killing signal, a timeout, an aborted call, and a
+  command that doesn't exist at all are each a normal `RunResult` field
+  (`exitCode`/`signal`/`timedOut`/`aborted`/`spawnError`), never a thrown
+  error — mirrors `tool-registry`'s "expected failures come back, not
+  throw" choice, since a future tool wrapping this needs those fields to
+  hand back to the model.
+- Per-stream output cap (`maxOutputBytes`, default 1,000,000) with a
+  truncated flag, so a runaway command can't exhaust memory.
+- `timeoutMs` and an `AbortSignal` both kill the process and are
+  distinguishable in the result (`timedOut` vs `aborted`).
+- An `env` value for a key outside every allowlist throws
+  `SubprocessError('config')` before anything spawns — fails loud on a
+  caller mistake instead of silently dropping the value.
+**Testing:** `test/subprocess.test.ts`, all against `process.execPath`
+(Node itself) rather than a shell builtin like `echo`, so the suite runs
+the same on Windows and Linux without depending on `PATH`/a shell.
+- Happy path: stdout capture, stdout/stderr kept separate.
+- Security: a parent-env secret is absent from a child dump unless
+  allowlisted; an empty allowlist yields an empty child env; per-call env
+  values only land for allowlisted keys and win over the parent's; a
+  per-call `envAllowlist` is additive to the bundle default, not a
+  replacement; an unlisted `env` key throws before spawning.
+- Failure modes: non-zero exit and its stderr both surfaced; an unknown
+  command resolves with `spawnError` rather than throwing; a killed
+  process reports its signal (POSIX only — skipped on Windows, which has
+  no real signal delivery).
+- Timeout/abort: exceeding `timeoutMs` kills the process and sets
+  `timedOut`; an aborted `AbortSignal` kills it and sets `aborted`
+  (distinct from `timedOut`); a fast run under a signal that never fires
+  completes normally.
+- Truncation: output over `maxOutputBytes` is cut to exactly the cap with
+  the flag set; output at or under the cap is untouched.
+- Working directory: runs in the configured default; a per-call `cwd`
+  overrides it.
+- Mutation-checked: reverted the env filter to inherit the full parent
+  env, skipped the unlisted-key guard, and hardcoded a successful exit
+  code — each broke the test meant to catch it.
+**Status:** Done — 2026-09-22 (see DBG-007). Not yet exposed as a tool
+through `tool-registry` (that wiring, and the `real-fs-write`/
+`sandbox-write` action-class question for a shell-out tool, is Phase 5's
+`policy-gates` and the agent-loop's tool set, 1.5).
 
 ### 1.5 — agent-loop bundle
 **Goal:** `ctx.agents.loop` — a working ReAct loop over 1.2–1.4.
