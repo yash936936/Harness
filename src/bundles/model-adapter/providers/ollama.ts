@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import {
   LLMError,
   type ContentBlock,
+  type EgressInfo,
   type LLMProvider,
   type Message,
   type ProviderRequest,
@@ -28,6 +29,7 @@ export function resolveBaseUrl(explicit?: string): string {
 }
 
 export class OllamaProvider implements LLMProvider {
+  readonly egress: EgressInfo
   private readonly model: string
   private readonly baseUrl: string
   private readonly timeoutMs: number
@@ -37,6 +39,8 @@ export class OllamaProvider implements LLMProvider {
     if (!config.model) throw new LLMError('config', 'ollama: `model` is required in config', NAME)
     this.model = config.model
     this.baseUrl = resolveBaseUrl(config.baseUrl)
+    const host = new URL(this.baseUrl).hostname
+    this.egress = { host, remote: !/^(localhost|127(\.\d{1,3}){3}|\[?::1\]?)$/i.test(host) }
     this.timeoutMs = config.timeoutMs ?? 120_000
     this.doFetch = config.fetch ?? fetch
   }

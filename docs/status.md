@@ -2,6 +2,30 @@
 
 > Updated every run. Newest entry at top.
 
+## 2026-09-22 — Cloud provider path, docs brought up to date
+**Current phase:** Phase 1; 1.1, 1.2, 1.2b, 1.3 done. Next is 1.4.
+**Last debug:** DBG-006 (1.2b).
+**Last decisions:** D-020 to D-029: data claim rewritten, provider-agnostic
+worker with OpenRouter first, egress consent, rate limiting, sandbox plan
+(Crabbox free routes, CubeSandbox and Langfuse deferred), interface plan,
+Needle, model pinning, embeddings BM25-first, egress before first cloud run.
+**Docs changed:** `context.md`, `decisions.md`, `phases.md` (1.2b, Phase 1B,
+4.5, amended 1.5, 2.3, 2.5, 5.1, 5.2, 6.3), `architecture.md` (new planned
+bundles, dependency register), `trd.md`, `prd.md`, `appflow.md`,
+`code_logic.md`, `workflow.md`, `readme.md`.
+**Test state:** 84 passed, 3 skipped (live).
+**Watch:**
+- Free OpenRouter quota is 50 requests a day (owner chose not to buy the $10
+  credit), so live tests must be sparing. Use the mock and recorded fixtures.
+- Redaction and the secrets proxy are not built. Do not send real code to a
+  cloud provider until 1B.1 exists, or accept that content is unredacted.
+- The 429 quota heuristic is unverified against the live API.
+**Open for the owner:** is Ornith-1.5 9B listed on OpenRouter for your
+account; run the Electron and Tauri measurement on the 8 GB machine; which
+Needle version to pin.
+**Next up:** 1.4 subprocess (env allowlist security test), then 1.5
+agent-loop with the retry policy from D-023, 1.6 profile-minimal, then 1B.1.
+
 ## 2026-09-20 — 1.2 done, 1.3 done
 **Current phase:** Phase 1; 1.1, 1.2, 1.3 done. Next is 1.4.
 **Last debug:** DBG-005 (1.3), DBG-004 (1.2 live).

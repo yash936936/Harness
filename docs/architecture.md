@@ -15,6 +15,12 @@ with scheduled compaction). Every model-visible event is written to an
 append-only session log, which is both the audit trail and the eval
 harness's data source.
 
+Model access is provider-agnostic (D-021): a local Ollama server, or any
+OpenAI-compatible cloud endpoint such as OpenRouter. What leaves the machine
+depends on the binding (D-020). A remote provider is refused unless the user
+has consented (D-022), and every remote call is logged with its destination
+and size.
+
 ## Components
 
 ### session-log (`bundle-session-log`)
@@ -29,10 +35,15 @@ harness's data source.
 - **Responsibility:** plug-and-play model provider access via `ctx.llm`.
 - **Location:** `src/bundles/model-adapter/`
 - **Depends on:** `bundle-session-log`.
-- **Config surface:** `default` provider name, `ollama: { model, baseUrl?, timeoutMs? }` (host also from `OLLAMA_HOST`);
-  further providers register via `ctx.llm.register()` (D-015).
-- **Key files:** `index.ts` (`LLMService`), `types.ts`, `providers/ollama.ts`,
-  `providers/mock.ts`. Logs `model.request/response/error` itself (D-016).
+- **Config surface:** `default` provider name; `ollama: { model, baseUrl?, timeoutMs? }`
+  (host also from `OLLAMA_HOST`); `openaiCompatible: { name?, model, baseUrl, apiKey? | apiKeyEnv?, timeoutMs?, limiter? }`;
+  `egress: { consent }`. Further providers register via `ctx.llm.register()` (D-015).
+- **Key files:** `index.ts` (`LLMService`, consent gate), `types.ts` (`LLMError` kinds:
+  `config`, `auth`, `rate_limit`, `quota`, `payment`, `consent`, and the rest),
+  `providers/ollama.ts`, `providers/openai-compatible.ts`, `providers/mock.ts`,
+  `rate-limiter.ts` (`RateLimiter`). Logs `model.request/response/error/blocked`
+  itself (D-016, D-022). Providers may declare `egress: { host, remote }`.
+- **Not built yet:** redaction and the secrets proxy (see `egress` below).
 
 ### tool-registry (`bundle-tool-registry`)
 - **Responsibility:** `ctx.tools` — tools self-register, no central adapter
@@ -45,6 +56,41 @@ harness's data source.
   `ActionClass`, `ToolResult`, `ToolDeniedError`).
 - **Config surface:** `maxOutputChars`.
 
+### egress (`bundle-egress`, Phase 1B.1, not built)
+- **Responsibility:** per-project opt-in and consent record, redaction before
+  every send, secrets proxy (keys injected at the network boundary), endpoint
+  allowlist. Cannot be disabled in any profile (D-029).
+- **Location:** `src/bundles/egress/`
+- **Depends on:** `bundle-session-log`, hooks into `bundle-model-adapter`.
+- **Today:** only the consent gate, the egress log fields and key scrubbing
+  exist, inside `bundle-model-adapter`.
+
+### app-core (`bundle-app-core`, Phase 1B.2, not built)
+- **Responsibility:** headless first-run logic with a local API: provider
+  connection, credential storage (OS credential store, encrypted-file
+  fallback), consent copy, request and token budgets, `doctor`. The terminal
+  wizard and the desktop app are thin clients of it (D-025).
+- **Location:** `src/bundles/app-core/`, `src/cli/`
+- **Depends on:** `bundle-model-adapter`, `bundle-egress`, `bundle-model-store`.
+
+### model-store (`bundle-model-store`, Phase 1B.3, not built)
+- **Responsibility:** verified local models and pinned bindings: source
+  allowlist, revision, SHA-256, license record, pinned model ID plus ordered
+  fallback list per binding (D-027).
+- **Location:** `src/bundles/model-store/`
+- **Depends on:** none.
+
+### router (`bundle-router`, Phase 4.5, not built)
+- **Responsibility:** `ctx.router`, backed by Needle. Owns choosing the
+  sub-agent, the playbook, and read-only or allowlisted tool calls (D-026).
+  Fallback chain: Needle, rules, worker. Never blocks startup.
+- **Location:** `src/bundles/router/`
+- **Depends on:** `bundle-model-store`, `bundle-tool-registry`.
+
+### app-desktop (`app/desktop`, Phase 1B.4, not built)
+- **Responsibility:** desktop shell over `app-core`. Electron or Tauri, chosen
+  after measurement on the 8 GB machine (D-025).
+
 ### subprocess (`bundle-subprocess`)
 - **Responsibility:** `ctx.subprocess` — local execution provider for v1.
 - **Location:** `src/bundles/subprocess/`
@@ -52,15 +98,22 @@ harness's data source.
 - **Config surface:** working dir, env allowlist.
 
 ### sandbox-crabbox (`bundle-sandbox-crabbox`)
-- **Responsibility:** `ctx.sandbox` provider `crabbox` — leased remote
-  dev/test execution (Firecracker/E2B/Docker/Hetzner/AWS via CLI shell-out).
+- **Responsibility:** `ctx.sandbox` provider `crabbox` — remote or container
+  execution through the Crabbox CLI. Modes used here (D-024): direct provider
+  with your own cloud account, `local-container` (needs a Docker-compatible
+  runtime), or static SSH to a machine you already have. The hosted broker is
+  restricted to a GitHub org and is not used. Pin the version (pre-1.0).
 - **Location:** `src/bundles/sandbox-crabbox/`
 - **Depends on:** `bundle-subprocess` (CLI shells out).
-- **Config surface:** broker URL/token, provider (hetzner/aws/local-container/etc.).
+- **Config surface:** provider mode, provider credentials (through the secrets
+  proxy), optional self-hosted broker URL/token.
+- **Host notes:** laptop needs git, ssh, ssh-keygen, rsync and curl; rsync is
+  not bundled with Windows, so verify on the target machine.
 
 ### sandbox-cubesandbox (`bundle-sandbox-cubesandbox`)
 - **Responsibility:** `ctx.sandbox` provider `cubesandbox` — sub-60ms
-  VM-isolated boot for fast/frequent untrusted-code execution.
+  VM-isolated boot for fast/frequent untrusted-code execution. Deferred to
+  Phase 8 (D-024): needs an x86_64 or ARM64 Linux host with KVM.
 - **Location:** `src/bundles/sandbox-cubesandbox/`
 - **Depends on:** none (E2B-compatible HTTP API).
 - **Config surface:** API endpoint, template.
@@ -93,7 +146,8 @@ harness's data source.
 - **Config surface:** hybrid weight (BM25 vs. embedding).
 
 ### embeddings (`bundle-embeddings`)
-- **Responsibility:** `ctx.embeddings`.
+- **Responsibility:** `ctx.embeddings`. Provider chosen before Phase 2.3 and
+  must fit free-tier request limits (D-028); ranking is BM25-only until then.
 - **Location:** `src/bundles/embeddings/`
 - **Depends on:** `bundle-model-adapter`.
 - **Config surface:** provider, model.
@@ -162,12 +216,16 @@ harness's data source.
 
 ### eval-langfuse (`bundle-eval-langfuse`)
 - **Responsibility:** `ctx.eval.export` — fallback/complement export to
-  Langfuse.
+  Langfuse. Deferred to Phase 8 (D-024).
 - **Location:** `src/bundles/eval-langfuse/`
 - **Depends on:** `bundle-eval-runner`.
 - **Config surface:** Langfuse host, project key.
 
 ## Data flow
+0. Before any remote model call: the provider's egress host is checked
+   against consent (D-022), the payload is redacted (1B.1, not built), the
+   rate limiter waits for a slot and counts the attempt (D-023), and the
+   request is logged with its destination and size.
 1. A task enters the orchestrator, which plans and spawns sub-agents
    (`subagent-scope`) as needed.
 2. Each sub-agent's step runs `agent/pre-step` hooks first (content
@@ -190,6 +248,12 @@ src/
 ├── bundles/
 │   ├── session-log/
 │   ├── model-adapter/
+│   │   ├── providers/  (ollama, openai-compatible, mock)
+│   │   └── rate-limiter.ts
+│   ├── egress/            (planned, 1B.1)
+│   ├── app-core/          (planned, 1B.2)
+│   ├── model-store/       (planned, 1B.3)
+│   ├── router/            (planned, 4.5)
 │   ├── tool-registry/
 │   ├── subprocess/
 │   ├── sandbox-crabbox/
@@ -209,14 +273,17 @@ src/
 │   ├── policy-gates/
 │   ├── eval-runner/
 │   └── eval-langfuse/
+├── cli/                   (planned, 1B.2: terminal wizard)
 └── profiles/
     ├── profile-minimal.yml
     ├── profile-coding.yml
     ├── profile-research.yml
     └── profile-full.yml
+app/
+└── desktop/               (planned, 1B.4)
 ```
-(Exact file names inside each bundle folder are TBD until Phase 1 —
-`code_logic.md` gets updated once opencode's actual implementation exists.)
+Bundles marked planned do not exist yet. The rest match `src/` as of
+2026-09-22 (session-log, model-adapter, tool-registry are built).
 
 ## Policy table (enforced by `bundle-policy-gates` at `tools/pre-execute`)
 | Action class | Gate |
@@ -227,20 +294,34 @@ src/
 | External API calls with side effects (email, tickets, spend) | Always requires approval |
 | Deny-listed actions (prod credentials, `rm -rf`, force-push) | Hard block, no override |
 
+Model provider calls are not a row in this table. They are governed by
+egress consent (D-022), not by `policy-gates`.
+
 ## External dependencies
-- **Cordis** — plugin kernel; the actual runtime dependency (not
-  deepseek-harness's own packages).
-- **`openclaw/crabbox`** — leased remote sandbox provider.
-- **`TencentCloud/CubeSandbox`** — fast VM-isolated sandbox provider.
-- **`vercel-labs/agent-browser`** — browser tool (chosen over
-  `browser-use/browser-harness`, which is Python-only with no clear
-  advantage here).
-- **LanceDB** / **Qdrant** — vector stores.
-- **Langfuse** — eval/tracing export (chosen over AgentOps: TS-native).
-- **`agentskills/agentskills`** — Agent Skills spec for procedural memory.
-- Read-only references (ideas taken, not depended on): `affaan-m/ECC`
-  (hook event model, instinct-confidence design), `opendatalab/MinerU`
-  (optional doc-ingestion add, not core).
+Licenses below were read from public pages on 2026-09-22 (some from
+secondary sources, marked). Cordis and `ajv` were checked in the installed
+`package.json`. Re-check before relying on any of them. "Cost to run" is what it
+takes to use it on the current 8 GB, no-GPU test machine.
+
+| Dependency | License | Cost to run and host notes |
+|---|---|---|
+| **Cordis** (`cordis@4.0.0-rc.10`, D-012) | MIT (installed package.json) | Free. Small project (about 5 contributors), release candidate. A different, deprecated Discord library is also called cordis: keep the exact pin |
+| **`openclaw/crabbox`** | MIT | Free software, pre-1.0. Direct mode bills your own cloud account; `local-container` needs Docker; static SSH needs a machine you have. Hosted broker not available (D-024) |
+| **`TencentCloud/CubeSandbox`** | Apache 2.0 | Free software, needs a Linux host with KVM. Deferred to Phase 8 |
+| **`vercel-labs/agent-browser`** | Apache-2.0 (from secondary sources; file not read) | Free. Needs a Chromium install. Phase 7 |
+| **Needle** (Cactus Compute) | MIT per the repo and Hugging Face card; one catalog also cites Apache 2.0 | Free, about 14 to 28 MB. Original 26M and Needle 2 (45M) both exist: pin one and keep the license file (D-026) |
+| **Ornith-1.5 9B** | MIT per the vendor | Free weights. About 5.63 GB at Q4_K_M: does not fit next to the OS on 8 GB. Official `ornith-ai` source only (D-027) |
+| **`agentskills/agentskills`** | Apache 2.0 code, CC-BY-4.0 docs | Free. Format only |
+| **Langfuse** | MIT except `/ee` folders (commercial) | Self-hosting needs Postgres, ClickHouse, Redis, S3: too heavy for 8 GB. Cloud sends traces out. Deferred to Phase 8 |
+| **LanceDB**, **Qdrant** | Believed permissive (Apache-2.0); not re-checked | LanceDB is embedded. Qdrant is a service, Phase 8 |
+| **tree-sitter**, **ripgrep** | Believed permissive (MIT); not re-checked | Free |
+| **Electron** / **Tauri** | Believed permissive (MIT; Tauri also Apache-2.0); not re-checked | Free. Measure both on the 8 GB machine before choosing (D-025) |
+| **OpenRouter** (service) | Not open source: a hosted commercial service | Free models: 20 requests per minute, 50 per day (1,000 after a one-time $10 of credit), per documentation in September 2026. The only non-open piece on the test path (D-023) |
+
+Read-only references (ideas taken, not depended on): `affaan-m/ECC` (hook
+event model, instinct-confidence design), `opendatalab/MinerU` (optional
+doc-ingestion add, not core), `deepseek-ai/deepseek-harness` (license not
+checked).
 
 ---
 **Next:** Return to [`context.md`](../context.md).

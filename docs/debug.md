@@ -3,6 +3,34 @@
 > Append-only. Every completed coding task gets an entry here, even "no
 > issues found." Newest entries at top.
 
+## DBG-006 — 1.2b OpenAI-compatible provider, rate limiter, egress consent — 2026-09-22
+**Task:** Add a cloud provider path (`providers/openai-compatible.ts`), a
+shared `RateLimiter`, the egress consent gate and egress log fields, typed
+`quota`/`payment`/`consent` errors, and an `egress` declaration on the Ollama
+provider (D-021 to D-023).
+**Tested:** `tsc --noEmit` clean; 84 tests pass, 3 skipped (2 live Ollama,
+1 live OpenRouter). 44 new tests across `test/openai-compatible.test.ts`
+(wire format, tool history, config, error classification, key never in the
+log, consent gate, limiter integration) and `test/rate-limiter.test.ts`
+(window, daily ceiling, failed attempts count, UTC reset, persistence,
+concurrency, abort). All 40 earlier tests still pass. I checked the tests
+can fail: removing the key scrub, the consent check, the
+count-failures rule, and the daily-quota match each broke the expected tests.
+**NOT tested:**
+- Any real OpenRouter call. The live test exists and spends one request
+  (`HARNESS_LIVE_OPENROUTER=1`).
+- The 429 quota-versus-congestion split. It matches `per day` / `daily` in
+  the error text, a guess from documentation, not from the live API.
+- The UTC day-boundary assumption for the daily counter.
+- Tool calling through a real OpenAI-compatible model, and thinking-model
+  output (think blocks) with tool calls.
+- Redaction and the secrets proxy: not built (Phase 1B.1). Until then a
+  consenting remote call sends unredacted content.
+**Found:** a provider that forgets to declare `egress` would bypass the
+consent gate (documented in `code_logic.md`); the mock is meant to be
+ungated.
+**Fixed:** n/a.
+
 ## DBG-005 — 1.3 tool-registry bundle — 2026-09-20
 **Task:** Build `ctx.tools` (`src/bundles/tool-registry/`): registration,
 listing, validated dispatch, logging, pre/post-execute hooks.

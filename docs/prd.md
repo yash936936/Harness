@@ -21,6 +21,14 @@ governance an afterthought instead of a structural property.
   approval flow, and an append-only session log as the audit trail.
 - A personal browser tool sub-agents can use for research, gated by domain
   allowlisting.
+- A working path for people without strong hardware: a cloud worker through
+  any OpenAI-compatible provider, with free options where they exist, and an
+  optional local worker for those who have the hardware (D-021).
+- Plain, accurate statements about data: the harness collects nothing itself,
+  and a cloud provider or remote sandbox receives what it is given (D-020).
+- A first-run experience (terminal wizard, then a desktop app) that connects
+  a provider, asks for consent, sets a budget and shows where data goes
+  (D-025).
 
 ## Non-goals
 - Not a general-purpose no-code agent builder (ruled out `langflow-ai/langflow`
@@ -30,13 +38,15 @@ governance an afterthought instead of a structural property.
   `Panniantong/Agent-Reach` — wrong domain).
 - Not committing to a Python runtime — Cordis/TypeScript is the chosen stack;
   Python reference repos are read for ideas only, not adopted as dependencies.
-- Not building a local embedding/model-hosting stack for v1 — API providers
-  only (OpenAI/Anthropic/Voyage), swappable later.
+- Not building a model-hosting stack. Local workers are optional through
+  Ollama; the harness does not ship or serve a worker model of its own.
+- Not claiming to be offline or to send no data (D-020).
 
 ## Users / use cases
-- The project owner, using this harness to run coding-agent workflows (via
-  opencode) that need multi-step planning, code search, sandboxed execution,
-  and persistent memory across sessions.
+- The project owner, using this harness to run coding-agent workflows that
+  need multi-step planning, code search, sandboxed execution, and persistent
+  memory across sessions. Later, other people on ordinary hardware (8 GB, no
+  GPU) who connect a cloud provider.
 - Core scenarios: "find and fix a bug across a codebase," "implement a
   feature using retrieved context from tree-sitter-ranked files," "run a
   sandboxed test/build without touching the real filesystem until approved,"
@@ -53,8 +63,13 @@ governance an afterthought instead of a structural property.
 - The policy table (read-only / sandbox-write / real-fs-write / external
   side-effect / deny-listed) is enforced at `tools/pre-execute`, not
   bypassable by a sub-agent flipping a runtime toggle.
-- Guardrails are disableable only in `profile-minimal`; `profile-coding` and
-  above cannot run with `policy-gates` off.
+- Tool gating (`policy-gates`) is disableable only in `profile-minimal`;
+  `profile-coding` and above cannot run with it off. Egress controls cannot be
+  disabled in any profile (D-029).
+- A remote provider is never called without consent, and every remote call
+  is logged with destination and size.
+- On a free provider tier the harness stays inside the provider's request
+  limits and reports what it can still do when a limit is reached.
 
 ## Constraints
 - Stack constraint: Cordis-based (TypeScript), not Python — explicit
@@ -63,7 +78,9 @@ governance an afterthought instead of a structural property.
   dependency (it's labeled developer-preview with breaking changes expected).
 - q-agent-harness contributes its memory model and Map/Guardrails/Feedback
   framing only — its code/templates are not adopted.
-- Coding agent for implementation: opencode (per project setup).
+- Implementation: currently Claude writes and verifies the code (Claude-only
+  mode); opencode is suspended until the owner says otherwise.
+- Test machine: 8 GB RAM, no GPU. Free provider tiers only for now.
 
 ---
 **Next:** Return to [`context.md`](../context.md).

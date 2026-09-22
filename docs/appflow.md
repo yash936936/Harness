@@ -1,10 +1,50 @@
 # App flow — Coding Harness
 
-> "User" here is whoever submits a task to the harness (the project owner,
-> via opencode or a direct API call) — there's no separate end-user product
-> surface defined in the design doc yet. Flows below are the harness's own
-> operational paths, derived from the guardrail/orchestration design in
-> `docs/architecture.md`.
+> "User" here is whoever submits a task to the harness: the project owner,
+> through the terminal wizard, later the desktop app (D-025), or a direct API
+> call. Flows below are the harness's own operational paths, derived from the
+> guardrail and orchestration design in `docs/architecture.md`. The first-run
+> and rate-limit flows describe planned behavior (Phase 1B); the model call
+> checks they rely on (consent gate, rate limiter, error kinds) exist today.
+
+## First run (planned, Phase 1B.2)
+1. The user opens the wizard (terminal, later desktop) and sees a provider
+   list: tested providers first, then "Other OpenAI-compatible" with a base
+   URL and key. A visible "Use a local model instead" link leads to the
+   advanced local setup.
+2. The user enters a key. It goes to the OS credential store, never the
+   project directory, the log or a prompt.
+3. A connection test lists models, makes one tiny call, and shows latency.
+   The user picks a pinned model ID (a fallback list is stored with it).
+4. Consent screen: says plainly that code and context go to the chosen
+   provider, what redaction removes, and the provider's stated retention
+   policy as a claim with its check date. The user can turn this off per
+   project. Nothing is sent before they accept.
+5. The user sets a budget in requests and tokens.
+6. `doctor` shows the active binding, data destinations, budget, and what
+   works offline.
+
+## Model call to a remote provider
+1. `ctx.llm.complete()` resolves the provider. If it reaches a non-loopback
+   host and consent is missing, the call is refused with kind `consent`,
+   `model.blocked` is logged, and nothing is sent.
+2. Otherwise `model.request` is logged with the destination host and payload
+   size (fail-closed: no log, no call).
+3. The rate limiter waits for its window and a free slot, and counts the
+   attempt against the daily total.
+4. The request goes out. Errors return with a kind: `auth`, `payment`,
+   `quota`, `rate_limit`, `server`, `network`, `timeout`, `invalid_request`.
+5. `model.response` or `model.error` is logged.
+
+## Rate limit or quota reached
+1. A `rate_limit` error (per-minute limit or provider congestion) is
+   retried by the agent loop after `retryAfterMs`, or moves to the next
+   fallback provider or model, if one is configured.
+2. A `quota` error (daily limit) is not retried. The harness stops model
+   calls, keeps doing what Needle and rules can do for read-only work, and
+   tells the user what is degraded and roughly when the quota may reset.
+3. A `payment` error tells the user the account is out of credit or has a
+   negative balance, including for free models.
 
 ## Task submission and autonomous execution
 1. User submits a task to the orchestrator.

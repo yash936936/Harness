@@ -11,9 +11,12 @@ model access, tools, retrieval, memory, sandboxing, the browser — is a Cordis
 bundle registered on a shared `ctx`. Profiles (`minimal` → `coding` →
 `research` → `full`) compose bundles into runnable stacks, so the system
 starts as a single agent with a session log and grows into a governed,
-multi-agent, multi-user harness without rearchitecting. Status: architecture
-and bundle/profile breakdown are decided (see `docs/decisions.md`); no code
-written yet — Phase 1 (`profile-minimal`) is the next concrete work.
+multi-agent, multi-user harness without rearchitecting. Model access is
+provider-agnostic: local Ollama or any OpenAI-compatible cloud endpoint
+(OpenRouter first), with consent required before anything leaves the machine.
+Status: Phase 1 in progress; session-log, model-adapter (with the rate
+limiter and consent gate) and tool-registry are built and tested. Next is
+1.4 (subprocess). See `docs/status.md`.
 
 ## Folder structure
 ```
@@ -31,12 +34,12 @@ coding-harness/
 │   ├── workflow.md       dev workflow across Claude/editor/coding agent
 │   ├── readme.md         public-facing readme, updated as phases complete
 │   └── status.md         current phase, last debug, last decisions — log every run
-└── src/                  actual code (not yet created)
+├── src/                  actual code (bundles under src/bundles/)
+└── test/                 vitest tests, one file per bundle
 ```
 
-Root folder on disk: `~/projects/coding-harness` (open — confirm with user;
-no project path existed yet at setup time, so `docs/workflow.md` uses this
-as a placeholder until the real path is confirmed).
+Root folder on disk: `D:\Users\yash\downloads\Harness` (Git Bash:
+`/d/Users/yash/downloads/Harness`). Repository: `yash936936/Harness`, `main`.
 
 ## Where to look, by task
 | I need to...                          | Read this first          |
@@ -63,19 +66,22 @@ as a placeholder until the real path is confirmed).
   capabilities (not aspirational ones) and mark the phase done in
   `docs/phases.md`.
 
-## Roles: Claude vs. opencode
-- **Claude** (browser or editor chat) reads and writes the docs, verifies
-  what's actually true (does it run? does the code match what's claimed?),
-  and decides/instructs what happens next. Claude does not write this
-  project's implementation code by default.
-- **opencode** writes and runs the actual code, using this doc system as its
-  context. It is a plugin-based coding agent itself (built on Cordis's
-  sibling ecosystem), which lines up with this project's own Cordis-based
-  stack.
-- This applies in every session, including a brand-new chat resuming this
-  project — read this file and `docs/status.md` first, verify current
-  state, then instruct opencode on the next concrete step.
+## Roles: who writes the code
+- **Current mode: Claude-only.** Claude writes and checks the implementation
+  code, and also does the review: run it, compare it with
+  `docs/architecture.md` and `docs/phases.md`, look for bugs. "Wrote it" is
+  not "done".
+- **opencode is suspended**, not removed. It re-enters only when the owner
+  says so explicitly ("switching to opencode for X"). Do not assume a switch
+  and do not ask after every task.
+- Every session, including a new chat resuming this project: read this file,
+  then `docs/status.md`, then check `docs/decisions.md` before proposing
+  anything that could contradict a logged decision. `docs/workflow.md` has
+  the working loop.
 
 ## Next task
 Sub-phase 1.4 — subprocess bundle (env allowlist security test is the key one).
-See `docs/phases.md`.
+See `docs/phases.md`. Before the harness sends real code to a cloud provider,
+Phase 1B.1 (redaction, secrets proxy, per-project opt-in) must exist (D-029).
+Open items for the owner: check whether Ornith-1.5 9B is listed on OpenRouter;
+run the Electron and Tauri measurement on the 8 GB machine.

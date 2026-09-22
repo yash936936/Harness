@@ -4,6 +4,148 @@
 > if a decision is reversed, log a new entry that supersedes it and reference
 > the old ID.
 
+## D-029 — Egress controls come before the first real cloud run — 2026-09-22
+**Decision:** Consent, the egress log, key handling, redaction and the
+secrets proxy (Phase 1B.1) are built before the harness sends real code to
+a cloud provider, even though `policy-gates` stay last (D-006, Phase 5).
+Egress controls cannot be disabled in any profile, including
+`profile-minimal`. The "guardrails are disableable in `profile-minimal`"
+rule now covers tool gating (`policy-gates`) only.
+**Why:** D-006 assumed the model ran locally. With a cloud worker, the first
+model call is already an external send, so "test the unguarded path first"
+would mean sending code out with no consent and no redaction.
+**Known gap:** the consent gate and egress log exist (D-022), but redaction
+and the secrets proxy do not yet. Until 1B.1 is done, only send content you
+are fine sharing with the provider.
+**Affects:** `docs/trd.md` guardrail constraints, `docs/prd.md` success
+criteria, `docs/phases.md` (Phase 1B).
+
+## D-028 — Embeddings: start BM25-only, choose a provider later — 2026-09-22
+**Decision:** Amends D-008. Phase 2 ranking starts BM25-only. The embeddings
+provider is chosen before 2.3, and it must fit the free-tier request limits
+(batch many chunks per call, or use a small local model). Anthropic is
+removed from the candidate list for now: I could not confirm it offers its
+own embeddings API, so verify before listing any provider.
+**Why:** Under a 50-requests-a-day free quota (D-023) an API embedding pass
+over a repository is not practical, and BM25 needs no requests at all.
+**Affects:** `bundle-embeddings`, `bundle-retrieval-rank` (2.3, 2.5).
+
+## D-027 — Pin model IDs, use fallback lists, verify pulls — 2026-09-22
+**Decision:** Every provider binding pins an exact model ID and carries an
+ordered fallback list of IDs. `doctor` reports a pinned ID that is no longer
+available. Ollama pulls (including the curl route) accept the official
+`ornith-ai` source only, and record revision, SHA-256 and license. Ornith-1.5
+9B is the reference worker as a hypothesis to test in `bench-lite`, not a
+settled default. Whether OpenRouter lists it is unverified (owner to check).
+**Why:** OpenRouter's free roster changes month to month, and third-party
+repositories publish modified builds of popular models, some with safety
+alignment removed. Ornith is a reasoning model: it emits think blocks and
+needs a reasoning parser and a tool-call parser to return usable tool calls,
+so the conformance tests must cover tool calls with thinking on.
+**Affects:** Phase 1B.3, benchmark plan, `bundle-model-adapter` config.
+
+## D-026 — Needle is permanent, with a narrowed job — 2026-09-22
+**Decision:** Needle ships on every install and never blocks startup. It
+owns choosing the sub-agent, choosing the playbook, and choosing a
+read-only or allowlisted tool call from the top five retrieved tools, each
+only after it matches or beats the worker on the frozen router suite.
+Content-bearing calls stay with the worker. Policy decisions stay with the
+deterministic gates. The fallback chain is Needle, rules, worker. The
+version and license must be pinned in the model store: there is a 26M
+original and a 45M "Needle 2", and sources disagree on whether the license
+is MIT or Apache 2.0 (both are permissive).
+**Why:** On a free cloud tier every decision Needle makes locally is a
+request saved, so its first measurable value is requests saved per task.
+**Affects:** new bundle `bundle-router` (Phase 4.5), `bench-lite` metrics.
+
+## D-025 — Interface: headless core and terminal wizard first — 2026-09-22
+**Decision:** First-run logic (provider connection, credential storage,
+consent, budgets, `doctor`) is a headless core with a local API (Phase
+1B.2). The terminal wizard is a thin client over it. A desktop app is added
+later as another thin client (Phase 1B.4) so the two cannot disagree.
+Electron or Tauri stays open until both are measured on the 8 GB machine
+(installer size, cold start, idle memory with the core running).
+**Why:** The owner asked for a desktop app. Building it before the kernel
+exists would put a UI over nothing, and the shell must fit the 8 GB host
+budget. Approval prompts for real writes are the most important thing the
+desktop app has to show.
+**Affects:** new `app-core` and `app-desktop`, Phase 1B.
+
+## D-024 — Sandbox plan: local first, Crabbox free routes, defer the rest — 2026-09-22
+**Decision:** `ctx.subprocess` stays the v1 sandbox. At Phase 5, Crabbox is
+used in direct, local-container or static-SSH mode. Its hosted broker is
+restricted to a GitHub org and is not available to this project, and a
+self-hosted broker is optional. Pin the Crabbox version (it is pre-1.0).
+CubeSandbox needs a Linux KVM host, so it moves to Phase 8 with Langfuse
+export, whose self-hosted stack needs Postgres, ClickHouse, Redis and S3
+(Langfuse Cloud would send traces off the machine). Any remote sandbox is a
+second data destination and must appear in the consent screen and `doctor`.
+**Why:** The test machine is 8 GB with no GPU. Crabbox's laptop prerequisites
+include rsync, which Windows does not ship, and the local-container route
+needs a Docker-compatible runtime. Measure both before committing.
+**Affects:** Phase 5.1, 5.2, 6.3, 8.2, 8.3; `docs/architecture.md`.
+
+## D-023 — Rate limiting and 429 handling — 2026-09-22
+**Decision:** A shared `RateLimiter` sits in front of any provider that
+takes one: a sliding 60s window (default 16 per minute), an optional daily
+ceiling, and one request in flight by default, shared by all sub-agents. Every
+attempt counts toward the daily total, failed ones included. The daily
+counter can persist to disk. The day boundary is assumed to be UTC (unverified).
+The provider maps HTTP 429 to `quota` (daily, not retryable) or
+`rate_limit` (retryable, honors `Retry-After`), 402 to `payment`, and
+handles gateways that answer 200 with an error body. The adapter still does
+not retry (D-017): backoff and fallback belong in the agent loop (1.5).
+Budgets on free providers are in requests and tokens, not money.
+**Why:** OpenRouter free models are documented (September 2026) at 20
+requests per minute and 50 per day until $10 of credit has ever been bought,
+then 1,000 per day. The owner chose not to buy credit, so 50 a day is the
+working limit and live-model testing has to be sparing.
+**Not verified:** the 429 wording heuristic (`per day` / `daily` in the error
+text) is a guess from documentation, not checked against the live API.
+**Affects:** `bundle-model-adapter` (`rate-limiter.ts`), 1.5 retry policy,
+Phase 1B.2 budgets.
+
+## D-022 — Egress consent gate and egress log — 2026-09-22
+**Decision:** A provider that reaches a non-loopback host must declare it
+(`LLMProvider.egress`). `ctx.llm` refuses the call with `LLMError` kind
+`consent` unless config has `egress: { consent: true }`, logs `model.blocked`,
+and sends nothing. Allowed remote calls log the destination host and
+payload size in `model.request`. LAN addresses count as remote. API keys are
+read from config or a named environment variable, sent only in the request
+header, and scrubbed from every error message and log entry.
+**Why:** With a cloud worker the model call is an external send, so consent
+has to be structural, not a habit. This is the smallest slice of the v5
+egress policy that could be built and tested now.
+**Not built yet:** redaction, the secrets proxy, per-project opt-in and the
+consent screen copy (Phase 1B.1, see D-029).
+**Affects:** `bundle-model-adapter`, all providers, `docs/trd.md`.
+
+## D-021 — Provider-agnostic worker, cloud path first on this machine — 2026-09-22
+**Decision:** The worker is a binding to a provider through `ctx.llm`. A new
+`OpenAICompatibleProvider` (`POST {baseUrl}/chat/completions`) covers
+OpenRouter and any similar endpoint. OpenRouter is the first cloud target.
+Ollama stays as the local provider (D-018 stands for it; its "no API key
+anywhere" line applies to Ollama only). Local workers are optional and gated
+by hardware. On the 8 GB, no-GPU test machine the worker is a cloud model,
+plus Needle and rules. Free launch candidates besides OpenRouter: Ollama
+cloud, Groq, Cerebras, Google AI Studio; each is unverified until it passes
+the conformance suite and each provider's data policy is shown at consent.
+**Why:** The owner's machine cannot run a 9B model next to the OS and the
+harness, and wants users without hardware to have a working path.
+**Affects:** `bundle-model-adapter`, `docs/trd.md` stack, `docs/prd.md`
+goals, Phase 1.2b and 1B.
+
+## D-020 — No blanket claim of offline use or of sending no data — 2026-09-22
+**Decision:** The harness collects no telemetry of its own. What leaves the
+machine depends on the binding: a cloud binding sends what the model sees to
+the provider, under that provider's policy, and a remote sandbox sends the
+repository to that sandbox. Only a local binding keeps model traffic on the
+machine. No doc, screen or readme may claim otherwise.
+**Why:** The owner asked to remove the "completely offline, sends no data"
+claim. Provider zero-retention statements are the provider's claims, not
+something the harness can verify.
+**Affects:** `docs/readme.md`, `docs/prd.md`, `docs/trd.md`, consent copy.
+
 ## D-019 — Tool registry is the single call choke point — 2026-09-20
 **Decision:** All tool execution goes through `ctx.tools.call()`, which
 logs `tool.call` before executing and `tool.result` before returning

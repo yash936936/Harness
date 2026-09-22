@@ -1,17 +1,27 @@
 import { Context, Service } from 'cordis'
 import '../session-log/index.js'
 import { OllamaProvider, type OllamaConfig } from './providers/ollama.js'
+import { OpenAICompatibleProvider, type OpenAICompatibleConfig } from './providers/openai-compatible.js'
 import { LLMError, type CompletionRequest, type CompletionResponse, type LLMProvider } from './types.js'
 
 export * from './types.js'
 export { OllamaProvider, resolveBaseUrl, type OllamaConfig } from './providers/ollama.js'
+export { OpenAICompatibleProvider, type OpenAICompatibleConfig } from './providers/openai-compatible.js'
 export { MockProvider } from './providers/mock.js'
+export { RateLimiter, type RateLimiterConfig } from './rate-limiter.js'
 
 export interface ModelAdapterConfig {
   /** Name of the provider used when a request doesn't name one. */
   default?: string
   /** Built-in Ollama provider; registered as `ollama` when present. */
   ollama?: OllamaConfig
+  /** Built-in OpenAI-compatible provider (OpenRouter and similar); registered under `name`. */
+  openaiCompatible?: OpenAICompatibleConfig
+  /**
+   * Consent to send prompts to non-loopback hosts (D-022). Without `consent: true`
+   * every remote provider call is refused before anything leaves the machine.
+   */
+  egress?: { consent?: boolean }
 }
 
 declare module 'cordis' {
@@ -31,13 +41,20 @@ export class LLMService extends Service {
   static inject = ['log']
   private providers = new Map<string, LLMProvider>()
   private defaultName?: string
+  private readonly egressConsent: boolean
 
   constructor(ctx: Context, config: ModelAdapterConfig = {}) {
     super(ctx, 'llm')
     this.defaultName = config.default
+    this.egressConsent = config.egress?.consent === true
     if (config.ollama) {
       this.providers.set('ollama', new OllamaProvider(config.ollama))
       this.defaultName ??= 'ollama'
+    }
+    if (config.openaiCompatible) {
+      const name = config.openaiCompatible.name ?? 'openai-compatible'
+      this.providers.set(name, new OpenAICompatibleProvider({ ...config.openaiCompatible, name }))
+      this.defaultName ??= name
     }
   }
 
@@ -67,8 +84,17 @@ export class LLMService extends Service {
     const { sessionId, provider: _p, actor, ...rest } = req
     const log = this.ctx.log
 
-    // Log first; fail closed.
-    await log.append(sessionId, 'model.request', { provider: name, ...rest }, actor)
+    // Egress consent (D-022): a remote host needs explicit consent before anything is sent.
+    const egress = provider.egress
+    if (egress?.remote && !this.egressConsent) {
+      const message = `${name}: refused to send to ${egress.host} without egress consent. Set \`egress: { consent: true }\` after the user accepts.`
+      await log.append(sessionId, 'model.blocked', { provider: name, host: egress.host, reason: 'no_egress_consent' }, actor)
+      throw new LLMError('consent', message, name)
+    }
+
+    // Log first; fail closed. Remote calls also record where the data goes and how much.
+    const egressLog = egress ? { egress: { host: egress.host, remote: egress.remote, bytes: Buffer.byteLength(JSON.stringify(rest)) } } : {}
+    await log.append(sessionId, 'model.request', { provider: name, ...rest, ...egressLog }, actor)
 
     try {
       const res = await provider.complete(rest)

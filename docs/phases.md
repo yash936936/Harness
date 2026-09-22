@@ -41,6 +41,33 @@ proven.
   error surfaced, not a silent hang or crash. *(Amended, D-018.)*
 **Status:** Done — 2026-09-20. Live test passed on the owner's machine against a real Ollama (`llama3.2:3b`); see DBG-004.
 
+### 1.2b — OpenAI-compatible provider, rate limiter, egress consent
+**Goal:** A cloud provider path (OpenRouter first) that is safe to point at
+a free tier: limited, classified errors, consent before anything is sent.
+Added 2026-09-22 (D-021 to D-023).
+**Files touched:** `src/bundles/model-adapter/` (`providers/openai-compatible.ts`,
+`rate-limiter.ts`, edits to `index.ts`, `types.ts`, `providers/ollama.ts`)
+**Success criteria:**
+- `OpenAICompatibleProvider` maps text, tools, tool history and usage to and
+  from the OpenAI chat format; model and base URL are required config.
+- HTTP 429 is split into `quota` (daily, not retryable) and `rate_limit`
+  (retryable, `Retry-After` honored); 402 is `payment`; a 200 response with
+  an error body is still an error.
+- The `RateLimiter` never exceeds its per-minute window, stops at the daily
+  ceiling without calling the provider, counts failed attempts, keeps one
+  request in flight by default, and can persist its daily counter.
+- A remote provider without `egress: { consent: true }` is refused before
+  anything is sent, and the refusal is logged. Allowed calls log the
+  destination host and payload size. Loopback needs no consent; LAN counts
+  as remote.
+- The API key never appears in the session log or in any error message,
+  even when a server echoes it back.
+**Testing:** `test/openai-compatible.test.ts` and `test/rate-limiter.test.ts`
+(mocked HTTP and a fake clock), plus one opt-in live test
+(`HARNESS_LIVE_OPENROUTER=1`) that spends a single request.
+**Status:** Done — 2026-09-22 (see DBG-006). Live OpenRouter call not yet
+run; the 429 wording heuristic is unverified against the real API.
+
 ### 1.3 — tool-registry bundle
 **Goal:** `ctx.tools` — tools self-register, no central list to maintain.
 **Files touched:** `src/bundles/tool-registry/`
@@ -81,7 +108,17 @@ proven.
   `max steps` is hit.
 - Every reasoning step and tool call is written to the session log (1.1).
 - `max steps` and `reflection on/off` config are respected.
+- Retry policy follows `LLMError.kind` (D-023): retry `rate_limit`,
+  `server`, `network` and `timeout` with backoff and honor `retryAfterMs`;
+  never retry `quota`, `payment`, `consent` or `auth`; move to the next
+  configured provider or model where a fallback list exists. Every retry is
+  one more request against the daily quota.
+- Small models often mis-handle native tool calling (see D-018); a
+  text-format fallback may be needed, and thinking-model output (think
+  blocks) must not break tool-call parsing (D-027).
 **Testing:**
+- Retry test: a scripted `quota` error is not retried; a scripted
+  `rate_limit` error is retried once after its `retryAfterMs`.
 - Integration test: a task requiring exactly 2 tool calls (e.g. read a
   file, then echo its content) completes in the expected number of steps.
 - Boundary test: a task that would loop indefinitely is stopped at
@@ -105,6 +142,75 @@ proven.
 - Regression test: re-run the same task twice, confirm no cross-run state
   leaks (fresh log, fresh agent state each boot unless persistence is
   explicitly configured).
+**Status:** Not started
+
+---
+
+## Phase 1B — Cloud access, first run and interface
+
+> Added 2026-09-22 (D-020 to D-029). 1B.1 must be done before the harness
+> sends real code to a cloud provider. The rest can follow 1.6.
+
+### 1B.1 — Egress controls
+**Goal:** Nothing leaves the machine without consent, and what leaves is
+redacted and logged.
+**Files touched:** new `src/bundles/egress/` (consent state, redaction,
+secrets proxy), edits to `bundle-model-adapter`
+**Success criteria:**
+- Per-project opt-in and a first-run consent record; a project without
+  opt-in sends nothing, whatever the global setting.
+- Redaction runs before every send: a seeded fake secret never appears in
+  any outbound request body.
+- A secrets proxy injects keys at the network boundary; seeded fake keys
+  never appear in the session log or in any prompt.
+- Endpoint allowlist; every request log entry carries destination and size.
+- Cannot be disabled in any profile (D-029).
+**Testing:**
+- Seeded-secret test over a recording fetch; opt-out test; allowlist test.
+**Status:** Not started (consent gate and egress log exist, see 1.2b).
+
+### 1B.2 — Wizard core, budgets and `doctor`
+**Goal:** Headless first-run logic plus a terminal wizard client (D-025).
+**Files touched:** new `src/bundles/app-core/`, `src/cli/`
+**Success criteria:**
+- Provider connection with a connection test (list models, one tiny call,
+  latency) and credential storage in the OS credential store, with an
+  encrypted-file fallback that warns.
+- Consent screen copy from D-020: plain about what the provider receives,
+  showing each provider's stated data policy as a claim with its check date.
+- Budgets in requests and tokens (per day, session, task soft and hard),
+  requests left today shown, hard stop with a report.
+- `doctor` shows the active binding, data destinations (model provider and
+  any remote sandbox), budget, pinned-model availability, and what still
+  works offline.
+- With the network off, the harness starts and says what works.
+**Testing:** wizard flow tests over the core API; offline-start test;
+budget-stop test.
+**Status:** Not started
+
+### 1B.3 — Model store and pinning
+**Goal:** Verified, pinned models and clear fallbacks (D-027).
+**Files touched:** new `src/bundles/model-store/`
+**Success criteria:**
+- Records source, revision, SHA-256 and license per local model; refuses a
+  digest that does not match its pin; accepts only allowlisted sources.
+- Each binding has a pinned model ID and an ordered fallback list.
+- Needle version and license file recorded.
+**Testing:** digest-mismatch test; unavailable-pinned-model test in `doctor`.
+**Status:** Not started
+
+### 1B.4 — Desktop shell
+**Goal:** A desktop app over the 1B.2 core, adding no logic of its own.
+**Files touched:** new `app/desktop/`
+**Success criteria:**
+- Electron and Tauri are both measured on the 8 GB machine (installer size,
+  cold start, idle memory with the core running) and one is chosen in a
+  logged decision before building.
+- Screens: provider connection, consent, budget and requests left, the
+  `doctor` view, approval prompts for real writes, session and egress log
+  viewer, advanced settings for local models.
+- Idle memory plus the harness host fits the 8 GB budget.
+**Testing:** the same flows as 1B.2 run through the shell.
 **Status:** Not started
 
 ---
@@ -141,7 +247,9 @@ proven.
 **Status:** Not started
 
 ### 2.3 — embeddings bundle
-**Goal:** `ctx.embeddings` — API-based embedding generation.
+**Goal:** `ctx.embeddings` — embedding generation. *(Amended 2026-09-22,
+D-028: pick the provider first. It must fit free-tier request limits, by
+batching or a small local model. 2.5 works BM25-only until this exists.)*
 **Files touched:** `src/bundles/embeddings/`
 **Success criteria:**
 - Given text, returns a vector from the configured provider/model.
@@ -169,7 +277,8 @@ proven.
 
 ### 2.5 — retrieval-rank bundle
 **Goal:** `ctx.retrieval.rank` — hybrid BM25 + embedding ranking over
-2.1–2.4.
+2.1–2.4. *(Amended 2026-09-22, D-028: ships BM25-only first; the embedding
+weight is added once 2.3 and 2.4 exist.)*
 **Files touched:** `src/bundles/retrieval-rank/`
 **Success criteria:**
 - Combines grep/tree-sitter candidates with embedding similarity into a
@@ -353,12 +462,32 @@ real task.
   scope violations occurred and the final result is correct.
 **Status:** Not started
 
+### 4.5 — router bundle (Needle)
+**Goal:** `ctx.router` — a small local model picks the sub-agent, the
+playbook, and read-only or allowlisted tool calls (D-026).
+**Files touched:** new `src/bundles/router/`
+**Success criteria:**
+- Needle version and license are pinned in the model store (1B.3).
+- Each decision class it owns beats or matches worker-made decisions on the
+  frozen router suite, at lower latency and fewer requests; a class that
+  does not stays with the worker.
+- Fallback chain is Needle, rules, worker. Deleting the Needle files leaves
+  the harness starting normally.
+- Requests saved per task are recorded.
+**Testing:** frozen router suite per decision class; delete-Needle boot test.
+**Status:** Not started
+
 ---
 
 ## Phase 5 — Sandbox providers + policy gates
 
 ### 5.1 — sandbox-crabbox bundle
 **Goal:** `ctx.sandbox` provider `crabbox` — leased remote execution.
+*(Amended 2026-09-22, D-024: use Crabbox's direct, local-container or
+static-SSH modes. Its hosted broker is not available to this project. Pin
+the version. Measure the local-container memory cost and the Windows rsync
+requirement on the 8 GB machine first. A remote sandbox is a second data
+destination: it must show in consent and `doctor`.)*
 **Files touched:** `src/bundles/sandbox-crabbox/`
 **Success criteria:**
 - Can lease a remote environment, run a command in it, and return output.
@@ -383,7 +512,7 @@ execution.
   provider's claimed budget; flag if it's meaningfully worse.
 - Security test: attempt to read a host-only path from inside the
   sandbox, assert it fails.
-**Status:** Not started
+**Status:** Deferred to Phase 8 (D-024): needs a Linux host with KVM.
 
 ### 5.3 — policy-gates: read-only and sandbox-scoped-write rules
 **Goal:** First two rows of the policy table enforced.
@@ -492,7 +621,8 @@ cares about (e.g. "did the code change compile/pass tests").
   data matches what was sent.
 - Failure-mode test: Langfuse unreachable — export fails gracefully
   without blocking the underlying eval-runner result.
-**Status:** Not started
+**Status:** Deferred to Phase 8 (D-024): self-hosting needs Postgres,
+ClickHouse, Redis and S3, and Langfuse Cloud sends traces off the machine.
 
 ### 6.4 — Eval harness integration test
 **Goal:** Prove eval consumes real Phase 1–5 output correctly.
