@@ -2,6 +2,25 @@
 
 > Updated every run. Newest entry at top.
 
+## 2026-09-22 — Reference worker: local Ollama, not OpenRouter
+**What changed:** the owner checked OpenRouter's model search directly —
+"ornith" returns "No results found." Ornith-1.5 9B is confirmed absent from
+OpenRouter (closes the open item from D-027 and the prior status entry). The
+owner will run a model locally through Ollama for now rather than a cloud
+provider. Reference model set to `qwen2.5-coder:3b-instruct` (D-030), sized
+for the 8 GB, no-GPU machine; `qwen2.5-coder:7b-instruct` recorded as a
+stretch option, not default, since 7B is reported to need the whole 8 GB on
+its own with no headroom for the OS, harness host and Needle. No code
+changed: `OllamaConfig.model` already takes any tag with no built-in
+default (D-018), so this only updates the docs, decisions and status.
+**Docs changed:** `decisions.md` (D-030), `trd.md`, `readme.md`.
+**Test state:** unchanged, 84 passed, 3 skipped (live).
+**Open for the owner:** still the Electron/Tauri measurement (D-025) and
+which Needle version to pin (D-026). Confirm `qwen2.5-coder:3b-instruct`
+actually runs at an acceptable speed on the 8 GB machine; if it does, decide
+whether to also try the 7B tag.
+**Next up:** 1.4 subprocess, then 1.5 agent-loop, then 1.6 profile-minimal.
+
 ## 2026-09-22 — Cloud provider path, docs brought up to date
 **Current phase:** Phase 1; 1.1, 1.2, 1.2b, 1.3 done. Next is 1.4.
 **Last debug:** DBG-006 (1.2b).

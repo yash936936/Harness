@@ -13,7 +13,9 @@ Phase 1 (the `profile-minimal` kernel) is in progress. Built and tested:
 - `ctx.llm`: provider registry with Ollama (local), an OpenAI-compatible
   provider (OpenRouter and similar), and a mock (1.2, 1.2b). Includes a
   per-minute and daily rate limiter, typed errors (quota, rate limit,
-  payment, consent), and a consent gate for remote hosts.
+  payment, consent), and a consent gate for remote hosts. Current reference
+  worker: local Ollama, `qwen2.5-coder:3b-instruct` (D-030) — Ornith-1.5 9B
+  is confirmed not on OpenRouter and stays benchmark-only.
 - `ctx.tools`: tool registry with schema validation, logging and
   pre/post-execute hooks (1.3).
 
@@ -26,18 +28,23 @@ policy gates, evals and the browser. See `docs/phases.md` and
 ## What data leaves your machine
 The harness collects no telemetry. What leaves depends on how you set it up:
 
-- **Local model (Ollama on this machine):** model traffic stays on the machine.
+- **Local model (Ollama on this machine — the current default, D-030):**
+  model traffic stays on the machine.
 - **Cloud model (for example OpenRouter):** what the model sees, including code
   and file excerpts, goes to that provider under its own retention and
   training policy. The harness cannot verify those policies.
 - **Remote sandbox (planned):** the repository goes to that sandbox.
 
 A remote provider is refused unless you set `egress: { consent: true }`.
-Redaction before sending is not built yet, so until Phase 1B.1 only send
-content you are comfortable sharing with the provider.
+Redaction before sending is not built yet, so if a cloud provider is used
+before Phase 1B.1, only send content you are comfortable sharing with it.
+A purely local Ollama binding is not affected by that gate: its `egress.remote`
+is `false` for `localhost`/`127.0.0.1`.
 
 ## Setup
-Needs Node 20.3 or newer.
+Needs Node 20.3 or newer, and, for the current local-worker path, Ollama
+installed with `qwen2.5-coder:3b-instruct` pulled
+(`ollama pull qwen2.5-coder:3b-instruct`).
 
 ```
 npm ci

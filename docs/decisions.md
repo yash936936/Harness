@@ -4,6 +4,31 @@
 > if a decision is reversed, log a new entry that supersedes it and reference
 > the old ID.
 
+## D-030 — Reference worker: local Ollama, `qwen2.5-coder:3b-instruct` — 2026-09-22
+**Decision:** Ornith-1.5 9B is confirmed NOT on OpenRouter (owner's own
+search returned "No results found" on OpenRouter's model search, checked
+2026-09-22). It is dropped as the reference binding. The owner will run a
+model locally through Ollama instead of a cloud provider for now. The
+reference model is `qwen2.5-coder:3b-instruct` (about 1.9 GB at Q4_K_M),
+picked over the 7B tag because 7B is reported to need "comfortably 8GB of
+RAM" on its own, which does not leave headroom for the OS, the harness host,
+and Needle on the owner's 8 GB, no-GPU machine (D-024's host-footprint rule).
+`qwen2.5-coder:7b-instruct` is recorded as a stretch option if the owner has
+headroom to try it, not the default.
+Ornith stays in the docs only as a benchmark row for machines with 16 GB or
+more (per D-027), and OpenRouter/cloud stays available as a provider but is
+not the default while local Ollama is being used.
+**Why:** The owner chose to run Ollama's model rather than a cloud provider.
+Nothing in the code changes: `OllamaConfig.model` already has no built-in
+default and is set by the person configuring the binding (D-018), so this
+is a reference-model choice for docs, the model store (1B.3) and `bench-lite`,
+not a code change.
+**Not verified:** the 8 GB RAM figure for the 7B tag is a secondary source,
+not measured on the owner's machine. Actual usable headroom depends on what
+else is running at the same time.
+**Affects:** `docs/readme.md`, `docs/status.md`, `docs/trd.md`, Phase 1B.3,
+benchmark plan.
+
 ## D-029 — Egress controls come before the first real cloud run — 2026-09-22
 **Decision:** Consent, the egress log, key handling, redaction and the
 secrets proxy (Phase 1B.1) are built before the harness sends real code to

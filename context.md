@@ -83,5 +83,7 @@ Root folder on disk: `D:\Users\yash\downloads\Harness` (Git Bash:
 Sub-phase 1.4 — subprocess bundle (env allowlist security test is the key one).
 See `docs/phases.md`. Before the harness sends real code to a cloud provider,
 Phase 1B.1 (redaction, secrets proxy, per-project opt-in) must exist (D-029).
-Open items for the owner: check whether Ornith-1.5 9B is listed on OpenRouter;
-run the Electron and Tauri measurement on the 8 GB machine.
+Reference worker is local Ollama, `qwen2.5-coder:3b-instruct` (D-030);
+Ornith-1.5 9B is confirmed not on OpenRouter. Open items for the owner: run
+the Electron and Tauri measurement on the 8 GB machine; confirm the 3B model
+runs at an acceptable speed and whether the 7B tag is also worth trying.

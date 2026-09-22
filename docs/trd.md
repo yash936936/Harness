@@ -12,7 +12,11 @@
   request limits (D-023). Local workers are optional and gated by hardware;
   on an 8 GB, no-GPU machine the worker is a cloud model.
 - **Router:** Needle, a small local model (about 14 to 28 MB), for choosing
-  sub-agents, playbooks and read-only tool calls (D-026). It is the one
+  sub-agents, playbooks and read-only tool calls (D-026).
+- **Reference worker (current):** local Ollama, `qwen2.5-coder:3b-instruct`
+  (about 1.9 GB at Q4_K_M), chosen for the owner's 8 GB, no-GPU machine
+  (D-030). Ornith-1.5 9B is confirmed absent from OpenRouter and stays a
+  benchmark-only entry for machines with more RAM (D-027). It is the one
   local model every install carries.
 - **Embeddings:** provider chosen before Phase 2.3 and must fit free-tier
   request limits; ranking is BM25-only until then (D-028).
@@ -38,7 +42,10 @@
 - Node 20.3 or newer and TypeScript, able to run Cordis-based plugin kernels.
 - Host footprint: the harness host plus Needle must fit in 8 GB. That budget
   applies to every install. Local worker models, if used, need more.
-- Test machine: 8 GB RAM, no GPU (owner-stated). Cloud worker by default.
+- Test machine: 8 GB RAM, no GPU (owner-stated). Currently running a local
+  worker through Ollama (`qwen2.5-coder:3b-instruct`, D-030); a cloud worker
+  through an OpenAI-compatible provider remains supported and is the
+  fallback path for machines that cannot run a local model.
 - Not an offline product by default (D-020). Cloud bindings need the network
   and send what the model sees to the provider. Local bindings keep model
   traffic on the machine. With the network off the harness must still start
