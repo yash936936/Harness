@@ -192,10 +192,28 @@ and size.
 - **Config surface:** skills directory path(s).
 
 ### agent-loop (`bundle-agent-loop`)
-- **Responsibility:** `ctx.agents.loop` — default ReAct implementation.
-- **Location:** `src/bundles/agent-loop/`
-- **Depends on:** `bundle-model-adapter`, `bundle-tool-registry`.
-- **Config surface:** max steps, reflection on/off.
+- **Responsibility:** ReAct loop over `ctx.llm` and `ctx.tools`: reason,
+  call a tool if the model asked for one, feed the result back, repeat
+  until a text-only reply or `maxSteps`. Owns the retry/backoff and
+  provider-fallback policy that D-023 assigns to it (`ctx.llm.complete()`
+  itself never retries). Logs nothing of its own — every step is already
+  captured by `model.request/response/error` and `tool.call/tool.result`
+  from the two bundles it calls.
+- **Location:** `src/bundles/agent-loop/` (`types.ts`, `index.ts`)
+- **Registered as:** `ctx.agentLoop` (a top-level service). The
+  `ctx.agents.loop` label in this doc's original diagram described the
+  capability, not a literal key — there's no `ctx.agents.*` namespace or
+  orchestrator (Phase 4) yet to nest it under.
+- **Depends on:** `bundle-model-adapter`, `bundle-tool-registry` (`static
+  inject = ['log', 'llm', 'tools']`).
+- **Config surface:** `maxSteps`, `reflection`, `provider`,
+  `fallbackProviders`, `model`, `system`, `retry: { maxAttempts,
+  baseDelayMs, factor, maxDelayMs }`, injectable `sleep` (tests only).
+- **Not built yet:** `real-fs-write`/`sandbox-write` action-class routing
+  for a shell-out tool (that's `policy-gates`, Phase 5, wrapping
+  `ctx.subprocess`); per-binding model ID fallback lists (D-027,
+  Phase 1B.3) are a distinct mechanism this bundle doesn't know about — it
+  only fails over between already-configured provider *names*.
 
 ### orchestrator (`bundle-orchestrator`)
 - **Responsibility:** `ctx.agents.orchestrator` — Planner → Executor.
@@ -266,6 +284,7 @@ src/
 │   ├── router/            (planned, 4.5)
 │   ├── tool-registry/
 │   ├── subprocess/        (types.ts, index.ts)
+│   ├── agent-loop/        (types.ts, index.ts)
 │   ├── sandbox-crabbox/
 │   ├── sandbox-cubesandbox/
 │   ├── browser/
@@ -293,7 +312,9 @@ app/
 └── desktop/               (planned, 1B.4)
 ```
 Bundles marked planned do not exist yet. The rest match `src/` as of
-2026-09-22 (session-log, model-adapter, tool-registry, subprocess are built).
+2026-09-22 (session-log, model-adapter, tool-registry, subprocess,
+agent-loop are built). See D-031: subprocess's env-allowlist is verified
+on Linux only, not yet on Windows.
 
 ## Policy table (enforced by `bundle-policy-gates` at `tools/pre-execute`)
 | Action class | Gate |

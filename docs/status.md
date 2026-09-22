@@ -2,6 +2,35 @@
 
 > Updated every run. Newest entry at top.
 
+## 2026-09-22 — 1.5 agent-loop done (built in parallel with the D-031 fix, per owner)
+**Current phase:** Phase 1; 1.1–1.5 done. 1.6 (profile-minimal) is next,
+but is explicitly gated on D-031 being resolved and re-verified on
+Windows first (see phases.md 1.6) — a runnable profile that shells out is
+exactly where an unverified env-allowlist would matter for real. 1.5
+itself has no dependency on subprocess (only `MockProvider`, `ctx.llm`,
+`ctx.tools`), so building it in parallel with the D-031 fix, as the owner
+asked, didn't touch anything D-031-related.
+**Last debug:** DBG-009 (1.5). D-031 (env-allowlist on Windows) is still
+open — see the previous entry below; nothing here resolves it.
+**Docs changed:** `phases.md` (1.5 Done, full testing detail; 1.6 marked
+gated on D-031), `architecture.md` (agent-loop detail, registered-as-
+`ctx.agentLoop` note, file tree), `code_logic.md` (retry/fallback dispatch,
+bounded reflection, why no loop-level logging), `debug.md`, this file.
+**Test state:** 116 passed, 3 skipped (live). 15 new agent-loop tests,
+mutation-checked (skipped retryable check, loosened maxSteps, removed
+reflect-once guard, dropped provider override each break the intended
+test).
+**Not built yet:** no real provider has been run through the loop end to
+end (`MockProvider` only); that happens once 1.6 composes
+`profile-minimal` — which is blocked on D-031 first.
+**Open for the owner, unchanged plus one:** Electron/Tauri measurement
+(D-025), Needle version to pin (D-026), confirm `qwen2.5-coder:3b-instruct`
+speed (D-030), and — still the most important one — run
+`node scripts/diagnose-windows-env.cjs` on Windows and report the output
+(D-031), which is what unblocks 1.6.
+**Next up:** resolve and re-verify D-031, then 1.6 (`profile-minimal`
+end-to-end wiring).
+
 ## 2026-09-22 — Windows run found a real gap: env-allowlist not verified there
 **What happened:** the owner ran the 1.4 work on their actual Windows
 machine (the whole point of testing there). 3 of 5 env-allowlist security

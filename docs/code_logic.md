@@ -142,5 +142,60 @@ needs the exit code and stderr to hand back to the model as the tool
 result, not a caught exception to translate. Only a caller bug (a
 mismatched allowlist) is exceptional enough to throw.
 
+## Retry and fallback dispatch (`AgentLoop.callModel`)
+**Where:** `src/bundles/agent-loop/index.ts`
+**What it does:** tries each provider name in `[opts.provider ?? config
+.provider, ...fallbackProviders]` in order. On each one: call
+`ctx.llm.complete()`; if it throws an `LLMError` where `.retryable` is true
+and the attempt count is under `retry.maxAttempts`, wait (`retryAfterMs` if
+the provider gave one, else an exponential backoff capped at
+`maxDelayMs`) and retry the SAME provider; otherwise stop retrying and move
+to the next provider in the chain. Throws the last error once the chain is
+exhausted.
+**Why it's non-obvious:** (1) The retry/no-retry choice is never
+re-derived here — it reads `LLMError.retryable`, which D-023 already
+defines on the error class, so this bundle and the provider layer can't
+drift out of agreement about which error kinds are worth retrying.
+(2) A non-retryable error (`quota`, `payment`, `consent`, `auth`) moves to
+the next provider immediately, with zero retries on the one that just
+failed — retrying a spent daily quota only spends another request against
+it. (3) `retryAfterMs` overrides the computed backoff, not the other way
+round, because the provider's own number is more accurate than a guess.
+I mutation-checked this: skipping the `retryable` check (so `quota` got
+retried anyway) and dropping the per-provider-name override (so a
+"fallback" silently kept hitting the same provider) each broke the tests
+built to catch exactly that.
+
+## Reflection: bounded to one round (`AgentLoop.run`)
+**Where:** `src/bundles/agent-loop/index.ts`
+**What it does:** when `reflection` is on and the model gives a text-only
+reply, the loop appends one synthetic "double-check yourself" user message
+and continues — but only the first time (`requestedReflection`, set before
+the continue). A second text-only reply, even after reflection, always
+ends the run.
+**Why it's non-obvious:** without the one-shot guard, a model that
+re-answers "reflectively" every time (plausible instruction-following
+behavior, not a bug in the model) would never stop on its own and would
+silently degrade into the `maxSteps` boundary case, burning steps and
+requests without the caller ever knowing reflection was the reason. Bounding
+it to one round makes the behavior predictable and testable; a mutation
+that removed the guard broke the "at most once" test immediately.
+
+## Why this bundle logs nothing of its own
+**Where:** `src/bundles/agent-loop/index.ts`
+**What it does:** `AgentLoop.run()` never calls `ctx.log.append()` — every
+model call goes through `ctx.llm.complete()` (which logs
+`model.request`/`model.response`/`model.error` itself, D-016) and every
+tool call goes through `ctx.tools.call()` (which logs
+`tool.call`/`tool.result` itself). The log-completeness test checks this
+by reading the session log back and confirming counts match `steps` and
+tool calls exactly, with no orphaned `tool.call` missing its `tool.result`.
+**Why it's non-obvious:** a second, parallel "loop-level" log (e.g. an
+`agent.step` event wrapping each iteration) was considered and dropped —
+it would either duplicate what the two lower layers already log correctly,
+or drift from it the first time someone changed one without the other.
+Relying on the existing choke points keeps "model-visible = logged" true
+by construction instead of by two bundles staying in sync by convention.
+
 ---
 **Next:** Return to [`context.md`](../context.md).

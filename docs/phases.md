@@ -160,19 +160,65 @@ shell-out tool, is Phase 5's `policy-gates` and the agent-loop's tool set,
 - Small models often mis-handle native tool calling (see D-018); a
   text-format fallback may be needed, and thinking-model output (think
   blocks) must not break tool-call parsing (D-027).
-**Testing:**
-- Retry test: a scripted `quota` error is not retried; a scripted
-  `rate_limit` error is retried once after its `retryAfterMs`.
-- Integration test: a task requiring exactly 2 tool calls (e.g. read a
-  file, then echo its content) completes in the expected number of steps.
-- Boundary test: a task that would loop indefinitely is stopped at
-  `max steps`, not left to run forever.
-- Log-completeness test: after a run, every model call and tool call in
-  the transcript has a matching session-log entry — none missing.
-**Status:** Not started
+**Files touched (actual):** `src/bundles/agent-loop/` (`types.ts`,
+`index.ts`). Registered as `ctx.agentLoop`, a single top-level service, not
+nested under `ctx.agents.*` — `docs/architecture.md`'s `ctx.agents.loop`
+label described the capability, not a literal key; there's no orchestrator
+yet (Phase 4) to compose multiple agents under one namespace, and nesting
+one now would be speculative. If Phase 4 needs that structure it wraps this
+service rather than the reverse.
+**Testing:** `test/agent-loop.test.ts`, using the existing `MockProvider`
+(scripted responses/errors) registered via `ctx.llm.register()`.
+- Retry test: a scripted `quota` error is not retried (provider called
+  once, run rejects with that error); a scripted `rate_limit` error with
+  `retryAfterMs: 750` is retried once, the injected fake sleep is asked for
+  exactly `[750]`, and the retried call succeeds. A third test exhausts
+  `retry.maxAttempts` on repeated `server` errors and confirms the call
+  count is `1 + maxAttempts` before it rejects with the last error.
+- Fallback test: a `quota` error on the primary provider (non-retryable)
+  moves straight to a configured `fallbackProviders` entry with NO retry
+  attempt on the primary first — primary called once, fallback once.
+- Integration test: a 2-tool-call task (`read` then `echo`) completes in
+  exactly 3 model steps, with the transcript's tool-result blocks matching
+  each call's `id` and output.
+- A tool whose `execute()` throws surfaces as an `isError: true`
+  `tool_result` (via `tool-registry`'s own `execution` handling) and the
+  loop continues normally rather than crashing.
+- An unregistered tool name passed in `RunTaskOptions.tools` throws
+  `AgentLoopError` before any model call (`calls.length === 0`), rather
+  than reaching the model with a broken tool list.
+- Boundary test: a responder that always returns a tool call is stopped at
+  `maxSteps: 3` exactly — `stopReason: 'max_steps'`, `steps: 3`, and the
+  provider was called exactly 3 times, not left running.
+- Log-completeness test: after a run, `model.request`/`model.response`
+  counts match `steps` exactly, `tool.call`/`tool.result` are paired with
+  matching tool names and no orphans, and a failed model call logs
+  `model.error` (not `model.response`) with the same `LLMError.kind` the
+  loop rejected with.
+- Reflection tests: with `reflection: true`, a text-only reply triggers
+  exactly one "double-check yourself" turn (`steps: 2`, `reflected: true`,
+  the injected prompt visible in the second call's messages), never a
+  second reflection round even across further text-only replies; with
+  reflection off (the default), a text-only reply finishes at `steps: 1`.
+- An already-aborted `AbortSignal` stops the run before any model call.
+- Constructing with `maxSteps: 0` throws `AgentLoopError`.
+- Mutation-checked: skipping the `retryable` check (retrying `quota`
+  anyway), loosening the `maxSteps` bound, removing the "reflect at most
+  once" guard, and dropping the provider-name override in the retry loop
+  each broke the test meant to catch it.
+**Status:** Done — 2026-09-22 (see DBG-009). Not yet wired to a real
+provider end-to-end (only `MockProvider`); that happens naturally once
+1.6 composes `profile-minimal`. Per-binding model ID fallback lists
+(D-027, Phase 1B.3 / model-store) are a different mechanism from this
+bundle's `fallbackProviders` and aren't built yet — this loop only chooses
+between already-configured provider names, it doesn't know about a
+binding's own fallback model list.
 
 ### 1.6 — `profile-minimal` end-to-end wiring
 **Goal:** All of 1.1–1.5 composed into a runnable profile.
+**Depends on D-031 being resolved and re-verified on Windows first** — 1.4's
+env-allowlist is not confirmed to hold there yet (see D-031), and a runnable
+profile that shells out is exactly where that gap would matter for real.
 **Files touched:** `src/profiles/profile-minimal.yml`
 **Success criteria:**
 - `profile-minimal` boots from a single config resolution

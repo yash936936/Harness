@@ -3,6 +3,46 @@
 > Append-only. Every completed coding task gets an entry here, even "no
 > issues found." Newest entries at top.
 
+## DBG-009 — 1.5 agent-loop bundle — 2026-09-22
+**Task:** Add `ctx.agentLoop`: a ReAct loop over `ctx.llm` and `ctx.tools`
+with the D-023 retry/fallback policy, bounded reflection, and `maxSteps`.
+Built alongside D-031 (still open) rather than blocked on it, at the
+owner's instruction, to run both in parallel.
+**Tested:** `tsc --noEmit` clean; 116 tests pass, 3 skipped (unchanged
+pre-existing live-provider tests). 15 new tests in
+`test/agent-loop.test.ts`, using the existing `MockProvider` (no new mock
+infrastructure needed): 2-tool-call integration, a throwing tool
+surfacing as `isError` instead of crashing, an unregistered tool name
+failing before any model call, the `maxSteps` boundary with a
+never-stopping responder, quota-not-retried, rate_limit-retried-once
+honoring `retryAfterMs` via an injected fake sleep, retry exhaustion after
+`maxAttempts`, provider fallback with zero retries on the failed primary,
+an already-aborted signal stopping the run before any call, construction
+rejecting `maxSteps < 1`, reflection firing exactly once and never twice,
+reflection off by default, and log-completeness (counts match, tool
+call/result pairs matched by name, a failed call logs `model.error` not
+`model.response`).
+I checked the tests can fail: skipped the `retryable` check (quota got
+retried) — broke 3 tests; loosened the `maxSteps` bound — broke 1; removed
+the "reflect once" guard — broke 2; dropped the per-provider override in
+the retry loop (fallback silently kept hitting the same provider) — broke
+1. All reverted after confirming the catch.
+**NOT tested:**
+- Any real provider end-to-end — only `MockProvider`. Real tool-calling
+  quirks (native tool-call parsing edge cases, thinking-model output per
+  D-027) aren't exercised here; that's `openai-compatible.test.ts`'s job
+  for the wire format, and this bundle just consumes whatever
+  `CompletionResponse` it gets.
+- Concurrent tool calls in one model turn beyond two, or very large
+  transcripts (context growth / truncation isn't this bundle's job yet).
+- Real (non-injected) `setTimeout`-based `sleep` under an actual multi-hundred-ms
+  delay — only the injected fake-clock path is tested, consistent with how
+  `rate-limiter.test.ts` handles the same kind of timing code.
+**Found:** none new. Confirms D-031 is unaffected by this work — 1.5 uses
+`MockProvider` exclusively, never `ctx.subprocess`, so it doesn't depend on
+the env-allowlist question at all.
+**Fixed:** n/a.
+
 ## DBG-008 — Windows env-allowlist leak found by owner's test run — 2026-09-22
 **Task:** none (this is a bug report from the owner running DBG-007's work
 on their own Windows machine), plus a same-day fix to the one thing that
