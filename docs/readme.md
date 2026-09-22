@@ -18,12 +18,16 @@ Phase 1 (the `profile-minimal` kernel) is in progress. Built and tested:
   is confirmed not on OpenRouter and stays benchmark-only.
 - `ctx.tools`: tool registry with schema validation, logging and
   pre/post-execute hooks (1.3).
+- `ctx.subprocess`: local command execution, no shell, env allowlist (1.4).
+  **Verified on Linux only.** A Windows test run showed the allowlist not
+  holding — 11 system env vars reached a child that should have seen none
+  of them (D-031, unresolved). Don't rely on this for anything sensitive on
+  Windows yet; see `docs/decisions.md` D-031 for how to help root-cause it.
 
-Not built yet: subprocess (1.4), the agent loop (1.5), the runnable
-`profile-minimal` (1.6), redaction and the secrets proxy (1B.1), the
-first-run wizard (1B.2), retrieval, memory, orchestration, sandboxes,
-policy gates, evals and the browser. See `docs/phases.md` and
-`docs/status.md`.
+Not built yet: the agent loop (1.5), the runnable `profile-minimal` (1.6),
+redaction and the secrets proxy (1B.1), the first-run wizard (1B.2),
+retrieval, memory, orchestration, sandboxes, policy gates, evals and the
+browser. See `docs/phases.md` and `docs/status.md`.
 
 ## What data leaves your machine
 The harness collects no telemetry. What leaves depends on how you set it up:

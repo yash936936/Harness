@@ -122,6 +122,12 @@ expected (e.g. a `PATH` override that got dropped, so a wrong binary runs).
 I mutation-checked this: swapping the base object from `{}` to
 `{ ...process.env }` leaked the whole parent environment and broke 3 tests;
 skipping the unlisted-key check broke 1.
+**Open problem (D-031, unresolved):** this logic is verified correct on
+Linux (including via a bundle-independent diagnostic,
+`scripts/diagnose-windows-env.cjs`), but the owner's Windows run showed 11
+system env vars reaching the child anyway, despite this code never adding
+them. The leak is not reproduced here and not yet root-caused — see D-031
+before trusting this on Windows.
 
 ## Subprocess result vs. thrown error (`Subprocess.run`)
 **Where:** `src/bundles/subprocess/index.ts`

@@ -80,8 +80,13 @@ Root folder on disk: `D:\Users\yash\downloads\Harness` (Git Bash:
   the working loop.
 
 ## Next task
-Sub-phase 1.5 — agent-loop bundle (ReAct loop over 1.2–1.4, retry policy
-from D-023). 1.4 (subprocess) is done. See `docs/phases.md`.
+BLOCKED on D-031 before resuming feature work: 1.4's env-allowlist failed
+3 of 5 security tests on the owner's Windows machine (11 system env vars
+leaked to a child that should have seen none). Not yet root-caused — run
+`node scripts/diagnose-windows-env.cjs` on Windows and report the output
+before trusting `ctx.subprocess` for anything sensitive there. After that's
+resolved and re-verified: sub-phase 1.5 — agent-loop bundle (ReAct loop
+over 1.2–1.4, retry policy from D-023). See `docs/phases.md`.
 Before the harness sends real code to a cloud provider,
 Phase 1B.1 (redaction, secrets proxy, per-project opt-in) must exist (D-029).
 Reference worker is local Ollama, `qwen2.5-coder:3b-instruct` (D-030);

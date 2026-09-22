@@ -2,6 +2,35 @@
 
 > Updated every run. Newest entry at top.
 
+## 2026-09-22 — Windows run found a real gap: env-allowlist not verified there
+**What happened:** the owner ran the 1.4 work on their actual Windows
+machine (the whole point of testing there). 3 of 5 env-allowlist security
+tests failed: a child process received 11 system env vars (PATH, USERNAME,
+TEMP, and 8 more) that it should not have, with an empty or near-empty
+allowlist. The named test secret did not leak in that run. One passing
+test turned out to be weak (checked only one var, not the whole
+environment) and has been fixed to check fully.
+**Status change:** 1.4 downgraded from "Done" to "Done on Linux, NOT
+verified on Windows" (D-031). Don't treat the env-allowlist as a real
+security boundary on Windows until this is resolved.
+**What I did:** fixed the weak test; wrote and self-tested (on Linux)
+`scripts/diagnose-windows-env.cjs`, a dependency-free diagnostic that
+isolates whether this is Node/Windows platform behavior or something
+specific to this project's code, independent of `src/bundles/subprocess`.
+Did NOT ship a guessed fix to the actual leak — I have no Windows machine
+to verify one on, and a fix I can't confirm works is worse than an honest
+"not yet verified."
+**Test state:** 101 passed, 3 skipped on Linux (unchanged, since the fixed
+test still passes here). Windows: last known state 98 passed / 3 failed,
+pending a re-run after this commit (the fix only closes the assertion gap,
+it doesn't address the leak, so 2 of the 3 Windows failures are expected to
+still fail until D-031 is resolved).
+**Next up, in order:** (1) owner runs
+`node scripts/diagnose-windows-env.cjs` on Windows and reports the output —
+this decides whether the fix belongs in `Subprocess.run` or somewhere
+platform-specific; (2) once resolved and re-verified on Windows, resume 1.5
+(agent-loop).
+
 ## 2026-09-22 — 1.4 subprocess done
 **Current phase:** Phase 1; 1.1 through 1.4 done. Next is 1.5 (agent-loop).
 **Last debug:** DBG-007 (1.4). Includes a near-miss note: a doc-editing

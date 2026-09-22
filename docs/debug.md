@@ -3,6 +3,49 @@
 > Append-only. Every completed coding task gets an entry here, even "no
 > issues found." Newest entries at top.
 
+## DBG-008 — Windows env-allowlist leak found by owner's test run — 2026-09-22
+**Task:** none (this is a bug report from the owner running DBG-007's work
+on their own Windows machine), plus a same-day fix to the one thing that
+was clearly a bug in our control: a weak test assertion.
+**What the owner's run showed:** `npx vitest run` on Windows: 98 passed, 3
+failed, 3 pre-existing skipped. All 3 failures were in
+`subprocess: env allowlist (security)`:
+- "a secret set in the parent env is invisible..." — child env had 12 keys
+  instead of the expected 1; the 11 extras were PATH, USERNAME, TEMP,
+  HOMEDRIVE, HOMEPATH, LOGONSERVER, SYSTEMDRIVE, SYSTEMROOT, USERDOMAIN,
+  USERPROFILE, WINDIR.
+- "with an empty allowlist the child sees no environment at all" — same 11
+  vars appeared with a fully empty allowlist.
+- "a per-call envAllowlist entry is additive..." — same 11 vars again.
+**Found, and it matters:** the actual named secret (`HARNESS_TEST_SECRET`
+/ `sk-super-secret-value`) was NOT among the leaked vars — the
+`not.toContain` assertions for that passed. So this run didn't leak
+anything sensitive by name. But a 4th test ("per-call env values only
+reach the child...") passed on the same run despite presumably the same
+underlying leak, and on inspection it only read back one variable
+(`process.env.HARNESS_TEST_OVERRIDE ?? ''`) instead of dumping the whole
+child environment — a real gap in the test, not evidence the leak didn't
+happen there too. That's a bug I introduced when writing 1.4's tests.
+**Fixed:** that one test now dumps and checks the full child environment
+like the others (`toEqual({ HARNESS_TEST_OVERRIDE: 'from-call' })` against
+the whole parsed object), closing the gap so a leak can't hide behind it.
+**NOT fixed, and not claimed to be:** the actual leak. I have no Windows
+machine to test on. Wrote `scripts/diagnose-windows-env.cjs` — a
+standalone script with no dependency on this project's code — that calls
+Node's raw `child_process.spawnSync` with `env: {}`, `env: { ONE: '1' }`,
+and `env: undefined`, and prints exactly what the child sees for each. Ran
+it in this Linux sandbox: all three behaved correctly (0 vars, 1 var, and
+full inherit respectively) — confirming the *design* is sound where it's
+verifiable here, and that whatever is adding vars back in on the owner's
+Windows machine isn't something visible from Linux. Logged as D-031: 1.4's
+status is downgraded from unqualified "Done" to "Done on Linux, unverified
+on Windows" until the owner runs the diagnostic script and reports the
+output, which will show whether this is a Node/Windows platform behavior
+needing a code workaround, or specific to that machine's Node install,
+antivirus, or shell.
+**Next:** owner runs `node scripts/diagnose-windows-env.cjs` on the
+Windows machine and pastes the output.
+
 ## DBG-007 — 1.4 subprocess bundle — 2026-09-22
 **Task:** Add `ctx.subprocess`: run a command with no shell and no implicit
 env, capture stdout/stderr/exit code, and surface every failure mode

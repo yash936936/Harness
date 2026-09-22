@@ -63,13 +63,18 @@ describe('subprocess: env allowlist (security)', () => {
   })
 
   it('per-call env values only reach the child for allowlisted keys, and win over the parent env', async () => {
+    // DBG-008: this test originally only read back ONE var and printed just its value, which
+    // passed even on a run where the child's environment was actually fully leaked (see
+    // DBG-008) -- reading one key out of a leaked object still returns the right value. Dump
+    // and check the WHOLE child environment here, the same way the other security tests do, so
+    // a leak can't hide behind a narrow assertion again.
     process.env['HARNESS_TEST_OVERRIDE'] = 'from-parent'
     try {
       const ctx = await boot({ envAllowlist: ['HARNESS_TEST_OVERRIDE'] })
-      const res = await ctx.subprocess.run(NODE, ['-e', 'process.stdout.write(process.env.HARNESS_TEST_OVERRIDE ?? "")'], {
+      const res = await ctx.subprocess.run(NODE, ['-e', 'process.stdout.write(JSON.stringify(process.env))'], {
         env: { HARNESS_TEST_OVERRIDE: 'from-call' },
       })
-      expect(res.stdout).toBe('from-call')
+      expect(JSON.parse(res.stdout)).toEqual({ HARNESS_TEST_OVERRIDE: 'from-call' })
     } finally {
       delete process.env['HARNESS_TEST_OVERRIDE']
     }

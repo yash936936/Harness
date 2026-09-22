@@ -132,10 +132,16 @@ the same on Windows and Linux without depending on `PATH`/a shell.
 - Mutation-checked: reverted the env filter to inherit the full parent
   env, skipped the unlisted-key guard, and hardcoded a successful exit
   code — each broke the test meant to catch it.
-**Status:** Done — 2026-09-22 (see DBG-007). Not yet exposed as a tool
-through `tool-registry` (that wiring, and the `real-fs-write`/
-`sandbox-write` action-class question for a shell-out tool, is Phase 5's
-`policy-gates` and the agent-loop's tool set, 1.5).
+**Status:** Done on Linux, 2026-09-22 (DBG-007) — **NOT verified on
+Windows.** The owner's Windows run (2026-09-22) failed 3 of 5 env-allowlist
+security tests: a child still received 11 system env vars (PATH, USERNAME,
+TEMP, and others) that an empty or near-empty allowlist should have kept
+out. Root cause not yet identified (see D-031, DBG-008). Do not rely on the
+env-allowlist for anything sensitive on Windows until this is resolved and
+re-verified. Not yet exposed as a tool through `tool-registry` (that
+wiring, and the `real-fs-write`/`sandbox-write` action-class question for a
+shell-out tool, is Phase 5's `policy-gates` and the agent-loop's tool set,
+1.5).
 
 ### 1.5 — agent-loop bundle
 **Goal:** `ctx.agents.loop` — a working ReAct loop over 1.2–1.4.

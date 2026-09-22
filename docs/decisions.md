@@ -4,6 +4,37 @@
 > if a decision is reversed, log a new entry that supersedes it and reference
 > the old ID.
 
+## D-031 — Env-allowlist leak on Windows: confirmed, not yet root-caused — 2026-09-22
+**Decision:** Do not treat 1.4's env-allowlist promise ("no implicit base
+set, not even PATH") as verified on Windows. The owner's own test run on
+Windows showed 3 of 5 security tests failing: a child spawned with a
+1-key or empty `env` object still received PATH, USERNAME, TEMP,
+HOMEDRIVE, HOMEPATH, LOGONSERVER, SYSTEMDRIVE, SYSTEMROOT, USERDOMAIN,
+USERPROFILE and WINDIR — 11 vars that should not have been visible. The
+named test secret (`HARNESS_TEST_SECRET`) did NOT leak in that run, so
+nothing sensitive escaped this time, but the mechanism that stopped it
+(the secret's name/value, not the allowlist) is not one we can rely on.
+A third test ("per-call env values...") had a real bug that let this hide:
+it read back only one env var instead of dumping the whole child
+environment, so it passed regardless of whether a full leak occurred —
+fixed to do a full dump like the others (see DBG-008).
+A Linux self-test of a standalone diagnostic (`scripts/diagnose-windows-env.cjs`,
+independent of our bundle) confirms the expected behavior on Linux: `env: {}`
+gives the child zero vars, `env: { ONE: '1' }` gives exactly one, `env:
+undefined` inherits everything. The bundle's own logic is therefore sound
+where it's been verified; something Windows- or machine-specific is adding
+vars back in, and the mechanism isn't identified yet.
+**Why this decision, not a fix:** I can't run Windows myself to verify a
+fix, and shipping a guessed fix I can't confirm would be worse than
+flagging the gap honestly. The owner is asked to run the diagnostic script
+directly (no project dependencies) and report the output, which will show
+whether this is a Node/Windows platform behavior (needs a workaround in
+`Subprocess.run`) or something specific to this machine's Node install,
+antivirus, or environment.
+**Affects:** `docs/phases.md` 1.4 status (downgraded from unqualified
+"Done"), `docs/code_logic.md`, `docs/readme.md`; blocks trusting the
+env-allowlist promise for anything sensitive on Windows until resolved.
+
 ## D-030 — Reference worker: local Ollama, `qwen2.5-coder:3b-instruct` — 2026-09-22
 **Decision:** Ornith-1.5 9B is confirmed NOT on OpenRouter (owner's own
 search returned "No results found" on OpenRouter's model search, checked
