@@ -57,6 +57,30 @@ export interface RunResult {
   durationMs: number
 }
 
+/**
+ * Confirmed via a bundle-independent repro (D-031,
+ * `scripts/diagnose-windows-env.cjs`, run by the project owner on their own
+ * machine): Node's `child_process.spawn`/`spawnSync` on Windows always
+ * includes these vars in a spawned child's environment, regardless of the
+ * `env` option -- an `env: {}` call and an `env: { ONE: '1' }` call both
+ * produced exactly this set of extras, nothing more and nothing less.
+ * Windows needs several of these (`SystemRoot` in particular) to launch a
+ * process at all; there is no flag in Node's public API to suppress them.
+ * None of them are secrets -- they're standard OS/user-profile names and
+ * paths -- but `PATH` does disclose installed tool locations, so "empty
+ * allowlist" does not mean a literally empty environment on Windows the way
+ * it does on POSIX (confirmed empty there via the same diagnostic script).
+ * POSIX platforms get none of this; the array is empty there.
+ * Casing matches what was actually observed on the machine that produced
+ * this list (Node v22.18.0, win32) -- if a different Node/Windows
+ * combination reports different casing, this list may need updating, and
+ * the subprocess tests that reference it would catch that as a new leak.
+ */
+export const WINDOWS_REQUIRED_ENV_VARS: readonly string[] =
+  process.platform === 'win32'
+    ? ['HOMEDRIVE', 'HOMEPATH', 'LOGONSERVER', 'PATH', 'SYSTEMDRIVE', 'SYSTEMROOT', 'TEMP', 'USERDOMAIN', 'USERNAME', 'USERPROFILE', 'WINDIR']
+    : []
+
 export type SubprocessErrorKind = 'config'
 
 /** Only for caller mistakes caught before a process is spawned (e.g. an unlisted env key). */

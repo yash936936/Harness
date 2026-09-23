@@ -132,16 +132,17 @@ the same on Windows and Linux without depending on `PATH`/a shell.
 - Mutation-checked: reverted the env filter to inherit the full parent
   env, skipped the unlisted-key guard, and hardcoded a successful exit
   code — each broke the test meant to catch it.
-**Status:** Done on Linux, 2026-09-22 (DBG-007) — **NOT verified on
-Windows.** The owner's Windows run (2026-09-22) failed 3 of 5 env-allowlist
-security tests: a child still received 11 system env vars (PATH, USERNAME,
-TEMP, and others) that an empty or near-empty allowlist should have kept
-out. Root cause not yet identified (see D-031, DBG-008). Do not rely on the
-env-allowlist for anything sensitive on Windows until this is resolved and
-re-verified. Not yet exposed as a tool through `tool-registry` (that
-wiring, and the `real-fs-write`/`sandbox-write` action-class question for a
-shell-out tool, is Phase 5's `policy-gates` and the agent-loop's tool set,
-1.5).
+**Status:** Done and verified on both Linux and Windows, 2026-09-22
+(DBG-007, DBG-010). A Windows run initially failed 3 of 5 env-allowlist
+tests; root-caused to a Node/Windows platform behavior (Node always injects
+11 non-secret baseline env vars when spawning on Windows — D-031, D-032),
+not a bug in this bundle. Tests now assert the achievable property (nothing
+beyond the allowlist plus that documented, fixed baseline) and re-ran clean
+on both platforms. See `src/bundles/subprocess/types.ts`
+`WINDOWS_REQUIRED_ENV_VARS`. Not yet exposed as a tool through
+`tool-registry` (that wiring, and the `real-fs-write`/`sandbox-write`
+action-class question for a shell-out tool, is Phase 5's `policy-gates` and
+the agent-loop's tool set, 1.5 — 1.5 itself is done, see below).
 
 ### 1.5 — agent-loop bundle
 **Goal:** `ctx.agents.loop` — a working ReAct loop over 1.2–1.4.
@@ -216,9 +217,8 @@ binding's own fallback model list.
 
 ### 1.6 — `profile-minimal` end-to-end wiring
 **Goal:** All of 1.1–1.5 composed into a runnable profile.
-**Depends on D-031 being resolved and re-verified on Windows first** — 1.4's
-env-allowlist is not confirmed to hold there yet (see D-031), and a runnable
-profile that shells out is exactly where that gap would matter for real.
+No longer gated: D-031's Windows env-allowlist question is resolved (D-032)
+and re-verified on both Linux and Windows.
 **Files touched:** `src/profiles/profile-minimal.yml`
 **Success criteria:**
 - `profile-minimal` boots from a single config resolution

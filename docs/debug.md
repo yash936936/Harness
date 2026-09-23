@@ -3,6 +3,42 @@
 > Append-only. Every completed coding task gets an entry here, even "no
 > issues found." Newest entries at top.
 
+## DBG-010 — D-031 resolved: Windows env baseline root-caused — 2026-09-22
+**Task:** Root-cause the 3 failing Windows security tests from DBG-008,
+using the diagnostic script and the data the owner reported.
+**What the diagnostic showed (owner's machine, Node v22.18.0, win32):**
+`spawnSync(node, [...], { env: {} })` and `{ env: { ONE: '1' } }` both
+produced the exact same 11 extra vars: HOMEDRIVE, HOMEPATH, LOGONSERVER,
+PATH, SYSTEMDRIVE, SYSTEMROOT, TEMP, USERDOMAIN, USERNAME, USERPROFILE,
+WINDIR. `env: undefined` produced the full 72-var inherited environment, as
+expected. This is deterministic, not something that varies between empty
+and near-empty env objects, and it happened via raw `child_process`, with
+zero involvement from `Subprocess.run` or any project code — conclusive
+that this is Node's own behavior on Windows, not a bug here.
+**Fixed:** added `WINDOWS_REQUIRED_ENV_VARS` (`src/bundles/subprocess/types.ts`,
+platform-conditional: the 11-item list on `win32`, empty elsewhere).
+Rewrote the 3 failing security tests plus the previously-weak 4th (fixed in
+DBG-008) to use a new `expectChildEnv()` helper: every explicitly-configured
+var is checked for its exact value, and any OTHER key present must be one
+of `WINDOWS_REQUIRED_ENV_VARS` or the test fails — same as a literal
+`toEqual({})` would have caught a real leak, but no longer fails on Node's
+own unavoidable baseline. Added a 6th, dedicated test that pins the
+baseline's exact key set, so a future Node version injecting a different
+set shows up as a specific, named failure rather than silently passing
+through a widened `expectChildEnv` helper.
+**Tested:** `tsc --noEmit` clean. Linux: 18/18 subprocess tests pass
+(`WINDOWS_REQUIRED_ENV_VARS` is empty there, so this is the same strict
+behavior as before — POSIX was never affected by any of this). Full suite:
+117 passed, 3 skipped. Mutation-checked: reverted the env filter to spread
+the full parent env — still breaks 5 of the 6 security tests (the helper
+correctly still fails on a REAL leak; it only tolerates the specific,
+named, documented baseline, not an arbitrary one).
+**NOT tested:** this fix on the owner's actual Windows machine yet — the
+analysis is built directly from the data they reported, but the specific
+`expectChildEnv` test code hasn't been run there. Asking for one more
+confirmation run.
+**Found:** none new beyond the root cause itself.
+
 ## DBG-009 — 1.5 agent-loop bundle — 2026-09-22
 **Task:** Add `ctx.agentLoop`: a ReAct loop over `ctx.llm` and `ctx.tools`
 with the D-023 retry/fallback policy, bounded reflection, and `maxSteps`.

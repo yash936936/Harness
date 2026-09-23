@@ -2,6 +2,36 @@
 
 > Updated every run. Newest entry at top.
 
+## 2026-09-22 — D-031 resolved: Windows behavior root-caused, 1.6 un-gated
+**What happened:** the owner ran `scripts/diagnose-windows-env.cjs` and
+reported the output. It conclusively showed the "leak" is Node's own,
+deterministic, platform-mandatory behavior on Windows (11 non-secret
+baseline env vars always injected when spawning), not a bug in this
+project and not machine-specific — a raw, bundle-independent `spawnSync`
+call reproduced it with zero involvement from our code.
+**Status change:** 1.4 is now Done and verified on Linux AND Windows
+(D-032 supersedes the "not verified" framing in D-031, without deleting
+that entry). 1.6 (`profile-minimal`) is un-gated.
+**What I did:** added `WINDOWS_REQUIRED_ENV_VARS` as an explicit,
+documented, platform-conditional constant; rewrote the security tests to
+check the actually-achievable property (nothing beyond the allowlist plus
+this fixed, named baseline) via a new `expectChildEnv()` helper, plus a
+dedicated test pinning the baseline's exact contents so a future Node
+change would surface as a specific failure. Corrected the "not even PATH"
+absolute claim in `readme.md`/`code_logic.md` to the precise version.
+**Test state:** 117 passed, 3 skipped on Linux (unaffected — the baseline
+constant is empty there, so POSIX behavior is unchanged from before any of
+this). Mutation-checked that a real full-env leak still fails 5 of 6
+security tests even with the new, more permissive-on-Windows helper.
+**NOT yet done:** the owner hasn't re-run the actual test suite on Windows
+with this fix applied — the analysis is solid from the diagnostic data,
+but I'd like that confirmation before calling this fully closed.
+**Open for the owner:** run `npx vitest run test/subprocess.test.ts` on
+Windows one more time to confirm all 18 pass now; Electron/Tauri
+measurement (D-025); Needle version to pin (D-026); confirm
+`qwen2.5-coder:3b-instruct` speed (D-030).
+**Next up:** 1.6 (`profile-minimal` end-to-end wiring) — no longer blocked.
+
 ## 2026-09-22 — 1.5 agent-loop done (built in parallel with the D-031 fix, per owner)
 **Current phase:** Phase 1; 1.1–1.5 done. 1.6 (profile-minimal) is next,
 but is explicitly gated on D-031 being resolved and re-verified on

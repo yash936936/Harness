@@ -4,6 +4,49 @@
 > if a decision is reversed, log a new entry that supersedes it and reference
 > the old ID.
 
+## D-032 — D-031 resolved: Windows env-injection is a Node platform behavior, not a leak — 2026-09-22
+**Decision:** Root cause confirmed. The owner ran
+`scripts/diagnose-windows-env.cjs` (independent of this project's code) on
+their Windows machine: `env: {}` and `env: { ONE: '1' }` both produced the
+identical 11 extra variables (HOMEDRIVE, HOMEPATH, LOGONSERVER, PATH,
+SYSTEMDRIVE, SYSTEMROOT, TEMP, USERDOMAIN, USERNAME, USERPROFILE, WINDIR).
+This is Node's own `child_process` behavior on Windows — it always injects
+this fixed baseline when spawning, regardless of the `env` option, because
+Windows needs several of them (`SystemRoot` in particular) to launch a
+process at all. There is no flag in Node's public API to suppress it. This
+is not a bug in `Subprocess.run`, not specific to the owner's machine, and
+not something antivirus or a shell wrapper added — the raw `spawnSync`
+repro proved that on its own, with zero involvement from our code.
+None of the 11 are secrets — they're standard OS/user-profile names and
+paths, not credentials — and the owner's actual test secret did not leak in
+either Windows run. `PATH` does disclose installed tool locations, which is
+a minor information exposure, not a credential leak.
+**What changed:** added `WINDOWS_REQUIRED_ENV_VARS` (`src/bundles/subprocess/types.ts`)
+as an explicit, documented, platform-conditional constant (empty on POSIX,
+the 11-item list on `win32`). The 1.4 security tests now assert the
+achievable property — nothing beyond the caller's allowlist and this fixed,
+documented baseline ever reaches a spawned child — instead of literal empty-
+object equality, which Node cannot deliver on Windows. A dedicated test
+pins the baseline's exact contents so a future Node version changing it
+shows up as a specific, readable failure rather than silently weakening the
+allowlist's real guarantee.
+**What did NOT change:** the "no implicit base set" *design intent* still
+holds for anything under the harness's own control — the harness itself
+adds nothing beyond what's allowlisted. The revised claim is "no implicit
+base set beyond a small, fixed, non-secret Windows platform requirement,"
+not "no implicit base set, full stop." `docs/readme.md` and
+`docs/code_logic.md` are corrected to say this precisely rather than the
+absolute version D-031 showed to be false on Windows.
+**Unblocks:** 1.6 (`profile-minimal`), which D-031 had explicitly gated.
+**Residual assumption:** the exact 11-item list and casing (`PATH` not
+`Path`) was observed on one Node v22.18.0/Windows 11 combination. A
+different Node or Windows version could inject a different set; the
+dedicated baseline test (not a silent pass-through) is what would catch
+that, not an assumption that this list is universal.
+**Affects:** `docs/phases.md` (1.4 status, 1.6 un-gated), `docs/readme.md`,
+`docs/code_logic.md`, supersedes the "not verified" framing in D-031
+without deleting that entry — the investigation and its data stay on record.
+
 ## D-031 — Env-allowlist leak on Windows: confirmed, not yet root-caused — 2026-09-22
 **Decision:** Do not treat 1.4's env-allowlist promise ("no implicit base
 set, not even PATH") as verified on Windows. The owner's own test run on

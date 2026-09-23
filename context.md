@@ -80,15 +80,13 @@ Root folder on disk: `D:\Users\yash\downloads\Harness` (Git Bash:
   the working loop.
 
 ## Next task
-1.5 (agent-loop) is done (D-023 retry/fallback, bounded reflection,
-maxSteps). It uses `MockProvider` only, never `ctx.subprocess`, so it
-doesn't depend on D-031. 1.6 (`profile-minimal` end-to-end wiring) is next
-on `phases.md`, but is explicitly GATED on D-031 first: 1.4's env-allowlist
-failed 3 of 5 security tests on the owner's Windows machine (11 system env
-vars leaked to a child that should have seen none), not yet root-caused. A
-runnable profile that shells out is exactly where that gap would matter.
-Run `node scripts/diagnose-windows-env.cjs` on Windows and report the
-output before starting 1.6.
+D-031 is resolved (D-032): the Windows env-allowlist "leak" was Node's own
+platform behavior (11 non-secret baseline vars always injected when
+spawning on Windows), root-caused with a bundle-independent diagnostic, not
+a bug here. 1.4 and 1.5 are both done. 1.6 (`profile-minimal` end-to-end
+wiring) is next on `phases.md`, no longer gated — though the owner hasn't
+yet re-run `npx vitest run test/subprocess.test.ts` on Windows with the fix
+applied; worth asking for that confirmation.
 Before the harness sends real code to a cloud provider,
 Phase 1B.1 (redaction, secrets proxy, per-project opt-in) must exist (D-029).
 Reference worker is local Ollama, `qwen2.5-coder:3b-instruct` (D-030);

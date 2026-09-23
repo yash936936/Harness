@@ -122,12 +122,19 @@ expected (e.g. a `PATH` override that got dropped, so a wrong binary runs).
 I mutation-checked this: swapping the base object from `{}` to
 `{ ...process.env }` leaked the whole parent environment and broke 3 tests;
 skipping the unlisted-key check broke 1.
-**Open problem (D-031, unresolved):** this logic is verified correct on
-Linux (including via a bundle-independent diagnostic,
-`scripts/diagnose-windows-env.cjs`), but the owner's Windows run showed 11
+**Resolved (D-031, D-032):** the owner's Windows run initially showed 11
 system env vars reaching the child anyway, despite this code never adding
-them. The leak is not reproduced here and not yet root-caused — see D-031
-before trusting this on Windows.
+them. Root-caused with a bundle-independent diagnostic
+(`scripts/diagnose-windows-env.cjs`, called `spawnSync` directly, no
+project code involved): Node itself always injects this fixed 11-var,
+non-secret baseline when spawning on Windows, regardless of the `env`
+option — confirmed by `env: {}` and `env: { ONE: '1' }` producing the exact
+same 11 extras. Windows needs several of them (`SystemRoot` especially) to
+launch a process at all; there's no way to suppress this through Node's
+public API. Not a bug in this function, not machine-specific. Recorded as
+`WINDOWS_REQUIRED_ENV_VARS` in `types.ts` (empty on POSIX); the security
+tests now check for the achievable property (nothing beyond the allowlist
+plus this documented baseline) instead of literal empty-object equality.
 
 ## Subprocess result vs. thrown error (`Subprocess.run`)
 **Where:** `src/bundles/subprocess/index.ts`

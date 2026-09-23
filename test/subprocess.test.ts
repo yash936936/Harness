@@ -2,7 +2,7 @@ import { Context } from 'cordis'
 import { realpathSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { describe, expect, it } from 'vitest'
-import { Subprocess, SubprocessError } from '../src/bundles/subprocess/index.js'
+import { Subprocess, SubprocessError, WINDOWS_REQUIRED_ENV_VARS } from '../src/bundles/subprocess/index.js'
 
 // Every test shells out to Node itself (process.execPath), never a POSIX builtin like
 // `echo`: this suite runs on the owner's Windows machine as well as Linux CI, and only
@@ -13,6 +13,24 @@ async function boot(config: ConstructorParameters<typeof Subprocess>[1] = {}) {
   const ctx = new Context()
   await ctx.plugin(Subprocess, config)
   return ctx
+}
+
+/**
+ * Asserts the child's env is exactly `expected`, plus -- on Windows only --
+ * whatever subset of WINDOWS_REQUIRED_ENV_VARS Node injected on its own
+ * (D-031, confirmed with a bundle-independent repro). Any OTHER extra key
+ * is a real leak and fails this the same way a plain toEqual would; only
+ * Node's own documented, platform-mandatory baseline is exempted.
+ */
+function expectChildEnv(actualJson: string, expected: Record<string, string>) {
+  const actual = JSON.parse(actualJson)
+  for (const [k, v] of Object.entries(expected)) {
+    expect(actual).toHaveProperty(k, v)
+  }
+  const extraKeys = Object.keys(actual).filter((k) => !(k in expected))
+  for (const k of extraKeys) {
+    expect(WINDOWS_REQUIRED_ENV_VARS).toContain(k)
+  }
 }
 
 describe('subprocess: happy path', () => {
@@ -44,22 +62,31 @@ describe('subprocess: env allowlist (security)', () => {
       const res = await ctx.subprocess.run(NODE, ['-e', 'process.stdout.write(JSON.stringify(process.env))'])
       expect(res.stdout).not.toContain('sk-super-secret-value')
       expect(res.stdout).not.toContain('HARNESS_TEST_SECRET')
-      expect(JSON.parse(res.stdout)).toEqual({ HARNESS_TEST_VISIBLE: 'visible-value' })
+      expectChildEnv(res.stdout, { HARNESS_TEST_VISIBLE: 'visible-value' })
     } finally {
       delete process.env['HARNESS_TEST_SECRET']
       delete process.env['HARNESS_TEST_VISIBLE']
     }
   })
 
-  it('with an empty allowlist the child sees no environment at all', async () => {
+  it("with an empty allowlist the child sees nothing but (on Windows) Node's own required baseline", async () => {
     process.env['HARNESS_TEST_SECRET'] = 'nope'
     try {
       const ctx = await boot()
       const res = await ctx.subprocess.run(NODE, ['-e', 'process.stdout.write(JSON.stringify(process.env))'])
-      expect(JSON.parse(res.stdout)).toEqual({})
+      expect(res.stdout).not.toContain('nope')
+      expect(res.stdout).not.toContain('HARNESS_TEST_SECRET')
+      expectChildEnv(res.stdout, {})
     } finally {
       delete process.env['HARNESS_TEST_SECRET']
     }
+  })
+
+  it('the empty-allowlist child env is exactly WINDOWS_REQUIRED_ENV_VARS on Windows, or nothing on POSIX', async () => {
+    const ctx = await boot()
+    const res = await ctx.subprocess.run(NODE, ['-e', 'process.stdout.write(JSON.stringify(process.env))'])
+    const keys = Object.keys(JSON.parse(res.stdout)).sort()
+    expect(keys).toEqual([...WINDOWS_REQUIRED_ENV_VARS].sort())
   })
 
   it('per-call env values only reach the child for allowlisted keys, and win over the parent env', async () => {
@@ -74,7 +101,7 @@ describe('subprocess: env allowlist (security)', () => {
       const res = await ctx.subprocess.run(NODE, ['-e', 'process.stdout.write(JSON.stringify(process.env))'], {
         env: { HARNESS_TEST_OVERRIDE: 'from-call' },
       })
-      expect(JSON.parse(res.stdout)).toEqual({ HARNESS_TEST_OVERRIDE: 'from-call' })
+      expectChildEnv(res.stdout, { HARNESS_TEST_OVERRIDE: 'from-call' })
     } finally {
       delete process.env['HARNESS_TEST_OVERRIDE']
     }
@@ -93,7 +120,7 @@ describe('subprocess: env allowlist (security)', () => {
       const res = await ctx.subprocess.run(NODE, ['-e', 'process.stdout.write(JSON.stringify(process.env))'], {
         envAllowlist: ['HARNESS_TEST_EXTRA'],
       })
-      expect(JSON.parse(res.stdout)).toEqual({ HARNESS_TEST_BASE: 'base', HARNESS_TEST_EXTRA: 'extra' })
+      expectChildEnv(res.stdout, { HARNESS_TEST_BASE: 'base', HARNESS_TEST_EXTRA: 'extra' })
     } finally {
       delete process.env['HARNESS_TEST_BASE']
       delete process.env['HARNESS_TEST_EXTRA']

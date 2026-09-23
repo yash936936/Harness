@@ -18,16 +18,19 @@ Phase 1 (the `profile-minimal` kernel) is in progress. Built and tested:
   is confirmed not on OpenRouter and stays benchmark-only.
 - `ctx.tools`: tool registry with schema validation, logging and
   pre/post-execute hooks (1.3).
+- `ctx.agentLoop`: a ReAct loop over `ctx.llm` and `ctx.tools`, with the
+  D-023 retry/fallback policy and a bounded reflection pass (1.5).
 - `ctx.subprocess`: local command execution, no shell, env allowlist (1.4).
-  **Verified on Linux only.** A Windows test run showed the allowlist not
-  holding — 11 system env vars reached a child that should have seen none
-  of them (D-031, unresolved). Don't rely on this for anything sensitive on
-  Windows yet; see `docs/decisions.md` D-031 for how to help root-cause it.
+  Verified on Linux and Windows. On Windows, Node itself always injects a
+  fixed, non-secret baseline (about a dozen OS/user-profile vars — never
+  secrets) into any spawned process; there is no way to suppress this
+  through Node's public API. The allowlist still keeps out everything else,
+  including your actual secrets (D-031, D-032).
 
-Not built yet: the agent loop (1.5), the runnable `profile-minimal` (1.6),
-redaction and the secrets proxy (1B.1), the first-run wizard (1B.2),
-retrieval, memory, orchestration, sandboxes, policy gates, evals and the
-browser. See `docs/phases.md` and `docs/status.md`.
+Not built yet: the runnable `profile-minimal` (1.6), redaction and the
+secrets proxy (1B.1), the first-run wizard (1B.2), retrieval, memory,
+orchestration, sandboxes, policy gates, evals and the browser. See
+`docs/phases.md` and `docs/status.md`.
 
 ## What data leaves your machine
 The harness collects no telemetry. What leaves depends on how you set it up:
