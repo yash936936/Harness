@@ -1,0 +1,42 @@
+# profile-minimal — config data reference for `bootProfileMinimal()`
+# (src/profiles/profile-minimal.ts).
+#
+# NOT auto-loaded by Cordis: real `cordis.patch.yml` resolution needs the
+# optional `@cordisjs/plugin-loader` + `@cordisjs/plugin-include` peer
+# packages, which this project does not install (see D-033,
+# docs/decisions.md). This file documents the same shape a caller passes
+# to `bootProfileMinimal()` as a plain TS object; keep the two in sync by
+# hand until/unless a later phase adopts the real loader.
+#
+# No orchestrator, no sub-agents, no memory beyond the session log (1.1-1.5
+# only) - a single agent, a single task, full audit trail.
+
+sessionLog:
+  # path: ./.harness/sessions   # omit (or set memory: true) to keep events in memory only
+  memory: true
+
+modelAdapter:
+  # default: ollama
+  # ollama:
+  #   model: qwen2.5-coder:3b-instruct
+  # openaiCompatible:
+  #   name: openrouter
+  #   model: <model id>
+  #   baseUrl: https://openrouter.ai/api/v1
+  #   apiKey: <env var, never a literal here>
+  # egress:
+  #   consent: false   # must be explicit true before any remote call is allowed (D-022)
+  {}
+
+toolRegistry:
+  maxOutputChars: 50000
+
+subprocess:
+  # cwd: .
+  envAllowlist: []
+  timeoutMs: 0
+  maxOutputBytes: 1000000
+
+agentLoop:
+  maxSteps: 10
+  reflection: false

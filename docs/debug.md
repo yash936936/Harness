@@ -3,6 +3,39 @@
 > Append-only. Every completed coding task gets an entry here, even "no
 > issues found." Newest entries at top.
 
+## DBG-011 — 1.6 `profile-minimal` end-to-end wiring — 2026-09-24
+**Task:** Compose 1.1-1.5 (session-log, model-adapter, tool-registry,
+subprocess, agent-loop) into a runnable `profile-minimal` stack.
+**What I found first:** the design draft's "resolved at boot via
+`cordis.patch.yml`" isn't actually available — checked
+`node_modules/cordis/package.json` directly; the real YAML loader is
+`@cordisjs/plugin-loader` + `@cordisjs/plugin-include`, both optional peer
+deps, neither installed. Logged as D-033 rather than silently adding a new
+dependency or silently ignoring the gap.
+**Built:** `src/profiles/profile-minimal.ts` (`bootProfileMinimal()` — one
+config object, five `ctx.plugin()` calls in dependency order, returns the
+live `Context`), `src/profiles/profile-minimal.yml` (config-shape
+reference, explicitly documented as not auto-loaded).
+**Tested:** `tsc --noEmit` clean. `test/profile-minimal.test.ts`, 5 tests:
+boots from one call and `ctx.log`/`ctx.llm`/`ctx.tools`/`ctx.subprocess`/
+`ctx.agentLoop` are all live; a completed run's session log alone shows
+`model.request` before `model.response` with gapless `seq` and the logged
+response text matching `result.finalText` (the "model-visible = logged"
+invariant, checked end-to-end not per-bundle); a fresh `bootProfileMinimal()`
+call has no cross-run leakage (new session id, no provider registrations
+carried over); `ctx.subprocess.run()` works under the composed profile; an
+unregistered tool name still fails before any model call reaches the log.
+Full suite: 122 passed, 3 skipped (up from 117/3 - the 5 new tests, no
+regressions).
+**Mutation-checked:** made `bootProfileMinimal()` return a cached, shared
+`Context` across calls (simulating cross-boot state leakage) - broke 3 of
+the 5 tests (`provider "mock" is already registered` on the second boot,
+in both the leakage test and the unrelated tool-name test that also
+registers a fresh mock). Reverted; confirmed clean.
+**Found:** none beyond the `cordis.patch.yml` gap above.
+**Fixed:** n/a beyond D-033's resolution (build the composer directly
+rather than block on a loader package the project doesn't depend on).
+
 ## DBG-010 — D-031 resolved: Windows env baseline root-caused — 2026-09-22
 **Task:** Root-cause the 3 failing Windows security tests from DBG-008,
 using the diagnostic script and the data the owner reported.

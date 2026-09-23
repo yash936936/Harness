@@ -232,7 +232,20 @@ and re-verified on both Linux and Windows.
 - Regression test: re-run the same task twice, confirm no cross-run state
   leaks (fresh log, fresh agent state each boot unless persistence is
   explicitly configured).
-**Status:** Not started
+**Status:** Done — 2026-09-24 (see DBG-011). `bootProfileMinimal()`
+(`src/profiles/profile-minimal.ts`) composes 1.1-1.5 in dependency order
+behind one `ProfileMinimalConfig` call — no separate manual `ctx.plugin()`
+sequence for a caller to get wrong. `src/profiles/profile-minimal.yml`
+documents the same config shape for humans, but is **not** auto-loaded by
+Cordis: real `cordis.patch.yml` resolution needs the optional
+`@cordisjs/plugin-loader` + `@cordisjs/plugin-include` peer packages,
+which are not installed (D-033) — reopen if a later phase needs the real
+loader. 5 tests in `test/profile-minimal.test.ts`: full boot + task
+completion; the session log alone reconstructs the run (event order,
+gapless seq, response text matches `result.finalText`); a fresh boot has
+no cross-run leakage (mutation-checked: a shared-ctx simulation broke 3 of
+5); `ctx.subprocess` is live under the profile; an unregistered tool name
+still fails before any model call, same as agent-loop alone.
 
 ---
 

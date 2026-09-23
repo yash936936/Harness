@@ -2,6 +2,34 @@
 
 > Updated every run. Newest entry at top.
 
+## 2026-09-24 — 1.6 `profile-minimal` done; Phase 1 complete
+**Current phase:** Phase 1 (`profile-minimal` kernel) — all of 1.1-1.6 now
+Done. `bootProfileMinimal()` composes session-log, model-adapter,
+tool-registry, subprocess and agent-loop behind one config call.
+**Last debug:** DBG-011 — see `docs/debug.md`.
+**Last decisions:** D-033 — `profile-minimal` boots via a plain TS
+composer (`ctx.plugin()` × 5), not real `cordis.patch.yml`, because the
+loader that mechanism needs (`@cordisjs/plugin-loader` +
+`@cordisjs/plugin-include`) is an uninstalled optional peer dependency of
+`cordis`. Reopen for `profile-research`/`profile-full` if multiple named,
+independently loadable profiles or hot reload become necessary.
+**Test state:** 122 passed, 3 skipped (up from 117/3). `tsc --noEmit`
+clean. New `test/profile-minimal.test.ts` mutation-checked (a shared-ctx
+simulation broke 3 of 5 tests).
+**Not built yet:** no real provider (Ollama/OpenRouter) has been run
+through the composed profile end-to-end yet - `test/profile-minimal.test.ts`
+uses `MockProvider` throughout, same as 1.5. That's naturally covered once
+a real task is run against `profile-minimal` with `modelAdapter.ollama`
+configured, which isn't blocking (the loop and the wire-format adapters
+are each independently tested against real shapes already).
+**Open for the owner, unchanged from before:** Electron/Tauri measurement
+(D-025), Needle version to pin (D-026), confirm `qwen2.5-coder:3b-instruct`
+speed (D-030).
+**Next up:** Phase 1B (egress controls, 1B.1) is next per `phases.md` — it
+must land before the harness sends real code to a cloud provider — or
+Phase 2 (retrieval pipeline) if cloud access isn't needed yet. Confirm
+which with the owner before starting.
+
 ## 2026-09-22 — D-031 resolved: Windows behavior root-caused, 1.6 un-gated
 **What happened:** the owner ran `scripts/diagnose-windows-env.cjs` and
 reported the output. It conclusively showed the "leak" is Node's own,

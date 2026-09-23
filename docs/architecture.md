@@ -304,13 +304,19 @@ src/
 │   └── eval-langfuse/
 ├── cli/                   (planned, 1B.2: terminal wizard)
 └── profiles/
-    ├── profile-minimal.yml
+    ├── profile-minimal.ts    # bootProfileMinimal() — the real boot path (1.6, D-033)
+    ├── profile-minimal.yml   # config-shape reference only, not auto-loaded
     ├── profile-coding.yml
     ├── profile-research.yml
     └── profile-full.yml
 app/
 └── desktop/               (planned, 1B.4)
 ```
+`profile-minimal` boots via a plain function that calls `ctx.plugin()`
+once per 1.1-1.5 bundle in dependency order, not via Cordis's real YAML
+loader (`@cordisjs/plugin-loader` + `@cordisjs/plugin-include`) — that
+loader is an optional peer dependency of `cordis` and isn't installed.
+See D-033.
 Bundles marked planned do not exist yet. The rest match `src/` as of
 2026-09-22 (session-log, model-adapter, tool-registry, subprocess,
 agent-loop are built). See D-031: subprocess's env-allowlist is verified

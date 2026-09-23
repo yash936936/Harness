@@ -4,6 +4,30 @@
 > if a decision is reversed, log a new entry that supersedes it and reference
 > the old ID.
 
+## D-033 — `profile-minimal` boots via a TS composer, not real `cordis.patch.yml` — 2026-09-24
+**Decision:** 1.6 (`profile-minimal` end-to-end wiring) is implemented as
+`bootProfileMinimal()` (`src/profiles/profile-minimal.ts`), a plain
+function that calls `ctx.plugin()` for each 1.1-1.5 bundle in dependency
+order behind one config object. `profile-minimal.yml` exists alongside it
+as a human-readable config-shape reference only; it is not parsed or
+auto-loaded by anything at boot.
+**Why:** Checked `node_modules/cordis/package.json` directly — YAML-driven
+boot (`cordis.patch.yml`, hot reload, plugin groups) is `@cordisjs/plugin-
+loader` + `@cordisjs/plugin-include`, both listed as *optional* peer
+dependencies of `cordis`, neither installed (`package.json` only lists bare
+`cordis`). Pulling that loader in means adopting its own config schema and
+lifecycle machinery for a single, fixed 5-bundle stack that doesn't need
+hot reload or multiple named profiles on disk yet. The 1.6 success
+criterion ("boots from a single config resolution... no manual wiring
+steps") is satisfied by the one-function-call shape; the specific
+`cordis.patch.yml` mechanism named in the original design draft was never
+verified against what's actually installed until now.
+**Affects:** `src/profiles/profile-minimal.ts`, `docs/phases.md` 1.6,
+`docs/architecture.md` (file tree / "External dependencies"). Reopen when
+`profile-research` or `profile-full` need multiple named, independently
+loadable profiles, or hot reload — that's the point where the real loader
+earns its complexity.
+
 ## D-032 — D-031 resolved: Windows env-injection is a Node platform behavior, not a leak — 2026-09-22
 **Decision:** Root cause confirmed. The owner ran
 `scripts/diagnose-windows-env.cjs` (independent of this project's code) on
