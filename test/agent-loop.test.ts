@@ -1,6 +1,7 @@
 import { Context } from 'cordis'
 import { describe, expect, it } from 'vitest'
 import { SessionLog } from '../src/bundles/session-log/index.js'
+import { EgressPolicy } from '../src/bundles/egress/index.js'
 import { ToolRegistry, type ToolDefinition } from '../src/bundles/tool-registry/index.js'
 import { LLMError, LLMService, MockProvider } from '../src/bundles/model-adapter/index.js'
 import { AgentLoop, AgentLoopError, type AgentLoopConfig } from '../src/bundles/agent-loop/index.js'
@@ -15,6 +16,7 @@ interface ProviderSpec {
 async function boot(config: AgentLoopConfig = {}, providers: ProviderSpec[] = [{ name: 'mock', script: [], default: true }]) {
   const ctx = new Context()
   await ctx.plugin(SessionLog, { memory: true })
+  await ctx.plugin(EgressPolicy, { projectId: 'test' }) // 1B.1: required by LLMService, unused - MockProvider declares no egress
   await ctx.plugin(ToolRegistry)
   await ctx.plugin(LLMService, {})
   const mocks = new Map<string, MockProvider>()

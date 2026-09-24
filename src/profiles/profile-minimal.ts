@@ -1,5 +1,6 @@
 import { Context } from 'cordis'
 import { SessionLog, type SessionLogConfig } from '../bundles/session-log/index.js'
+import { EgressPolicy, type EgressConfig } from '../bundles/egress/index.js'
 import { LLMService, type ModelAdapterConfig } from '../bundles/model-adapter/index.js'
 import { ToolRegistry, type ToolRegistryConfig } from '../bundles/tool-registry/index.js'
 import { Subprocess, type SubprocessConfig } from '../bundles/subprocess/index.js'
@@ -7,6 +8,14 @@ import { AgentLoop, type AgentLoopConfig } from '../bundles/agent-loop/index.js'
 
 export interface ProfileMinimalConfig {
   sessionLog?: SessionLogConfig
+  /**
+   * Required (1B.1, D-029): consent is tracked per project, so there is no
+   * default. `egress` fills in the rest of `EgressConfig` (allowlist,
+   * consent store, secrets) - `projectId` lives at the top level because
+   * it is not optional the way the rest of that config is.
+   */
+  projectId: string
+  egress?: Omit<EgressConfig, 'projectId'>
   modelAdapter?: ModelAdapterConfig
   toolRegistry?: ToolRegistryConfig
   subprocess?: SubprocessConfig
@@ -32,10 +41,16 @@ export interface ProfileMinimalConfig {
  * itself. Logged as D-033 in `docs/decisions.md` - reopen if a later phase
  * (profile-research / profile-full, or multiple named profiles on disk)
  * actually needs the real loader.
+ *
+ * `bundle-egress` (1B.1) boots unconditionally, before `model-adapter` -
+ * not behind a config flag. D-029: egress controls cannot be disabled in
+ * any profile, `profile-minimal` included, so there is no code path here
+ * that skips it.
  */
-export async function bootProfileMinimal(config: ProfileMinimalConfig = {}): Promise<Context> {
+export async function bootProfileMinimal(config: ProfileMinimalConfig): Promise<Context> {
   const ctx = new Context()
   await ctx.plugin(SessionLog, config.sessionLog)
+  await ctx.plugin(EgressPolicy, { ...config.egress, projectId: config.projectId })
   await ctx.plugin(LLMService, config.modelAdapter)
   await ctx.plugin(ToolRegistry, config.toolRegistry)
   await ctx.plugin(Subprocess, config.subprocess)

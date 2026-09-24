@@ -1,5 +1,7 @@
 import { Context, Service } from 'cordis'
 import '../session-log/index.js'
+import '../egress/index.js'
+import { EgressError } from '../egress/index.js'
 import { OllamaProvider, type OllamaConfig } from './providers/ollama.js'
 import { OpenAICompatibleProvider, type OpenAICompatibleConfig } from './providers/openai-compatible.js'
 import { LLMError, type CompletionRequest, type CompletionResponse, type LLMProvider } from './types.js'
@@ -20,6 +22,12 @@ export interface ModelAdapterConfig {
   /**
    * Consent to send prompts to non-loopback hosts (D-022). Without `consent: true`
    * every remote provider call is refused before anything leaves the machine.
+   * This is a per-binding flag, checked *in addition to* `ctx.egress`'s
+   * per-project consent record (1B.1, D-029) — both must be true for a
+   * remote call to go out. Kept separate from `ctx.egress` on purpose: this
+   * flag says "this binding is configured to attempt remote calls at all";
+   * `ctx.egress` says "this project has actually consented". Neither alone
+   * is sufficient.
    */
   egress?: { consent?: boolean }
 }
@@ -38,7 +46,7 @@ declare module 'cordis' {
  * `model.error`). If the log write fails, the model is never called.
  */
 export class LLMService extends Service {
-  static inject = ['log']
+  static inject = ['log', 'egress']
   private providers = new Map<string, LLMProvider>()
   private defaultName?: string
   private readonly egressConsent: boolean
@@ -83,21 +91,41 @@ export class LLMService extends Service {
 
     const { sessionId, provider: _p, actor, ...rest } = req
     const log = this.ctx.log
-
-    // Egress consent (D-022): a remote host needs explicit consent before anything is sent.
     const egress = provider.egress
-    if (egress?.remote && !this.egressConsent) {
-      const message = `${name}: refused to send to ${egress.host} without egress consent. Set \`egress: { consent: true }\` after the user accepts.`
-      await log.append(sessionId, 'model.blocked', { provider: name, host: egress.host, reason: 'no_egress_consent' }, actor)
-      throw new LLMError('consent', message, name)
+
+    if (egress?.remote) {
+      // Two independent gates, both required (1B.1, D-029): this binding must be configured
+      // to attempt remote calls (`egressConsent`, D-022) AND the project must have an actual,
+      // persisted consent record — a project that was never asked sends nothing, whatever
+      // this binding's own config says.
+      const projectConsented = await this.ctx.egress.hasConsent()
+      if (!projectConsented || !this.egressConsent) {
+        const reason = !projectConsented ? 'no_project_consent' : 'no_egress_consent'
+        const message = !projectConsented
+          ? `${name}: refused to send to ${egress.host} - no consent record for this project. Call \`ctx.egress.grantConsent()\` after the user accepts.`
+          : `${name}: refused to send to ${egress.host} without egress consent. Set \`egress: { consent: true }\` after the user accepts.`
+        await log.append(sessionId, 'model.blocked', { provider: name, host: egress.host, reason }, actor)
+        throw new LLMError('consent', message, name)
+      }
+      try {
+        this.ctx.egress.assertAllowedHost(egress.host)
+      } catch (e) {
+        const message = e instanceof EgressError ? e.message : String(e)
+        await log.append(sessionId, 'model.blocked', { provider: name, host: egress.host, reason: 'endpoint_not_allowed' }, actor)
+        throw new LLMError('consent', message, name)
+      }
     }
 
+    // Redact known secrets (1B.1) before the payload is ever logged or sent - a seeded
+    // secret riding along in message content or tool output must not reach either place.
+    const redacted = this.ctx.egress.redactValue(rest)
+
     // Log first; fail closed. Remote calls also record where the data goes and how much.
-    const egressLog = egress ? { egress: { host: egress.host, remote: egress.remote, bytes: Buffer.byteLength(JSON.stringify(rest)) } } : {}
-    await log.append(sessionId, 'model.request', { provider: name, ...rest, ...egressLog }, actor)
+    const egressLog = egress ? { egress: { host: egress.host, remote: egress.remote, bytes: Buffer.byteLength(JSON.stringify(redacted)) } } : {}
+    await log.append(sessionId, 'model.request', { provider: name, ...redacted, ...egressLog }, actor)
 
     try {
-      const res = await provider.complete(rest)
+      const res = await provider.complete(redacted)
       const out: CompletionResponse = { provider: name, ...res }
       await log.append(
         sessionId,

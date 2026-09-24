@@ -4,7 +4,7 @@ import { bootProfileMinimal } from '../src/profiles/profile-minimal.js'
 
 describe('profile-minimal: end-to-end wiring (1.6)', () => {
   it('boots from one config call with no manual wiring, and completes a single-agent task', async () => {
-    const ctx = await bootProfileMinimal({ sessionLog: { memory: true } })
+    const ctx = await bootProfileMinimal({ projectId: 'test', sessionLog: { memory: true } })
     // ctx.log / ctx.llm / ctx.tools / ctx.subprocess / ctx.agentLoop all live off one boot call.
     expect(ctx.log).toBeTruthy()
     expect(ctx.llm).toBeTruthy()
@@ -22,7 +22,7 @@ describe('profile-minimal: end-to-end wiring (1.6)', () => {
   })
 
   it('the session log alone reconstructs the full story of the run ("model-visible = logged" end-to-end)', async () => {
-    const ctx = await bootProfileMinimal({ sessionLog: { memory: true } })
+    const ctx = await bootProfileMinimal({ projectId: 'test', sessionLog: { memory: true } })
     ctx.llm.register('mock', new MockProvider([{ text: 'done', toolCalls: [] }]), { default: true })
 
     const sessionId = ctx.log.create()
@@ -46,12 +46,12 @@ describe('profile-minimal: end-to-end wiring (1.6)', () => {
   })
 
   it('a fresh boot has no cross-run state leakage from a previous run', async () => {
-    const ctx1 = await bootProfileMinimal({ sessionLog: { memory: true } })
+    const ctx1 = await bootProfileMinimal({ projectId: 'test', sessionLog: { memory: true } })
     ctx1.llm.register('mock', new MockProvider([{ text: 'first-run-only', toolCalls: [] }]), { default: true })
     const s1 = ctx1.log.create()
     await ctx1.agentLoop.run({ sessionId: s1, prompt: 'task' })
 
-    const ctx2 = await bootProfileMinimal({ sessionLog: { memory: true } })
+    const ctx2 = await bootProfileMinimal({ projectId: 'test', sessionLog: { memory: true } })
     // No provider named 'mock' has been registered on this fresh ctx - if state leaked from
     // ctx1, this would still resolve; instead it must fail closed with a config error.
     const sessionId2 = ctx2.log.create()
@@ -64,14 +64,14 @@ describe('profile-minimal: end-to-end wiring (1.6)', () => {
   })
 
   it('subprocess is live under profile-minimal (available for a future tool wrapper, 1.4)', async () => {
-    const ctx = await bootProfileMinimal({ sessionLog: { memory: true }, subprocess: { envAllowlist: [] } })
+    const ctx = await bootProfileMinimal({ projectId: 'test', sessionLog: { memory: true }, subprocess: { envAllowlist: [] } })
     const res = await ctx.subprocess.run(process.execPath, ['-e', 'process.stdout.write("ok")'])
     expect(res.exitCode).toBe(0)
     expect(res.stdout).toBe('ok')
   })
 
   it('rejects an unregistered tool name before any model call, same as agent-loop alone (1.3+1.5 wired correctly)', async () => {
-    const ctx = await bootProfileMinimal({ sessionLog: { memory: true } })
+    const ctx = await bootProfileMinimal({ projectId: 'test', sessionLog: { memory: true } })
     ctx.llm.register('mock', new MockProvider([]), { default: true })
     const sessionId = ctx.log.create()
     await expect(ctx.agentLoop.run({ sessionId, prompt: 'x', tools: ['does-not-exist'] })).rejects.toThrow()

@@ -31,19 +31,48 @@ and size.
 - **Key files:** `index.ts` (`SessionLog` service), `store.ts` (`JsonlStore`,
   `MemoryStore`), `types.ts`.
 
+### egress (`bundle-egress`) — 1B.1, done
+- **Responsibility:** `ctx.egress` — per-project consent (persisted, opt-in,
+  no default), an endpoint allowlist, and redaction of registered secret
+  values from any outbound payload. The mandatory gate every remote model
+  call passes through, on top of `bundle-model-adapter`'s own D-022 binding
+  flag (two independent checks, not one merged flag - see D-034). Cannot be
+  disabled in any profile (D-029): `LLMService.static inject` requires it,
+  and every profile boots it unconditionally, before `model-adapter`.
+- **Location:** `src/bundles/egress/`
+- **Depends on:** none.
+- **Config surface:** `projectId` (required), `consentStore?` (default
+  `MemoryConsentStore`; `FileConsentStore` persists to one JSON file for a
+  real first-run record), `allowedHosts?` (default: none), `secrets?`
+  (name → value map redacted from every outbound payload).
+- **Key files:** `index.ts` (`EgressPolicy`), `store.ts`
+  (`MemoryConsentStore`, `FileConsentStore`), `types.ts`
+  (`ConsentRecord`, `ConsentStore`, `EgressError`).
+- **Not a literal "secrets proxy":** a provider's own API key was already
+  structurally excluded from the session log and every prompt before this
+  bundle existed (D-022 - the key lives in the provider's private config,
+  added only at the HTTP header inside its `send()`, never part of
+  `CompletionRequest`). `redactValue` is what 1B.1 actually adds: scrubbing
+  *other* secrets that could ride along inside message or tool content.
+- **Known limitation:** `FileConsentStore` is a plain read-modify-write
+  JSON file - correct for one process, not concurrency-safe.
+
 ### model-adapter (`bundle-model-adapter`)
 - **Responsibility:** plug-and-play model provider access via `ctx.llm`.
 - **Location:** `src/bundles/model-adapter/`
-- **Depends on:** `bundle-session-log`.
+- **Depends on:** `bundle-session-log`, `bundle-egress`.
 - **Config surface:** `default` provider name; `ollama: { model, baseUrl?, timeoutMs? }`
   (host also from `OLLAMA_HOST`); `openaiCompatible: { name?, model, baseUrl, apiKey? | apiKeyEnv?, timeoutMs?, limiter? }`;
-  `egress: { consent }`. Further providers register via `ctx.llm.register()` (D-015).
-- **Key files:** `index.ts` (`LLMService`, consent gate), `types.ts` (`LLMError` kinds:
-  `config`, `auth`, `rate_limit`, `quota`, `payment`, `consent`, and the rest),
-  `providers/ollama.ts`, `providers/openai-compatible.ts`, `providers/mock.ts`,
-  `rate-limiter.ts` (`RateLimiter`). Logs `model.request/response/error/blocked`
-  itself (D-016, D-022). Providers may declare `egress: { host, remote }`.
-- **Not built yet:** redaction and the secrets proxy (see `egress` below).
+  `egress: { consent }` (the binding-level flag, D-022 - checked alongside,
+  not instead of, `ctx.egress`'s per-project consent, D-034). Further
+  providers register via `ctx.llm.register()` (D-015).
+- **Key files:** `index.ts` (`LLMService`, dual consent gate + redaction),
+  `types.ts` (`LLMError` kinds: `config`, `auth`, `rate_limit`, `quota`,
+  `payment`, `consent`, and the rest), `providers/ollama.ts`,
+  `providers/openai-compatible.ts`, `providers/mock.ts`, `rate-limiter.ts`
+  (`RateLimiter`). Logs `model.request/response/error/blocked` itself
+  (D-016, D-022), on the redacted payload (D-034). Providers may declare
+  `egress: { host, remote }`.
 
 ### tool-registry (`bundle-tool-registry`)
 - **Responsibility:** `ctx.tools` — tools self-register, no central adapter
@@ -55,15 +84,6 @@ and size.
 - **Key files:** `index.ts` (`ToolRegistry`), `types.ts` (`ToolDefinition`,
   `ActionClass`, `ToolResult`, `ToolDeniedError`).
 - **Config surface:** `maxOutputChars`.
-
-### egress (`bundle-egress`, Phase 1B.1, not built)
-- **Responsibility:** per-project opt-in and consent record, redaction before
-  every send, secrets proxy (keys injected at the network boundary), endpoint
-  allowlist. Cannot be disabled in any profile (D-029).
-- **Location:** `src/bundles/egress/`
-- **Depends on:** `bundle-session-log`, hooks into `bundle-model-adapter`.
-- **Today:** only the consent gate, the egress log fields and key scrubbing
-  exist, inside `bundle-model-adapter`.
 
 ### app-core (`bundle-app-core`, Phase 1B.2, not built)
 - **Responsibility:** headless first-run logic with a local API: provider
@@ -250,10 +270,12 @@ and size.
 - **Config surface:** Langfuse host, project key.
 
 ## Data flow
-0. Before any remote model call: the provider's egress host is checked
-   against consent (D-022), the payload is redacted (1B.1, not built), the
-   rate limiter waits for a slot and counts the attempt (D-023), and the
-   request is logged with its destination and size.
+0. Before any remote model call: per-project consent is checked (`ctx.egress`,
+   1B.1, D-034) alongside the binding's own consent flag (D-022), the
+   provider's host is checked against the allowlist (1B.1), the payload is
+   redacted (`redactValue`, 1B.1), the rate limiter waits for a slot and
+   counts the attempt (D-023), and the request is logged with its
+   destination and size, on the already-redacted payload.
 1. A task enters the orchestrator, which plans and spawns sub-agents
    (`subagent-scope`) as needed.
 2. Each sub-agent's step runs `agent/pre-step` hooks first (content
@@ -278,7 +300,7 @@ src/
 │   ├── model-adapter/
 │   │   ├── providers/  (ollama, openai-compatible, mock)
 │   │   └── rate-limiter.ts
-│   ├── egress/            (planned, 1B.1)
+│   ├── egress/            (store.ts, index.ts, types.ts)
 │   ├── app-core/          (planned, 1B.2)
 │   ├── model-store/       (planned, 1B.3)
 │   ├── router/            (planned, 4.5)
@@ -318,7 +340,7 @@ loader (`@cordisjs/plugin-loader` + `@cordisjs/plugin-include`) — that
 loader is an optional peer dependency of `cordis` and isn't installed.
 See D-033.
 Bundles marked planned do not exist yet. The rest match `src/` as of
-2026-09-22 (session-log, model-adapter, tool-registry, subprocess,
+2026-09-24 (session-log, egress, model-adapter, tool-registry, subprocess,
 agent-loop are built). See D-031: subprocess's env-allowlist is verified
 on Linux only, not yet on Windows.
 

@@ -1,6 +1,7 @@
 import { Context } from 'cordis'
 import { describe, expect, it } from 'vitest'
 import { SessionLog } from '../src/bundles/session-log/index.js'
+import { EgressPolicy } from '../src/bundles/egress/index.js'
 import {
   LLMError,
   LLMService,
@@ -32,9 +33,19 @@ const okBody = (over: object = {}) => ({
   ...over,
 })
 
+/**
+ * 1B.1 (D-029): LLMService now also requires per-project consent via ctx.egress, on top of
+ * the `egress: { consent: true }` binding flag this suite (D-022) tests directly. This
+ * helper pre-grants project consent and allowlists `openrouter.ai` so every existing case
+ * below still isolates the *binding flag*'s effect, exactly as before. The dedicated
+ * "egress: project consent (1B.1)" suite further down tests the project-consent/allowlist
+ * layer on its own, with consent deliberately withheld.
+ */
 async function boot(openaiCompatible: object, extra: Partial<ModelAdapterConfig> = {}) {
   const ctx = new Context()
   await ctx.plugin(SessionLog, { memory: true })
+  await ctx.plugin(EgressPolicy, { projectId: 'test', allowedHosts: ['openrouter.ai'] })
+  await ctx.egress.grantConsent()
   await ctx.plugin(LLMService, { openaiCompatible, ...extra } as ModelAdapterConfig)
   return ctx
 }
@@ -286,6 +297,7 @@ describe('egress consent (D-022)', () => {
   it('a remote Ollama host (for example a cloud endpoint) is gated the same way', async () => {
     const ctx = new Context()
     await ctx.plugin(SessionLog, { memory: true })
+    await ctx.plugin(EgressPolicy, { projectId: 'test' }) // no consent granted, no host allowlisted
     await ctx.plugin(LLMService, { ollama: { model: 'm', baseUrl: 'https://ollama.example.com' } })
     await expect(ctx.llm.complete(req())).rejects.toMatchObject({ kind: 'consent' })
   })
@@ -345,4 +357,72 @@ describe.skipIf(!live)('live OpenRouter (one request)', () => {
     expect(res.text.trim().length).toBeGreaterThan(0)
     expect(JSON.stringify(await events(ctx))).not.toContain(process.env['OPENROUTER_API_KEY']!)
   }, 90_000)
+})
+
+// 1B.1 (D-029): the project-consent + allowlist + redaction layer on top of the D-022
+// binding flag tested above. Each case builds its own ctx (not the shared `boot()`, which
+// pre-grants consent) so the project-consent state is explicit and under test.
+describe('egress: project consent, allowlist and redaction (1B.1)', () => {
+  async function bootBare(openaiCompatible: object, egressConfig: object = {}) {
+    const ctx = new Context()
+    await ctx.plugin(SessionLog, { memory: true })
+    await ctx.plugin(EgressPolicy, { projectId: 'test', ...egressConfig })
+    await ctx.plugin(LLMService, { openaiCompatible, egress: { consent: true } } as ModelAdapterConfig)
+    return ctx
+  }
+
+  it('the binding flag alone is not enough: no project consent record still refuses to send', async () => {
+    const { f, calls } = fakeFetch(() => json(200, okBody()))
+    const ctx = await bootBare(cfg(f), { allowedHosts: ['openrouter.ai'] })
+    const err = await ctx.llm.complete(req()).catch((e) => e)
+    expect(err).toMatchObject({ kind: 'consent' })
+    expect(calls.length).toBe(0)
+    const log = await events(ctx)
+    expect(log[0]!.data).toMatchObject({ reason: 'no_project_consent' })
+  })
+
+  it('project consent granted but the host is not allowlisted still refuses to send', async () => {
+    const { f, calls } = fakeFetch(() => json(200, okBody()))
+    const ctx = await bootBare(cfg(f), { allowedHosts: ['some-other-host.example'] })
+    await ctx.egress.grantConsent()
+    const err = await ctx.llm.complete(req()).catch((e) => e)
+    expect(err).toMatchObject({ kind: 'consent' })
+    expect(calls.length).toBe(0)
+    const log = await events(ctx)
+    expect(log[0]!.data).toMatchObject({ reason: 'endpoint_not_allowed' })
+  })
+
+  it('project consent + allowlisted host + binding flag together: the call goes through', async () => {
+    const { f, calls } = fakeFetch(() => json(200, okBody()))
+    const ctx = await bootBare(cfg(f), { allowedHosts: ['openrouter.ai'] })
+    await ctx.egress.grantConsent()
+    const res = await ctx.llm.complete(req())
+    expect(res.text).toBe('hello')
+    expect(calls.length).toBe(1)
+  })
+
+  it('a seeded fake secret in message content is redacted before it reaches the outbound body or the session log', async () => {
+    const { f, calls } = fakeFetch(() => json(200, okBody()))
+    const secret = 'sk-FAKE-CUSTOMER-SECRET-999'
+    const ctx = await bootBare(cfg(f), { allowedHosts: ['openrouter.ai'], secrets: { customerKey: secret } })
+    await ctx.egress.grantConsent()
+    await ctx.llm.complete(req({ messages: [{ role: 'user', content: `use this key: ${secret}` }] }))
+
+    // Never in the actual outbound HTTP body...
+    expect(calls[0]!.init.body as string).not.toContain(secret)
+    expect(calls[0]!.init.body as string).toContain('[redacted:customerKey]')
+    // ...and never in the session log either (the log is built from the same redacted payload).
+    const log = JSON.stringify(await events(ctx))
+    expect(log).not.toContain(secret)
+    expect(log).toContain('[redacted:customerKey]')
+  })
+
+  it('the provider API key itself never appears in a prompt or the session log (already true structurally, D-022) even with redaction added', async () => {
+    const { f } = fakeFetch(() => json(200, okBody()))
+    const ctx = await bootBare(cfg(f), { allowedHosts: ['openrouter.ai'] })
+    await ctx.egress.grantConsent()
+    await ctx.llm.complete(req())
+    const log = JSON.stringify(await events(ctx))
+    expect(log).not.toContain(KEY)
+  })
 })

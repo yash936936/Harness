@@ -9,11 +9,24 @@
 # hand until/unless a later phase adopts the real loader.
 #
 # No orchestrator, no sub-agents, no memory beyond the session log (1.1-1.5
-# only) - a single agent, a single task, full audit trail.
+# only) - a single agent, a single task, full audit trail. 1B.1 (egress
+# controls) is also live here: it boots unconditionally and cannot be
+# turned off in this or any other profile (D-029).
 
 sessionLog:
   # path: ./.harness/sessions   # omit (or set memory: true) to keep events in memory only
   memory: true
+
+# Required - there is no default project id (consent is per-project, D-029/D-034).
+projectId: local-dev
+
+egress:
+  # consentStore: <FileConsentStore path, for a record that survives restart>
+  # default (omitted): MemoryConsentStore - consent must be re-granted every run
+  allowedHosts: []
+    # - openrouter.ai   # a remote provider's host must be listed here before it can be reached
+  # secrets:
+  #   <name>: <value redacted from every outbound payload and the session log>
 
 modelAdapter:
   # default: ollama
@@ -25,7 +38,8 @@ modelAdapter:
   #   baseUrl: https://openrouter.ai/api/v1
   #   apiKey: <env var, never a literal here>
   # egress:
-  #   consent: false   # must be explicit true before any remote call is allowed (D-022)
+  #   consent: false   # binding-level flag (D-022); ALSO needs ctx.egress project
+  #                     # consent + an allowlisted host above (D-034) - both required
   {}
 
 toolRegistry:

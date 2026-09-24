@@ -4,6 +4,54 @@
 > if a decision is reversed, log a new entry that supersedes it and reference
 > the old ID.
 
+## D-034 — 1B.1 egress controls: a second, independent consent gate, not a replacement — 2026-09-24
+**Decision:** New `bundle-egress` (`ctx.egress`) adds per-project consent
+(persisted via `FileConsentStore`, in-memory `MemoryConsentStore` for
+tests/default), an endpoint allowlist, and payload redaction
+(`redact`/`redactValue`). `LLMService` now requires `ctx.egress`
+(`static inject`) and checks it *in addition to* the existing D-022
+binding flag (`ModelAdapterConfig.egress.consent`) - both must pass for a
+remote call to proceed, checked as two separate, independently-testable
+conditions (`no_project_consent` vs `no_egress_consent` as distinct
+`model.blocked` reasons). Redaction runs on the request body right before
+it is logged and right before it is sent, so a redacted payload is what
+both the provider and the session log see. `bootProfileMinimal()` boots
+`bundle-egress` unconditionally, before `model-adapter`, with no config
+flag that skips it.
+**Why kept as two gates instead of merging into one:** the binding flag
+(D-022) answers "is this specific provider binding configured to attempt
+remote calls at all" - a code/config-time fact. The project consent record
+(D-029) answers "has this project actually been asked and agreed" - a
+persisted, user-decision fact, meant to survive process restarts and be
+inspectable independently (e.g. by a future `doctor` command, 1B.2).
+Collapsing them into one flag would make it impossible to tell, from the
+outside, which one a refusal was actually about — which is exactly the
+ambiguity a consent system shouldn't have.
+**What "secrets proxy" ended up meaning:** the provider's own API key was
+already never part of `CompletionRequest`/`ProviderRequest` — it lives in
+each provider's private config, added only at the HTTP header inside
+`send()` — so it was already structurally excluded from the session log
+and every prompt before this phase (D-022's design, not new). There was no
+proxy left to build for that specific case. What 1B.1 actually adds is
+`redactValue`: scrubbing *other* secrets that could legitimately ride
+along inside message content or tool output (a credential embedded in a
+file the agent read, for example) — registered once by name/value, matched
+verbatim, and never trusted to a model's own judgment about what to
+withhold.
+**Known limitations, not closed by this decision:** `FileConsentStore` is
+a plain read-modify-write JSON file — correct for one process, not
+concurrency-safe. Redaction matches literal registered values only, not
+secret-shaped patterns in general (e.g. it will not catch an unregistered
+credential it was never told about) — pattern-based detection, if wanted,
+is a separate, later addition. Consent-screen copy and the interactive
+wizard are 1B.2, not this decision.
+**Affects:** `src/bundles/egress/`, `src/bundles/model-adapter/index.ts`
+(`LLMService.complete`), `src/profiles/profile-minimal.ts`
+(`ProfileMinimalConfig.projectId` is now required), every test file that
+boots `LLMService` (`test/model-adapter.test.ts`, `test/agent-loop.test.ts`,
+`test/openai-compatible.test.ts`, `test/profile-minimal.test.ts`), D-022,
+D-029.
+
 ## D-033 — `profile-minimal` boots via a TS composer, not real `cordis.patch.yml` — 2026-09-24
 **Decision:** 1.6 (`profile-minimal` end-to-end wiring) is implemented as
 `bootProfileMinimal()` (`src/profiles/profile-minimal.ts`), a plain

@@ -3,6 +3,58 @@
 > Append-only. Every completed coding task gets an entry here, even "no
 > issues found." Newest entries at top.
 
+## DBG-012 — 1B.1 egress controls — 2026-09-24
+**Task:** Build `bundle-egress`: per-project consent, endpoint allowlist,
+redaction, wired so it cannot be skipped in any profile.
+**Built:** `src/bundles/egress/types.ts` (`ConsentRecord`, `ConsentStore`,
+`EgressError`), `src/bundles/egress/store.ts` (`MemoryConsentStore`,
+`FileConsentStore`), `src/bundles/egress/index.ts` (`EgressPolicy`
+service: `hasConsent`/`grantConsent`/`revokeConsent`,
+`isAllowedHost`/`assertAllowedHost`, `redact`/`redactValue`). Edited
+`src/bundles/model-adapter/index.ts`: `LLMService.static inject` now
+includes `'egress'`; `complete()` checks project consent and the
+allowlist (remote calls only) before the existing D-022 binding-flag
+check's effect, and runs `ctx.egress.redactValue()` on the request body
+before it is logged or sent. Edited `src/profiles/profile-minimal.ts`:
+`ProfileMinimalConfig.projectId` is now required, `bundle-egress` boots
+unconditionally before `model-adapter`.
+**Tested:** `tsc --noEmit` clean. New `test/egress.test.ts` (13 tests):
+both consent stores (including a real cross-instance persistence check for
+`FileConsentStore` via a temp dir), `EgressPolicy` requiring `projectId`,
+consent tracked per-project (two policies sharing one store don't leak
+consent to each other), allowlist exact-match, and redaction (`redact`,
+`registerSecret` on an already-booted policy, `redactValue` over nested
+objects/arrays, a secret appearing twice in one string). New "egress:
+project consent, allowlist and redaction (1B.1)" suite appended to
+`test/openai-compatible.test.ts` (5 tests): binding flag alone is
+insufficient without project consent; project consent alone is
+insufficient without an allowlisted host; all three together succeed; a
+seeded fake secret in message content is absent from both the outbound
+HTTP body and the session log, replaced by `[redacted:name]` in both; the
+provider's own API key still never appears in the log (re-asserts the
+pre-existing D-022 property still holds with redaction added on top).
+Updated the 4 existing files that boot `LLMService`
+(`test/model-adapter.test.ts`, `test/agent-loop.test.ts`,
+`test/openai-compatible.test.ts`'s shared `boot()`, plus one standalone
+`ctx` in that file) to also boot `EgressPolicy` — a structural consequence
+of the new required inject, not a behavior change for any of those cases
+(all loopback, or pre-granted consent so the pre-existing D-022 assertions
+keep testing exactly what they tested before). Full suite: 140 passed, 3
+skipped (up from 122/3 - 18 new tests, zero regressions).
+**Mutation-checked:** three separate mutations, each reverted before the
+next: (1) hard-coded `projectConsented = true`, bypassing the store read
+- broke the "no project consent" test with the actual success response
+where a `consent`-kind error was expected; (2) emptied the
+`assertAllowedHost` try block - broke the "host not allowlisted" test the
+same way; (3) used the unredacted `rest` instead of `redactValue(rest)` -
+broke the seeded-secret test, with the raw secret showing up in the
+captured fetch body. Each mutation broke exactly the test built to catch
+it and nothing else; confirmed clean after each revert.
+**Found:** none beyond what's logged in D-034's "known limitations."
+**Fixed:** n/a - new capability, not a bugfix.
+
+---
+
 ## DBG-011 — 1.6 `profile-minimal` end-to-end wiring — 2026-09-24
 **Task:** Compose 1.1-1.5 (session-log, model-adapter, tool-registry,
 subprocess, agent-loop) into a runnable `profile-minimal` stack.

@@ -270,7 +270,31 @@ secrets proxy), edits to `bundle-model-adapter`
 - Cannot be disabled in any profile (D-029).
 **Testing:**
 - Seeded-secret test over a recording fetch; opt-out test; allowlist test.
-**Status:** Not started (consent gate and egress log exist, see 1.2b).
+**Status:** Done — 2026-09-24 (see DBG-012, D-034). New `bundle-egress`
+(`ctx.egress`, `src/bundles/egress/`) owns per-project consent
+(`MemoryConsentStore` default, `FileConsentStore` for a persisted
+first-run record), an endpoint allowlist, and secret redaction
+(`redact`/`redactValue`, applied to every outbound request body and the
+`model.request` log entry it produces). `LLMService.static inject` now
+requires `'egress'`, and `bootProfileMinimal()` boots it unconditionally
+before `model-adapter` — there is no config path that skips it (D-029).
+This sits *alongside* the existing D-022 binding flag
+(`ModelAdapterConfig.egress.consent`), not in place of it: a remote call
+now needs both the binding armed **and** a persisted per-project consent
+record, checked independently. 18 new tests (`test/egress.test.ts` unit
+tests for the bundle itself; `test/openai-compatible.test.ts`'s new "egress:
+project consent, allowlist and redaction (1B.1)" suite for the wiring) —
+mutation-checked: bypassing the project-consent check, the allowlist
+check, and the redaction call were each tried in turn and each broke
+exactly the test written for it. Full suite: 140 passed, 3 skipped (up
+from 122/3). **Not built:** the "secrets proxy" as a literal separate
+component - the provider API key already never touched
+`CompletionRequest`/the session log/any prompt before this phase (D-022's
+architecture), so there was no proxy left to build for that specific
+case; `redactValue` is the new mechanism for *other* secrets riding along
+in message/tool content. `FileConsentStore` is a simple read-modify-write
+JSON file - fine for one process, not safe under concurrent writers.
+Consent-screen copy and the wizard UI are 1B.2, not this phase.
 
 ### 1B.2 — Wizard core, budgets and `doctor`
 **Goal:** Headless first-run logic plus a terminal wizard client (D-025).

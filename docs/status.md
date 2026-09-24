@@ -2,6 +2,32 @@
 
 > Updated every run. Newest entry at top.
 
+## 2026-09-24 — 1B.1 egress controls done
+**Current phase:** Phase 1B.1 complete. `bundle-egress` (`ctx.egress`) is
+live and mandatory: per-project consent (persisted via `FileConsentStore`
+or in-memory for tests), an endpoint allowlist, and redaction of
+registered secret values from every outbound request body and the
+`model.request` log entry. Sits alongside the existing D-022 binding flag,
+not in place of it — both gates must pass for a remote call.
+**Last debug:** DBG-012 — see `docs/debug.md`.
+**Last decisions:** D-034 — two independent consent gates on purpose (a
+binding-config fact vs. a persisted per-project decision), so a refusal's
+reason is unambiguous. "Secrets proxy" turned out to already be satisfied
+structurally for provider API keys (D-022) — 1B.1's real addition is
+`redactValue` for *other* secrets in message/tool content.
+**Test state:** 140 passed, 3 skipped (up from 122/3). `tsc --noEmit`
+clean. Three separate mutations (bypass project-consent check, bypass
+allowlist check, skip redaction) each broke exactly the test built for it.
+**Known limitations (not blocking, logged in D-034):**
+`FileConsentStore` is a plain JSON file, fine for one process, not
+concurrency-safe. Redaction matches literal registered secret values only
+— no pattern-based detection of an unregistered credential.
+**Not built yet:** consent-screen copy and the interactive wizard (1B.2).
+**Next up:** 1B.2 (wizard core, budgets, `doctor`), 1B.3 (model store and
+pinning), 1B.4 (desktop shell) remain in Phase 1B, or Phase 2 (retrieval
+pipeline) — owner said Phase 2 is next after 1B.1, so that's the plan
+unless redirected.
+
 ## 2026-09-24 — 1.6 `profile-minimal` done; Phase 1 complete
 **Current phase:** Phase 1 (`profile-minimal` kernel) — all of 1.1-1.6 now
 Done. `bootProfileMinimal()` composes session-log, model-adapter,

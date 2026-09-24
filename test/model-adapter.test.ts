@@ -3,6 +3,7 @@ import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { describe, expect, it } from 'vitest'
 import { SessionLog } from '../src/bundles/session-log/index.js'
+import { EgressPolicy } from '../src/bundles/egress/index.js'
 import { LLMError, LLMService, MockProvider, resolveBaseUrl, type CompletionRequest } from '../src/bundles/model-adapter/index.js'
 
 type FetchCall = { url: string; init: RequestInit }
@@ -31,6 +32,10 @@ const okBody = (over: object = {}) => ({
 async function boot(ollama?: object) {
   const ctx = new Context()
   await ctx.plugin(SessionLog, { memory: true })
+  // 1B.1 (D-029): LLMService requires ctx.egress unconditionally. Every test here is
+  // loopback-only (localhost/127.0.0.1), so the gate never actually triggers - no consent
+  // or allowlist is granted, matching "no remote call is possible by default".
+  await ctx.plugin(EgressPolicy, { projectId: 'test' })
   await ctx.plugin(LLMService, ollama ? { ollama } : ({} as any))
   return ctx
 }
