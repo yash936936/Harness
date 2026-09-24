@@ -313,7 +313,28 @@ Consent-screen copy and the wizard UI are 1B.2, not this phase.
 - With the network off, the harness starts and says what works.
 **Testing:** wizard flow tests over the core API; offline-start test;
 budget-stop test.
-**Status:** Not started
+**Status:** In progress — 2026-09-24 (see DBG-013, D-035). Sliced into
+pieces, same as 1.2b/1.6/1B.1; this turn built the first piece only.
+- **Budgets: done.** New `bundle-app-core` (`ctx.appCore`), `Budgets`
+  class (`src/bundles/app-core/budgets.ts`) - requests/tokens at
+  task/session/day scope, soft and hard limits, `requestsLeftToday()`,
+  and a persisted day counter (mirrors `RateLimiter`'s `statePath`,
+  D-023) that survives restart and rolls over at the UTC day boundary.
+  `spend()` is all-or-nothing across scopes and throws
+  `BudgetExceededError` carrying a full status report - the "hard stop
+  with a report" criterion - rather than just the one number that
+  tripped it. 15 tests (`test/budgets.test.ts`); mutation-checked twice
+  (disabling hard-limit enforcement, and breaking atomicity by mutating
+  a scope before all scopes are validated) - each broke multiple tests.
+  Not yet wired to anything that actually spends (agent-loop/model-adapter
+  don't call `spend()` yet - there is no consumer until the wizard or a
+  budget-aware call site exists).
+- **Not started:** provider connection + connection test, credential
+  storage (OS credential store + encrypted-file fallback), consent-screen
+  copy/data, `doctor`, the terminal wizard CLI client itself
+  (`src/cli/`), offline-start test, budget-stop integration test (the
+  budget logic is tested standalone; nothing yet stops a real call using
+  it).
 
 ### 1B.3 — Model store and pinning
 **Goal:** Verified, pinned models and clear fallbacks (D-027).

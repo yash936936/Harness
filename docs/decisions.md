@@ -4,6 +4,42 @@
 > if a decision is reversed, log a new entry that supersedes it and reference
 > the old ID.
 
+## D-035 — 1B.2 budgets: all-or-nothing spend, day counter persists like the rate limiter — 2026-09-24
+**Decision:** New `bundle-app-core` (`ctx.appCore`) starts 1B.2 with just
+`Budgets` (`ctx.appCore.budgets`): requests/tokens tracked at three scopes
+(`task`, `session` in-memory and caller-reset; `day` UTC-rolling,
+optionally persisted to one JSON file the same way `RateLimiter` persists
+its daily counter, D-023). `spend(metric, amount)` checks task, then
+session, then day against each one's `hard` limit *before* recording
+anything anywhere - if any scope would be pushed over, nothing is
+recorded in any scope, and the thrown `BudgetExceededError` carries a
+full status snapshot across every scope and metric, not just the number
+that tripped it.
+**Why all-or-nothing across scopes, not per-scope:** a spend that's fine
+for `session` but blown for `day` (say) should not leave `session`
+partially incremented while `day` refuses it - that would make the three
+counters drift out of sync with each other and with reality (what was
+actually spent). Checking every scope first, then applying once, keeps
+"used" meaning the same thing everywhere.
+**Why the day counter's persistence design copies `RateLimiter`'s rather
+than reusing it directly:** same shape (UTC day key, atomic write via
+temp-file-then-rename, corrupt/missing file treated as no prior state)
+but a different unit of persistence (budget spend, not a request
+timestamp window) and a different consumer (the wizard/`doctor`, not
+`LLMService`) - copying the pattern was simpler and more honest than
+forcing a shared abstraction across two things that happen to rhyme
+structurally but serve different bundles.
+**Not yet wired to a spender:** nothing calls `Budgets.spend()` yet -
+agent-loop and model-adapter are unmodified. This is deliberately staged:
+1B.2 is being built as a sliced sequence (budgets → credential storage →
+consent copy → connection test/`doctor` → the terminal wizard CLI that
+ties it together), same pattern as 1.2b/1.6/1B.1. Reopen this note once a
+real call site spends against it - that's also the point the
+"budget-stop test" from `docs/phases.md`'s testing list becomes possible
+to write (it needs something spending to stop).
+**Affects:** `src/bundles/app-core/`, `docs/phases.md` 1B.2 (in progress,
+not done), `docs/architecture.md`.
+
 ## D-034 — 1B.1 egress controls: a second, independent consent gate, not a replacement — 2026-09-24
 **Decision:** New `bundle-egress` (`ctx.egress`) adds per-project consent
 (persisted via `FileConsentStore`, in-memory `MemoryConsentStore` for

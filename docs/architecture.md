@@ -85,13 +85,29 @@ and size.
   `ActionClass`, `ToolResult`, `ToolDeniedError`).
 - **Config surface:** `maxOutputChars`.
 
-### app-core (`bundle-app-core`, Phase 1B.2, not built)
-- **Responsibility:** headless first-run logic with a local API: provider
-  connection, credential storage (OS credential store, encrypted-file
-  fallback), consent copy, request and token budgets, `doctor`. The terminal
-  wizard and the desktop app are thin clients of it (D-025).
-- **Location:** `src/bundles/app-core/`, `src/cli/`
-- **Depends on:** `bundle-model-adapter`, `bundle-egress`, `bundle-model-store`.
+### app-core (`bundle-app-core`) — 1B.2, in progress
+- **Responsibility:** headless first-run/ongoing logic with a local API:
+  provider connection, credential storage (OS credential store,
+  encrypted-file fallback), consent copy, request and token budgets,
+  `doctor`. The terminal wizard and the desktop app are thin clients of it
+  (D-025), so the two surfaces cannot disagree.
+- **Location:** `src/bundles/app-core/`
+- **Depends on:** none yet (`bundle-model-adapter`, `bundle-egress`,
+  `bundle-model-store` are dependencies of pieces not built yet -
+  provider connection, consent copy, and the model-store-aware part of
+  `doctor`, respectively).
+- **Built so far (D-035):** `Budgets` (`ctx.appCore.budgets`) - requests
+  and tokens at task/session/day scope, soft and hard limits, an
+  all-or-nothing `spend()` that throws `BudgetExceededError` with a full
+  status report rather than partially recording across scopes, and a day
+  counter that persists across restarts (same design as `RateLimiter`'s
+  `statePath`, D-023, copied rather than shared - different unit,
+  different consumer).
+- **Not built yet:** provider connection + connection test, credential
+  storage, consent-screen copy/data, `doctor`, `src/cli/` (the terminal
+  wizard itself - still `planned, 1B.2` in the file tree below).
+- **Key files:** `index.ts` (`AppCore` Service), `budgets.ts` (`Budgets`,
+  plain class, no Cordis dependency - same pattern as `RateLimiter`).
 
 ### model-store (`bundle-model-store`, Phase 1B.3, not built)
 - **Responsibility:** verified local models and pinned bindings: source
@@ -301,7 +317,7 @@ src/
 │   │   ├── providers/  (ollama, openai-compatible, mock)
 │   │   └── rate-limiter.ts
 │   ├── egress/            (store.ts, index.ts, types.ts)
-│   ├── app-core/          (planned, 1B.2)
+│   ├── app-core/          (index.ts, budgets.ts - rest of 1B.2 planned)
 │   ├── model-store/       (planned, 1B.3)
 │   ├── router/            (planned, 4.5)
 │   ├── tool-registry/
@@ -341,8 +357,8 @@ loader is an optional peer dependency of `cordis` and isn't installed.
 See D-033.
 Bundles marked planned do not exist yet. The rest match `src/` as of
 2026-09-24 (session-log, egress, model-adapter, tool-registry, subprocess,
-agent-loop are built). See D-031: subprocess's env-allowlist is verified
-on Linux only, not yet on Windows.
+agent-loop, and app-core - budgets only so far - are built). See D-031:
+subprocess's env-allowlist is verified on Linux only, not yet on Windows.
 
 ## Policy table (enforced by `bundle-policy-gates` at `tools/pre-execute`)
 | Action class | Gate |

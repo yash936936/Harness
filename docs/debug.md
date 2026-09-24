@@ -3,6 +3,49 @@
 > Append-only. Every completed coding task gets an entry here, even "no
 > issues found." Newest entries at top.
 
+## DBG-013 — 1B.2 (slice 1): budgets — 2026-09-24
+**Task:** Build the budgets piece of 1B.2 - requests/tokens at
+task/session/day scope, soft+hard limits, "requests left today", hard
+stop with a report.
+**Built:** `src/bundles/app-core/budgets.ts` (`Budgets`,
+`BudgetExceededError`, `BudgetStatus`/`ScopeStatus`/`SpendResult` types),
+`src/bundles/app-core/index.ts` (`AppCore` Service, `ctx.appCore.budgets`).
+`Budgets` is a plain class (no Cordis dependency), same pattern as
+`RateLimiter` - testable directly with `new Budgets(config)`, no `ctx`
+needed.
+**Tested:** `tsc --noEmit` clean. `test/budgets.test.ts`, 15 tests: no
+limits configured never throws; hard limit blocks and records nothing;
+the thrown error names the specific scope and carries every scope's
+status, not just the one that tripped; task checked before session
+before day, and a rejection blocks the whole spend atomically (session
+not partially incremented when task is what actually failed); negative
+amounts rejected; soft-limit flag flips at the threshold without
+blocking; `newlySoftBreached` fires once, on the call that crosses it,
+not on every call after; `requestsLeftToday()` counts down and floors at
+0; `resetTask`/`resetSession` each clear only their own scope; day rolls
+over automatically at the UTC boundary while task/session (caller-managed)
+are untouched; the day counter survives a fresh `Budgets` instance on the
+same day (persistence) and is correctly ignored (starts at 0) on a new
+day; a corrupt state file doesn't crash construction. Full suite: 155
+passed, 3 skipped (up from 140/3 - 15 new tests, zero regressions).
+**Mutation-checked:** two separate mutations, each reverted before the
+next: (1) removed the hard-limit check from the validation loop entirely
+- broke 3 tests, including the previously-passing "rejects a spend" case
+now succeeding with the wrong (unblocked) result; (2) moved the `task`
+scope's increment to happen *inside* the per-scope validation loop,
+before session/day are checked (breaking atomicity) - broke 5 tests,
+including day-rollover and reset tests whose assertions depend on
+counters only changing via a fully-validated `spend()`. Reverted;
+confirmed clean both times.
+**Found:** none.
+**Fixed:** n/a - new capability.
+**Explicitly not done this slice (see D-035, `docs/phases.md` 1B.2):**
+nothing calls `Budgets.spend()` yet; credential storage, consent-screen
+copy, provider connection test, `doctor`, and the terminal wizard CLI are
+all still open.
+
+---
+
 ## DBG-012 — 1B.1 egress controls — 2026-09-24
 **Task:** Build `bundle-egress`: per-project consent, endpoint allowlist,
 redaction, wired so it cannot be skipped in any profile.

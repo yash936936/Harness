@@ -2,6 +2,36 @@
 
 > Updated every run. Newest entry at top.
 
+## 2026-09-24 — 1B.2 started: budgets done, rest of 1B.2 still open
+**Current phase:** 1B.2, in progress (not done - it's a multi-piece
+phase, sliced same as 1.2b/1.6/1B.1). `bundle-app-core` (`ctx.appCore`)
+now exists with `Budgets` (`ctx.appCore.budgets`): task/session/day
+soft+hard limits on requests and tokens, a persisted day counter
+(survives restart, UTC rollover, mirrors `RateLimiter`'s pattern from
+D-023), and an all-or-nothing `spend()` that throws
+`BudgetExceededError` with a full status report before recording
+anything, if any scope would go over hard.
+**Last debug:** DBG-013 — see `docs/debug.md`.
+**Last decisions:** D-035 — all-or-nothing spend across scopes (never
+leave scopes out of sync with each other); day-counter persistence
+copies `RateLimiter`'s design rather than sharing code with it (same
+shape, different unit and different consumer).
+**Test state:** 155 passed, 3 skipped (up from 140/3). `tsc --noEmit`
+clean. Two mutations (disable hard-limit check; break cross-scope
+atomicity) each broke several tests.
+**Not built yet, still open in 1B.2:** nothing calls `Budgets.spend()`
+yet (no real call site to budget-stop test against); provider connection
++ connection test; credential storage (OS credential store + encrypted-
+file fallback with a warning); consent-screen copy/data (D-020's "plain
+about what the provider receives" requirement); `doctor`; the terminal
+wizard CLI itself (`src/cli/`, D-025); offline-start test.
+**Next up:** continuing 1B.2 - credential storage is the natural next
+slice (budgets and consent both eventually need somewhere to keep a
+provider API key; the wizard can't do much without it). Confirm with the
+owner before picking a credential-store library, since it likely means a
+new dependency and needs to work on the Windows 8 GB target machine
+without heavy native build tooling.
+
 ## 2026-09-24 — 1B.1 egress controls done
 **Current phase:** Phase 1B.1 complete. `bundle-egress` (`ctx.egress`) is
 live and mandatory: per-project consent (persisted via `FileConsentStore`
