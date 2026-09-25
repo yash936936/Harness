@@ -96,18 +96,29 @@ and size.
   `bundle-model-store` are dependencies of pieces not built yet -
   provider connection, consent copy, and the model-store-aware part of
   `doctor`, respectively).
-- **Built so far (D-035):** `Budgets` (`ctx.appCore.budgets`) - requests
+- **Built so far:** `Budgets` (`ctx.appCore.budgets`, D-035) - requests
   and tokens at task/session/day scope, soft and hard limits, an
   all-or-nothing `spend()` that throws `BudgetExceededError` with a full
   status report rather than partially recording across scopes, and a day
   counter that persists across restarts (same design as `RateLimiter`'s
   `statePath`, D-023, copied rather than shared - different unit,
-  different consumer).
-- **Not built yet:** provider connection + connection test, credential
-  storage, consent-screen copy/data, `doctor`, `src/cli/` (the terminal
-  wizard itself - still `planned, 1B.2` in the file tree below).
+  different consumer). `ctx.appCore.credentials` (D-036) -
+  `AutoCredentialStore` over `KeychainCredentialStore` (OS keychain via
+  `@napi-rs/keyring`, verified with a round-trip probe before being
+  trusted - a broken backend was found, by hand, to fail silently on
+  `get()` in some environments) and `FileCredentialStore` (AES-256-GCM
+  fallback, key in a sibling file - protects against passive exposure,
+  not a same-user attacker; stated, not glossed over).
+- **Not built yet:** provider connection + connection test,
+  consent-screen copy/data, `doctor`, `src/cli/` (the terminal wizard
+  itself - still `planned, 1B.2` in the file tree below).
 - **Key files:** `index.ts` (`AppCore` Service), `budgets.ts` (`Budgets`,
-  plain class, no Cordis dependency - same pattern as `RateLimiter`).
+  plain class, no Cordis dependency - same pattern as `RateLimiter`),
+  `credentials.ts` (`CredentialStore` interface, `KeychainCredentialStore`,
+  `FileCredentialStore`, `AutoCredentialStore`).
+- **External dependency:** `@napi-rs/keyring` - prebuilt native binary
+  per platform (`win32-x64-msvc` confirmed present for the target
+  machine), no build tooling required.
 
 ### model-store (`bundle-model-store`, Phase 1B.3, not built)
 - **Responsibility:** verified local models and pinned bindings: source
@@ -317,7 +328,7 @@ src/
 │   │   ├── providers/  (ollama, openai-compatible, mock)
 │   │   └── rate-limiter.ts
 │   ├── egress/            (store.ts, index.ts, types.ts)
-│   ├── app-core/          (index.ts, budgets.ts - rest of 1B.2 planned)
+│   ├── app-core/          (index.ts, budgets.ts, credentials.ts - rest of 1B.2 planned)
 │   ├── model-store/       (planned, 1B.3)
 │   ├── router/            (planned, 4.5)
 │   ├── tool-registry/
@@ -387,6 +398,7 @@ takes to use it on the current 8 GB, no-GPU test machine.
 | **Needle** (Cactus Compute) | MIT per the repo and Hugging Face card; one catalog also cites Apache 2.0 | Free, about 14 to 28 MB. Original 26M and Needle 2 (45M) both exist: pin one and keep the license file (D-026) |
 | **Ornith-1.5 9B** | MIT per the vendor | Free weights. About 5.63 GB at Q4_K_M: does not fit next to the OS on 8 GB. Official `ornith-ai` source only (D-027) |
 | **`agentskills/agentskills`** | Apache 2.0 code, CC-BY-4.0 docs | Free. Format only |
+| **`@napi-rs/keyring`** (D-036) | MIT (installed package.json) | Free. Prebuilt binaries per platform as optional deps (`win32-x64-msvc` confirmed present for the target machine); no build tooling needed |
 | **Langfuse** | MIT except `/ee` folders (commercial) | Self-hosting needs Postgres, ClickHouse, Redis, S3: too heavy for 8 GB. Cloud sends traces out. Deferred to Phase 8 |
 | **LanceDB**, **Qdrant** | Believed permissive (Apache-2.0); not re-checked | LanceDB is embedded. Qdrant is a service, Phase 8 |
 | **tree-sitter**, **ripgrep** | Believed permissive (MIT); not re-checked | Free |

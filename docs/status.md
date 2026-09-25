@@ -2,6 +2,33 @@
 
 > Updated every run. Newest entry at top.
 
+## 2026-09-24 — 1B.2: credential storage done (slice 2)
+**Current phase:** 1B.2, still in progress. `ctx.appCore.credentials`
+now exists: `AutoCredentialStore` tries the OS keychain
+(`@napi-rs/keyring`), verifies it with a real set/read/compare probe
+before trusting it (a broken backend was found, by hand, to fail
+*silently* on read in some environments - not a hypothetical), and falls
+back automatically to an AES-256-GCM encrypted file when the probe
+fails.
+**Last debug:** DBG-014 — see `docs/debug.md`.
+**Last decisions:** D-036 — verify-don't-trust design for the keychain,
+stated (not glossed-over) limitation of the file-store fallback's
+encryption, new dependency `@napi-rs/keyring` checked for a Windows
+prebuilt binary before adding.
+**Test state:** 169 passed, 3 skipped (up from 155/3). `tsc --noEmit`
+clean. Two mutations (ignore the probe result; swallow decrypt/tamper
+errors) each broke multiple tests.
+**Not built yet, still open in 1B.2:** provider connection + connection
+test; consent-screen copy/data; `doctor`; the terminal wizard CLI itself
+(`src/cli/`); offline-start test; nothing calls `Budgets.spend()` or
+`ctx.appCore.credentials` yet from a real flow - both are library-grade
+but have no caller until the wizard exists.
+**Next up:** continuing 1B.2 - consent-screen copy/data (D-020's "plain
+about what the provider receives") is the natural next slice, since
+budgets + credentials + egress consent (1B.1) are now all in place for
+the wizard to actually present a first-run screen against. Confirm with
+the owner before starting.
+
 ## 2026-09-24 — 1B.2 started: budgets done, rest of 1B.2 still open
 **Current phase:** 1B.2, in progress (not done - it's a multi-piece
 phase, sliced same as 1.2b/1.6/1B.1). `bundle-app-core` (`ctx.appCore`)

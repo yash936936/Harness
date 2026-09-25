@@ -12,6 +12,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@napi-rs/keyring": "^2.1.0",
     "ajv": "^8.20.0",
     "cordis": "4.0.0-rc.10"
   },

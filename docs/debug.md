@@ -3,6 +3,77 @@
 > Append-only. Every completed coding task gets an entry here, even "no
 > issues found." Newest entries at top.
 
+## DBG-014 — 1B.2 (slice 2): credential storage — 2026-09-24
+**Task:** OS credential store + encrypted-file fallback for provider API
+keys and other secrets the wizard/consent flow will need to hold.
+**Investigated first, before writing any code:** installed
+`@napi-rs/keyring` for real in this container and probed its actual
+behavior rather than assuming from docs. Findings: `new Entry(service,
+account)` never throws at construction, even with a nonsense service
+name. `getPassword()` on a key that was never set returns `null`
+cleanly - no throw. `setPassword()` in this container (no live
+secret-service session, `dbus-daemon` binary present but no session bus
+running) throws `Error: Couldn't access platform storage: AccessDenied`.
+`deletePassword()` on a nonexistent key does not throw. This directly
+shaped the design: a plain try/catch around each call would let a broken
+backend look identical to "nothing stored yet" on a `get()`, which is
+the worst place for that ambiguity to hide.
+**Built:** `src/bundles/app-core/credentials.ts` -
+`CredentialStore` interface; `KeychainCredentialStore` (thin wrapper,
+lazy/memoized dynamic `import('@napi-rs/keyring')` so an unsupported
+platform fails on first use, not at module load); `FileCredentialStore`
+(AES-256-GCM, random 32-byte key in a sibling `.key` file created on
+first write, atomic write via temp-file-then-rename for the data file);
+`AutoCredentialStore` (round-trip probe against the primary before
+trusting it, cached for the instance's lifetime, falls back to the file
+store otherwise). Wired into `AppCore` as `ctx.appCore.credentials`
+(`index.ts`), defaulting to keychain service `'harness'` and file path
+`.harness/credentials.json`, both overridable, or a store can be injected
+directly.
+**Tested:** `tsc --noEmit` clean. `test/credentials.test.ts`, 14 tests:
+`FileCredentialStore` - round trip, missing key is `undefined`, multiple
+keys coexist, delete works and deleting an absent key is a no-op,
+persists across a fresh instance on the same path, key file is exactly 32
+bytes, stored values are never plaintext in the data file, a tampered
+ciphertext byte fails to decrypt (GCM auth tag) rather than returning
+garbage, and two stores with swapped data files (wrong key for the
+ciphertext) both fail to decrypt. `AutoCredentialStore` - tested against
+fake `CredentialStore` doubles, not the real keychain: uses the primary
+once its probe succeeds; falls back when the primary throws; falls back
+when the primary *silently* fails (accepts the write, `get()` always
+returns nothing - the exact real-world case found by hand above); probes
+at most once across many calls (call-count assertion on the fake); the
+probe key itself never shows up as a real credential afterward.
+`KeychainCredentialStore` gets one environment-tolerant smoke test: must
+either round-trip a probe value or throw exactly
+`KeychainUnavailableError` - in this container it took the second branch,
+confirming the real failure path actually gets exercised, not just
+mocked. Full suite: 169 passed, 3 skipped (up from 155/3 - 14 new tests,
+zero regressions).
+**Mutation-checked:** two separate mutations, each reverted before the
+next: (1) `AutoCredentialStore.probe()` made to always return `this
+.primary` regardless of the round-trip result - broke the
+silent-failure fallback test specifically (the one modeling the real
+bug this design exists to catch); the `AlwaysThrowsStore` fallback test
+still passed on its own, since that path throws before reaching the
+mutated line - expected, confirms each test is pinned to a distinct
+failure mode rather than one test accidentally covering for another. (2)
+`FileCredentialStore.get()` made to swallow decrypt errors and return an
+empty string instead of propagating - broke both tamper-detection tests
+(flipped-byte ciphertext, swapped-key-file cross-decryption), which had
+been asserting a rejection.
+**Found:** none beyond the keychain silent-failure behavior itself,
+which is the reason this bundle exists in its current shape rather than
+a bug in what was built.
+**Fixed:** n/a - new capability.
+**New dependency:** `@napi-rs/keyring` `^2.1.0` - checked
+`node_modules/@napi-rs/keyring/package.json`'s `optionalDependencies`
+before adding; `@napi-rs/keyring-win32-x64-msvc` is listed, confirming a
+prebuilt binary exists for the target Windows machine (no native build
+step required).
+
+---
+
 ## DBG-013 — 1B.2 (slice 1): budgets — 2026-09-24
 **Task:** Build the budgets piece of 1B.2 - requests/tokens at
 task/session/day scope, soft+hard limits, "requests left today", hard

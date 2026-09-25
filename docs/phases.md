@@ -329,8 +329,31 @@ pieces, same as 1.2b/1.6/1B.1; this turn built the first piece only.
   Not yet wired to anything that actually spends (agent-loop/model-adapter
   don't call `spend()` yet - there is no consumer until the wizard or a
   budget-aware call site exists).
-- **Not started:** provider connection + connection test, credential
-  storage (OS credential store + encrypted-file fallback), consent-screen
+- **Credential storage: done** (see DBG-014, D-036).
+  `ctx.appCore.credentials` - `AutoCredentialStore` tries the OS keychain
+  (`KeychainCredentialStore`, via `@napi-rs/keyring`: Windows Credential
+  Manager / macOS Keychain / Linux Secret Service) first, verified with a
+  real round-trip probe (set, read back, compare) before trusting it -
+  found by hand that the keychain backend can fail *silently* on read in
+  some environments (a headless container here: `getPassword` on a
+  missing entry returns `null` with no throw, while `setPassword` throws
+  `"Couldn't access platform storage"` - so a broken backend and a
+  genuinely-empty one can look identical on a read alone). Falls back
+  automatically to `FileCredentialStore` (AES-256-GCM, encrypted at rest,
+  tamper-evident via the GCM auth tag) when the probe fails. 14 tests
+  (`test/credentials.test.ts`) - the encrypted file store fully
+  real-tested (round trip, persistence, tamper detection, no cross-key
+  decryption), the fallback *logic* tested with fake stores (including
+  one that reproduces the exact silent-failure case found by hand), and
+  one environment-tolerant smoke test against the real keychain (must
+  either round-trip cleanly or fail as `KeychainUnavailableError` - not
+  crash, not any other error). Mutation-checked twice (ignoring the probe
+  result and always trusting the primary; swallowing decrypt/tamper
+  errors instead of propagating them) - each broke multiple tests. New
+  dependency: `@napi-rs/keyring` (prebuilt binaries, `win32-x64-msvc`
+  confirmed present - no native build tooling needed on the target
+  machine).
+- **Not started:** provider connection + connection test, consent-screen
   copy/data, `doctor`, the terminal wizard CLI client itself
   (`src/cli/`), offline-start test, budget-stop integration test (the
   budget logic is tested standalone; nothing yet stops a real call using

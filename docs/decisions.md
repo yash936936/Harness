@@ -4,6 +4,52 @@
 > if a decision is reversed, log a new entry that supersedes it and reference
 > the old ID.
 
+## D-036 — 1B.2 credentials: OS keychain, verified with a probe, not trusted blind — 2026-09-24
+**Decision:** `ctx.appCore.credentials` is an `AutoCredentialStore`
+wrapping `KeychainCredentialStore` (`@napi-rs/keyring` - Windows
+Credential Manager / macOS Keychain / Linux Secret Service, prebuilt
+binaries, no native build tooling required) as primary and
+`FileCredentialStore` (AES-256-GCM, key in a sibling file) as fallback.
+Before trusting the keychain for anything, `AutoCredentialStore` writes a
+probe value, reads it back, and only uses the keychain if the read
+matches what was written; otherwise every call for the lifetime of the
+instance goes to the file store. The verdict is resolved once and cached,
+not re-checked per call.
+**Why verify with a round-trip instead of just try/catching each call:**
+checked the real library by hand rather than assuming its failure mode.
+In a headless container with no live secret-service session,
+`Entry.getPassword()` on a missing key returned `null` with **no throw**,
+while `Entry.setPassword()` threw `"Couldn't access platform storage:
+AccessDenied"`. That means a broken backend and a genuinely-empty one are
+indistinguishable from a bare `get()` alone - a naive per-call try/catch
+would let a broken keychain masquerade as "no credential stored yet" and
+the wizard would keep re-prompting for a key it thinks was never saved,
+or silently lose one that was. The probe forces a write+read+compare
+before anything is trusted, so this failure mode is caught once, up
+front, rather than surfacing later as a confusing "credential missing"
+report from `doctor`.
+**Why `FileCredentialStore` encrypts rather than just writing plain
+JSON, and why that encryption's limit is stated rather than
+glossed over:** AES-256-GCM with a random key stops a credential from
+sitting in plain text - real protection against passive exposure (a
+backup tool, a sync client, disk loss without full-disk encryption). It
+does **not** protect against another process running as the same OS
+user, since the key file sits on the same disk, readable the same way.
+That's a real, stated limitation (see the class's own doc comment), not
+claimed away - the keychain path is what actually defends against a
+same-user attacker; the file store exists for when that path isn't
+available.
+**New dependency:** `@napi-rs/keyring` (`^2.1.0`). Checked before
+adding: ships prebuilt binaries per-platform as optional dependencies
+(same pattern as `esbuild`), `@napi-rs/keyring-win32-x64-msvc` is among
+them - no Visual Studio build tools needed on the target 8 GB Windows
+machine (owner's stated concern, matches D-025's "the shell must fit the
+8 GB host budget" reasoning extended to every new dependency, not just
+the desktop shell itself).
+**Affects:** `src/bundles/app-core/credentials.ts`, `package.json` (new
+dependency), `docs/phases.md` 1B.2 (still in progress - `doctor`, consent
+copy, provider connection, and the wizard CLI remain).
+
 ## D-035 — 1B.2 budgets: all-or-nothing spend, day counter persists like the rate limiter — 2026-09-24
 **Decision:** New `bundle-app-core` (`ctx.appCore`) starts 1B.2 with just
 `Budgets` (`ctx.appCore.budgets`): requests/tokens tracked at three scopes
