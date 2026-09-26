@@ -2,6 +2,35 @@
 
 > Updated every run. Newest entry at top.
 
+## 2026-09-24 — 1B.2: consent-screen copy/data done (slice 3)
+**Current phase:** 1B.2, still in progress.
+`ctx.appCore.consentScreen(providerName, egress?)` now returns D-020's
+general statement plus a specific binding's plain-language destination
+plus, only for providers actually checked against a real source
+(`ollama`, `openrouter` so far), a dated data-policy claim. An unknown
+provider gets an explicit "no checked policy on file" line, not silence
+and not a guess.
+**Last debug:** DBG-015 — see `docs/debug.md`.
+**Last decisions:** D-037 — paraphrased/sourced/dated claims only,
+`lookupProviderPolicy` returns `undefined` rather than fabricating
+anything for a provider not in the registry.
+**Test state:** 176 passed, 3 skipped (up from 169/3). `tsc --noEmit`
+clean. Two mutations (fabricate a claim for an unknown provider;
+hard-code "local" regardless of actual egress) each broke 2 tests - the
+second one is the one that mattered most (a real cloud call falsely
+reporting nothing left the machine).
+**Not built yet, still open in 1B.2:** provider connection + connection
+test; `doctor`; the terminal wizard CLI itself (`src/cli/`);
+offline-start test. Budgets, credentials, and consent copy are all
+library-grade now but still have no caller - nothing in the codebase
+actually presents this consent screen, spends a budget, or reads a
+stored key from a real flow yet.
+**Next up:** provider connection + connection test is the natural next
+slice (the wizard needs something to actually call before it has
+anything to show budgets/consent/credentials working against), or
+`doctor` (a read-only status check across everything built so far) if the
+owner would rather have that first. Confirm before starting.
+
 ## 2026-09-24 — 1B.2: credential storage done (slice 2)
 **Current phase:** 1B.2, still in progress. `ctx.appCore.credentials`
 now exists: `AutoCredentialStore` tries the OS keychain

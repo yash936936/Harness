@@ -109,13 +109,19 @@ and size.
   `get()` in some environments) and `FileCredentialStore` (AES-256-GCM
   fallback, key in a sibling file - protects against passive exposure,
   not a same-user attacker; stated, not glossed over).
-- **Not built yet:** provider connection + connection test,
-  consent-screen copy/data, `doctor`, `src/cli/` (the terminal wizard
-  itself - still `planned, 1B.2` in the file tree below).
+  Consent-screen data (`ctx.appCore.consentScreen`, D-037) - D-020's
+  general statement plus a binding's plain-language destination plus a
+  dated, sourced data-policy claim *only* for providers actually checked
+  (`ollama`, `openrouter` so far) - `lookupProviderPolicy` returns
+  `undefined`, never a fabricated claim, for anything else.
+- **Not built yet:** provider connection + connection test, `doctor`,
+  `src/cli/` (the terminal wizard itself - still `planned, 1B.2` in the
+  file tree below).
 - **Key files:** `index.ts` (`AppCore` Service), `budgets.ts` (`Budgets`,
   plain class, no Cordis dependency - same pattern as `RateLimiter`),
   `credentials.ts` (`CredentialStore` interface, `KeychainCredentialStore`,
-  `FileCredentialStore`, `AutoCredentialStore`).
+  `FileCredentialStore`, `AutoCredentialStore`), `consent-copy.ts`
+  (`buildConsentScreenData`, `lookupProviderPolicy`).
 - **External dependency:** `@napi-rs/keyring` - prebuilt native binary
   per platform (`win32-x64-msvc` confirmed present for the target
   machine), no build tooling required.
@@ -328,7 +334,7 @@ src/
 │   │   ├── providers/  (ollama, openai-compatible, mock)
 │   │   └── rate-limiter.ts
 │   ├── egress/            (store.ts, index.ts, types.ts)
-│   ├── app-core/          (index.ts, budgets.ts, credentials.ts - rest of 1B.2 planned)
+│   ├── app-core/          (index.ts, budgets.ts, credentials.ts, consent-copy.ts - rest of 1B.2 planned)
 │   ├── model-store/       (planned, 1B.3)
 │   ├── router/            (planned, 4.5)
 │   ├── tool-registry/

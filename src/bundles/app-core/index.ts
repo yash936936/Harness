@@ -7,9 +7,11 @@ import {
   type CredentialStore,
   type FileCredentialStoreConfig,
 } from './credentials.js'
+import { buildConsentScreenData, type ConsentScreenData } from './consent-copy.js'
 
 export * from './budgets.js'
 export * from './credentials.js'
+export * from './consent-copy.js'
 
 export interface AppCoreConfig {
   budgets?: BudgetsConfig
@@ -39,8 +41,8 @@ declare module 'cordis' {
  *
  * Built incrementally, one piece of 1B.2 at a time (see `docs/phases.md`
  * 1B.2, `docs/status.md` for exactly what's landed vs. still open):
- * `budgets` and `credentials` are done. Consent-screen data and `doctor`
- * are separate, later slices of the same bundle.
+ * `budgets`, `credentials` and consent-screen data are done. `doctor` is a
+ * later slice of the same bundle.
  */
 export class AppCore extends Service {
   readonly budgets: Budgets
@@ -55,6 +57,11 @@ export class AppCore extends Service {
         new KeychainCredentialStore(config.credentials?.service ?? 'harness'),
         new FileCredentialStore(config.credentials?.file ?? { path: '.harness/credentials.json' }),
       )
+  }
+
+  /** What the first-run/consent screen should show for one configured provider binding (D-020). */
+  consentScreen(providerName: string, egress?: { host: string; remote: boolean }): ConsentScreenData {
+    return buildConsentScreenData(providerName, egress)
   }
 }
 

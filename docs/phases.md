@@ -353,11 +353,31 @@ pieces, same as 1.2b/1.6/1B.1; this turn built the first piece only.
   dependency: `@napi-rs/keyring` (prebuilt binaries, `win32-x64-msvc`
   confirmed present - no native build tooling needed on the target
   machine).
-- **Not started:** provider connection + connection test, consent-screen
-  copy/data, `doctor`, the terminal wizard CLI client itself
-  (`src/cli/`), offline-start test, budget-stop integration test (the
-  budget logic is tested standalone; nothing yet stops a real call using
-  it).
+- **Consent-screen copy/data: done** (see DBG-015, D-037).
+  `ctx.appCore.consentScreen(providerName, egress?)` / `buildConsentScreenData`
+  - always returns D-020's general statement (no telemetry of our own;
+    local keeps everything on-machine; cloud sends what the model sees
+    under that provider's own policy), plus the specific binding's
+    destination in plain language, plus that provider's data-policy claim
+    *if and only if* one has actually been checked against a real source
+    - `lookupProviderPolicy` returns `undefined` for anything not in the
+    small curated registry rather than inventing a claim on a provider's
+    behalf. Currently sourced: `ollama` (local runtime, nothing leaves via
+    Ollama itself) and `openrouter` (paraphrased from
+    openrouter.ai/docs/guides/privacy/provider-logging, checked
+    2026-09-24 - no prompt/response storage or training by default unless
+    logging is opted in, two-boundary structure since the underlying
+    routed provider has its own separate policy, account-level Zero Data
+    Retention option). 7 tests (`test/consent-copy.test.ts`).
+    Mutation-checked twice (fabricating a generic claim for an unknown
+    provider; hard-coding "local" regardless of the actual `egress.remote`
+    value - the second one is the mutation that matters most, since it
+    would make a real cloud call falsely claim nothing left the machine)
+    - each broke 2 tests.
+- **Not started:** provider connection + connection test, `doctor`, the
+  terminal wizard CLI client itself (`src/cli/`), offline-start test,
+  budget-stop integration test (the budget logic is tested standalone;
+  nothing yet stops a real call using it).
 
 ### 1B.3 — Model store and pinning
 **Goal:** Verified, pinned models and clear fallbacks (D-027).

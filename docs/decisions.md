@@ -4,6 +4,42 @@
 > if a decision is reversed, log a new entry that supersedes it and reference
 > the old ID.
 
+## D-037 — 1B.2 consent copy: dated, sourced claims only, never a fabricated one — 2026-09-24
+**Decision:** `ctx.appCore.consentScreen(providerName, egress?)` returns
+D-020's general statement (unconditional - no telemetry of our own; local
+keeps everything on-machine; cloud sends what the model sees under that
+provider's own, unverifiable policy) plus the specific binding's plain-
+language destination plus, only when one exists, that provider's data
+policy as a paraphrased, dated, sourced claim. `lookupProviderPolicy`
+returns `undefined` - not a guess, not a generic "generally considered
+safe" placeholder - for any provider not in a small curated registry.
+Currently two entries, both checked against a real source before being
+written: `ollama` (it is the local runtime, not a hosted service; nothing
+leaves via Ollama itself unless pointed at a remote host, which then has
+its own separate policy) and `openrouter` (web-searched
+openrouter.ai/docs/guides/privacy/provider-logging on 2026-09-24 - no
+prompt/response storage or training by default unless logging is
+explicitly opted into for a discount; every request still crosses
+OpenRouter's own boundary and the underlying routed provider's separate
+boundary, which can vary by model/endpoint; an account-level Zero Data
+Retention setting exists).
+**Why paraphrase instead of quoting the provider's policy text:**
+copyright (this project's own constraints elsewhere already treat
+verbatim reproduction of another party's text as something to avoid by
+default) and also honesty - a paraphrase in our own words, with a source
+link and a check date, makes it visibly *our summary of their claim* as
+of a point in time, not their legal text presented as if this harness
+endorses or guarantees it.
+**Why an unknown provider gets an explicit "no checked policy on file"
+line rather than silence:** silence could read as "nothing to worry
+about here"; the destination text says so directly instead, so the
+absence of a claim is itself information the person sees, not a gap they
+have to notice on their own.
+**Affects:** `src/bundles/app-core/consent-copy.ts`, `index.ts`
+(`AppCore.consentScreen`), D-020 (implements its "consent copy" affect
+line), `docs/phases.md` 1B.2 (still open: provider connection, `doctor`,
+the terminal wizard CLI, offline-start test).
+
 ## D-036 — 1B.2 credentials: OS keychain, verified with a probe, not trusted blind — 2026-09-24
 **Decision:** `ctx.appCore.credentials` is an `AutoCredentialStore`
 wrapping `KeychainCredentialStore` (`@napi-rs/keyring` - Windows

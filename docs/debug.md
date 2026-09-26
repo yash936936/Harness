@@ -3,6 +3,53 @@
 > Append-only. Every completed coding task gets an entry here, even "no
 > issues found." Newest entries at top.
 
+## DBG-015 — 1B.2 (slice 3): consent-screen copy/data — 2026-09-24
+**Task:** Plain-language statement of what a provider receives (D-020),
+plus each provider's stated data policy, dated and never fabricated for
+a provider with no checked source.
+**Investigated first, before writing any copy:** web-searched OpenRouter's
+actual privacy/data-retention documentation
+(openrouter.ai/docs/guides/privacy/provider-logging) rather than writing
+from assumption or training-data recall, since a stale or invented claim
+here would be exactly the kind of thing D-020 exists to prevent. Also
+checked Ollama's own stance (it is a local server/runtime, not a hosted
+service - no prompts leave the machine through Ollama itself by default).
+**Built:** `src/bundles/app-core/consent-copy.ts` -
+`ProviderDataPolicyClaim`, a small curated `KNOWN_PROVIDER_POLICIES`
+registry (`ollama`, `openrouter` - each paraphrased, dated, sourced),
+`lookupProviderPolicy` (returns `undefined` for anything not in the
+registry - the "never fabricate" guarantee), `buildConsentScreenData`
+(the general D-020 statement + a specific binding's destination text,
+which differs for local vs. remote vs. remote-with-no-known-policy).
+Wired into `AppCore.consentScreen()`.
+**Tested:** `tsc --noEmit` clean. `test/consent-copy.test.ts`, 7 tests:
+known providers return a dated, sourced claim; an unknown provider
+returns `undefined`, not a guess; the general statement is present and
+covers all three D-020 cases (telemetry/local/cloud, checked by
+substring); a local binding (no egress, or explicit `remote: false`)
+says nothing is sent anywhere and still attaches a claim if one exists
+(the "if pointed at a remote host..." caveat in Ollama's own claim only
+makes sense if the local case can still show a policy claim); a remote
+binding with a known provider names the real destination host and
+attaches its claim; a remote binding with an *unknown* provider says so
+in the destination text itself rather than just omitting the claim
+silently; the destination always names the specific provider passed in.
+Full suite: 176 passed, 3 skipped (up from 169/3 - 7 new tests, zero
+regressions).
+**Mutation-checked:** two separate mutations, each reverted before the
+next: (1) `lookupProviderPolicy` made to fabricate a generic
+"Generally considered safe" claim for any unknown provider instead of
+returning `undefined` - broke 2 tests. (2) `isLocal` hard-coded to
+`true` regardless of the actual `egress.remote` value passed in - broke
+2 tests; this is the mutation that mattered most to catch, since it
+would make a real cloud call's consent screen falsely claim nothing left
+the machine, which is precisely the "no blanket claim" D-020 exists to
+rule out.
+**Found:** none.
+**Fixed:** n/a - new capability.
+
+---
+
 ## DBG-014 — 1B.2 (slice 2): credential storage — 2026-09-24
 **Task:** OS credential store + encrypted-file fallback for provider API
 keys and other secrets the wizard/consent flow will need to hold.
