@@ -4,6 +4,37 @@
 > if a decision is reversed, log a new entry that supersedes it and reference
 > the old ID.
 
+## D-038 — Provider connection test: a third, narrower consent gate — 2026-09-26
+**Decision:** `testProviderConnection` (`src/bundles/app-core/provider-connection.ts`)
+takes an already-constructed `LLMProvider` and runs a best-effort model
+listing plus one tiny timed probe call. For a remote provider it refuses
+unless the caller passes `acknowledgeRemote: true`, but it does **not**
+check `ctx.egress`'s persisted per-project consent (D-029) or go through
+`LLMService.complete` at all.
+**Why:** The wizard's own screen order is connection test, then the consent
+screen (`docs/phases.md` 1B.4) — persisted project consent doesn't exist
+yet at the point a connection test needs to run, so the test can't depend
+on it. `acknowledgeRemote` is a distinct, narrower, one-off gate: "the user
+just typed this key/host and clicked test", not "the project may use this
+provider going forward". Testing also has to work before the provider is
+registered on `ctx.llm` at all (the point of the test is to decide whether
+it's worth registering), so it can't be looked up by name — the caller
+passes a provider instance directly.
+**Also decided:** the shared timeout deadline covers *both* the model
+listing and the probe call, not just the probe — found by hand (a
+mutation-checked test, not a design guess) that a hung `/models` endpoint
+would otherwise hang the whole test forever, since listing was originally
+unbounded. A timed-out listing call is reported inside `models.error`
+(best-effort, never fails the overall `ok`) unless the deadline is used up
+entirely by listing, in which case the whole result is `ok: false, kind:
+'timeout'` rather than silently skipping the probe.
+**Not built:** this connection test intentionally does not write to the
+session log (no session exists yet at wizard time, same reasoning as
+`budgets`/`credentials` not logging) and does not spend budget
+(`ctx.appCore.budgets`) — it's a setup-time check, not a task.
+**Affects:** `bundle-app-core`, 1B.2, `bundle-model-adapter` (`LLMProvider.listModels?`,
+implemented for `OllamaProvider` and `OpenAICompatibleProvider`).
+
 ## D-037 — 1B.2 consent copy: dated, sourced claims only, never a fabricated one — 2026-09-24
 **Decision:** `ctx.appCore.consentScreen(providerName, egress?)` returns
 D-020's general statement (unconditional - no telemetry of our own; local

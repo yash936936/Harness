@@ -374,10 +374,30 @@ pieces, same as 1.2b/1.6/1B.1; this turn built the first piece only.
     value - the second one is the mutation that matters most, since it
     would make a real cloud call falsely claim nothing left the machine)
     - each broke 2 tests.
-- **Not started:** provider connection + connection test, `doctor`, the
-  terminal wizard CLI client itself (`src/cli/`), offline-start test,
-  budget-stop integration test (the budget logic is tested standalone;
-  nothing yet stops a real call using it).
+- **Provider connection test: done** (see DBG-016, D-038).
+  `testProviderConnection` (`src/bundles/app-core/provider-connection.ts`,
+  wired onto `ctx.appCore.testConnection`) lists models (best-effort), then
+  makes one tiny timed probe call — never throws, returns a structured
+  `{ ok, latencyMs, model, models, error }` the wizard can render directly.
+  Takes an already-constructed provider rather than a `ctx.llm` name, since
+  the point of the test is to decide whether to register the provider at
+  all. A remote provider requires `acknowledgeRemote: true`: a narrower,
+  one-off gate distinct from `ctx.egress`'s persisted per-project consent
+  (D-029), which doesn't exist yet at wizard time (connection test runs
+  *before* the consent screen — see 1B.4 below). Added
+  `LLMProvider.listModels?()`, implemented for `OllamaProvider`
+  (`GET /api/tags`) and `OpenAICompatibleProvider` (`GET /models`). 14 tests
+  (`test/provider-connection.test.ts`). Mutation-checked (disabled the
+  remote gate — broke the test meant to catch it). A real bug was also
+  caught by a test hanging on first run, not by inspection: model listing
+  originally had no timeout of its own, so a hung `/models` endpoint would
+  have hung the whole test forever; fixed by sharing one deadline across
+  both the listing and the probe call.
+- **Not started:** `doctor`, the terminal wizard CLI client itself
+  (`src/cli/`), offline-start test, budget-stop integration test (the
+  budget logic is tested standalone; nothing yet stops a real call using
+  it). The connection test above is not yet called from anywhere real —
+  that wiring is the CLI client's job.
 
 ### 1B.3 — Model store and pinning
 **Goal:** Verified, pinned models and clear fallbacks (D-027).

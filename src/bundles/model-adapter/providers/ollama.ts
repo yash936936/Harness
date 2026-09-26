@@ -45,6 +45,21 @@ export class OllamaProvider implements LLMProvider {
     this.doFetch = config.fetch ?? fetch
   }
 
+  /** `GET /api/tags` - installed model tags. Throws on failure; callers treat listing as best-effort. */
+  async listModels(signal?: AbortSignal): Promise<string[]> {
+    let res: Response
+    try {
+      res = await this.doFetch(`${this.baseUrl}/api/tags`, { signal })
+    } catch (e: any) {
+      const code = e?.cause?.code ?? e?.message ?? 'unknown'
+      throw new LLMError('network', `ollama: cannot reach ${this.baseUrl} (${code})`, NAME)
+    }
+    if (!res.ok) throw new LLMError('server', `ollama: could not list models (HTTP ${res.status})`, NAME, res.status)
+    const json: any = await res.json().catch(() => undefined)
+    const models = Array.isArray(json?.models) ? json.models : []
+    return models.map((m: any) => String(m?.name ?? m?.model ?? '')).filter(Boolean)
+  }
+
   async complete(req: ProviderRequest, outer?: AbortSignal) {
     const model = req.model ?? this.model
     const options: Record<string, unknown> = {}

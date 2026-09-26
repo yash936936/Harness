@@ -70,6 +70,23 @@ export class OpenAICompatibleProvider implements LLMProvider {
     return this.limiter ? this.limiter.run(call, outer) : call()
   }
 
+  /** `GET /models` - model IDs the host currently knows about. Throws on failure; callers treat listing as best-effort. */
+  async listModels(signal?: AbortSignal): Promise<string[]> {
+    const headers: Record<string, string> = {}
+    if (this.apiKey) headers['authorization'] = `Bearer ${this.apiKey}`
+    let res: Response
+    try {
+      res = await this.doFetch(`${this.baseUrl}/models`, { headers, signal })
+    } catch (e: any) {
+      const code = e?.cause?.code ?? e?.message ?? 'unknown'
+      throw new LLMError('network', this.scrub(`${this.name}: cannot reach ${this.egress.host} (${code})`), this.name)
+    }
+    if (!res.ok) throw this.httpError(res.status, errorDetail(undefined, await res.text().catch(() => '')), res.headers.get('retry-after'))
+    const json: any = await res.json().catch(() => undefined)
+    const list = Array.isArray(json?.data) ? json.data : []
+    return list.map((m: any) => String(m?.id ?? '')).filter(Boolean)
+  }
+
   private async send(req: ProviderRequest, outer?: AbortSignal) {
     const model = req.model ?? this.model
     const body: Record<string, unknown> = { model, stream: false, messages: toWireMessages(req) }

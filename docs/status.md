@@ -2,6 +2,37 @@
 
 > Updated every run. Newest entry at top.
 
+## 2026-09-26 — 1B.2: provider connection test done (slice 4)
+**Current phase:** 1B.2, still in progress.
+`ctx.appCore.testConnection(provider, opts)` lists models (best-effort)
+then makes one tiny timed probe call against an already-constructed
+`LLMProvider`, and never throws — it returns a structured result the
+wizard renders directly. A remote provider needs `acknowledgeRemote: true`,
+a narrower one-off gate separate from `ctx.egress`'s persisted per-project
+consent, since the connection test has to work *before* that consent
+exists (wizard order: connection, then consent). `LLMProvider` gained an
+optional `listModels?()`, implemented for `OllamaProvider` and
+`OpenAICompatibleProvider`.
+**Last debug:** DBG-016 — see `docs/debug.md`.
+**Last decisions:** D-038 — the `acknowledgeRemote` gate and why it's
+separate from D-029's project consent; the shared listing+probe timeout.
+**Test state:** 190 passed, 3 skipped (up from 176/3). `tsc --noEmit`
+clean. One mutation (disable the `acknowledgeRemote` gate) broke the test
+written for it. One real bug caught by a test hanging on first run (not a
+deliberate mutation): model listing had no timeout of its own, so a hung
+listing endpoint would have hung the whole connection test forever; fixed
+by sharing one deadline across both calls, re-ran clean.
+**Watch:**
+- Not yet called from anywhere real — no CLI/wizard client exists yet
+  (`src/cli/` is still unbuilt). That's next.
+- Not tested against a real Ollama or OpenRouter host, only the fetch-mock
+  pattern already used elsewhere in the suite — same caveat as 1.2b's
+  429-wording heuristic (unverified against the live API).
+**Next up:** `doctor` (the other unstarted 1B.2 piece — read-only status
+across budgets/credentials/consent/egress allowlist), then the terminal
+wizard CLI client (`src/cli/`) that actually calls all four 1B.2 pieces
+built so far, then the offline-start and budget-stop integration tests.
+
 ## 2026-09-24 — 1B.2: consent-screen copy/data done (slice 3)
 **Current phase:** 1B.2, still in progress.
 `ctx.appCore.consentScreen(providerName, egress?)` now returns D-020's

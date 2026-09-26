@@ -8,10 +8,13 @@ import {
   type FileCredentialStoreConfig,
 } from './credentials.js'
 import { buildConsentScreenData, type ConsentScreenData } from './consent-copy.js'
+import { testProviderConnection, type ProviderConnectionResult, type TestConnectionOptions } from './provider-connection.js'
+import type { LLMProvider } from '../model-adapter/types.js'
 
 export * from './budgets.js'
 export * from './credentials.js'
 export * from './consent-copy.js'
+export * from './provider-connection.js'
 
 export interface AppCoreConfig {
   budgets?: BudgetsConfig
@@ -41,8 +44,9 @@ declare module 'cordis' {
  *
  * Built incrementally, one piece of 1B.2 at a time (see `docs/phases.md`
  * 1B.2, `docs/status.md` for exactly what's landed vs. still open):
- * `budgets`, `credentials` and consent-screen data are done. `doctor` is a
- * later slice of the same bundle.
+ * `budgets`, `credentials`, consent-screen data and the provider connection
+ * test are done. `doctor` and the terminal wizard client are later slices of
+ * the same phase.
  */
 export class AppCore extends Service {
   readonly budgets: Budgets
@@ -62,6 +66,16 @@ export class AppCore extends Service {
   /** What the first-run/consent screen should show for one configured provider binding (D-020). */
   consentScreen(providerName: string, egress?: { host: string; remote: boolean }): ConsentScreenData {
     return buildConsentScreenData(providerName, egress)
+  }
+
+  /**
+   * Connection test for a provider being set up (1B.2): list models
+   * (best-effort), one tiny call, latency. Takes an already-constructed
+   * provider - see `testProviderConnection` for why this isn't looked up on
+   * `ctx.llm` by name.
+   */
+  testConnection(provider: LLMProvider, opts?: TestConnectionOptions): Promise<ProviderConnectionResult> {
+    return testProviderConnection(provider, opts)
   }
 }
 

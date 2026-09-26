@@ -3,6 +3,61 @@
 > Append-only. Every completed coding task gets an entry here, even "no
 > issues found." Newest entries at top.
 
+## DBG-016 — 1B.2 (slice 4): provider connection test — 2026-09-26
+**Task:** Connection test for a configured provider (D-038): list models,
+one tiny call, latency, before the wizard tells the user "you're
+connected".
+**Built:** `src/bundles/app-core/provider-connection.ts`
+(`testProviderConnection`, wired onto `ctx.appCore.testConnection`). Added
+optional `listModels?()` to `LLMProvider` (`model-adapter/types.ts`) and
+implemented it for `OllamaProvider` (`GET /api/tags`) and
+`OpenAICompatibleProvider` (`GET /models`) — neither existed before this
+task.
+**Tested:** `test/provider-connection.test.ts`, 14 tests against the real
+`OllamaProvider`/`OpenAICompatibleProvider` classes with an injected fetch
+mock (same fake-fetch pattern as `openai-compatible.test.ts`), plus
+`MockProvider` for the local-provider path.
+- Happy path: local provider (no `egress`) succeeds with no
+  `acknowledgeRemote` needed; latency and the model name the provider
+  returned are both present; `models` is `undefined` when the provider has
+  no `listModels`.
+- Remote gate: refused with `kind: 'consent'` and zero fetch calls made
+  when `acknowledgeRemote` is omitted; succeeds once it's `true`.
+- Secrets: the API key never appears in a failed result's message, even
+  when the mock server echoes it back (mirrors the existing `scrub()`
+  behavior in `openai-compatible.ts`, now exercised through this path too).
+- Model listing is best-effort both ways: a working `/models`/`/api/tags`
+  populates `models.names` and the probe still runs; a failing one
+  (`kind: 'invalid_request'`/500/unreachable) does not fail the overall
+  test as long as the probe itself succeeds.
+- Ollama-specific: installed tags listed; a not-installed model surfaces
+  `invalid_request` naming the model tag (existing `httpError` mapping,
+  now reached via this path); unreachable host surfaces `network`.
+- Never throws: a plain (non-`LLMError`) rejection is reported as
+  `kind: 'unknown'` rather than propagating.
+**Found (by the tests, not by inspection):** the first version applied the
+timeout only to the probe call, not the model-listing call — a hung
+`/models` endpoint would have hung the entire connection test forever,
+defeating its purpose as a fast setup check. Caught by the "reports kind
+'timeout'" test hanging past its own test timeout on first run, not by a
+deliberate mutation. Fixed by sharing one `AbortSignal` deadline across
+both calls; a listing that eats the whole deadline now reports the overall
+result as `ok: false, kind: 'timeout'` instead of silently skipping the
+probe. Re-ran clean after the fix (14/14, ~50ms).
+**Mutation-checked:** disabled the `acknowledgeRemote` gate entirely
+(`if (false && ...)`) — broke the "refuses a remote provider without
+acknowledgeRemote" test as expected (`result.ok` came back `true`,
+`calls.length` came back `1`). Reverted; suite re-ran clean.
+**Fixed:** n/a beyond the timeout-sharing bug above, already covered.
+**Full suite:** `npx tsc --noEmit` clean; `npx vitest run` — 190 passed, 3
+skipped (up from 176/3), all 13 files green, no regressions.
+**Not built this task:** `doctor`, the terminal wizard CLI client itself
+(`src/cli/`), offline-start test, and the budget-stop integration test
+(spending is still not wired to any real call site) — same "not started"
+list as before, minus the connection test now checked off. This connection
+test is also not itself wired into anything yet (no CLI calls it); that's
+the wizard-client slice, still open.
+
 ## DBG-015 — 1B.2 (slice 3): consent-screen copy/data — 2026-09-24
 **Task:** Plain-language statement of what a provider receives (D-020),
 plus each provider's stated data policy, dated and never fabricated for

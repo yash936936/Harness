@@ -69,6 +69,15 @@ export interface LLMProvider {
   /** Optional. Providers that reach a network host declare it so the service can enforce consent. */
   readonly egress?: EgressInfo
   complete(req: ProviderRequest, signal?: AbortSignal): Promise<Omit<CompletionResponse, 'provider'>>
+  /**
+   * Optional. Model IDs the provider's own host currently knows about (e.g.
+   * `GET /api/tags` for Ollama, `GET /models` for an OpenAI-compatible host).
+   * Informational only - used by the connection test (1B.2) alongside the
+   * tiny probe call, never as a substitute for it: a model can be listed and
+   * still fail to actually respond, and a host with no listing endpoint (or
+   * one that fails) can still complete a real call.
+   */
+  listModels?(signal?: AbortSignal): Promise<string[]>
 }
 
 export type LLMErrorKind =
