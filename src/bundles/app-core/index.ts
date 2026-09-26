@@ -9,12 +9,14 @@ import {
 } from './credentials.js'
 import { buildConsentScreenData, type ConsentScreenData } from './consent-copy.js'
 import { testProviderConnection, type ProviderConnectionResult, type TestConnectionOptions } from './provider-connection.js'
+import { buildDoctorReport, type DoctorReport, type EgressStatusSource } from './doctor.js'
 import type { LLMProvider } from '../model-adapter/types.js'
 
 export * from './budgets.js'
 export * from './credentials.js'
 export * from './consent-copy.js'
 export * from './provider-connection.js'
+export * from './doctor.js'
 
 export interface AppCoreConfig {
   budgets?: BudgetsConfig
@@ -44,9 +46,9 @@ declare module 'cordis' {
  *
  * Built incrementally, one piece of 1B.2 at a time (see `docs/phases.md`
  * 1B.2, `docs/status.md` for exactly what's landed vs. still open):
- * `budgets`, `credentials`, consent-screen data and the provider connection
- * test are done. `doctor` and the terminal wizard client are later slices of
- * the same phase.
+ * `budgets`, `credentials`, consent-screen data, the provider connection
+ * test and `doctor` are done. The terminal wizard client that actually
+ * calls all of them is the one piece of this phase left.
  */
 export class AppCore extends Service {
   readonly budgets: Budgets
@@ -76,6 +78,19 @@ export class AppCore extends Service {
    */
   testConnection(provider: LLMProvider, opts?: TestConnectionOptions): Promise<ProviderConnectionResult> {
     return testProviderConnection(provider, opts)
+  }
+
+  /**
+   * Read-only status across budgets, the active credential store, consent
+   * state and the egress allowlist (1B.2). `egress` is passed in rather
+   * than injected (`ctx.egress`) because `AppCore` still isn't wired into
+   * any profile yet (see `docs/decisions.md` - `bundle-app-core` is booted
+   * standalone by its own tests, not by `bootProfileMinimal`) - the same
+   * reason `consentScreen` above takes its egress info as a parameter
+   * instead of reading `this.ctx.egress`.
+   */
+  doctor(egress: EgressStatusSource): Promise<DoctorReport> {
+    return buildDoctorReport(this.budgets, this.credentials, egress)
   }
 }
 

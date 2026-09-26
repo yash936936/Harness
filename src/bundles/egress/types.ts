@@ -16,6 +16,15 @@ export interface ConsentStore {
   set(record: ConsentRecord): Promise<void>
 }
 
+/** Read-only snapshot for `doctor` (1B.2). Never mutates anything - a pure read of current state. */
+export interface EgressStatus {
+  projectId: string
+  consented: boolean
+  /** Absent when there is no consent record at all (never asked), as opposed to a recorded "no". */
+  decidedAt?: string
+  allowedHosts: string[]
+}
+
 export type EgressErrorKind = 'consent' | 'endpoint' | 'config'
 
 export class EgressError extends Error {

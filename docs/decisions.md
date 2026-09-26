@@ -4,6 +4,35 @@
 > if a decision is reversed, log a new entry that supersedes it and reference
 > the old ID.
 
+## D-039 — `doctor` scoped to what's actually built — 2026-09-26
+**Decision:** `ctx.appCore.doctor(egress)` reports only budgets remaining,
+which credential-store backend is active, current consent state, and the
+egress allowlist. It does **not** report an "active binding" (no
+`ctx.llm` provider selection concept it can read - a binding is picked per
+call, not pinned), remote-sandbox destinations (no sandbox bundle exists),
+pinned-model availability (1B.3 doesn't exist yet), or what still works
+offline (same reason).
+**Why:** The design draft's `doctor` (`docs/phases.md` 1B.2's original
+success criteria) describes the full picture once every phase is built.
+Reporting on pieces that don't exist would mean inventing data - the same
+stance `consent-copy.ts` already takes (D-037) for a provider's data
+policy: no checked source, no claim. `doctor` gets extended, not rewritten,
+as 1B.3 and Phase 5 land.
+**Also decided:** `AppCore.doctor()` takes an `EgressStatusSource`
+(anything with a `status(): Promise<EgressStatus>` method) as a parameter
+rather than reading `ctx.egress` itself, mirroring `consentScreen`'s
+existing egress parameter (D-037) - `bundle-app-core` still isn't wired
+into any profile (nothing calls `ctx.plugin(AppCore, ...)` yet; every
+piece so far is booted and tested standalone), so it has no Cordis-injected
+service to read from. `EgressPolicy` gained a new `status()` method
+(read-only: current consent record + allowlist, no mutation) and
+`AutoCredentialStore` gained `which()` (`'primary' | 'fallback'`, backed
+by the same cached probe verdict `resolve()` already computes) so `doctor`
+has something real to report instead of guessing from the outside.
+**Affects:** `bundle-app-core` (`doctor.ts`), `bundle-egress`
+(`EgressPolicy.status`, `EgressStatus` type), `bundle-app-core/credentials.ts`
+(`AutoCredentialStore.which`, `describeCredentialStore`).
+
 ## D-038 — Provider connection test: a third, narrower consent gate — 2026-09-26
 **Decision:** `testProviderConnection` (`src/bundles/app-core/provider-connection.ts`)
 takes an already-constructed `LLMProvider` and runs a best-effort model

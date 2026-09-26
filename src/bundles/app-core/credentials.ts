@@ -192,6 +192,18 @@ export class AutoCredentialStore implements CredentialStore {
     return this.resolved
   }
 
+  /**
+   * Which backend is actually in use, for `doctor` (1B.2): `'primary'` if
+   * the round-trip probe succeeded, `'fallback'` if it fell through. Runs
+   * (and caches) the same probe as any other call - reading this before any
+   * `get`/`set`/`delete` still triggers one probe, it isn't free, but it
+   * never re-probes a keychain that later starts working (documented
+   * limitation of `resolve()` above, not new here).
+   */
+  async which(): Promise<'primary' | 'fallback'> {
+    return (await this.resolve()) === this.primary ? 'primary' : 'fallback'
+  }
+
   private async probe(): Promise<CredentialStore> {
     const probeValue = `probe-${randomBytes(8).toString('hex')}`
     try {
@@ -215,4 +227,20 @@ export class AutoCredentialStore implements CredentialStore {
   async delete(key: string): Promise<void> {
     return (await this.resolve()).delete(key)
   }
+}
+
+/**
+ * Which backend a `CredentialStore` actually is, for `doctor` (1B.2) to
+ * report without the caller needing to know the class hierarchy.
+ * `AppCore`'s default is always an `AutoCredentialStore` wrapping a
+ * `KeychainCredentialStore` primary and a `FileCredentialStore` fallback -
+ * `'unresolved'` only ever shows up for a caller that injected some other
+ * `CredentialStore` implementation directly (`AppCoreConfig.credentials.store`),
+ * which this function has no way to label as keychain-backed or file-backed.
+ */
+export async function describeCredentialStore(store: CredentialStore): Promise<'keychain' | 'file' | 'unresolved'> {
+  if (store instanceof AutoCredentialStore) return (await store.which()) === 'primary' ? 'keychain' : 'file'
+  if (store instanceof KeychainCredentialStore) return 'keychain'
+  if (store instanceof FileCredentialStore) return 'file'
+  return 'unresolved'
 }

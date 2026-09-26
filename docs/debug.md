@@ -3,6 +3,53 @@
 > Append-only. Every completed coding task gets an entry here, even "no
 > issues found." Newest entries at top.
 
+## DBG-017 — 1B.2 (slice 5): `doctor` — 2026-09-26
+**Task:** Read-only status check (D-039) across everything actually built
+in 1B.2 so far: budgets remaining, active credential store, consent state,
+egress allowlist.
+**Built:** `src/bundles/app-core/doctor.ts` (`buildDoctorReport`, wired
+onto `ctx.appCore.doctor(egress)`). New `EgressPolicy.status()`
+(`src/bundles/egress/index.ts`) - read-only snapshot of the current
+consent record plus the allowlist, new `EgressStatus` type
+(`egress/types.ts`). New `AutoCredentialStore.which()` and
+`describeCredentialStore()` (`app-core/credentials.ts`) so `doctor` can
+say which backend (keychain vs. encrypted file) is actually active instead
+of guessing.
+**Tested:** `test/doctor.test.ts`, 13 tests.
+- `describeCredentialStore`: a bare `KeychainCredentialStore`/
+  `FileCredentialStore` self-identifies without probing; an
+  `AutoCredentialStore` reports whichever backend its cached probe
+  actually resolved to (both directions - primary-succeeds and
+  primary-falls-through, reusing the same fake-store pattern as
+  `credentials.test.ts`'s own `AutoCredentialStore` suite); a caller-
+  injected custom store reports `'unresolved'` rather than a guess.
+- `EgressPolicy.status()`: no record yet → `consented: false`,
+  `decidedAt` absent (not `null`, not a guessed timestamp); reflects a
+  granted consent's real `decidedAt`; reflects a *revoked* consent
+  (`consented: false` but `decidedAt` present) as distinct from never
+  having been asked at all; calling it twice doesn't create or change a
+  record (read-only, actually checked via `hasConsent()` after); allowlist
+  reported exactly as configured, `[]` by default.
+- `buildDoctorReport`: combines all three sources into one report and
+  changes nothing doing it (asserted by calling it twice and comparing);
+  `requestsLeftToday` is `undefined` when no daily hard limit is
+  configured, a real number otherwise; an unconsented project is reported
+  as `consented: false` plainly, not hidden or defaulted to `true`.
+**Mutation-checked, twice:**
+- Hardcoded `AutoCredentialStore.which()` to always return `'primary'` -
+  broke the "reports 'file'" fallback test as expected.
+- Dropped `decidedAt` from `EgressPolicy.status()`'s return (always
+  `undefined`) - broke both the granted- and revoked-consent tests, since
+  the revoked case specifically checks `decidedAt` stays present. Both
+  reverted; suite re-ran clean.
+**Full suite:** `npx tsc --noEmit` clean; `npx vitest run` — 203 passed, 3
+skipped (up from 190/3), 14 files, no regressions.
+**Deliberately not built:** "active binding", remote-sandbox destinations,
+pinned-model availability, and "what still works offline" - each depends
+on a piece (a binding-selection concept, a sandbox bundle, 1B.3's
+model-store) that doesn't exist yet; see D-039. `doctor` is also, like the
+connection test, not called from anywhere real yet - no CLI exists.
+
 ## DBG-016 — 1B.2 (slice 4): provider connection test — 2026-09-26
 **Task:** Connection test for a configured provider (D-038): list models,
 one tiny call, latency, before the wizard tells the user "you're

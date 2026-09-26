@@ -393,11 +393,26 @@ pieces, same as 1.2b/1.6/1B.1; this turn built the first piece only.
   originally had no timeout of its own, so a hung `/models` endpoint would
   have hung the whole test forever; fixed by sharing one deadline across
   both the listing and the probe call.
-- **Not started:** `doctor`, the terminal wizard CLI client itself
-  (`src/cli/`), offline-start test, budget-stop integration test (the
-  budget logic is tested standalone; nothing yet stops a real call using
-  it). The connection test above is not yet called from anywhere real —
-  that wiring is the CLI client's job.
+- **`doctor`: done, scoped to what's built** (see DBG-017, D-039).
+  `ctx.appCore.doctor(egress)` reports budgets remaining, which credential
+  backend is active (keychain vs. encrypted file, via new
+  `AutoCredentialStore.which()`/`describeCredentialStore()`), consent state
+  and the egress allowlist (via new, read-only `EgressPolicy.status()`).
+  Deliberately does **not** report active binding, remote-sandbox
+  destinations, or pinned-model availability/offline status — those depend
+  on pieces (a binding-selection concept, a sandbox bundle, 1B.3) that
+  don't exist yet; reporting on them now would mean inventing data, the
+  same stance the consent-copy work already took for unchecked providers.
+  13 tests (`test/doctor.test.ts`). Mutation-checked twice (hardcoding
+  which credential backend resolved; dropping `decidedAt` from the egress
+  status) — each broke the tests meant to catch it.
+- **Not started:** the terminal wizard CLI client itself (`src/cli/`),
+  offline-start test, budget-stop integration test (the budget logic is
+  tested standalone; nothing yet stops a real call using it). Every other
+  1B.2 piece — budgets, credentials, consent copy, connection test,
+  `doctor` — is built and tested standalone but not called from anywhere
+  real; that wiring is the CLI client's job, and `bundle-app-core` isn't
+  even booted by `bootProfileMinimal` yet.
 
 ### 1B.3 — Model store and pinning
 **Goal:** Verified, pinned models and clear fallbacks (D-027).

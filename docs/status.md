@@ -2,6 +2,40 @@
 
 > Updated every run. Newest entry at top.
 
+## 2026-09-26 — 1B.2: `doctor` done (slice 5) — every standalone 1B.2 piece now built
+**Current phase:** 1B.2, still in progress — but every piece except the
+CLI client itself is now done.
+`ctx.appCore.doctor(egress)` gives a read-only report: budgets remaining
+(`Budgets.status()`/`requestsLeftToday()`, already existed), which
+credential backend is active (new `describeCredentialStore` +
+`AutoCredentialStore.which()`), current consent state and the egress
+allowlist (new, read-only `EgressPolicy.status()`). Deliberately scoped to
+what's built — no "active binding", remote-sandbox, or pinned-model/offline
+reporting, since none of those exist yet (D-039); extends when 1B.3 and
+Phase 5 land, not before.
+**Last debug:** DBG-017 — see `docs/debug.md`.
+**Last decisions:** D-039 — scope boundary for `doctor`, and why it takes
+`egress` as a parameter rather than reading `ctx.egress` (same reason
+`consentScreen` does: `bundle-app-core` isn't wired into any profile yet).
+**Test state:** 203 passed, 3 skipped (up from 190/3). `tsc --noEmit`
+clean. Two mutations (hardcode which credential backend "resolved";
+drop `decidedAt` from egress status) each broke the test written for it.
+**Watch:**
+- `bundle-app-core` is still not booted anywhere (`bootProfileMinimal`
+  doesn't call `ctx.plugin(AppCore, ...)`) — every 1B.2 piece so far
+  (budgets, credentials, consent copy, connection test, `doctor`) is
+  tested standalone, not through a real `ctx`. First real integration
+  point is the CLI client.
+- `doctor`'s credential-backend detection triggers `AutoCredentialStore`'s
+  probe if it hasn't run yet (same cost as any other first call) — calling
+  `doctor` is not free the very first time, same documented limitation as
+  everywhere else `which()`/`resolve()` shows up.
+**Next up:** the terminal wizard CLI client (`src/cli/`) — the thing that
+actually wires `ctx.plugin(AppCore, ...)` into a runnable profile and calls
+credentials, consent screen, connection test and `doctor` in sequence, then
+the offline-start and budget-stop integration tests that depend on it
+existing.
+
 ## 2026-09-26 — 1B.2: provider connection test done (slice 4)
 **Current phase:** 1B.2, still in progress.
 `ctx.appCore.testConnection(provider, opts)` lists models (best-effort)

@@ -1,6 +1,6 @@
 import { Context, Service } from 'cordis'
 import { MemoryConsentStore } from './store.js'
-import { EgressError, type ConsentRecord, type ConsentStore } from './types.js'
+import { EgressError, type ConsentRecord, type ConsentStore, type EgressStatus } from './types.js'
 
 export * from './types.js'
 export { FileConsentStore, MemoryConsentStore } from './store.js'
@@ -102,6 +102,17 @@ export class EgressPolicy extends Service {
     const record: ConsentRecord = { projectId: this.projectId, consented: false, decidedAt: new Date().toISOString() }
     await this.store.set(record)
     return record
+  }
+
+  /** Read-only snapshot for `doctor` (1B.2): current consent record plus the endpoint allowlist. Never mutates. */
+  async status(): Promise<EgressStatus> {
+    const record = await this.store.get(this.projectId)
+    return {
+      projectId: this.projectId,
+      consented: record?.consented === true,
+      decidedAt: record?.decidedAt,
+      allowedHosts: [...this.allowedHosts],
+    }
   }
 
   isAllowedHost(host: string): boolean {
