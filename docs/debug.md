@@ -3,6 +3,100 @@
 > Append-only. Every completed coding task gets an entry here, even "no
 > issues found." Newest entries at top.
 
+## DBG-018 — 1B.2 (slice 6): terminal wizard CLI — 2026-09-26
+**Task:** The terminal wizard CLI client (D-040): the piece that actually
+uses connection-test, credentials, consent-copy and budgets together in a
+runnable flow, ending with a `doctor` report.
+**Built:** `src/cli/io.ts` (`WizardIO` interface, real `TerminalIO`),
+`src/cli/wizard.ts` (`runWizard`, `formatDoctorReport`), `src/cli/index.ts`
+(entrypoint). `package.json` gained a `"wizard"` script (`tsx src/cli/index.ts`).
+**Tested:** `test/wizard.test.ts`, 12 tests, all against real classes
+(`EgressPolicy`, `AppCore`, `Budgets`, `OllamaProvider`,
+`OpenAICompatibleProvider`, `MockProvider`) with fakes only at the two
+real boundaries - network (injected `fetch`, same pattern as every other
+provider test) and credential storage (a plain in-memory
+`CredentialStore`, so no test touches the real OS keychain or writes a
+real file). A `ScriptedIO` feeds fixed answer/confirm queues in the
+wizard's own real prompt order.
+- mock provider: no remote-acknowledge prompt, no allowlist entry, no
+  consent record written (local, nothing to consent to) -
+  `report.egress.consented` stays `false` and that's correct, not a bug;
+  `report.credentials.active` comes back `'unresolved'` for the bare test
+  fake, proving `doctor` is reached for real rather than stubbed.
+- openai-compatible, success path: connection test passes, budget
+  accepted (`requestsLeftToday` comes back `200` from the real `Budgets`
+  instance), consent granted through the real `EgressPolicy.grantConsent`,
+  allowlist populated with the real hostname, credential round-tripped
+  through the fake store.
+- declines the `acknowledgeRemote` gate, then declines "continue anyway":
+  aborts (`{ aborted: true, reason: 'connection_test_failed' }`), zero
+  fetch calls made (proves the D-038 gate is actually wired, not just
+  present), but the already-entered credential is still on disk/in the
+  fake store per the documented "you can retry" behavior.
+- a real connection failure (401): "continue anyway" then decline
+  consent - `revokeConsent` runs (not "no record"), `decidedAt` present.
+- credential round-trip failure (`SilentlyBrokenCredentialStore`, same
+  shape `credentials.test.ts` already documents for a broken keychain):
+  `runWizard` throws before the connection test ever runs (asserted via
+  zero fetch calls, not just the error message).
+- ollama on localhost: local, no remote-acknowledge prompt, no consent
+  prompt, empty allowlist - confirms the loopback regex in `ollama.ts`
+  actually drives wizard behavior, not just its own unit tests.
+- an unrecognized provider kind reprompts rather than being accepted.
+- `formatDoctorReport` (pure, tested independently of the wizard flow): no
+  budget lines at all for an unconfigured budget (not one line per
+  scope/metric combination - would be noise); "(never asked)" vs. a real
+  decision timestamp; "(none)" vs. a comma-joined allowlist; a
+  breached scope shows both `used/hard` and both breach flags;
+  `requestsLeftToday` shown only when present.
+**Mutation-checked, twice:**
+- Disabled the credential round-trip guard (`if (false && ...)`) - the
+  dedicated round-trip test failed as expected, and failed with a
+  *different* error than the one asserted (ran out of scripted confirms
+  instead of throwing the round-trip error), which is itself useful
+  confirmation the test isn't accidentally passing for the wrong reason.
+- Hardcoded `acknowledgeRemote = true` regardless of the user's answer -
+  broke the "declines the remote-acknowledge gate" test as expected.
+Both reverted; suite re-ran clean.
+**Found after "done" by inspecting side effects, not by a failing
+assertion:** every test that boots the wizard's real `ctx` (all but the
+round-trip-failure one) left `deps.consentStore` unset, so each one was
+silently writing a real `.harness/consent.json` next to the repo on every
+test run - the tests all still passed, `FileConsentStore` works correctly,
+it just wasn't a hermetic test run. Caught by noticing the file existed
+after a full-suite run, not by any assertion failing. Fixed with a small
+`deps()` test helper that always injects `MemoryConsentStore` unless a
+test explicitly wants otherwise; re-ran the full wizard suite (still
+12/12) and confirmed no `.harness/` directory appears afterward. Re-ran
+the round-trip mutation check after this fix too, to make sure tightening
+the test fixture hadn't quietly weakened it - still caught.
+**Found by hand (not by any automated test - see D-040 for the full
+writeup):** a genuine Node `readline/promises` limitation where
+`rl.question()` hangs on the second call against piped (non-TTY) stdin,
+confirmed as TTY-specific (not a bug in this code) via a real pty; and a
+real bug in `index.ts` - `process.exit()` right after `runWizard`
+truncated buffered stdout when piped, since non-TTY stdout writes can be
+async. Fixed by using `process.exitCode` and letting the event loop drain
+naturally. Verified with a pty-driven smoke test of the actual CLI (not
+the test suite - real `TerminalIO`, real `readline`, scripted keystrokes
+with delays): full mock-provider flow end to end, exit status 0, every
+expected line present, including a real (not faked) `AutoCredentialStore`
+fallback - `KeychainCredentialStore` genuinely failed in this container
+(no OS keyring session) and `doctor` correctly reported `credentials:
+file`. `.harness/` artifacts from that manual run were deleted afterward,
+not shipped.
+**Full suite:** `npx tsc --noEmit` clean; `npx vitest run` — 215 passed, 3
+skipped (up from 203/3), 15 files, no regressions.
+**Deliberately not built:** provider registration on `ctx.llm` / actually
+running anything (D-040 - no "run a task" command exists yet to hand the
+configured provider to); masked secret input (D-040); a pty-based
+automated E2E test of the real terminal I/O (bigger investment than this
+slice warrants - the manual pty smoke test above is a spot-check, not
+something CI runs); non-interactive/scripted invocation of the real CLI
+(blocked by the Node `readline/promises` limitation above, not by
+anything in this codebase). This closes out every piece of 1B.2 that
+`docs/phases.md` originally listed.
+
 ## DBG-017 — 1B.2 (slice 5): `doctor` — 2026-09-26
 **Task:** Read-only status check (D-039) across everything actually built
 in 1B.2 so far: budgets remaining, active credential store, consent state,

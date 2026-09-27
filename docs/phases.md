@@ -406,13 +406,31 @@ pieces, same as 1.2b/1.6/1B.1; this turn built the first piece only.
   13 tests (`test/doctor.test.ts`). Mutation-checked twice (hardcoding
   which credential backend resolved; dropping `decidedAt` from the egress
   status) — each broke the tests meant to catch it.
-- **Not started:** the terminal wizard CLI client itself (`src/cli/`),
-  offline-start test, budget-stop integration test (the budget logic is
-  tested standalone; nothing yet stops a real call using it). Every other
-  1B.2 piece — budgets, credentials, consent copy, connection test,
-  `doctor` — is built and tested standalone but not called from anywhere
-  real; that wiring is the CLI client's job, and `bundle-app-core` isn't
-  even booted by `bootProfileMinimal` yet.
+- **Terminal wizard CLI: done** (see DBG-018, D-040). `src/cli/` — `io.ts`
+  (`WizardIO` interface + real `TerminalIO` over `node:readline/promises`),
+  `wizard.ts` (`runWizard`, `formatDoctorReport`), `index.ts` (entrypoint;
+  `npm run wizard`). Walks provider setup → credential storage → the
+  connection test → the consent screen → an optional daily budget → a
+  final `doctor` report, and is the first place `EgressPolicy` and
+  `AppCore` are ever booted onto the same `Context` together. Deliberately
+  setup-only — does not register the provider on `ctx.llm`, boot
+  `LLMService`, or run anything; there is no "run a task" command yet for
+  it to hand a configured provider to. 12 tests
+  (`test/wizard.test.ts`) against real classes with fakes only at the
+  network/credential-storage boundary; `TerminalIO` itself is verified by
+  hand via a pty-driven smoke test, not by the automated suite (a real TTY
+  isn't available to vitest). Two mutation checks (the credential
+  round-trip guard; the `acknowledgeRemote` wiring) each broke the test
+  meant to catch it. Two real findings from the hand-verified smoke test:
+  a genuine Node `readline/promises` limitation with piped (non-TTY)
+  stdin (confirmed TTY-specific, not a bug here, via pty), and a real bug
+  — `process.exit()` truncating buffered stdout on piped output — fixed
+  with `process.exitCode` instead.
+- **Not started:** offline-start test, budget-stop integration test (the
+  budget logic is tested standalone; nothing yet stops a real call using
+  it — the wizard doesn't spend budget either, since it never actually
+  calls the provider through `LLMService`). This closes out every other
+  piece 1B.2 originally listed.
 
 ### 1B.3 — Model store and pinning
 **Goal:** Verified, pinned models and clear fallbacks (D-027).

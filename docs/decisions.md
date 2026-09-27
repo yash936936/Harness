@@ -4,6 +4,58 @@
 > if a decision is reversed, log a new entry that supersedes it and reference
 > the old ID.
 
+## D-040 — Terminal wizard CLI: setup-only, `WizardIO`-abstracted, TerminalIO doesn't mask secrets yet — 2026-09-26
+**Decision:** `src/cli/` is the first real integration point for 1B.2 -
+`runWizard` (`wizard.ts`) walks provider setup, credential storage, the
+connection test, the consent screen, an optional daily budget, and ends
+with a `doctor` report, all against a real `Context` it boots itself
+(`EgressPolicy` + `AppCore` - the first place either is booted alongside
+the other; `bootProfileMinimal` still doesn't touch `AppCore`, see D-039).
+`runWizard` takes a `WizardIO` (`print`/`ask`/`confirm`) rather than
+talking to `process.stdin`/`stdout` directly, so the whole flow is
+scriptable in tests without a real terminal; `TerminalIO` (`io.ts`) is the
+real `node:readline/promises`-backed implementation, and `index.ts` is the
+five-line entrypoint that wires `TerminalIO` in and sets `process.exitCode`.
+**Why setup-only:** the wizard does not register the provider on `ctx.llm`,
+boot `LLMService`, or set `ModelAdapterConfig.egress.consent` (D-022's
+separate binding-level flag) - there is no "run a task" command yet for
+that provider to serve. It ends at a real, `doctor`-verified project
+configuration, not a running session. Extending it to actually run
+something is a later, separate decision once that command exists.
+**`TerminalIO.secret` does not mask input** - `ask(prompt, { secret: true
+})` only prints a one-line "not masked" warning before a normal, visible
+prompt. A real masked-input implementation needs raw-mode stdin, which
+fights with readline's own stdin listener on the same stream and - more to
+the point - isn't exercisable by any automated test (vitest has no real
+TTY), so shipping it for a path whose entire job is handling a secret
+correctly was judged worse than being honest that it doesn't mask yet.
+Logged here rather than left as a silent gap.
+**Found by hand, not by a test (real limitation, real bug):**
+- A genuine Node `readline/promises` limitation: multiple sequential
+  `rl.question()` calls hang after the first one when stdin is piped
+  (non-TTY) - confirmed with a 4-line isolated repro and by piping into
+  the actual CLI (both stalled after the first question). Confirmed via a
+  real pty (Python's `pty` module driving the actual CLI with scripted,
+  delayed keystrokes) that this is TTY-input-specific: interactive
+  terminal use - the wizard's actual intended use - works correctly
+  through all four prompt types. No test in this repo can exercise this
+  either way (vitest has no TTY, and a pty-based harness is a bigger
+  investment than this slice warrants) - this is a spot-check, not
+  something CI verifies, same caveat class as "not tested against a real
+  Ollama/OpenRouter host" from D-038.
+- A real bug, not a Node limitation: `index.ts`'s first version called
+  `process.exit(code)` directly after `runWizard` resolved. When stdout is
+  piped rather than a real TTY, writes can be asynchronous, and
+  `process.exit()` terminated the process before the buffered output
+  actually flushed - the pty smoke test showed output cut off mid-run.
+  Fixed by setting `process.exitCode` and letting the event loop drain
+  naturally (`rl.close()` inside `io.close()` is what lets the process
+  exit on its own) - the standard fix for this class of bug. Re-ran the
+  pty smoke test clean afterward, full mock-provider flow end to end,
+  exit status 0.
+**Affects:** new `src/cli/` (`io.ts`, `wizard.ts`, `index.ts`), `package.json`
+(`"wizard"` script).
+
 ## D-039 — `doctor` scoped to what's actually built — 2026-09-26
 **Decision:** `ctx.appCore.doctor(egress)` reports only budgets remaining,
 which credential-store backend is active, current consent state, and the

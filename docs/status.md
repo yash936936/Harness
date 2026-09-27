@@ -2,6 +2,57 @@
 
 > Updated every run. Newest entry at top.
 
+## 2026-09-26 — 1B.2: terminal wizard CLI done (slice 6) — every listed 1B.2 piece now built
+**Current phase:** 1B.2 substantively complete. Every piece
+`docs/phases.md` originally listed for this phase is now built: budgets,
+credentials, consent copy, the provider connection test, `doctor`, and now
+the terminal wizard CLI that actually wires the first four together and
+ends with the fifth. Only offline-start and budget-stop *integration*
+tests remain open, and both wait on a "run a task" command that doesn't
+exist yet.
+`npm run wizard` (`src/cli/index.ts`) walks: project ID → provider choice
+(mock/ollama/openai-compatible) → credential storage (with a round-trip
+check before ever using the key) → the connection test (D-038's
+`acknowledgeRemote` gate for remote providers) → the consent screen →
+an optional daily budget → a final `doctor` report. This is the first
+place `EgressPolicy` and `AppCore` are booted onto the same `Context`
+together — `bootProfileMinimal` still doesn't touch `AppCore` (unchanged
+from D-039). Deliberately setup-only: doesn't register the provider on
+`ctx.llm`, doesn't boot `LLMService`, doesn't run anything.
+**Last debug:** DBG-018 — see `docs/debug.md`.
+**Last decisions:** D-040 — why setup-only, why `WizardIO` is an
+abstraction over the real terminal, why `TerminalIO`'s `secret` option
+doesn't actually mask input, and two things found by hand (a Node
+`readline/promises` limitation with piped stdin, and a real
+`process.exit()`-truncates-piped-stdout bug, now fixed).
+**Test state:** 215 passed, 3 skipped (up from 203/3). `tsc --noEmit`
+clean. Two mutations (disable the credential round-trip guard; hardcode
+`acknowledgeRemote = true`) each broke the test written for it.
+**Watch:**
+- `TerminalIO`/`index.ts` (the real terminal I/O) are not exercised by the
+  automated suite at all — `test/wizard.test.ts` tests `runWizard` through
+  the `WizardIO` interface with a scripted fake. Real terminal behavior
+  was verified once, by hand, via a pty (Python's `pty` module driving the
+  actual CLI with delayed scripted keystrokes) — confirmed working
+  end-to-end for the mock-provider path, exit status 0. Not something CI
+  re-checks on every run.
+- A plain piped/non-interactive invocation of the real CLI (`echo ... |
+  npm run wizard`) does **not** work — Node's `readline/promises`
+  `question()` hangs after the first call on non-TTY stdin. Confirmed this
+  is a Node limitation, not a bug in this code, by reproducing it in a
+  4-line isolated script and then showing the identical input works fine
+  over a real pty. No scripted/CI-driven E2E test of the real CLI is
+  possible without building a pty-based test harness — judged out of
+  scope for this slice.
+- `TerminalIO`'s `secret: true` prompt option does not mask input (no
+  asterisks) — only prints a one-line warning first. Documented, not
+  hidden (D-040).
+**Next up:** offline-start and budget-stop integration tests, both of
+which need something that actually calls a provider through `LLMService`
+to integrate against — likely means building a minimal "run" command
+first (out of scope of anything decided so far, would need its own
+phases.md entry / decision before starting).
+
 ## 2026-09-26 — 1B.2: `doctor` done (slice 5) — every standalone 1B.2 piece now built
 **Current phase:** 1B.2, still in progress — but every piece except the
 CLI client itself is now done.
