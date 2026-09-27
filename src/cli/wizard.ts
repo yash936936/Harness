@@ -207,5 +207,14 @@ export function formatDoctorReport(report: DoctorReport): string[] {
   }
   if (report.requestsLeftToday !== undefined) lines.push(`requests left today: ${report.requestsLeftToday}`)
 
+  // Present only when a ModelStore (1B.3) was passed to doctor() - the wizard itself doesn't wire one in yet.
+  if (report.models) {
+    for (const m of report.models) {
+      if (m.unavailable) lines.push(`model binding "${m.bindingName}": UNAVAILABLE - neither the pin nor any fallback is registered`)
+      else if (m.usedPin) lines.push(`model binding "${m.bindingName}": ${m.resolvedId} (pin)`)
+      else lines.push(`model binding "${m.bindingName}": ${m.resolvedId} (fallback - pin unavailable)`)
+    }
+  }
+
   return lines
 }

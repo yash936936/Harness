@@ -2,6 +2,58 @@
 
 > Updated every run. Newest entry at top.
 
+## 2026-09-27 — 1B.3: model store built — mechanism done, one data gap open
+**Current phase:** 1B.2 is substantively complete (open items noted last
+entry). 1B.3 (model store and pinning, D-027) is now built: `ctx.modelStore`
+(`src/bundles/model-store/`) registers models against a fixed source
+allowlist (`ollama-library`, `ornith-ai`, `cactus-compute`), verifies a
+digest against its pin (refuses any mismatch), and resolves each named
+binding to its pin, a registered fallback, or "unavailable" -
+`doctor`'s `models` field (new, optional) now reports this when a
+`ModelStore` is passed in.
+**Open by design, not oversight:** the store ships with **zero
+pre-registered models**. D-026 (Needle) and D-030 (the reference worker,
+`qwen2.5-coder:3b-instruct`) both name a model but neither recorded a
+checked SHA-256 for a specific pulled revision, and this environment has
+no network access to Ollama's registry or Hugging Face to compute one for
+real. Registering an invented digest would be a fabricated claim - the
+same thing `consent-copy.ts` already refuses to do for a provider's
+privacy policy (D-020, D-037), just for a hash instead. So 1B.3's third
+success criterion ("Needle version and license file recorded") is
+genuinely open, not just untested - it needs someone with real network
+access to actually pull the models and register their real digests. See
+`docs/phases.md` 1B.3 for the full breakdown of what's done vs. open.
+**Last debug:** DBG-019 — see `docs/debug.md`. Also caught, while writing
+that entry: `docs/architecture.md` hadn't been updated since 2026-09-24 -
+three sessions' worth of 1B.2 work (provider connection test, `doctor`,
+the wizard CLI) had gone undocumented there even though every one of them
+updated `phases.md`/`decisions.md`/`debug.md`/`status.md`. Fixed in this
+same pass; worth remembering to check that file on every future slice.
+**Last decisions:** D-041 — the fixed source allowlist, why no models are
+pre-registered, why the store is in-memory only, `doctor`'s new optional
+`models` parameter.
+**Test state:** 234 passed, 3 skipped (up from 215/3). `tsc --noEmit`
+clean. Three mutations (disable the allowlist check; disable the digest
+comparison; make `doctor`'s `models` field default to `[]` instead of
+staying absent) each broke the test written for it.
+**Watch:**
+- `ModelStore` is not wired into `src/cli/wizard.ts` yet - the wizard
+  never constructs one, so `doctor`'s `models` field stays absent on
+  every real wizard run today. Wiring it in (and deciding what, if
+  anything, the wizard should ask about model pinning) is open.
+- No persistence to disk - a `ModelStore` is empty again on every
+  restart. Not worth building against zero real data (same reasoning as
+  the pre-registration gap above); revisit once real pins exist.
+- Router (Phase 4.5, Needle) depends on this bundle and is still
+  unstarted - unaffected by today's gap since it was already blocked on
+  much more than a recorded digest.
+**Next up:** either (a) get real network access to compute real digests
+for the reference worker and Needle and close 1B.3's open criterion, (b)
+wire `ModelStore` into the wizard, or (c) move on to a different phase
+entirely (Phase 4.5/router still needs `bundle-model-store` but has its
+own larger unstarted scope; Phase 2/retrieval and Phase 5/sandbox remain
+fully unstarted). Your call.
+
 ## 2026-09-26 — 1B.2: terminal wizard CLI done (slice 6) — every listed 1B.2 piece now built
 **Current phase:** 1B.2 substantively complete. Every piece
 `docs/phases.md` originally listed for this phase is now built: budgets,

@@ -9,7 +9,7 @@ import {
 } from './credentials.js'
 import { buildConsentScreenData, type ConsentScreenData } from './consent-copy.js'
 import { testProviderConnection, type ProviderConnectionResult, type TestConnectionOptions } from './provider-connection.js'
-import { buildDoctorReport, type DoctorReport, type EgressStatusSource } from './doctor.js'
+import { buildDoctorReport, type DoctorReport, type EgressStatusSource, type ModelStoreSource } from './doctor.js'
 import type { LLMProvider } from '../model-adapter/types.js'
 
 export * from './budgets.js'
@@ -82,15 +82,19 @@ export class AppCore extends Service {
 
   /**
    * Read-only status across budgets, the active credential store, consent
-   * state and the egress allowlist (1B.2). `egress` is passed in rather
-   * than injected (`ctx.egress`) because `AppCore` still isn't wired into
-   * any profile yet (see `docs/decisions.md` - `bundle-app-core` is booted
-   * standalone by its own tests, not by `bootProfileMinimal`) - the same
-   * reason `consentScreen` above takes its egress info as a parameter
-   * instead of reading `this.ctx.egress`.
+   * state, the egress allowlist (1B.2), and - when `models` is passed -
+   * which pinned model bindings actually resolve (1B.3). Both `egress` and
+   * `models` are passed in rather than injected (`ctx.egress`/
+   * `ctx.modelStore`) because `AppCore` still isn't wired into any profile
+   * yet (see `docs/decisions.md` - `bundle-app-core` is booted standalone
+   * by its own tests, not by `bootProfileMinimal`) - the same reason
+   * `consentScreen` above takes its egress info as a parameter instead of
+   * reading `this.ctx.egress`. `models` is optional: the wizard doesn't
+   * wire a `ModelStore` in yet either, and `doctor` reports nothing about
+   * models rather than guessing when none is given.
    */
-  doctor(egress: EgressStatusSource): Promise<DoctorReport> {
-    return buildDoctorReport(this.budgets, this.credentials, egress)
+  doctor(egress: EgressStatusSource, models?: ModelStoreSource): Promise<DoctorReport> {
+    return buildDoctorReport(this.budgets, this.credentials, egress, models)
   }
 }
 

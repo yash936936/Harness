@@ -85,19 +85,20 @@ and size.
   `ActionClass`, `ToolResult`, `ToolDeniedError`).
 - **Config surface:** `maxOutputChars`.
 
-### app-core (`bundle-app-core`) — 1B.2, in progress
+### app-core (`bundle-app-core`) — 1B.2, done
 - **Responsibility:** headless first-run/ongoing logic with a local API:
   provider connection, credential storage (OS credential store,
   encrypted-file fallback), consent copy, request and token budgets,
   `doctor`. The terminal wizard and the desktop app are thin clients of it
   (D-025), so the two surfaces cannot disagree.
 - **Location:** `src/bundles/app-core/`
-- **Depends on:** none yet (`bundle-model-adapter`, `bundle-egress`,
-  `bundle-model-store` are dependencies of pieces not built yet -
-  provider connection, consent copy, and the model-store-aware part of
-  `doctor`, respectively).
-- **Built so far:** `Budgets` (`ctx.appCore.budgets`, D-035) - requests
-  and tokens at task/session/day scope, soft and hard limits, an
+- **Depends on:** none at the `ctx.plugin` level - still not wired into
+  any profile (`bootProfileMinimal` doesn't touch it). Every piece is
+  either a plain class the `src/cli/` wizard constructs directly, or takes
+  what it needs (`EgressStatusSource`, `ModelStoreSource`) as a parameter
+  rather than a Cordis-injected dependency - see D-039/D-040 for why.
+- **Built:** `Budgets` (`ctx.appCore.budgets`, D-035) - requests and
+  tokens at task/session/day scope, soft and hard limits, an
   all-or-nothing `spend()` that throws `BudgetExceededError` with a full
   status report rather than partially recording across scopes, and a day
   counter that persists across restarts (same design as `RateLimiter`'s
@@ -114,24 +115,75 @@ and size.
   dated, sourced data-policy claim *only* for providers actually checked
   (`ollama`, `openrouter` so far) - `lookupProviderPolicy` returns
   `undefined`, never a fabricated claim, for anything else.
-- **Not built yet:** provider connection + connection test, `doctor`,
-  `src/cli/` (the terminal wizard itself - still `planned, 1B.2` in the
-  file tree below).
+  `testConnection` (`ctx.appCore.testConnection`, D-038) - best-effort
+  model listing plus one timed probe call against an already-constructed
+  provider; a remote provider needs `acknowledgeRemote: true`, a narrower
+  one-off gate distinct from `ctx.egress`'s persisted consent (the
+  connection test has to run *before* that consent screen exists).
+  `doctor` (`ctx.appCore.doctor`, D-039/D-041) - read-only report:
+  budgets remaining, active credential backend, consent state, egress
+  allowlist, and (when a `ModelStoreSource` is passed) per-binding
+  pin/fallback availability from 1B.3.
 - **Key files:** `index.ts` (`AppCore` Service), `budgets.ts` (`Budgets`,
   plain class, no Cordis dependency - same pattern as `RateLimiter`),
   `credentials.ts` (`CredentialStore` interface, `KeychainCredentialStore`,
-  `FileCredentialStore`, `AutoCredentialStore`), `consent-copy.ts`
-  (`buildConsentScreenData`, `lookupProviderPolicy`).
+  `FileCredentialStore`, `AutoCredentialStore`, `describeCredentialStore`),
+  `consent-copy.ts` (`buildConsentScreenData`, `lookupProviderPolicy`),
+  `provider-connection.ts` (`testProviderConnection`), `doctor.ts`
+  (`buildDoctorReport`, `DoctorReport`).
 - **External dependency:** `@napi-rs/keyring` - prebuilt native binary
   per platform (`win32-x64-msvc` confirmed present for the target
   machine), no build tooling required.
 
-### model-store (`bundle-model-store`, Phase 1B.3, not built)
+### cli (`src/cli/`) — 1B.2, done
+- **Responsibility:** the terminal wizard - the first real integration
+  point for `app-core` and `egress` together. Walks provider setup →
+  credential storage → the connection test → the consent screen → an
+  optional daily budget → a final `doctor` report, then exits. Not a
+  Cordis bundle itself (no `ctx.plugin` entry) - it *boots* one: the only
+  place `EgressPolicy` and `AppCore` are plugged onto the same `Context`
+  today (D-040).
+- **Location:** `src/cli/` - `io.ts` (`WizardIO` interface, real
+  `TerminalIO` over `node:readline/promises`), `wizard.ts` (`runWizard`,
+  `formatDoctorReport`), `index.ts` (entrypoint; `npm run wizard`).
+- **Deliberately setup-only:** does not register the provider on
+  `ctx.llm`, boot `LLMService`, or run anything - there is no "run a
+  task" command yet for it to hand a configured provider to.
+- **Known gaps, both documented (D-040), not silent:** `TerminalIO`'s
+  `secret: true` prompt option does not mask input, only warns; and a
+  plain piped/non-interactive invocation of the real CLI hangs after the
+  first prompt, a genuine Node `readline/promises` limitation with
+  non-TTY stdin (confirmed via a real pty that interactive terminal use -
+  the actual target - works correctly).
+
+### model-store (`bundle-model-store`, Phase 1B.3, done)
 - **Responsibility:** verified local models and pinned bindings: source
   allowlist, revision, SHA-256, license record, pinned model ID plus ordered
   fallback list per binding (D-027).
-- **Location:** `src/bundles/model-store/`
+- **Location:** `src/bundles/model-store/` - `types.ts`
+  (`ModelRecord`, `ModelSource`, `Binding`, `ModelAvailability`,
+  `ModelStoreError`), `index.ts` (`ModelStore` Service, `sha256Hex`).
 - **Depends on:** none.
+- **Built:** `ModelStore.register` refuses a source outside the fixed
+  allowlist (`ollama-library`, `ornith-ai`, `cactus-compute` - D-027,
+  D-026) and refuses to silently overwrite an existing id.
+  `verifyDigest` throws on any mismatch against the pinned SHA-256,
+  case-insensitively. `resolve`/`resolveAll` report, per binding, whether
+  the pin is registered, whether a fallback was used instead, or whether
+  neither is available - wired into `doctor` (`buildDoctorReport`'s
+  optional `models` parameter, D-041) as the "unavailable-pinned-model
+  test in `doctor`" success criterion asked for.
+- **Deliberately ships with no pre-registered models.** D-030 names
+  `qwen2.5-coder:3b-instruct` as the reference worker and D-026 names
+  Needle's origin, but neither decision recorded a checked SHA-256 for a
+  specific pulled revision - inventing one would be the same
+  fabricated-claim failure mode `consent-copy.ts` (D-020, D-037) already
+  guards against, just for a hash instead of a privacy claim. In-memory
+  only for the same reason: nothing real to persist yet.
+- **Not built:** persistence to disk (once a real caller has real pins
+  worth surviving a restart), and wiring into the wizard (`src/cli/`
+  doesn't construct a `ModelStore` yet - `doctor`'s `models` field stays
+  absent when the wizard calls it).
 
 ### router (`bundle-router`, Phase 4.5, not built)
 - **Responsibility:** `ctx.router`, backed by Needle. Owns choosing the
@@ -334,8 +386,9 @@ src/
 │   │   ├── providers/  (ollama, openai-compatible, mock)
 │   │   └── rate-limiter.ts
 │   ├── egress/            (store.ts, index.ts, types.ts)
-│   ├── app-core/          (index.ts, budgets.ts, credentials.ts, consent-copy.ts - rest of 1B.2 planned)
-│   ├── model-store/       (planned, 1B.3)
+│   ├── app-core/          (index.ts, budgets.ts, credentials.ts, consent-copy.ts,
+│   │                        provider-connection.ts, doctor.ts — 1B.2 done)
+│   ├── model-store/       (types.ts, index.ts — 1B.3 done)
 │   ├── router/            (planned, 4.5)
 │   ├── tool-registry/
 │   ├── subprocess/        (types.ts, index.ts)
@@ -357,7 +410,7 @@ src/
 │   ├── policy-gates/
 │   ├── eval-runner/
 │   └── eval-langfuse/
-├── cli/                   (planned, 1B.2: terminal wizard)
+├── cli/                   (io.ts, wizard.ts, index.ts — 1B.2 done: terminal wizard)
 └── profiles/
     ├── profile-minimal.ts    # bootProfileMinimal() — the real boot path (1.6, D-033)
     ├── profile-minimal.yml   # config-shape reference only, not auto-loaded
@@ -373,9 +426,11 @@ loader (`@cordisjs/plugin-loader` + `@cordisjs/plugin-include`) — that
 loader is an optional peer dependency of `cordis` and isn't installed.
 See D-033.
 Bundles marked planned do not exist yet. The rest match `src/` as of
-2026-09-24 (session-log, egress, model-adapter, tool-registry, subprocess,
-agent-loop, and app-core - budgets only so far - are built). See D-031:
-subprocess's env-allowlist is verified on Linux only, not yet on Windows.
+2026-09-27: session-log, egress, model-adapter, tool-registry, subprocess,
+agent-loop, app-core (all of 1B.2), `src/cli/` (the terminal wizard), and
+model-store (1B.3) are built. `router` (4.5) and `app-desktop` (1B.4) are
+still planned. See D-031: subprocess's env-allowlist is verified on Linux
+only, not yet on Windows.
 
 ## Policy table (enforced by `bundle-policy-gates` at `tools/pre-execute`)
 | Action class | Gate |

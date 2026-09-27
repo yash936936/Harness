@@ -4,6 +4,50 @@
 > if a decision is reversed, log a new entry that supersedes it and reference
 > the old ID.
 
+## D-041 — Model store: fixed source allowlist, in-memory, no pre-registered models — 2026-09-27
+**Decision:** `src/bundles/model-store/` (`ModelStore`, a Cordis Service -
+`ctx.modelStore`) implements D-027/D-026: `register()` refuses a source
+outside a fixed, closed allowlist (`ollama-library`, `ornith-ai`,
+`cactus-compute` - the exact three sources named across D-026/D-027/
+`docs/architecture.md`'s dependency table, nothing added beyond what's
+already grounded there) and refuses to silently overwrite an existing id.
+`verifyDigest(id, actualSha256)` throws `ModelStoreError('digest_mismatch')`
+on any mismatch, case-insensitively. Each `Binding` (name, pinned model ID,
+ordered fallback IDs) resolves via `resolve()`/`resolveAll()` to: the pin,
+if registered; else the first registered fallback in order; else
+`unavailable: true`. `doctor` (D-039) gained an optional fourth parameter,
+`models: ModelStoreSource` (an interface - `resolveAll(): ModelAvailability[]`
+- mirroring `EgressStatusSource`'s existing pattern), and reports a
+`models` field only when one is passed; absent, not an empty array, when
+it isn't - satisfies 1B.3's "unavailable-pinned-model test in `doctor`"
+success criterion without inventing a claim about a binding nothing
+configured.
+**Why no pre-registered models:** D-030 names `qwen2.5-coder:3b-instruct`
+as the reference worker and D-026 names Needle's origin, but neither
+decision recorded a checked SHA-256 for a specific pulled revision -
+seeding the store with an invented hash under either name would be the
+same fabricated-claim failure mode `consent-copy.ts` (D-020, D-037)
+already exists to avoid, just for a digest instead of a privacy claim.
+This sandbox also has no network access to Ollama's registry or Hugging
+Face (the `bash_tool` domain allowlist covers package registries and
+GitHub, not model hosts), so there was no way to compute a real one here
+even if it seemed worth doing. Real pins get registered once someone runs
+`ollama pull` (or equivalent) for real, on a machine that can, and
+computes the real digest.
+**Why in-memory only:** the same reason - persistence (mirroring
+`credentials.ts`/`budgets.ts`'s own file-backed pattern) is a follow-up
+once a real caller has real pins worth surviving a restart. Building
+persistence now, against no real data, would be persistence with nothing
+worth persisting.
+**Not wired into the wizard yet:** `src/cli/wizard.ts` doesn't construct a
+`ModelStore` or pass one to `doctor()` - `report.models` stays absent on
+every real wizard run today. Wiring it in is a later slice, the same
+incremental pattern every other 1B.2 piece followed (built and tested
+standalone first, wired into the wizard last).
+**Affects:** new `src/bundles/model-store/` (`types.ts`, `index.ts`),
+`bundle-app-core/doctor.ts` (`ModelStoreSource`, `DoctorReport.models`),
+`AppCore.doctor`'s signature, `src/cli/wizard.ts`'s `formatDoctorReport`.
+
 ## D-040 — Terminal wizard CLI: setup-only, `WizardIO`-abstracted, TerminalIO doesn't mask secrets yet — 2026-09-26
 **Decision:** `src/cli/` is the first real integration point for 1B.2 -
 `runWizard` (`wizard.ts`) walks provider setup, credential storage, the

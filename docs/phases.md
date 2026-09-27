@@ -434,14 +434,32 @@ pieces, same as 1.2b/1.6/1B.1; this turn built the first piece only.
 
 ### 1B.3 — Model store and pinning
 **Goal:** Verified, pinned models and clear fallbacks (D-027).
-**Files touched:** new `src/bundles/model-store/`
+**Files touched:** new `src/bundles/model-store/` (`types.ts`, `index.ts`)
 **Success criteria:**
-- Records source, revision, SHA-256 and license per local model; refuses a
-  digest that does not match its pin; accepts only allowlisted sources.
-- Each binding has a pinned model ID and an ordered fallback list.
-- Needle version and license file recorded.
-**Testing:** digest-mismatch test; unavailable-pinned-model test in `doctor`.
-**Status:** Not started
+- ✅ Records source, revision, SHA-256 and license per local model; refuses
+  a digest that does not match its pin; accepts only allowlisted sources
+  (`ollama-library`, `ornith-ai`, `cactus-compute`). See DBG-019/D-041.
+- ✅ Each binding has a pinned model ID and an ordered fallback list
+  (`ModelStore.setBinding`, `resolve`/`resolveAll`).
+- ❌ **Needle version and license file recorded — not done.** The
+  mechanism to record it exists (`register()` accepts `cactus-compute` as
+  a source), but no entry is actually registered: neither D-026 (Needle)
+  nor D-030 (the reference worker) recorded a checked SHA-256 for a
+  specific pulled revision, and this environment has no network access to
+  compute one for real. Recording an invented digest would be a
+  fabricated claim, the same failure mode `consent-copy.ts` already
+  guards against elsewhere (D-020, D-037) - see D-041. Closing this needs
+  someone with real network access to actually pull Needle and the
+  reference worker and register their real digests; the store itself
+  ships with zero pre-registered models on purpose.
+**Testing:** ✅ digest-mismatch test; ✅ unavailable-pinned-model test in
+`doctor` (`buildDoctorReport`'s optional `models` parameter, D-041).
+**Status:** Mechanism done and tested; one success criterion (Needle's
+actual recorded pin) is open pending real data from outside this
+environment. Not yet wired into `src/cli/wizard.ts` — the wizard never
+constructs a `ModelStore`, so `doctor`'s `models` field is absent on every
+real run today. In-memory only; no persistence to disk yet (nothing real
+to persist).
 
 ### 1B.4 — Desktop shell
 **Goal:** A desktop app over the 1B.2 core, adding no logic of its own.

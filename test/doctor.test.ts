@@ -10,6 +10,7 @@ import {
 } from '../src/bundles/app-core/credentials.js'
 import { buildDoctorReport, type EgressStatusSource } from '../src/bundles/app-core/doctor.js'
 import { EgressPolicy, MemoryConsentStore } from '../src/bundles/egress/index.js'
+import { ModelStore } from '../src/bundles/model-store/index.js'
 
 // Small local fakes - mirrors credentials.test.ts's own fakes for AutoCredentialStore,
 // but kept local since that file doesn't export them.
@@ -139,6 +140,36 @@ describe('buildDoctorReport', () => {
     const egress = fakeEgress({ projectId: 'p', consented: false, allowedHosts: [] })
     const report = await buildDoctorReport(budgets, credentials, egress)
     expect(report.requestsLeftToday).toBeUndefined()
+  })
+
+  it('omits `models` entirely when no model store is passed - not an empty array', async () => {
+    const budgets = new Budgets()
+    const credentials = new KeychainCredentialStore('svc')
+    const egress = fakeEgress({ projectId: 'p', consented: false, allowedHosts: [] })
+    const report = await buildDoctorReport(budgets, credentials, egress)
+    expect(report.models).toBeUndefined()
+    expect('models' in report).toBe(false)
+  })
+
+  it('includes real pin/fallback availability from a real ModelStore (1B.3), unavailable pins included', async () => {
+    const budgets = new Budgets()
+    const credentials = new KeychainCredentialStore('svc')
+    const egress = fakeEgress({ projectId: 'p', consented: false, allowedHosts: [] })
+
+    const ctx = new Context()
+    await ctx.plugin(ModelStore, {
+      models: [{ id: 'ok-model', source: 'ollama-library', revision: 'v1', sha256: 'a'.repeat(64), license: 'MIT' }],
+      bindings: [
+        { name: 'worker', pinnedModelId: 'ok-model', fallbackIds: [] },
+        { name: 'router', pinnedModelId: 'missing-pin', fallbackIds: [] },
+      ],
+    })
+
+    const report = await buildDoctorReport(budgets, credentials, egress, ctx.modelStore)
+    expect(report.models).toEqual([
+      { bindingName: 'worker', resolvedId: 'ok-model', usedPin: true, unavailable: false },
+      { bindingName: 'router', usedPin: false, unavailable: true },
+    ])
   })
 
   it('an unconsented project is reported plainly, not hidden or defaulted to true', async () => {

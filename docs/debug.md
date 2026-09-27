@@ -3,6 +3,92 @@
 > Append-only. Every completed coding task gets an entry here, even "no
 > issues found." Newest entries at top.
 
+## DBG-019 — 1B.3: model store — 2026-09-27
+**Task:** Verified local models and pinned bindings (D-027, D-041):
+source allowlist, revision/SHA-256/license recording, digest verification,
+pinned model ID plus ordered fallback list per binding, wired into
+`doctor`.
+**Built:** `src/bundles/model-store/types.ts` (`ModelRecord`,
+`ModelSource`, `Binding`, `ModelAvailability`, `ModelStoreError`),
+`src/bundles/model-store/index.ts` (`ModelStore` - a proper Cordis
+Service, `ctx.modelStore`, matching `EgressPolicy`'s bundle convention
+rather than `app-core`'s internal-helper-class pattern, since
+`docs/phases.md` lists it as its own top-level bundle; `sha256Hex`).
+Extended `app-core/doctor.ts`: `buildDoctorReport` gained an optional
+fourth `models: ModelStoreSource` parameter, `DoctorReport` gained an
+optional `models` field, `AppCore.doctor()`'s signature grew to match.
+Extended `src/cli/wizard.ts`'s `formatDoctorReport` to print a line per
+model binding (pin / fallback / unavailable) when `report.models` is
+present, and left it silent when it isn't.
+**Tested:** `test/model-store.test.ts`, 15 tests, all against the real
+`ModelStore` class (booted via `ctx.plugin`, same pattern as
+`egress.test.ts`).
+- `register`: accepts all three allowlisted sources; rejects an
+  unallowlisted one, naming both the rejected source and the allowed set
+  in the error, and confirms the record was never partially stored;
+  rejects a duplicate id without touching the original registration;
+  lowercases a digest regardless of the case it was registered in.
+- `verifyDigest`: passes on a matching digest case-insensitively both
+  ways; throws `digest_mismatch` naming both the pinned and the actual
+  digest on any mismatch; throws `unknown_model` for an id that was never
+  registered.
+- `sha256Hex`: checked against two values computed with `node:crypto`
+  directly in this session (not recalled from memory or training data -
+  `node -e "require('crypto')..."`, confirmed 64 hex chars each before
+  using them), for `''` and `'hello-world'`.
+- `resolve`/`resolveAll`: pin wins when registered even if a fallback is
+  also registered; falls through to the first *registered* fallback in
+  order when the pin is missing; `unavailable: true` when neither
+  resolves; `unavailable: true` (not a crash) for a binding that was
+  never set at all; `resolveAll` covers every set binding.
+- Boot config: seeded `models`/`bindings` at `ctx.plugin(ModelStore, ...)`
+  time go through the exact same validation as calling `register()`
+  directly - a bad seed rejects the whole boot (`ctx.plugin(...).rejects`),
+  it doesn't silently skip the bad entry.
+Added 2 tests to `test/doctor.test.ts`: `models` is omitted entirely (not
+an empty array - checked via `'models' in report`) when no store is
+passed; a real `ModelStore` with one available and one unavailable
+binding produces exactly the availability data `resolveAll()` computed,
+through `buildDoctorReport`, not a stub. Added 2 tests to
+`test/wizard.test.ts`'s `formatDoctorReport` suite: no model lines at all
+when `models` is absent; a pinned, a fallback, and an unavailable binding
+each render distinguishably.
+**Mutation-checked, three times:**
+- Disabled the allowlist check in `register()` (`if (false)`) - broke both
+  the dedicated allowlist-rejection test and, as a side effect, confirmed
+  those two tests were actually exercising the throw path (not just
+  checking a side condition that happened to already be true).
+- Disabled the digest comparison in `verifyDigest()` - broke the
+  mismatch test as expected.
+- Disabled the `models`-omission conditional in `doctor.ts` (defaulted to
+  `[]` instead of leaving the key off) - broke the dedicated "omitted
+  entirely" test, which specifically checks `'models' in report` rather
+  than just `toBeUndefined()`, precisely so an `[]`-instead-of-absent
+  regression like this one would be caught.
+All three reverted; full suite re-ran clean after each.
+**Also found, while writing this entry, not by a test:** `docs/architecture.md`
+had not been updated since 2026-09-24 - it still described `app-core` as
+"in progress" with "provider connection + connection test, doctor,
+src/cli/" listed as not built, all three of which were finished in the
+previous three sessions (DBG-016 through DBG-018) without this file being
+touched. Brought current in this same pass: `app-core` marked done, a new
+`cli` section added, `model-store` updated from "planned" to "done" with
+real detail, the file tree and its trailing "built as of" note updated.
+Logged here rather than silently fixed, since it means the last three
+debug-log entries' "Affects" lines were technically incomplete (none of
+them listed `docs/architecture.md`) - worth remembering to check that file
+on every future slice, not just the four that get updated by habit
+(`phases.md`, `decisions.md`, `debug.md`, `status.md`).
+**Full suite:** `npx tsc --noEmit` clean; `npx vitest run` — 234 passed, 3
+skipped (up from 215/3), 16 files, no regressions.
+**Deliberately not built:** persistence to disk (nothing real to persist
+yet - see D-041); pre-registered models for the reference worker or
+Needle (no checked digest exists to register, and this environment can't
+reach a model host to compute one); wiring a `ModelStore` into
+`src/cli/wizard.ts` (the wizard still never constructs one, so
+`doctor`'s `models` field stays absent on every real run today - a later
+slice, same incremental pattern as every other piece of 1B.2).
+
 ## DBG-018 — 1B.2 (slice 6): terminal wizard CLI — 2026-09-26
 **Task:** The terminal wizard CLI client (D-040): the piece that actually
 uses connection-test, credentials, consent-copy and budgets together in a

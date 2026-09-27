@@ -231,4 +231,23 @@ describe('formatDoctorReport', () => {
     expect(formatDoctorReport(baseReport({ requestsLeftToday: 42 })).find((l) => l.startsWith('requests left today'))).toBe('requests left today: 42')
     expect(formatDoctorReport(baseReport()).find((l) => l.startsWith('requests left today'))).toBeUndefined()
   })
+
+  it('no model lines at all when `models` (1B.3) is absent - not an empty section', () => {
+    expect(formatDoctorReport(baseReport()).some((l) => l.startsWith('model binding'))).toBe(false)
+  })
+
+  it('distinguishes a pinned, a fallback, and an unavailable model binding', () => {
+    const lines = formatDoctorReport(
+      baseReport({
+        models: [
+          { bindingName: 'worker', resolvedId: 'pinned-model', usedPin: true, unavailable: false },
+          { bindingName: 'router', resolvedId: 'fallback-model', usedPin: false, unavailable: false },
+          { bindingName: 'ghost', usedPin: false, unavailable: true },
+        ],
+      }),
+    )
+    expect(lines.find((l) => l.includes('"worker"'))).toBe('model binding "worker": pinned-model (pin)')
+    expect(lines.find((l) => l.includes('"router"'))).toBe('model binding "router": fallback-model (fallback - pin unavailable)')
+    expect(lines.find((l) => l.includes('"ghost"'))).toContain('UNAVAILABLE')
+  })
 })
