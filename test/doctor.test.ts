@@ -181,3 +181,15 @@ describe('buildDoctorReport', () => {
     expect(report.egress.allowedHosts).toEqual(['x.example.com'])
   })
 })
+
+describe('doctor: installed-vs-pinned (D-043)', () => {
+  it('adds `installed` only when the caller supplies what the host reports, and reflects a digest mismatch', async () => {
+    const ctx = new Context()
+    await ctx.plugin(ModelStore, { models: [{ id: 't', source: 'ollama-library', revision: 'v', sha256: 'a'.repeat(64), sourceDigest: 'f'.repeat(64), license: 'MIT' }], bindings: [] })
+    const egress = { status: async () => ({ projectId: 'p', consented: false, allowedHosts: [] }) }
+    const none = await buildDoctorReport(new Budgets(), new KeychainCredentialStore('svc'), egress, ctx.modelStore)
+    expect('installed' in none).toBe(false)
+    const bad = await buildDoctorReport(new Budgets(), new KeychainCredentialStore('svc'), egress, ctx.modelStore, [{ name: 't', digest: 'e'.repeat(64) }])
+    expect(bad.installed).toEqual([{ id: 't', status: 'differs_from_pin', installedDigest: 'e'.repeat(64) }])
+  })
+})

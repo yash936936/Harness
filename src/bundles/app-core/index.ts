@@ -93,8 +93,8 @@ export class AppCore extends Service {
    * wire a `ModelStore` in yet either, and `doctor` reports nothing about
    * models rather than guessing when none is given.
    */
-  doctor(egress: EgressStatusSource, models?: ModelStoreSource): Promise<DoctorReport> {
-    return buildDoctorReport(this.budgets, this.credentials, egress, models)
+  doctor(egress: EgressStatusSource, models?: ModelStoreSource, installed?: Array<{ name: string; digest?: string }>): Promise<DoctorReport> {
+    return buildDoctorReport(this.budgets, this.credentials, egress, models, installed)
   }
 }
 

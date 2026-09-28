@@ -1,5 +1,5 @@
 import type { EgressStatus } from '../egress/types.js'
-import type { ModelAvailability } from '../model-store/types.js'
+import type { InstalledCheck, ModelAvailability } from '../model-store/types.js'
 import type { BudgetStatus, Budgets } from './budgets.js'
 import { describeCredentialStore, type CredentialStore } from './credentials.js'
 
@@ -13,6 +13,7 @@ export interface EgressStatusSource {
 /** Anything that can report every binding's pin/fallback availability - `ModelStore` satisfies this; a fake is enough for tests. */
 export interface ModelStoreSource {
   resolveAll(): ModelAvailability[]
+  checkInstalled?(installed: Array<{ name: string; digest?: string }>): InstalledCheck[]
 }
 
 export interface DoctorReport {
@@ -23,6 +24,8 @@ export interface DoctorReport {
   egress: EgressStatus
   /** Present only when a `ModelStoreSource` is passed to `buildDoctorReport` - absent, not an empty array, when there's nothing to report a model store against yet (1B.3 isn't wired into the wizard). */
   models?: ModelAvailability[]
+  /** Present only when the caller supplied what the host reports as installed (D-043) - absent for providers with no such listing. */
+  installed?: InstalledCheck[]
 }
 
 /**
@@ -44,6 +47,7 @@ export async function buildDoctorReport(
   credentials: CredentialStore,
   egress: EgressStatusSource,
   models?: ModelStoreSource,
+  installed?: Array<{ name: string; digest?: string }>,
 ): Promise<DoctorReport> {
   return {
     budgets: budgets.status(),
@@ -51,5 +55,6 @@ export async function buildDoctorReport(
     credentials: { active: await describeCredentialStore(credentials) },
     egress: await egress.status(),
     ...(models ? { models: models.resolveAll() } : {}),
+    ...(models && installed && models.checkInstalled ? { installed: models.checkInstalled(installed) } : {}),
   }
 }

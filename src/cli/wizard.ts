@@ -137,7 +137,9 @@ export async function runWizard(io: WizardIO, deps: WizardDeps = {}): Promise<Wi
     io.print('Local provider - nothing leaves this machine, no consent needed.')
   }
 
-  const report = await ctx.appCore.doctor(ctx.egress, ctx.modelStore)
+  // Best-effort: only an Ollama provider can say what is installed. Failure just means no `installed` lines.
+  const installed = provider instanceof OllamaProvider ? await provider.listInstalledModels().catch(() => undefined) : undefined
+  const report = await ctx.appCore.doctor(ctx.egress, ctx.modelStore, installed)
   io.print('')
   for (const line of formatDoctorReport(report)) io.print(line)
 
@@ -217,6 +219,13 @@ export function formatDoctorReport(report: DoctorReport): string[] {
       else if (m.usedPin) lines.push(`model binding "${m.bindingName}": ${m.resolvedId} (pin registered)`)
       else lines.push(`model binding "${m.bindingName}": ${m.resolvedId} (fallback registered - pin not registered)`)
     }
+  }
+
+  for (const c of report.installed ?? []) {
+    if (c.status === 'matches_pin') lines.push(`model "${c.id}": installed, digest matches the pin`)
+    else if (c.status === 'differs_from_pin') lines.push(`model "${c.id}": installed but its digest DIFFERS from the pin (tag moved or file changed) - reported ${c.installedDigest}`)
+    else if (c.status === 'not_installed') lines.push(`model "${c.id}": NOT installed on this host`)
+    else lines.push(`model "${c.id}": installed, but no digest to compare`)
   }
 
   return lines

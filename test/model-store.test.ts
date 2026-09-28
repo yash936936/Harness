@@ -184,3 +184,23 @@ describe('REFERENCE_WORKER_PIN (real data from the owner\'s machine, D-042)', ()
     expect(REFERENCE_WORKER_PIN.license).toMatch(/non-commercial/i)
   })
 })
+
+describe('ModelStore.checkInstalled (D-043)', () => {
+  const PIN = 'f'.repeat(64)
+  async function withPin() {
+    const store = await boot()
+    store.register(record({ id: 'tag:1b', sha256: REVISION_A, sourceDigest: PIN }))
+    store.register(record({ id: 'no-source-digest', sha256: REVISION_B }))
+    store.register(record({ id: 'not-ollama', source: 'cactus-compute', sha256: REVISION_B, sourceDigest: PIN }))
+    return store
+  }
+  it('reports matches_pin / differs_from_pin / not_installed / unchecked, only for ollama-library records', async () => {
+    const store = await withPin()
+    const of = (installed: Array<{ name: string; digest?: string }>) => Object.fromEntries(store.checkInstalled(installed).map((c) => [c.id, c.status]))
+    expect(of([{ name: 'tag:1b', digest: PIN.toUpperCase() }, { name: 'no-source-digest', digest: PIN }])).toEqual({ 'tag:1b': 'matches_pin', 'no-source-digest': 'unchecked' })
+    expect(of([{ name: 'tag:1b', digest: 'e'.repeat(64) }])['tag:1b']).toBe('differs_from_pin')
+    expect(of([])['tag:1b']).toBe('not_installed')
+    expect(of([{ name: 'tag:1b' }])['tag:1b']).toBe('unchecked') // host reported no digest
+    expect('not-ollama' in of([])).toBe(false)
+  })
+})

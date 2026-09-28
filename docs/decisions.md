@@ -4,6 +4,35 @@
 > if a decision is reversed, log a new entry that supersedes it and reference
 > the old ID.
 
+## D-043 — `harness run`, installed-vs-pinned, local connection timeout — 2026-09-29
+**Decision:** three changes, prompted by your real runs.
+1. **`src/cli/run.ts` (`runTask`, `npm run harness -- run ...`)** - one
+   prompt, one call through the real `LLMService`, not an agent loop. Boots
+   `SessionLog` + `EgressPolicy` + `LLMService` + `AppCore`; sets the
+   binding's `egress.consent` from the project's recorded consent (so both
+   D-022/D-029 gates are real); spends one request *before* the call, so a
+   refused call never reaches the provider. Every attempt counts against the
+   budget, including failed ones (metered providers bill attempts). The day's
+   budget persists in `<stateDir>/budget.json` (default `.harness/`). This is
+   the call site 1B.2's offline-start and budget-stop tests were waiting on.
+2. **Installed-vs-pinned:** `OllamaProvider.listInstalledModels()` (name +
+   digest from `/api/tags`), `ModelStore.checkInstalled()` comparing
+   `sourceDigest` (not `sha256`, D-042), `doctor`'s optional 5th parameter
+   and `report.installed`. Statuses: matches_pin / differs_from_pin /
+   not_installed / unchecked. The wizard fills it in for Ollama providers.
+3. **Connection timeout:** `defaultConnectionTimeoutMs` - 120 s for a local
+   (loopback) provider, 20 s otherwise. Your wizard run took 14.2 s on a cold
+   load, so a 20 s cap was one slow start from a false "timeout".
+**"Offline" means:** boot makes no network call; the run prints whether the
+provider works offline (local) or needs the network (cloud); a network
+failure is a clean `provider` error, not a crash. It does not mean the
+harness verifies your network is off.
+**Not built:** no agent loop, tool use or streaming in `run`; `run` doesn't
+persist provider config (flags each time); Needle still has no pin.
+**Affects:** `src/cli/run.ts`, `src/cli/index.ts`, `ollama.ts`,
+`model-store/{types,index}.ts`, `app-core/{doctor,index,provider-connection}.ts`,
+`src/cli/wizard.ts`, `package.json` (`"harness"` script).
+
 ## D-042 — First real pin: the reference worker, and its license is non-commercial — 2026-09-28
 **Decision:** `REFERENCE_WORKER_PIN` (`model-store/pins.ts`) records
 `qwen2.5-coder:3b-instruct` from output the owner pasted after a real

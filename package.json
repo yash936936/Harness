@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "wizard": "tsx src/cli/index.ts"
+    "wizard": "tsx src/cli/index.ts",
+    "harness": "tsx src/cli/index.ts"
   },
   "dependencies": {
     "@napi-rs/keyring": "^2.1.0",

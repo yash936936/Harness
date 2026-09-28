@@ -3,6 +3,21 @@
 > Append-only. Every completed coding task gets an entry here, even "no
 > issues found." Newest entries at top.
 
+## DBG-021 — 1B.2 test closure + installed-vs-pinned + timeout — 2026-09-29
+**Built:** see D-043. **Tested:** `test/run.test.ts` (6): budget-stop
+(second run refused at the hard limit across a rebuilt process, provider
+call count stays at 1), no-limit-no-stop, local provider unreachable (clean
+`provider` failure, prints "works offline"), cloud provider without consent
+(zero network calls, prints "needs the network"), cloud provider with
+consent completes through both gates, missing key = config error. Also:
+`checkInstalled` statuses, `doctor.installed` present only when supplied,
+`formatDoctorReport` lines, `defaultConnectionTimeoutMs`, and
+`listInstalledModels` against a payload shaped like your real `/api/tags`.
+**Mutation-checked:** removed the pre-call `spend` in `run.ts` (budget test
+failed); made `checkInstalled` always report a match (2 tests failed).
+**Suite:** 247 passed / 3 skipped, `tsc` clean.
+**Not verified:** `npm run harness -- run` against your real Ollama - only
+against fetch fakes. The first real run is yours.
 ## DBG-020 — 1B.3: real reference-worker pin + license finding — 2026-09-28
 **Task:** Close 1B.3's open criterion with real data (D-042).
 **Built:** `pins.ts` (real digests from the owner's `ollama pull` output),

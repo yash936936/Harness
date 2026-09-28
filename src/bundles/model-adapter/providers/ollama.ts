@@ -45,8 +45,8 @@ export class OllamaProvider implements LLMProvider {
     this.doFetch = config.fetch ?? fetch
   }
 
-  /** `GET /api/tags` - installed model tags. Throws on failure; callers treat listing as best-effort. */
-  async listModels(signal?: AbortSignal): Promise<string[]> {
+  /** `GET /api/tags` - installed models with the digest Ollama reports for each. Throws on failure; callers treat listing as best-effort. */
+  async listInstalledModels(signal?: AbortSignal): Promise<Array<{ name: string; digest?: string }>> {
     let res: Response
     try {
       res = await this.doFetch(`${this.baseUrl}/api/tags`, { signal })
@@ -57,7 +57,13 @@ export class OllamaProvider implements LLMProvider {
     if (!res.ok) throw new LLMError('server', `ollama: could not list models (HTTP ${res.status})`, NAME, res.status)
     const json: any = await res.json().catch(() => undefined)
     const models = Array.isArray(json?.models) ? json.models : []
-    return models.map((m: any) => String(m?.name ?? m?.model ?? '')).filter(Boolean)
+    return models
+      .map((m: any) => ({ name: String(m?.name ?? m?.model ?? ''), digest: typeof m?.digest === 'string' ? m.digest.toLowerCase() : undefined }))
+      .filter((m: { name: string }) => m.name)
+  }
+
+  async listModels(signal?: AbortSignal): Promise<string[]> {
+    return (await this.listInstalledModels(signal)).map((m) => m.name)
   }
 
   async complete(req: ProviderRequest, outer?: AbortSignal) {

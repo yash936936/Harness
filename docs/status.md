@@ -2,6 +2,14 @@
 
 > Updated every run. Newest entry at top.
 
+## 2026-09-29 — 1B.2 closed; installed-vs-pinned; timeout fix
+Added `harness run` (one real call, budget spent first) and used it to
+close 1B.2's offline-start and budget-stop tests. `doctor` now compares the
+pinned model against what Ollama reports as installed. Local connection
+timeout raised to 120 s. Suite 247 passed / 3 skipped (D-043, DBG-021).
+**Open:** Needle pin (needs your source/digest, deferred to 4.5); first real
+`run` against your Ollama; 1B.4 desktop shell (needs your 8 GB machine).
+
 ## 2026-09-28 — 1B.3: real reference-worker pin registered
 Real digests from your `ollama pull` are now in `model-store/pins.ts`; the
 wizard shows the `worker` binding in `doctor`. **License finding:** the

@@ -33,9 +33,18 @@ export interface TestConnectionOptions {
    * sending a probe the moment a remote config is typed in.
    */
   acknowledgeRemote?: boolean
-  /** Default 20s - short on purpose: this is a "does it answer at all" check, not a real task. */
+  /** Default: see `defaultConnectionTimeoutMs` (20s remote, 120s local). */
   timeoutMs?: number
   signal?: AbortSignal
+}
+
+/**
+ * Local (loopback) providers get a long deadline: a cold model load on a small machine took
+ * 14s in a real run (D-043) against a 20s cap, and a slow local start is not a failure.
+ * Remote and unknown providers keep the short "does it answer at all" deadline.
+ */
+export function defaultConnectionTimeoutMs(provider: LLMProvider): number {
+  return provider.egress && !provider.egress.remote ? 120_000 : 20_000
 }
 
 const PROBE_REQUEST: ProviderRequest = {
@@ -67,12 +76,13 @@ export async function testProviderConnection(
 
   // One shared deadline for the whole test, not per-call: a hung `/models` endpoint must not
   // be able to keep the probe call from ever running, and vice versa.
-  const timeout = opts.timeoutMs !== undefined ? AbortSignal.timeout(opts.timeoutMs) : AbortSignal.timeout(20_000)
+  const timeoutMs = opts.timeoutMs ?? defaultConnectionTimeoutMs(provider)
+  const timeout = AbortSignal.timeout(timeoutMs)
   const signal = opts.signal ? AbortSignal.any([opts.signal, timeout]) : timeout
 
   const models = provider.listModels ? await safeListModels(provider, signal) : undefined
   if (signal.aborted) {
-    return { ok: false, models, error: { kind: 'timeout', message: `no response within ${opts.timeoutMs ?? 20_000}ms (timed out while listing models)` } }
+    return { ok: false, models, error: { kind: 'timeout', message: `no response within ${timeoutMs}ms (timed out while listing models)` } }
   }
 
   const start = Date.now()
@@ -83,7 +93,7 @@ export async function testProviderConnection(
     const latencyMs = Date.now() - start
     if (e instanceof LLMError) return { ok: false, latencyMs, models, error: { kind: e.kind, message: e.message } }
     if (timeout.aborted && !opts.signal?.aborted) {
-      return { ok: false, latencyMs, models, error: { kind: 'timeout', message: `no response within ${opts.timeoutMs ?? 20_000}ms` } }
+      return { ok: false, latencyMs, models, error: { kind: 'timeout', message: `no response within ${timeoutMs}ms` } }
     }
     const message = e instanceof Error ? e.message : String(e)
     return { ok: false, latencyMs, models, error: { kind: 'unknown', message } }

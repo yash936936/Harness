@@ -252,3 +252,15 @@ describe('formatDoctorReport', () => {
     expect(lines.find((l) => l.includes('"ghost"'))).toContain('UNAVAILABLE')
   })
 })
+
+describe('formatDoctorReport: installed-vs-pinned lines (D-043)', () => {
+  it('renders each status distinctly', () => {
+    const lines = formatDoctorReport(baseReport({ installed: [
+      { id: 'a', status: 'matches_pin' }, { id: 'b', status: 'differs_from_pin', installedDigest: 'x' },
+      { id: 'c', status: 'not_installed' }, { id: 'd', status: 'unchecked' } ] }))
+    expect(lines.find((l) => l.includes('"a"'))).toContain('digest matches the pin')
+    expect(lines.find((l) => l.includes('"b"'))).toContain('DIFFERS')
+    expect(lines.find((l) => l.includes('"c"'))).toContain('NOT installed')
+    expect(lines.find((l) => l.includes('"d"'))).toContain('no digest to compare')
+  })
+})

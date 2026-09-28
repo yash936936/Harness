@@ -58,3 +58,11 @@ export interface ModelAvailability {
   /** True when neither the pin nor any fallback is registered (or the binding was never set at all). */
   unavailable: boolean
 }
+
+/** One pinned record compared against what the source's own host reports as installed (1B.3, D-043). */
+export interface InstalledCheck {
+  id: string
+  /** `not_installed`: the host doesn't list it. `matches_pin`: listed, digest equals the record's `sourceDigest`. `differs_from_pin`: listed under the same name with a different digest (the tag moved, or the file changed). `unchecked`: the record has no `sourceDigest`, or the host reported no digest, so nothing can be compared. */
+  status: 'not_installed' | 'matches_pin' | 'differs_from_pin' | 'unchecked'
+  installedDigest?: string
+}

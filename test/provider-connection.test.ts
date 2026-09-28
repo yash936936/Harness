@@ -164,3 +164,26 @@ describe('testProviderConnection - timeout', () => {
     expect(result.error?.kind).toBe('timeout')
   })
 })
+
+import { defaultConnectionTimeoutMs } from '../src/bundles/app-core/provider-connection.js'
+describe('defaultConnectionTimeoutMs (D-043)', () => {
+  it('gives a local provider a long deadline (real cold load took 14s) and remote/unknown providers the short one', () => {
+    const p = (egress?: { host: string; remote: boolean }) => ({ egress, complete: async () => ({}) as any })
+    expect(defaultConnectionTimeoutMs(p({ host: 'localhost', remote: false }))).toBe(120_000)
+    expect(defaultConnectionTimeoutMs(p({ host: 'openrouter.ai', remote: true }))).toBe(20_000)
+    expect(defaultConnectionTimeoutMs(p())).toBe(20_000)
+  })
+})
+
+describe('OllamaProvider.listInstalledModels - shaped like the real /api/tags a user pasted (D-043)', () => {
+  it('returns name + lowercase digest per installed model', async () => {
+    const real = { models: [
+      { name: 'qwen2.5-coder:3b-instruct', model: 'qwen2.5-coder:3b-instruct', size: 1929912626, digest: 'f72c60cabf6237b07f6e632b2c48d533cef25eda2efbd34bed21c5e9c01e6225', details: { format: 'gguf' } },
+      { name: 'llama3.2:3b', digest: 'A80C4F17ACD55265FEEC403C7AF86BE0C25983AB279D83F3BCD3ABBCB5B8B72' } ] }
+    const provider = new OllamaProvider({ model: 'x', fetch: (async () => json(200, real)) as unknown as typeof fetch })
+    expect(await provider.listInstalledModels()).toEqual([
+      { name: 'qwen2.5-coder:3b-instruct', digest: 'f72c60cabf6237b07f6e632b2c48d533cef25eda2efbd34bed21c5e9c01e6225' },
+      { name: 'llama3.2:3b', digest: 'a80c4f17acd55265feec403c7af86be0c25983ab279d83f3bcd3abbcb5b8b72' } ])
+    expect(await provider.listModels()).toEqual(['qwen2.5-coder:3b-instruct', 'llama3.2:3b'])
+  })
+})

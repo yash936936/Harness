@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { createReadStream } from 'node:fs'
 import { Context, Service } from 'cordis'
-import { ModelStoreError, type Binding, type ModelAvailability, type ModelRecord, type ModelSource } from './types.js'
+import { ModelStoreError, type Binding, type InstalledCheck, type ModelAvailability, type ModelRecord, type ModelSource } from './types.js'
 
 export * from './types.js'
 export * from './pins.js'
@@ -88,6 +88,22 @@ export class ModelStore extends Service {
   /** Hashes a file on disk (streamed - model files are GBs) and checks it against the pin. Throws like `verifyDigest`. */
   async verifyFile(id: string, path: string): Promise<void> {
     this.verifyDigest(id, await sha256File(path))
+  }
+
+  /**
+   * Compares `ollama-library` records against what an Ollama host reports as installed
+   * (`name` + `digest` from `/api/tags`). Compares `sourceDigest` - the digest Ollama itself
+   * reports - not `sha256`, which is a different value (D-042). Read-only.
+   */
+  checkInstalled(installed: Array<{ name: string; digest?: string }>): InstalledCheck[] {
+    return this.list()
+      .filter((r) => r.source === 'ollama-library')
+      .map((r): InstalledCheck => {
+        const found = installed.find((m) => m.name === r.id)
+        if (!found) return { id: r.id, status: 'not_installed' }
+        if (!r.sourceDigest || !found.digest) return { id: r.id, status: 'unchecked', installedDigest: found.digest }
+        return { id: r.id, status: found.digest.toLowerCase() === r.sourceDigest.toLowerCase() ? 'matches_pin' : 'differs_from_pin', installedDigest: found.digest }
+      })
   }
 
   setBinding(binding: Binding): void {

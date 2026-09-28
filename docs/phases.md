@@ -426,11 +426,11 @@ pieces, same as 1.2b/1.6/1B.1; this turn built the first piece only.
   stdin (confirmed TTY-specific, not a bug here, via pty), and a real bug
   — `process.exit()` truncating buffered stdout on piped output — fixed
   with `process.exitCode` instead.
-- **Not started:** offline-start test, budget-stop integration test (the
-  budget logic is tested standalone; nothing yet stops a real call using
-  it — the wizard doesn't spend budget either, since it never actually
-  calls the provider through `LLMService`). This closes out every other
-  piece 1B.2 originally listed.
+- **Offline-start and budget-stop tests: done** (DBG-021, D-043) via
+  `harness run` (`src/cli/run.ts`), which is the real-call site they needed.
+  Budget-stop is tested across a rebuilt process; offline-start means boot
+  makes no network call, the harness says what works, and a network failure
+  is a clean error. Not run against a real Ollama by me.
 
 ### 1B.3 — Model store and pinning
 **Goal:** Verified, pinned models and clear fallbacks (D-027).
