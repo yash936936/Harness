@@ -18,6 +18,13 @@ export interface ModelRecord {
   /** Lowercase hex, no "sha256:" prefix - `register()` lowercases it regardless of how it's passed in. */
   sha256: string
   license: string
+  /**
+   * The digest the *source's own API* reports for this model, when that differs from `sha256`
+   * (Ollama's `/api/tags` `digest` is a manifest digest, not the hash of the weights file - the
+   * two were observed to differ on a real pull, D-042). Informational; `verifyDigest` only ever
+   * checks `sha256`.
+   */
+  sourceDigest?: string
   /** Free-text - e.g. why this revision/size was picked over another. Never used for verification, display only. */
   notes?: string
 }

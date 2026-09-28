@@ -4,6 +4,36 @@
 > if a decision is reversed, log a new entry that supersedes it and reference
 > the old ID.
 
+## D-042 — First real pin: the reference worker, and its license is non-commercial — 2026-09-28
+**Decision:** `REFERENCE_WORKER_PIN` (`model-store/pins.ts`) records
+`qwen2.5-coder:3b-instruct` from output the owner pasted after a real
+`ollama pull` (2026-09-28): `sha256` = the weights blob hash
+`4a188102020e...bba` (from the modelfile's `FROM ...\blobs\sha256-` path; Ollama
+printed the same prefix while "verifying sha256 digest"), `sourceDigest` =
+`f72c60cabf62...225` (`/api/tags` `digest` = `ollama list` ID). These are
+**two different digests**, so `ModelRecord` gained an optional `sourceDigest`;
+`verifyDigest`/`verifyFile` only ever check `sha256`. `sha256File` and
+`ModelStore.verifyFile` (streamed hash of a blob on disk) were added so the
+pin can be re-checked against the real file. The wizard now boots
+`ModelStore` with this pin and a `worker` binding and passes it to `doctor`.
+**License finding (new, and it matters):** `ollama show --license` printed
+the **Qwen RESEARCH LICENSE AGREEMENT** (2024-09-19), not Apache-2.0. Its
+grant (s.2a) is for **non-commercial purposes only**; commercial use needs a
+separate license from Alibaba Cloud (s.2b). It also has redistribution and
+attribution terms (s.3) and a "Built with Qwen" rule if outputs are used to
+train a distributed model (s.4b). D-030 picked this model for RAM headroom
+and never recorded its license. Fine for personal/research use; a blocker
+if this harness or its outputs are ever used commercially - that is the
+owner's call, not something this pin resolves.
+**Doctor wording:** binding lines now say "pin registered" / "fallback
+registered", because `resolve()` only knows what is registered, not what is
+installed in Ollama. A real installed-and-matching check would compare
+against `/api/tags` (`sourceDigest`) or hash the blob (`verifyFile`) - not built.
+**Still open:** Needle (D-026) has no pin - no source or digest supplied.
+The tag is mutable, so re-pulling may change the hash.
+**Affects:** `model-store/{types,pins,index}.ts`, `src/cli/wizard.ts`,
+`docs/phases.md` 1B.3.
+
 ## D-041 — Model store: fixed source allowlist, in-memory, no pre-registered models — 2026-09-27
 **Decision:** `src/bundles/model-store/` (`ModelStore`, a Cordis Service -
 `ctx.modelStore`) implements D-027/D-026: `register()` refuses a source

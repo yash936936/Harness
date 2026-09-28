@@ -173,7 +173,8 @@ and size.
   neither is available - wired into `doctor` (`buildDoctorReport`'s
   optional `models` parameter, D-041) as the "unavailable-pinned-model
   test in `doctor`" success criterion asked for.
-- **Deliberately ships with no pre-registered models.** D-030 names
+- **One real pin** (`pins.ts`, D-042): the reference worker, from real `ollama` output; non-commercial license. The store otherwise has no models.
+- **Earlier note, still true for anything else - no pre-registered models:** D-030 names
   `qwen2.5-coder:3b-instruct` as the reference worker and D-026 names
   Needle's origin, but neither decision recorded a checked SHA-256 for a
   specific pulled revision - inventing one would be the same

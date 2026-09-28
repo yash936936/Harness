@@ -2,6 +2,14 @@
 
 > Updated every run. Newest entry at top.
 
+## 2026-09-28 — 1B.3: real reference-worker pin registered
+Real digests from your `ollama pull` are now in `model-store/pins.ts`; the
+wizard shows the `worker` binding in `doctor`. **License finding:** the
+model is under the Qwen Research License - non-commercial use only (D-042).
+Tests 236 passed / 3 skipped. Open: Needle pin (deferred to 4.5); no
+installed-vs-pinned check; 1B.2's offline-start/budget-stop tests still
+wait on a "run a task" command.
+
 ## 2026-09-27 — 1B.3: model store built — mechanism done, one data gap open
 **Current phase:** 1B.2 is substantively complete (open items noted last
 entry). 1B.3 (model store and pinning, D-027) is now built: `ctx.modelStore`

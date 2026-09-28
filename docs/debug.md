@@ -3,6 +3,23 @@
 > Append-only. Every completed coding task gets an entry here, even "no
 > issues found." Newest entries at top.
 
+## DBG-020 — 1B.3: real reference-worker pin + license finding — 2026-09-28
+**Task:** Close 1B.3's open criterion with real data (D-042).
+**Built:** `pins.ts` (real digests from the owner's `ollama pull` output),
+`ModelRecord.sourceDigest`, `sha256File`, `ModelStore.verifyFile`; wizard
+boots `ModelStore` with the pin and passes it to `doctor`; doctor wording
+now "pin registered"/"fallback registered".
+**Tested:** 2 new tests in `test/model-store.test.ts` (streamed file hash
+vs. known value, `verifyFile` match/mismatch/missing-file; the pin's
+digests are 64-hex, distinct from each other, prefixes match what Ollama
+printed, license mentions non-commercial), 1 assertion added to the wizard
+test (`report.models` reports the worker binding). Mutation: made
+`verifyFile` skip the comparison - caught. Suite 236 passed / 3 skipped,
+`tsc` clean.
+**Found:** the two digests differ (blob vs manifest), and the license is
+non-commercial (D-042).
+**Not verified:** I did not re-hash the blob on your machine. Run the
+`sha256File` check yourself (see message) to confirm the pin end to end.
 ## DBG-019 — 1B.3: model store — 2026-09-27
 **Task:** Verified local models and pinned bindings (D-027, D-041):
 source allowlist, revision/SHA-256/license recording, digest verification,

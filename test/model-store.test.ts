@@ -144,3 +144,43 @@ describe('ModelStore boot config', () => {
     await expect(ctx.plugin(ModelStore, { models: [record({ source: 'not-allowlisted' })] })).rejects.toThrow(ModelStoreError)
   })
 })
+
+describe('sha256File / verifyFile', () => {
+  it('hashes a real file to the same value as hashing its bytes, and verifyFile enforces the pin', async () => {
+    const { mkdtemp, writeFile, rm } = await import('node:fs/promises')
+    const { tmpdir } = await import('node:os')
+    const { join } = await import('node:path')
+    const { sha256File } = await import('../src/bundles/model-store/index.js')
+    const dir = await mkdtemp(join(tmpdir(), 'model-store-'))
+    try {
+      const path = join(dir, 'blob')
+      await writeFile(path, 'hello-world')
+      expect(await sha256File(path)).toBe('afa27b44d43b02a9fea41d13cedc2e4016cfcf87c5dbf990e593669aa8ce286d')
+
+      const store = await boot()
+      store.register(record({ id: 'm', sha256: 'afa27b44d43b02a9fea41d13cedc2e4016cfcf87c5dbf990e593669aa8ce286d' }))
+      store.register(record({ id: 'other', sha256: REVISION_A }))
+      await expect(store.verifyFile('m', path)).resolves.toBeUndefined()
+      await expect(store.verifyFile('other', path)).rejects.toMatchObject({ kind: 'digest_mismatch' })
+      await expect(sha256File(join(dir, 'missing'))).rejects.toThrow()
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('REFERENCE_WORKER_PIN (real data from the owner\'s machine, D-042)', () => {
+  it('registers cleanly, has well-formed digests, and the blob hash matches the filename Ollama reported', async () => {
+    const { REFERENCE_WORKER_PIN, REFERENCE_WORKER_BINDING } = await import('../src/bundles/model-store/index.js')
+    const store = await boot()
+    store.register(REFERENCE_WORKER_PIN)
+    store.setBinding(REFERENCE_WORKER_BINDING)
+    expect(store.resolve('worker')).toMatchObject({ resolvedId: 'qwen2.5-coder:3b-instruct', usedPin: true })
+    expect(REFERENCE_WORKER_PIN.sha256).toMatch(/^[0-9a-f]{64}$/)
+    expect(REFERENCE_WORKER_PIN.sourceDigest).toMatch(/^[0-9a-f]{64}$/)
+    expect(REFERENCE_WORKER_PIN.sha256).not.toBe(REFERENCE_WORKER_PIN.sourceDigest) // two different digests, kept apart
+    expect(REFERENCE_WORKER_PIN.sha256.startsWith('4a188102020e')).toBe(true) // the prefix Ollama printed while verifying the pull
+    expect(REFERENCE_WORKER_PIN.sourceDigest!.startsWith('f72c60cabf62')).toBe(true) // the ID column of `ollama list`
+    expect(REFERENCE_WORKER_PIN.license).toMatch(/non-commercial/i)
+  })
+})

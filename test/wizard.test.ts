@@ -87,6 +87,7 @@ describe('runWizard', () => {
     expect(r.report.egress.allowedHosts).toEqual([])
     expect(r.report.credentials.active).toBe('unresolved') // a bare fake, not Auto/Keychain/File
     expect(r.report.requestsLeftToday).toBeUndefined() // budget was declined
+    expect(r.report.models).toEqual([{ bindingName: 'worker', resolvedId: 'qwen2.5-coder:3b-instruct', usedPin: true, unavailable: false }])
 
     expect(io.lines.some((l) => l.includes('Local provider'))).toBe(true)
     expect(io.lines.some((l) => l.startsWith('--- doctor ---'))).toBe(true)
@@ -246,8 +247,8 @@ describe('formatDoctorReport', () => {
         ],
       }),
     )
-    expect(lines.find((l) => l.includes('"worker"'))).toBe('model binding "worker": pinned-model (pin)')
-    expect(lines.find((l) => l.includes('"router"'))).toBe('model binding "router": fallback-model (fallback - pin unavailable)')
+    expect(lines.find((l) => l.includes('"worker"'))).toBe('model binding "worker": pinned-model (pin registered)')
+    expect(lines.find((l) => l.includes('"router"'))).toBe('model binding "router": fallback-model (fallback registered - pin not registered)')
     expect(lines.find((l) => l.includes('"ghost"'))).toContain('UNAVAILABLE')
   })
 })

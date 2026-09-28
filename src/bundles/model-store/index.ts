@@ -1,8 +1,10 @@
 import { createHash } from 'node:crypto'
+import { createReadStream } from 'node:fs'
 import { Context, Service } from 'cordis'
 import { ModelStoreError, type Binding, type ModelAvailability, type ModelRecord, type ModelSource } from './types.js'
 
 export * from './types.js'
+export * from './pins.js'
 
 const ALLOWLISTED_SOURCES: ReadonlySet<ModelSource> = new Set<ModelSource>(['ollama-library', 'ornith-ai', 'cactus-compute'])
 
@@ -83,6 +85,11 @@ export class ModelStore extends Service {
     }
   }
 
+  /** Hashes a file on disk (streamed - model files are GBs) and checks it against the pin. Throws like `verifyDigest`. */
+  async verifyFile(id: string, path: string): Promise<void> {
+    this.verifyDigest(id, await sha256File(path))
+  }
+
   setBinding(binding: Binding): void {
     this.bindings.set(binding.name, { ...binding, fallbackIds: [...binding.fallbackIds] })
   }
@@ -117,6 +124,17 @@ export class ModelStore extends Service {
 /** Hex-encoded SHA-256, for computing the digest side of a `verifyDigest` call against real bytes. */
 export function sha256Hex(data: string | Uint8Array): string {
   return createHash('sha256').update(data).digest('hex')
+}
+
+/** Streamed hex SHA-256 of a file - safe for multi-GB model blobs. */
+export function sha256File(path: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const hash = createHash('sha256')
+    createReadStream(path)
+      .on('error', reject)
+      .on('data', (chunk) => hash.update(chunk))
+      .on('end', () => resolve(hash.digest('hex')))
+  })
 }
 
 export const name = 'bundle-model-store'
