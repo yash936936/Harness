@@ -7,7 +7,7 @@ import { testProviderConnection } from '../bundles/app-core/provider-connection.
 import type { BudgetsConfig } from '../bundles/app-core/budgets.js'
 import { EgressPolicy, FileConsentStore, type ConsentStore } from '../bundles/egress/index.js'
 import { MockProvider, OllamaProvider, OpenAICompatibleProvider, type LLMProvider } from '../bundles/model-adapter/index.js'
-import { ModelStore, REFERENCE_WORKER_BINDING, REFERENCE_WORKER_PIN } from '../bundles/model-store/index.js'
+import { ModelStore, NEEDLE_PIN, REFERENCE_WORKER_BINDING, REFERENCE_WORKER_PIN } from '../bundles/model-store/index.js'
 import type { WizardIO } from './io.js'
 
 export type ProviderKind = 'mock' | 'ollama' | 'openai-compatible'
@@ -116,7 +116,7 @@ export async function runWizard(io: WizardIO, deps: WizardDeps = {}): Promise<Wi
   })
   await ctx.plugin(AppCore, { budgets, credentials: { store: credentials } })
   // The one real pin on record (D-042). Registered = trusted/pinned, NOT proof it is installed - see formatDoctorReport.
-  await ctx.plugin(ModelStore, { models: [REFERENCE_WORKER_PIN], bindings: [REFERENCE_WORKER_BINDING] })
+  await ctx.plugin(ModelStore, { models: [REFERENCE_WORKER_PIN, NEEDLE_PIN], bindings: [REFERENCE_WORKER_BINDING] })
 
   const screen = ctx.appCore.consentScreen(providerName, provider.egress)
   io.print('')

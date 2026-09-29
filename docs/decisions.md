@@ -27,6 +27,59 @@ the record.
 in the Python package - relevant to D-020's "no telemetry" wording if Needle is
 ever run through it. Not evaluated here.
 
+## D-050 — Needle pin registered — 2026-09-29
+`NEEDLE_PIN` (`model-store/pins.ts`): `needle2`, source `cactus-compute`, HF
+commit `32e9e3a9...9f84579`, sha256 `b43aabfc...ede5ba` of `needle2/needle2.cact`
+(hashed by `npm run pin` on the owner's machine), Apache-2.0 (downloaded LICENSE
+read). Registered in the wizard's ModelStore; **no binding** until the router
+(Phase 4.5). Pinned the `.cact` weights only; the native binaries and Python
+wheels in the download are unpinned, and `checkpoints/needle2.pkl` (a pickle)
+must never be loaded. Whether `.cact` is the format the Cactus runtime loads is
+Claude's assumption, unverified. Cactus's Python package has telemetry (D-046).
+**Affects:** Phase 1B.3 (last open criterion closed), Phase 4.5.
+
+## D-049 — Needle generation: needle2; commercial use is in scope — 2026-09-29
+**Decision (owner):** pin `Cactus-Compute/needle2` (45M), not needle3 or the 26M
+original. Owner also answered **yes** to whether commercial use of the harness
+is ever possible (as read by Claude; the answer was a bare "yes").
+**Consequences:** (1) The reference worker `qwen2.5-coder:3b-instruct` is under
+the Qwen Research License (non-commercial only, D-042), so it is a **release
+blocker for any commercial use**: swap it for a permissively licensed model or
+obtain a commercial license from Alibaba Cloud. As far as I know some other
+Qwen2.5-Coder sizes are Apache-2.0, but that must be checked per model with
+`ollama show --license`, not assumed. (2) needle2's Apache-2.0 tag was read from
+its Hugging Face page only; the downloaded `LICENSE` file still has to be read
+before registering the pin.
+**Not yet done:** the needle2 pin itself - needs the weights file's real SHA-256
+and the HF commit hash from the owner's download (`npm run pin`).
+**Affects:** Phase 1B.3, Phase 4.5, release planning.
+
+## D-048 — Desktop shell: Tauri, provisional pending a Node-sidecar measurement — 2026-09-29
+**Measured (owner's 8 GB Windows machine, hello-world shells, valid rerun):**
+| | Electron | Tauri |
+|---|---|---|
+| Installer | 146.4 MB | 1.3 MB |
+| Cold start, samples ms | 9878;397;372;336;351 | 2158;1567;837;842;844 |
+| Cold start, warm runs | ~365 ms | ~840 ms (marker fires early, true time later) |
+| Idle working set, process tree | 530.7 MB (5 procs) | 362.0 MB (7 procs incl. WebView2) |
+**Decision:** Tauri, provisionally. Reasons: about 169 MB less idle memory
+(32%), a two-orders-of-magnitude smaller installer, and Tauri 2 targets Android
+and iOS, which matches the owner's stated laptop-and-mobile goal; Electron
+cannot.
+**Against, and why it is provisional:** (1) Electron starts about 2.3x faster
+warm; both are under a second, so this is minor for a rarely-launched app. (2)
+The core is Node/TypeScript: Electron hosts it in-process, Tauri needs it as a
+sidecar process, adding its own idle memory and bundling size. That is unmeasured
+and could shrink the 169 MB gap materially. (3) Tauri adds Rust to the toolchain
+and a second language at the IPC boundary. (4) Working set double-counts shared
+pages, so both figures are overstated, probably Tauri's more (WebView2 shares
+heavily); private bytes would be fairer. (5) One 5 s sample per shell.
+**Revisit if:** the sidecar measurement puts Tauri+core within roughly 50 MB of
+Electron+core, or Rust maintenance cost proves too high.
+**Note:** the local model, not the shell, is the dominant 8 GB consumer; this
+choice is second-order to that budget.
+**Affects:** Phase 1B.4, `app/desktop/`.
+
 ## D-047 — First bench run: sizes and start times usable, idle memory invalid — 2026-09-29
 **Measured (owner's 8 GB machine, hello-world shells only):** Electron installer
 146.4 MB, Tauri 1.3 MB. Cold start samples (ms): Electron 14721;576;414;355;328

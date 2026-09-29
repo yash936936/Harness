@@ -2,6 +2,23 @@
 
 > Updated every run. Newest entry at top.
 
+## 2026-09-29 (last) — Needle pinned (D-050)
+1B.3 is complete. Remaining for Phase 1: confirm Tauri and build 1B.4, live
+OpenRouter call (1.2b). Qwen reference worker must be replaced/licensed before
+commercial release (D-049).
+
+## 2026-09-29 (late) — Needle generation chosen; Phase 1 close-out list
+Owner chose needle2 and confirmed commercial use is in scope (D-049). Needle pin
+still needs `npm run pin` on the downloaded files. Remaining to close Phase 1:
+Needle pin (1B.3), confirm Tauri and build the desktop app (1B.4), a live
+OpenRouter call (1.2b, unverified 429 heuristic). Qwen reference worker must be
+replaced or licensed before any commercial release.
+
+## 2026-09-29 (night) — bench complete; Tauri chosen provisionally (D-048)
+Valid numbers in hand. Tauri chosen provisionally, pending a measurement of the
+Node core as a sidecar. **Open, needing you:** confirm or reject Tauri; Needle
+generation + `npm run pin`; Qwen commercial-use question.
+
 ## 2026-09-29 (evening) — first bench numbers; memory measurement fixed
 Sizes and start times recorded, idle memory invalid (0.0) and fixed (D-047).
 No shell chosen. **Open, needing you:** rerun `npm run measure:electron` and

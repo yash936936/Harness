@@ -3,6 +3,19 @@
 > Append-only. Every completed coding task gets an entry here, even "no
 > issues found." Newest entries at top.
 
+## DBG-025 — Needle pin registered — 2026-09-29
+Registered `NEEDLE_PIN` from the owner's real `npm run pin` output; 1 new test
+(digest/revision format, prefix, not ollama-checked). Ran `tsc` and the suite
+below. Not verified: that `needle2.cact` loads in any runtime.
+
+## DBG-024 — bench rerun on owner machine — 2026-09-29
+Rerun after DBG-023: both scripts completed, idle memory now valid (Electron
+530.7 MB/5 procs, Tauri 362.0 MB/7 procs). Suite 250 passed / 3 skipped, `tsc`
+clean on the owner's machine. Noted: Tauri hello-screen patch skipped (template
+has no root `index.html`; default vanilla page was measured instead, cold-start
+marker still applied). Duplicate invalid 0.0 rows kept in `results.csv` as
+history; they are superseded by the 11:34 and 11:42 rows.
+
 ## DBG-023 — bench idle memory read 0.0 — 2026-09-29
 Owner's real run wrote `idle_memory_mb=0.0` for both shells. Root cause: name
 match via `tasklist` returned 0 silently. Fixed by PID-tree summation via

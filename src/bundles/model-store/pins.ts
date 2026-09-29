@@ -31,3 +31,24 @@ export const REFERENCE_WORKER_BINDING: Binding = {
   pinnedModelId: REFERENCE_WORKER_PIN.id,
   fallbackIds: [],
 }
+
+/**
+ * Needle pin (D-049, closes the 1B.3 Needle criterion). Every value came from the
+ * owner's own machine on 2026-09-29, not from recall:
+ * - `revision`: the Hugging Face commit of `Cactus-Compute/needle2` that was downloaded
+ *   (from the local `.cache/huggingface/download` metadata).
+ * - `sha256`: `npm run pin` hashed `needle2/needle2.cact` on that machine.
+ * - `license`: Apache-2.0; the downloaded `needle2/LICENSE` begins with the Apache
+ *   License 2.0 text (owner pasted the first lines).
+ * Only the weights file is pinned. The download also ships native binaries and Python
+ * wheels, which are NOT covered; pin them separately if the harness ever runs or links them.
+ * The `checkpoints/needle2.pkl` pickle must never be loaded.
+ */
+export const NEEDLE_PIN: ModelRecord = {
+  id: 'needle2',
+  source: 'cactus-compute',
+  revision: '32e9e3a93b205f786929697446ae669cf0a84579',
+  sha256: 'b43aabfcaf1a6db6acf488076eab71d823c08697c7af4521fc1d174b60ede5ba',
+  license: 'Apache-2.0',
+  notes: 'needle2.cact weights file, 45M generation (D-049). No binding yet: the router is Phase 4.5. Never load checkpoints/needle2.pkl.',
+}

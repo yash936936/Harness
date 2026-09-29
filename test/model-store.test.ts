@@ -185,6 +185,19 @@ describe('REFERENCE_WORKER_PIN (real data from the owner\'s machine, D-042)', ()
   })
 })
 
+describe('NEEDLE_PIN (real data from the owner\'s machine, D-049)', () => {
+  it('registers cleanly with a well-formed digest and revision, and is not an ollama-checked record', async () => {
+    const { NEEDLE_PIN } = await import('../src/bundles/model-store/index.js')
+    const store = await boot()
+    store.register(NEEDLE_PIN)
+    expect(NEEDLE_PIN.sha256).toMatch(/^[0-9a-f]{64}$/)
+    expect(NEEDLE_PIN.sha256.startsWith('b43aabfcaf1a')).toBe(true)
+    expect(NEEDLE_PIN.revision).toMatch(/^[0-9a-f]{40}$/)
+    expect(NEEDLE_PIN.license).toBe('Apache-2.0')
+    expect(store.checkInstalled([{ name: 'needle2', digest: 'x' }]).find((c) => c.id === 'needle2')).toBeUndefined()
+  })
+})
+
 describe('ModelStore.checkInstalled (D-043)', () => {
   const PIN = 'f'.repeat(64)
   async function withPin() {

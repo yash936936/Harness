@@ -313,7 +313,7 @@ Consent-screen copy and the wizard UI are 1B.2, not this phase.
 - With the network off, the harness starts and says what works.
 **Testing:** wizard flow tests over the core API; offline-start test;
 budget-stop test.
-**Status:** In progress — 2026-09-24 (see DBG-013, D-035). Sliced into
+**Status:** Functionally done (all listed pieces built; see the last two bullets below and D-043). Original note: In progress — 2026-09-24 (see DBG-013, D-035). Sliced into
 pieces, same as 1.2b/1.6/1B.1; this turn built the first piece only.
 - **Budgets: done.** New `bundle-app-core` (`ctx.appCore`), `Budgets`
   class (`src/bundles/app-core/budgets.ts`) - requests/tokens at
@@ -441,7 +441,7 @@ pieces, same as 1.2b/1.6/1B.1; this turn built the first piece only.
   (`ollama-library`, `ornith-ai`, `cactus-compute`). See DBG-019/D-041.
 - ✅ Each binding has a pinned model ID and an ordered fallback list
   (`ModelStore.setBinding`, `resolve`/`resolveAll`).
-- ❌ **Needle version and license file recorded — not done.** The
+- ✅ **Needle version and license file recorded — done (D-050, 2026-09-29; original blocker text follows).** The
   mechanism to record it exists (`register()` accepts `cactus-compute` as
   a source), but no entry is actually registered: neither D-026 (Needle)
   nor D-030 (the reference worker) recorded a checked SHA-256 for a
@@ -454,7 +454,7 @@ pieces, same as 1.2b/1.6/1B.1; this turn built the first piece only.
   ships with zero pre-registered models on purpose.
 **Testing:** ✅ digest-mismatch test; ✅ unavailable-pinned-model test in
 `doctor` (`buildDoctorReport`'s optional `models` parameter, D-041).
-**Status:** Mechanism done and tested; one success criterion (Needle's
+**Status:** DONE 2026-09-29 (D-050). Historical: mechanism done and tested; one success criterion (Needle's
 actual recorded pin) is open pending real data from outside this
 environment. Not yet wired into `src/cli/wizard.ts` — the wizard never
 constructs a `ModelStore`, so `doctor`'s `models` field is absent on every
@@ -462,7 +462,7 @@ real run today. In-memory only; no persistence to disk yet (nothing real
 to persist).
 
 ### 1B.4 — Desktop shell
-**Progress (D-047):** first run gave size/start numbers but invalid idle memory; fixed, rerun needed. **Earlier (D-045):** measurement toolkit in `app/desktop/bench/` written; no measurements taken, no shell chosen, no app built. Run `npm run measure:electron` / `measure:tauri` on the 8 GB machine.
+**Progress (D-048):** both shells measured; Tauri chosen provisionally, sidecar cost still to measure; no app built yet. **Earlier (D-047):** first run gave size/start numbers but invalid idle memory; fixed, rerun needed. **Earlier (D-045):** measurement toolkit in `app/desktop/bench/` written; no measurements taken, no shell chosen, no app built. Run `npm run measure:electron` / `measure:tauri` on the 8 GB machine.
 **Goal:** A desktop app over the 1B.2 core, adding no logic of its own.
 **Files touched:** new `app/desktop/`
 **Success criteria:**
