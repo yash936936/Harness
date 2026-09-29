@@ -4,6 +4,51 @@
 > if a decision is reversed, log a new entry that supersedes it and reference
 > the old ID.
 
+## D-046 — Needle: real sources found, license resolved for needle2/3, still no pin — 2026-09-29
+**Found by searching (not recalled):** Needle's code is `github.com/cactus-compute/needle`
+(GitHub's license detector and the PyPI `cactus-needle` page both say
+Apache-2.0). Weights live on Hugging Face, not GitHub: `Cactus-Compute/needle2`
+(45M) and `Cactus-Compute/needle3` (base checkpoint `needle3.safetensors`, 242 MB)
+both carry an `apache-2.0` license tag on their HF pages. There is also
+`Cactus-Compute/needle-hf` (30.4M, no model card, so no stated license) and
+the original 26M `Cactus-Compute/needle`.
+**What this changes in D-026:** its "sources disagree, MIT or Apache 2.0" is
+explained: the MIT label I saw was on a *downstream fine-tune* of the 26M
+original, not on Cactus-Compute's own repos. For needle2 and needle3 the
+authoritative tags say Apache-2.0. The 26M original's own tag I did **not**
+verify. D-026 also predates needle3 - there are now at least three
+generations, so *which one to pin is a choice for the owner*, not a fact.
+**Still no pin:** this sandbox cannot reach huggingface.co, so no digest
+could be computed, and I did not read the LICENSE file's raw text (the fetch
+tool refused the URL). Registering a pin needs a real download on the owner's
+machine. `scripts/pin-from-file.ts` (`npm run pin`) hashes that file and prints
+the record.
+**Also:** Cactus telemetry (anonymous usage, opt out `NEEDLE_TELEMETRY=0`) is
+in the Python package - relevant to D-020's "no telemetry" wording if Needle is
+ever run through it. Not evaluated here.
+
+## D-045 — 1B.4 measurement toolkit, unmeasured by design — 2026-09-29
+`app/desktop/bench/` scaffolds a minimal Electron app (via `create-electron-app`)
+and a minimal Tauri app (via `create-tauri-app`), builds an installer for each,
+and records installer size, average cold start over 5 runs, and idle working
+set into `results.csv`. **No numbers exist yet** - D-025 requires the choice to
+be made from real measurements on the 8 GB machine. Verified here: the file
+walking, size, CSV, cold-start timer and `tasklist` parsing (against fakes).
+Not verified: the Electron/Tauri builds and both source patches (Electron's
+binary download and Rust are unreachable from this sandbox). Caveat: no
+long-running core process exists in this codebase, so "idle memory with the
+core running" is measured as the shell alone. Tauri's cold-start marker fires
+in `setup()`, not on paint, so it may under-count versus Electron.
+
+## D-044 — Blocked budget calls are now audit events — 2026-09-29
+Your real run showed a budget-blocked call left no trace, contradicting
+`docs/trd.md` (every rejection is a session-log event). `run.ts` now creates
+the session *before* the spend check and logs `budget.blocked` (metric, scope,
+status) into it; failed results carry the `sessionId`. Consent refusals were
+already logged by `LLMService` as `model.blocked`. Test asserts the event exists
+on the blocked session and that a `model.request` exists for the successful one;
+mutation (remove the append) was caught.
+
 ## D-043 — `harness run`, installed-vs-pinned, local connection timeout — 2026-09-29
 **Decision:** three changes, prompted by your real runs.
 1. **`src/cli/run.ts` (`runTask`, `npm run harness -- run ...`)** - one

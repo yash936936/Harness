@@ -1,0 +1,9 @@
+{
+  "name": "harness-desktop-bench",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "measure:electron": "node measure-electron.mjs",
+    "measure:tauri": "node measure-tauri.mjs"
+  }
+}

@@ -462,6 +462,7 @@ real run today. In-memory only; no persistence to disk yet (nothing real
 to persist).
 
 ### 1B.4 — Desktop shell
+**Progress (D-045):** measurement toolkit in `app/desktop/bench/` written; no measurements taken, no shell chosen, no app built. Run `npm run measure:electron` / `measure:tauri` on the 8 GB machine.
 **Goal:** A desktop app over the 1B.2 core, adding no logic of its own.
 **Files touched:** new `app/desktop/`
 **Success criteria:**

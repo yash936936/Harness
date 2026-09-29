@@ -156,6 +156,8 @@ and size.
   non-TTY stdin (confirmed via a real pty that interactive terminal use -
   the actual target - works correctly).
 
+### bench (`app/desktop/bench/`) - 1B.4 measurement toolkit, no results yet (D-045)
+
 ### run (`src/cli/run.ts`) - 1B.2 test enabler, done
 - One prompt through the real `LLMService` with the day's request budget spent first (D-043). Not an agent loop. Run: `npm run harness -- run --model <tag> "<prompt>"`.
 

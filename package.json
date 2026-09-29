@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "wizard": "tsx src/cli/index.ts",
-    "harness": "tsx src/cli/index.ts"
+    "harness": "tsx src/cli/index.ts",
+    "pin": "tsx scripts/pin-from-file.ts"
   },
   "dependencies": {
     "@napi-rs/keyring": "^2.1.0",

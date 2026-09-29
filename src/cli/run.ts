@@ -29,7 +29,10 @@ export interface RunDeps {
 
 export type RunResult =
   | { ok: true; text: string; model: string; requestsLeftToday?: number; sessionId: string }
-  | { ok: false; reason: 'budget' | 'consent' | 'config' | 'provider'; message: string }
+  // sessionId is present for every failure that has a real session to point at (budget/consent/provider -
+  // all logged there, D-044) and absent for 'config', which is rejected before any session exists.
+  | { ok: false; reason: 'budget' | 'consent' | 'provider'; message: string; sessionId: string }
+  | { ok: false; reason: 'config'; message: string }
 
 /**
  * `harness run` (1B.2 test enabler, D-043): one prompt, one call through the real `LLMService`,
@@ -86,17 +89,23 @@ export async function runTask(io: { print(line: string): void }, args: RunArgs, 
   })
   const budgets = ctx.appCore.budgets
 
+  // D-044: the session exists before the spend check, not after, specifically so a blocked
+  // call still gets a session to log a `budget.blocked` event into - a rejection is a
+  // guardrail event and "model-visible = logged" (docs/trd.md) does not carve out an
+  // exception for one that never reached the model. A no-budget-configured run costs nothing
+  // extra: it's the same `ctx.log.create()` calling code already made unconditionally.
+  const sessionId = ctx.log.create()
   try {
     budgets.spend('requests', 1)
   } catch (e) {
     if (e instanceof BudgetExceededError) {
+      await ctx.log.append(sessionId, 'budget.blocked', { metric: e.metric, scope: e.scope, status: e.status }, 'cli.run')
       io.print(`stopped: ${e.metric}/${e.scope} hard limit reached - the provider was not called.`)
-      return { ok: false, reason: 'budget', message: e.message }
+      return { ok: false, reason: 'budget', message: e.message, sessionId }
     }
     throw e
   }
 
-  const sessionId = ctx.log.create()
   try {
     const res = await ctx.llm.complete({ sessionId, actor: 'cli.run', messages: [{ role: 'user', content: args.prompt }] })
     try {
@@ -112,7 +121,7 @@ export async function runTask(io: { print(line: string): void }, args: RunArgs, 
     if (e instanceof LLMError) {
       const reason = e.kind === 'consent' ? 'consent' : 'provider'
       io.print(`failed (${e.kind}): ${e.message}`)
-      return { ok: false, reason, message: e.message }
+      return { ok: false, reason, message: e.message, sessionId }
     }
     throw e
   }

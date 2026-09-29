@@ -1,6 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { readdir, readFile } from 'node:fs/promises'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { runTask } from '../src/cli/run.js'
 import type { CredentialStore } from '../src/bundles/app-core/credentials.js'
@@ -45,6 +46,15 @@ describe('runTask - budget-stop (1B.2)', () => {
     expect(second).toMatchObject({ ok: false, reason: 'budget' })
     expect(state.calls).toBe(1) // provider was NOT called again
     expect(out.lines.some((l) => l.includes('provider was not called'))).toBe(true)
+
+    // D-044: the block is itself an audit event, on its own real session - not silently dropped.
+    const files = await readdir(join(dir, 'sessions'))
+    expect(files.length).toBe(2) // one session per attempt, including the blocked one
+    const events = (await Promise.all(files.map((f2) => readFile(join(dir, 'sessions', f2), 'utf8')))).map((t) => t.trim().split('\n').map((l) => JSON.parse(l)))
+    const blockedEvents = events.flat().filter((e) => e.type === 'budget.blocked')
+    expect(blockedEvents).toHaveLength(1)
+    expect(blockedEvents[0]).toMatchObject({ sessionId: (second as { sessionId: string }).sessionId, data: { metric: 'requests', scope: 'day' } })
+    expect(events.flat().some((e) => e.type === 'model.request')).toBe(true) // and it's not that nothing ever logged a request
   })
 
   it('with no limit configured there is no stop', async () => {

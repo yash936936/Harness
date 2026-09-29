@@ -3,6 +3,13 @@
 > Append-only. Every completed coding task gets an entry here, even "no
 > issues found." Newest entries at top.
 
+## DBG-022 — audit fix, bench toolkit, Needle research — 2026-09-29
+D-044 (budget.blocked logged; mutation-checked), D-045 (bench toolkit: helper
+logic self-tested against fakes, builds unverified), D-046 (Needle sources and
+license found by search; no pin; `npm run pin` helper hashes a real file -
+tested against the known `hello-world` digest). Suite 247 passed / 3 skipped,
+`tsc` clean. Not run on your machine: the bench scripts, `npm run pin`.
+
 ## DBG-021 — 1B.2 test closure + installed-vs-pinned + timeout — 2026-09-29
 **Built:** see D-043. **Tested:** `test/run.test.ts` (6): budget-stop
 (second run refused at the hard limit across a rebuilt process, provider

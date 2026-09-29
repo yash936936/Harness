@@ -2,6 +2,14 @@
 
 > Updated every run. Newest entry at top.
 
+## 2026-09-29 (later) — audit gap fixed; 1B.4 toolkit; Needle sources found
+Blocked budget calls now log `budget.blocked` (D-044). 1B.4 measurement
+scripts written but not run (D-045). Needle: real sources and Apache-2.0 tags
+found for needle2/needle3, but no pin - needs a download on your machine, and a
+choice of which generation (D-046). Suite 247/3.
+**Open, all needing you:** run the two bench scripts and paste `results.csv`;
+pick a Needle generation, download it, run `npm run pin`.
+
 ## 2026-09-29 — 1B.2 closed; installed-vs-pinned; timeout fix
 Added `harness run` (one real call, budget spent first) and used it to
 close 1B.2's offline-start and budget-stop tests. `doctor` now compares the
