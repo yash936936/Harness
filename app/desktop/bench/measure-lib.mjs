@@ -94,34 +94,63 @@ export async function coldStartOnce(exePath, exeArgs, markerPath) {
 }
 
 /**
- * Working-set memory (MB) for every currently-running process matching `exeName`, summed -
- * Electron and Tauri both spawn helper/renderer processes, and the main process alone
- * understates the real footprint. Windows only (`tasklist`); not exercised on any other
- * platform by this script, since the target machine is Windows.
+ * Pure: given a process snapshot [{ProcessId, ParentProcessId, WorkingSetSize(bytes)}], sums the
+ * working set of `rootPid` and every descendant. This is the number that matters: Electron's
+ * renderer/GPU helpers and Tauri's msedgewebview2.exe children are separate processes that share
+ * no image name with the app exe, so matching by image name (the D-045 approach) missed them -
+ * and matched nothing at all on the owner's first run (both rows read 0.0). Note: working set
+ * double-counts pages shared between processes, so this slightly overstates both shells.
  */
-export async function workingSetMB(exeName) {
-  if (process.platform !== 'win32') {
-    fail('workingSetMB only implements the Windows path (tasklist) - the target machine for 1B.4 is Windows.')
+export function sumTreeWorkingSetMB(procs, rootPid) {
+  const byParent = new Map()
+  for (const p of procs) {
+    const list = byParent.get(p.ParentProcessId) ?? []
+    list.push(p)
+    byParent.set(p.ParentProcessId, list)
   }
-  return new Promise((resolve, reject) => {
-    const p = spawn('tasklist', ['/FI', `IMAGENAME eq ${exeName}`, '/FO', 'CSV', '/NH'], { shell: true })
-    let out = ''
-    p.stdout.on('data', (d) => (out += d))
+  const seen = new Set()
+  const stack = [rootPid]
+  let bytes = 0
+  let count = 0
+  const byPid = new Map(procs.map((p) => [p.ProcessId, p]))
+  while (stack.length) {
+    const pid = stack.pop()
+    if (seen.has(pid)) continue
+    seen.add(pid)
+    const self = byPid.get(pid)
+    if (self) {
+      bytes += Number(self.WorkingSetSize) || 0
+      count++
+    }
+    for (const c of byParent.get(pid) ?? []) stack.push(c.ProcessId)
+  }
+  return { mb: bytes / 1024 / 1024, processCount: count }
+}
+
+/**
+ * Working-set MB of the process tree rooted at `rootPid` (Windows, via PowerShell CIM).
+ * Fails loudly on an empty result instead of returning 0 - a silent 0 is what produced the
+ * invalid first-run rows.
+ */
+export async function treeWorkingSetMB(rootPid) {
+  if (process.platform !== 'win32') {
+    fail('treeWorkingSetMB only implements the Windows path - the target machine for 1B.4 is Windows.')
+  }
+  const cmd =
+    'Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,WorkingSetSize | ConvertTo-Json -Compress'
+  const out = await new Promise((resolve, reject) => {
+    const p = spawn('powershell', ['-NoProfile', '-Command', cmd])
+    let buf = ''
+    p.stdout.on('data', (d) => (buf += d))
     p.on('error', reject)
-    p.on('exit', () => {
-      const lines = out.trim().split('\n').filter((l) => l.includes(exeName))
-      if (lines.length === 0) return resolve(0)
-      let totalKB = 0
-      for (const line of lines) {
-        // CSV: "image","pid","session","session#","mem usage" e.g. "1,234 K"
-        const cols = line.split('","').map((c) => c.replace(/(^"|"$)/g, ''))
-        const memCol = cols[cols.length - 1] ?? ''
-        const kb = Number(memCol.replace(/[^\d]/g, ''))
-        if (Number.isFinite(kb)) totalKB += kb
-      }
-      resolve(totalKB / 1024)
-    })
+    p.on('exit', () => resolve(buf))
   })
+  const procs = JSON.parse(out)
+  const r = sumTreeWorkingSetMB(Array.isArray(procs) ? procs : [procs], rootPid)
+  if (r.processCount === 0 || r.mb <= 0) {
+    fail(`process ${rootPid} not found in the process list (it may have exited before sampling) - idle memory not recorded.`)
+  }
+  return r
 }
 
 export async function appendResultRow(csvPath, row) {

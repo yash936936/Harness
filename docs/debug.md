@@ -3,6 +3,13 @@
 > Append-only. Every completed coding task gets an entry here, even "no
 > issues found." Newest entries at top.
 
+## DBG-023 — bench idle memory read 0.0 — 2026-09-29
+Owner's real run wrote `idle_memory_mb=0.0` for both shells. Root cause: name
+match via `tasklist` returned 0 silently. Fixed by PID-tree summation via
+PowerShell CIM plus a hard failure on empty (D-047). Pure summing logic tested
+(3 tests, suite 250/3, `tsc` clean). Not verified: the PowerShell call itself on
+Windows - rerun both measure scripts.
+
 ## DBG-022 — audit fix, bench toolkit, Needle research — 2026-09-29
 D-044 (budget.blocked logged; mutation-checked), D-045 (bench toolkit: helper
 logic self-tested against fakes, builds unverified), D-046 (Needle sources and

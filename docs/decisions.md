@@ -27,6 +27,23 @@ the record.
 in the Python package - relevant to D-020's "no telemetry" wording if Needle is
 ever run through it. Not evaluated here.
 
+## D-047 — First bench run: sizes and start times usable, idle memory invalid — 2026-09-29
+**Measured (owner's 8 GB machine, hello-world shells only):** Electron installer
+146.4 MB, Tauri 1.3 MB. Cold start samples (ms): Electron 14721;576;414;355;328
+(median 414), Tauri 2350;1341;868;770;745 (median 868). **Idle memory recorded
+0.0 for both - invalid, not a finding.** Cause: D-045 matched processes by image
+name and returned 0 on no match; it also could never have counted Tauri's
+`msedgewebview2.exe` children. Fixed: sum the launched process tree by PID and
+fail loudly on empty (`sumTreeWorkingSetMB`, 3 tests).
+**No shell chosen.** D-025 needs idle memory. Reasons the current numbers cannot
+decide it alone: (1) the 1.3 MB Tauri figure excludes the Node core, which a
+Tauri app must ship as a sidecar while Electron can host it in-process; (2)
+Tauri's cold-start marker fires at webview creation, so its true time is later
+than 745-2350; (3) sample 1 in both is a first-launch outlier and both series
+were still falling, so 5 runs did not converge; (4) WebView2 is a system
+dependency not counted in Tauri's size.
+**Affects:** `app/desktop/bench/`, Phase 1B.4.
+
 ## D-045 — 1B.4 measurement toolkit, unmeasured by design — 2026-09-29
 `app/desktop/bench/` scaffolds a minimal Electron app (via `create-electron-app`)
 and a minimal Tauri app (via `create-tauri-app`), builds an installer for each,

@@ -14,7 +14,7 @@ import { existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { appendResultRow, coldStartOnce, fail, fileSizeMB, findFirst, requireCommand, run, workingSetMB } from './measure-lib.mjs'
+import { appendResultRow, coldStartOnce, fail, fileSizeMB, findFirst, requireCommand, run, treeWorkingSetMB } from './measure-lib.mjs'
 
 if (process.platform !== 'win32') {
   fail('this script measures the Windows build (installer .exe, tasklist memory) - run it on the 8 GB Windows machine, not here.')
@@ -57,10 +57,10 @@ for (let i = 0; i < 5; i++) {
 const coldStartMsAvg = samples.reduce((a, b) => a + b, 0) / samples.length
 
 console.log('Measuring idle memory (app left running 5s, machine otherwise idle)...')
-const exeName = appExe.split(/[/\\]/).pop()
 const launched = await import('node:child_process').then((cp) => cp.spawn(appExe, [], { stdio: 'ignore' }))
 await new Promise((r) => setTimeout(r, 5000))
-const idleMemoryMB = await workingSetMB(exeName)
+const { mb: idleMemoryMB, processCount } = await treeWorkingSetMB(launched.pid)
+console.log(`  ${processCount} processes in the tree, ${idleMemoryMB.toFixed(1)} MB working set`)
 try {
   launched.kill()
 } catch {}

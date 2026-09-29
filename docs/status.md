@@ -2,6 +2,12 @@
 
 > Updated every run. Newest entry at top.
 
+## 2026-09-29 (evening) — first bench numbers; memory measurement fixed
+Sizes and start times recorded, idle memory invalid (0.0) and fixed (D-047).
+No shell chosen. **Open, needing you:** rerun `npm run measure:electron` and
+`measure:tauri`, paste `results.csv`; Needle generation + `npm run pin`;
+whether commercial use of the Qwen reference worker is ever needed.
+
 ## 2026-09-29 (later) — audit gap fixed; 1B.4 toolkit; Needle sources found
 Blocked budget calls now log `budget.blocked` (D-044). 1B.4 measurement
 scripts written but not run (D-045). Needle: real sources and Apache-2.0 tags

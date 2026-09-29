@@ -1,3 +1,5 @@
 timestamp,shell,installer_size_mb,cold_start_ms_avg,cold_start_ms_samples,idle_memory_mb,notes
 2026-09-29T10:23:11.481Z,electron,146.4,3279,14721;576;414;355;328,0.0,"hello-world only, no harness core logic added; idle memory is the shell alone, not measured alongside a running core process (see README caveat)"
 2026-09-29T11:14:43.641Z,tauri,1.3,1215,2350;1341;868;770;745,0.0,"marker is written from Rust's setup() hook (webview created), not a frontend paint event - may under-count slightly vs. Electron's ready-to-show; hello-world only, no harness core logic added"
+2026-09-29T11:34:47.157Z,electron,146.4,2267,9878;397;372;336;351,530.7,"hello-world only, no harness core logic added; idle memory is the shell alone, not measured alongside a running core process (see README caveat)"
+2026-09-29T11:42:36.847Z,tauri,1.3,1250,2158;1567;837;842;844,362.0,"marker is written from Rust's setup() hook (webview created), not a frontend paint event - may under-count slightly vs. Electron's ready-to-show; hello-world only, no harness core logic added"
