@@ -536,7 +536,7 @@ batching or a small local model. 2.5 works BM25-only until this exists.)*
   them, assert it's returned in top-K.
 - Persistence test: insert, restart the process, query again, assert data
   survived.
-**Status:** Not started
+**Status:** Built 2026-09-30 (D-055/DBG-029), verified on Linux with real LanceDB 0.30.0. Upsert/top-K/persistence criteria pass; the persistence test re-creates the plugin on the same directory. NOT yet run on the owner's Windows machine (native binary).
 
 ### 2.5 — retrieval-rank bundle
 **Goal:** `ctx.retrieval.rank` — hybrid BM25 + embedding ranking over

@@ -284,10 +284,14 @@ and size.
 
 ### vectorstore-lancedb (`bundle-vectorstore-lancedb`)
 - **Responsibility:** `ctx.vectorstore` provider `lancedb` — embedded,
-  primary vector store.
+  primary vector store (built, D-055). Named collections of
+  `{id, vector, source, metadata}`; exact cosine search; a collection remembers
+  the embedding fingerprint it was built with and refuses another.
 - **Location:** `src/bundles/vectorstore-lancedb/`
-- **Depends on:** `bundle-embeddings`.
-- **Config surface:** local DB path.
+- **Depends on:** no code dependency on `bundle-embeddings`; the caller passes
+  `ctx.embeddings.info().fingerprint` and dimensions to `open()`. Runtime deps:
+  `@lancedb/lancedb` 0.30.0 (lazy-loaded), `apache-arrow` 18.1.0 (pinned).
+- **Config surface:** `path` (absolute directory).
 
 ### vectorstore-qdrant (`bundle-vectorstore-qdrant`)
 - **Responsibility:** `ctx.vectorstore` provider `qdrant` — multi-user

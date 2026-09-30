@@ -238,5 +238,19 @@ search. A failed batch fails the whole call; there are never partial results.
 A non-loopback provider is refused before any request because the egress gate
 is not part of this bundle yet.
 
+## Vector store: the traps behind `LanceCollection` (`vectorstore-lancedb`)
+**Where:** `src/bundles/vectorstore-lancedb/index.ts`
+**What it does:** validates every record before writing anything, then does a
+merge-insert keyed on `id`; queries use cosine distance and return
+`score = 1 - distance` clamped to [-1, 1].
+**Why it's non-obvious:** LanceDB accepts a wrong-length vector without error, inserts
+both copies of a duplicate id in one batch, treats a double-quoted column name as
+a string literal (a delete then matches nothing), returns nothing for a zero
+vector, and can report a raw cosine similarity of 1.0000001. Filters therefore
+backtick column names, double single quotes in values, and everything above is
+checked in our code. The embedding fingerprint lives in the table's schema
+metadata, so it cannot drift from the data it describes. `_distance` is selected
+explicitly because implicit projection is deprecated.
+
 ---
 **Next:** Return to [`context.md`](../context.md).

@@ -15,8 +15,10 @@
     "pin": "tsx scripts/pin-from-file.ts"
   },
   "dependencies": {
+    "@lancedb/lancedb": "0.30.0",
     "@napi-rs/keyring": "^2.1.0",
     "ajv": "^8.20.0",
+    "apache-arrow": "18.1.0",
     "cordis": "4.0.0-rc.10",
     "tree-sitter-wasms": "0.1.13",
     "web-tree-sitter": "0.25.10"

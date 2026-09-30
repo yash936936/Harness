@@ -1,6 +1,6 @@
 /**
- * Phase 2 smoke check: runs retrieval-grep (2.1), retrieval-treesitter (2.2) and
- * embeddings (2.3) for real on this machine and prints PASS/FAIL per check.
+ * Phase 2 smoke check: runs retrieval-grep (2.1), retrieval-treesitter (2.2),
+ * embeddings (2.3) and the LanceDB vector store (2.4) for real on this machine and prints PASS/FAIL per check.
  *
  *   npx tsx scripts/smoke-phase2.ts                     # searches the current directory
  *   npx tsx scripts/smoke-phase2.ts <project-dir>
@@ -17,6 +17,7 @@ import { Embeddings, HashingEmbeddingProvider } from '../src/bundles/embeddings/
 import { RetrievalGrep } from '../src/bundles/retrieval-grep/index.js'
 import { RetrievalTreesitter } from '../src/bundles/retrieval-treesitter/index.js'
 import { Subprocess } from '../src/bundles/subprocess/index.js'
+import { LanceVectorStore } from '../src/bundles/vectorstore-lancedb/index.js'
 
 const project = resolve(process.argv[2] ?? process.cwd())
 const model = process.env['HARNESS_OLLAMA_EMBED_MODEL']
@@ -99,6 +100,62 @@ if (!e1.ok) {
   console.log(`      similarity: paraphrase ${cosine(a, b).toFixed(3)}   unrelated ${cosine(a, c).toFixed(3)}${model ? '' : '   (hashing has no semantics: only shared words count, so both are ~0 here)'}`)
   if (model) check('2.3 embeddings: a paraphrase is closer than an unrelated text', cosine(a, b) > cosine(a, c))
   console.log(`      fingerprint: ${c4.embeddings.info()?.fingerprint}`)
+}
+
+
+/* ---- 2.4 vectorstore-lancedb: parse -> embed -> store -> query, restart, fingerprint ---- */
+const vsBase = realpathSync(mkdtempSync(join(tmpdir(), 'harness-smoke-vs-')))
+try {
+  const fp = c4.embeddings.info()?.fingerprint
+  const dims = c4.embeddings.info()?.dimensions
+  const src = readFileSync(join(project, target), 'utf8')
+  const parsed = await c3.retrievalParse.parse(src, { filename: target })
+  if (!fp || !dims || !parsed.ok) throw new Error('needs the embeddings and parse steps above to have worked')
+  const syms = parsed.file.symbols
+  const emb = await c4.embeddings.embed(syms.map((x) => x.signature))
+  if (!emb.ok) throw new Error(`embeddings: ${emb.error.kind}: ${emb.error.detail}`)
+  const dbPath = join(vsBase, 'db')
+  const idOf = (i: number) => `${target}#${syms[i]!.qualifiedName}@${syms[i]!.startLine}`
+
+  const c5 = new Context()
+  const fiber = await c5.plugin(LanceVectorStore, { path: dbPath })
+  const opened = await c5.vectorstore.open('smoke', { fingerprint: fp, dimensions: dims })
+  if (!opened.ok) {
+    check('2.4 vectorstore: native LanceDB loads and a collection opens', false, `${opened.error.kind}: ${opened.error.detail}`)
+  } else {
+    const col = opened.collection
+    check('2.4 vectorstore: native LanceDB loads and a collection opens', true, `${process.platform}, ${dims} dims, fingerprint ${fp}`)
+    const up = await col.upsert(syms.map((x, i) => ({ id: idOf(i), vector: emb.vectors[i] as Float32Array, source: target, metadata: { symbol: x.qualifiedName, startLine: x.startLine, endLine: x.endLine } })))
+    check('2.4 vectorstore: stores every symbol of a real file', up.ok && up.written === syms.length, up.ok ? `${up.written} symbols` : up.error.detail)
+    const sigs = new Map(syms.map((x, i) => [idOf(i), x.signature]))
+    let selfOk = 0
+    for (let i = 0; i < syms.length; i++) {
+      const q = await col.query(emb.vectors[i] as Float32Array, 1)
+      const top = q.ok ? q.hits[0] : undefined
+      if (top && top.score > 0.9999 && (top.id === idOf(i) || sigs.get(top.id) === syms[i]!.signature)) selfOk++
+    }
+    check('2.4 vectorstore: each symbol retrieves itself as the top hit', selfOk === syms.length, `${selfOk}/${syms.length}`)
+    const scoped = await col.query(emb.vectors[0] as Float32Array, 3, { source: target })
+    check('2.4 vectorstore: query restricted to a source works, metadata comes back', scoped.ok && scoped.hits.length > 0 && typeof scoped.hits[0]?.metadata?.['symbol'] === 'string', scoped.ok ? `top: ${scoped.hits[0]?.metadata?.['symbol']}` : scoped.error.detail)
+
+    await fiber.dispose() // "restart"
+    const c6 = new Context()
+    await c6.plugin(LanceVectorStore, { path: dbPath })
+    const again = await c6.vectorstore.open('smoke', { fingerprint: fp, dimensions: dims })
+    const n = again.ok ? await again.collection.count() : undefined
+    check('2.4 vectorstore: data is still there after a restart', !!n && n.ok && n.count === syms.length, n?.ok ? `${n.count} records` : 'reopen failed')
+    const wrong = await c6.vectorstore.open('smoke', { fingerprint: fp + ':other-model', dimensions: dims })
+    check('2.4 vectorstore: a different embedding model is refused (vectors are not comparable)', !wrong.ok && wrong.error.kind === 'fingerprint_mismatch', wrong.ok ? 'it opened!' : wrong.error.kind)
+    if (again.ok) {
+      const del = await again.collection.deleteSource(target)
+      const left = await again.collection.count()
+      check('2.4 vectorstore: deleting a source removes all its records', del.ok && del.deleted === syms.length && left.ok && left.count === 0, del.ok ? `deleted ${del.deleted}` : del.error.detail)
+    }
+  }
+} catch (e: any) {
+  check('2.4 vectorstore: pipeline', false, e?.message ?? String(e))
+} finally {
+  rmSync(vsBase, { recursive: true, force: true })
 }
 
 console.log(failed === 0 ? '\nALL CHECKS PASSED' : `\n${failed} CHECK(S) FAILED`)

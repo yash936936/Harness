@@ -4,6 +4,48 @@
 > if a decision is reversed, log a new entry that supersedes it and reference
 > the old ID.
 
+## D-055 — 2.4 vector store: embedded LanceDB pinned to 0.30.0 (not the latest), fingerprint-guarded collections — 2026-09-30
+**Decision:** `ctx.vectorstore` (the architecture's name) is backed by embedded
+`@lancedb/lancedb` **0.30.0** with `apache-arrow` **18.1.0**, both pinned exactly.
+LanceDB loads lazily, so a machine that cannot load the native module only
+fails when it uses this bundle. Exact (brute-force) cosine search; no ANN index.
+**Why 0.30.0 and not 0.39.0 (verified on npm and by installing both):** from
+0.31.0 on, LanceDB lists `@huggingface/transformers` and `openai` as
+`optionalDependencies`, which npm installs by default. Measured as incremental
+installs into the same tree (Linux): `node_modules` 130 MB -> 696 MB with 0.39.0
+versus 130 MB -> 292 MB with 0.30.0, of which ~193 MB is the native binary itself
+(the ~360 MB difference is onnxruntime and friends). A fresh `npm ci` of the final
+lockfile measures 420 MB in total. 0.38+ also declares `node >= 22` while this repo
+supports 20.3+ (the owner runs 22.18). 0.30.0 needs Node >= 18. Trade-off: an
+older release without later fixes; revisit when the optional-dependency bloat
+is gone. The peer range is `apache-arrow >=15 <=18.1.0` (latest is 21).
+The lockfile carries the Windows binary (`@lancedb/lancedb-win32-x64-msvc`) with
+its integrity hash. Licenses: LanceDB and Arrow are Apache-2.0.
+**Design:** `open(name, {fingerprint, dimensions, reset?})` returns a collection
+with `upsert`, `query(vector, k, {source?})`, `deleteIds`, `deleteSource`,
+`count`. The fingerprint (from `ctx.embeddings.info()`, D-054) and dimensions are
+stored in the table's own Arrow schema metadata (verified to survive reopen,
+writes and deletes); opening with a different fingerprint fails with
+`fingerprint_mismatch` (data untouched); `reset: true` rebuilds. A table this
+store did not create is `corrupt`, never overwritten. `source` is typically a
+file path: re-indexing a file is `deleteSource` then `upsert`. Failures are
+result values, as in 2.1-2.3. Writes to a collection run one at a time in call
+order.
+**LanceDB behaviours found by experiment (each was silent; each now validated
+and tested):** a double-quoted column in a filter is a string literal, so a
+delete matched nothing (use backticks); a wrong-dimension vector is accepted and
+stored; duplicate ids inside one merge-insert batch are both inserted (we keep
+the last); a zero-vector query silently returns nothing (we reject it); a raw
+cosine score can be 1.0000001 (clamped); `select()` without `_distance` prints a
+deprecation warning on every query and will drop the column in a future release
+(we select it explicitly). Delete filters with 200,000 ids worked, so no
+chunking.
+**Not covered:** no ANN index (a project's worth of chunks is fine, tens of
+thousands of vectors and up will want one); only single-process use was tried;
+Windows was not run.
+**Affects:** `src/bundles/vectorstore-lancedb/`, `package.json`, 2.5 (hybrid
+rank), 2.6.
+
 ## D-054 — 2.3 embeddings: local Ollama first; results not throws; remote refused until egress is wired — 2026-09-30
 **Decision:** `ctx.embeddings` (flat name) has one active provider. The first,
 and only supported, one is local Ollama: `POST /api/embed` with the whole batch

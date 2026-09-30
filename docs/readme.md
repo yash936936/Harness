@@ -38,6 +38,10 @@ Phase 2 (retrieval) is in progress:
 - `ctx.embeddings`: batched text-to-vector via local Ollama (`/api/embed`),
   identical texts sent once, remote hosts refused (2.3).
 
+- `ctx.vectorstore`: embedded LanceDB store for those vectors; remembers which
+  embedding model built a collection and refuses to mix models (2.4). Needs a
+  platform that LanceDB has a native build for (Windows x64 is included).
+
 None of these is connected to the agent loop yet. To try them on your machine:
 `npx tsx scripts/smoke-phase2.ts`.
 

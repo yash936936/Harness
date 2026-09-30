@@ -3,6 +3,27 @@
 > Append-only. Every completed coding task gets an entry here, even "no
 > issues found." Newest entries at top.
 
+## DBG-029 — 2.4 vectorstore-lancedb — 2026-09-30
+**Task:** `src/bundles/vectorstore-lancedb/` (types, service),
+`test/vectorstore-lancedb.test.ts` (33 tests, real native LanceDB in temp dirs),
+smoke script extended (parse, embed, store, query, restart, fingerprint).
+**Method:** probed the real API with scratch scripts BEFORE writing code, which
+found six silent traps (see D-055). Then 28 mutations.
+**Found after the first green run:** every query printed a LanceDB deprecation
+warning because `_distance` was implicitly projected; that would have made every
+score NaN in a future release. Fixed by selecting it explicitly. Raw scores
+can reach 1.0000001, so the clamp is real; a test using 200 seeded random
+vectors now fails without it. Chunked deletes were unnecessary (200,000 ids
+in one filter worked) and were removed. Closed collections now report `closed`
+before validating arguments (tested).
+**Mutation survivors, accepted:** `select()` narrowing (saves memory, output
+identical) and the explicit `_distance` (guards a future release; the warning
+goes to native stderr and cannot be captured from JS).
+**Result:** `tsc` clean; suite 376 passed / 6 skipped; the smoke script's 2.4
+checks pass on Linux. **Not verified:** Windows (the native binary loading
+there is the main thing to confirm), any real embedding model, behaviour
+with several processes on one database, very large collections.
+
 ## DBG-028 — 2.3 embeddings (and a 2.2 fix found by the smoke run) — 2026-09-30
 **Task:** `src/bundles/embeddings/` (types, service, Ollama and hashing
 providers), `test/embeddings.test.ts` (39 tests, 3 opt-in against real Ollama),

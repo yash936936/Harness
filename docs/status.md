@@ -2,6 +2,17 @@
 
 > Updated every run. Newest entry at top.
 
+## 2026-09-30 (latest) — Phase 2: 2.4 built (D-055)
+`vectorstore-lancedb` written on embedded LanceDB pinned to 0.30.0 (D-055 has
+the reason); fingerprint-guarded collections, source-scoped delete and query.
+Suite 376 passed / 6 skipped. The smoke script now covers parse -> embed ->
+store -> query -> restart -> wrong-fingerprint -> delete. **Owner to run** on
+Windows: `npm install` (fetches the win32 binary), then the smoke script.
+2.1-2.4 are all still awaiting that run.
+**Next up:** 2.5 rank (BM25 over grep + parse candidates, hybrid with vector
+similarity only when `ctx.embeddings` and the store work), the read-only
+retrieval tool wrappers, then 2.6.
+
 ## 2026-09-30 (later) — Phase 2: 2.3 built (D-054)
 `embeddings` written: Ollama provider (real-HTTP tested), hashing stand-in,
 batching/dedupe/fingerprint. Suite 343 passed / 6 skipped. **Owner to run:**
