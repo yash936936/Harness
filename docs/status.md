@@ -2,6 +2,26 @@
 
 > Updated every run. Newest entry at top.
 
+## 2026-09-30 (later) — Phase 2: 2.3 built (D-054)
+`embeddings` written: Ollama provider (real-HTTP tested), hashing stand-in,
+batching/dedupe/fingerprint. Suite 343 passed / 6 skipped. **Owner to run:**
+`scripts/smoke-phase2.ts` and the opt-in Ollama tests on Windows (rg.exe,
+`ollama pull`), then pin the embedding model digest (D-027). 2.1 and 2.2 also
+still await that Windows run.
+**Next up:** 2.5 rank (BM25 only, embeddings optional and used only when
+`ctx.embeddings` works), retrieval tool wrappers (read-only, root/secret
+protections), then 2.6; 2.4 (LanceDB) after that.
+
+## 2026-09-30 — Phase 2: 2.1 and 2.2 built (D-051, D-052, D-053)
+`retrieval-grep` (2.1) and `retrieval-treesitter` (2.2) are written and tested
+against real ripgrep and real grammars; suite 306 passed / 3 skipped, `tsc`
+clean. Neither is wired into a profile or exposed as a model tool yet. Not yet
+run on the owner's Windows machine. Phase 1 carry-overs: 1B.4, 1.2b, Qwen
+license (D-049).
+**Next up:** the order changes (D-051 area): 2.5 rank (BM25 only, embeddings
+optional, per D-028) before 2.3/2.4, then read-only retrieval tool wrappers
+with root/secret protections (not in any phase's file list yet), then 2.6.
+
 ## 2026-09-29 (last) — Needle pinned (D-050)
 1B.3 is complete. Remaining for Phase 1: confirm Tauri and build 1B.4, live
 OpenRouter call (1.2b). Qwen reference worker must be replaced/licensed before

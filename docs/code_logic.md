@@ -204,5 +204,39 @@ or drift from it the first time someone changed one without the other.
 Relying on the existing choke points keeps "model-visible = logged" true
 by construction instead of by two bundles staying in sync by convention.
 
+## Retrieval path containment and argv order (`RetrievalGrep.search`)
+**Where:** `src/bundles/retrieval-grep/index.ts`
+**What it does:** resolves the search path against the real root, realpaths it,
+and only then hands ripgrep an absolute target after `--`.
+**Why it's non-obvious:** containment uses `path.relative` (`''` or not starting
+`..`/absolute), never `startsWith`, or `root-evil` passes for `root`. ripgrep's
+later `--glob` wins, so the built-in secret excludes are appended AFTER
+`extraArgs`. Hidden files are skipped by ripgrep unless `--hidden`, so
+`includeSecrets` has to add it, and `.git`/`node_modules` stay excluded.
+
+## Symbol extraction (`extractSymbols`)
+**Where:** `src/bundles/retrieval-treesitter/index.ts`
+**What it does:** walks node types (no tree-sitter queries). `outer` (with
+`export`/decorators) gives the reported line range, `inner` gives name,
+body and signature (text up to the body, first line).
+**Why it's non-obvious:** a top-level TS `namespace X {}` is an
+`expression_statement` wrapping the module node; `namedChildren` can contain
+`null`; function bodies are not descended into on purpose; string-named `declare module 'pkg'` blocks (type augmentation of another module) are skipped; every WASM tree and
+parser must be `delete()`d (not garbage collected), including when extraction
+throws and when the plugin is disposed mid-load.
+
+## Embedding batching, dedupe and the fingerprint (`Embeddings.embed`)
+**Where:** `src/bundles/embeddings/index.ts`
+**What it does:** truncates and prefixes each text, embeds each distinct
+prepared text once, packs them into batches bounded by count and characters,
+and maps the vectors back to input positions.
+**Why it's non-obvious:** dedupe happens AFTER prefixing (the same text as a
+document vs a query is two different inputs). The dimension recorded from the
+first success is compared on every later call: a different model or setting
+returns vectors of another size, and mixing them in one index silently ruins
+search. A failed batch fails the whole call; there are never partial results.
+A non-loopback provider is refused before any request because the egress gate
+is not part of this bundle yet.
+
 ---
 **Next:** Return to [`context.md`](../context.md).

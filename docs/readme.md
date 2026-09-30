@@ -27,6 +27,20 @@ Phase 1 (the `profile-minimal` kernel) is in progress. Built and tested:
   through Node's public API. The allowlist still keeps out everything else,
   including your actual secrets (D-031, D-032).
 
+Phase 2 (retrieval) is in progress:
+
+- `ctx.retrievalGrep`: ripgrep search confined to a root directory, skipping
+  secret files by default, ranked by match count (2.1). Needs `rg` installed.
+- `ctx.retrievalParse`: symbol outlines (functions, classes, methods, types)
+  for TypeScript, TSX, JavaScript and Python via WASM grammars, no native
+  build step (2.2).
+
+- `ctx.embeddings`: batched text-to-vector via local Ollama (`/api/embed`),
+  identical texts sent once, remote hosts refused (2.3).
+
+None of these is connected to the agent loop yet. To try them on your machine:
+`npx tsx scripts/smoke-phase2.ts`.
+
 Not built yet: the runnable `profile-minimal` (1.6), redaction and the
 secrets proxy (1B.1), the first-run wizard (1B.2), retrieval, memory,
 orchestration, sandboxes, policy gates, evals and the browser. See

@@ -37,5 +37,13 @@ opencode for X"). Do not assume a switch, and do not ask after every task.
 These logging steps are not optional because Claude is doing more of the
 work. With no separate reviewer, hold them more strictly.
 
+## Verifying Phase 2 on the dev machine
+1. `npm install` (adds `web-tree-sitter` and `tree-sitter-wasms`), then `npm run typecheck && npm test`.
+2. Ripgrep must be on PATH (`rg --version`); open a NEW terminal after installing it.
+3. `npx tsx scripts/smoke-phase2.ts` runs 2.1-2.3 for real and prints PASS/FAIL.
+4. For real embeddings: `ollama pull <embedding model>`, then set
+   `HARNESS_OLLAMA_EMBED_MODEL=<model>` and run the smoke script and
+   `npx vitest run test/embeddings.test.ts`.
+
 ---
 **Next:** Return to [`context.md`](../context.md).

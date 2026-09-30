@@ -4,6 +4,102 @@
 > if a decision is reversed, log a new entry that supersedes it and reference
 > the old ID.
 
+## D-054 — 2.3 embeddings: local Ollama first; results not throws; remote refused until egress is wired — 2026-09-30
+**Decision:** `ctx.embeddings` (flat name) has one active provider. The first,
+and only supported, one is local Ollama: `POST /api/embed` with the whole batch
+as `input`. `model` is required config with no default. An offline
+`HashingEmbeddingProvider` (feature hashing, no semantics) exists so the
+retrieval pipeline and its tests run without a model.
+**Verified 2026-09-30 (docs/search, not run):** Ollama's `/api/embed` accepts an
+array `input` and returns L2-normalised vectors. OpenRouter now serves
+`POST /api/v1/embeddings` with free routes (`nvidia/nemotron-3-embed-1b:free`,
+`liquid/lfm-2.5-embedding-350m:free`); free models have "low daily limits" (exact
+numbers not found; chat is already capped at 50/day, D-023), and the Liquid
+route's page says requests and embeddings "may be retained and used to train"
+its models. Anthropic still not listed (D-028).
+**Why local first:** free, no request quota (batching is for speed, not quota),
+no source code leaves the machine, and Ollama is already required for the
+reference worker. Amends D-008 ("no local model hosting for v1") as D-028
+already allowed for "a small local model".
+**Design:** `embed()` returns `{ok:true, vectors: Float32Array[]...} | {ok:false,
+error}`; callers (the ranker) fall back to BM25 on any failure, so no failure
+is thrown. Identical texts are embedded once; batches are bounded by count (32)
+and characters (64000); texts over 8000 chars are cut (surrogate-safe) and
+counted; task prefixes (`search_document: `/`search_query: ` for nomic) are
+config; vectors are L2-normalised by default. `info().fingerprint` is
+`provider:model:dimensions` and a later call with different dimensions fails
+`dimension_mismatch`: vectors from different models are not comparable, so the
+vector store (2.4) must key its data on the fingerprint. A call fails as a whole,
+never with partial vectors.
+**Safety:** a provider whose host is not loopback is refused (`consent`) before
+any request, because the egress gate (consent, allowlist, redaction, D-029) is
+not wired into this bundle. Remote providers (OpenRouter free routes, an
+OpenAI-compatible provider) are a follow-up that must go through it.
+**Not decided / open:** the embedding model is not pinned. The candidate is
+`nomic-embed-text` (768 dims, needs the two prefixes above; a third-party page
+gives ~274 MB), unevaluated for code. D-027 requires pinning the digest after
+the owner runs `ollama pull`; `embeddinggemma` carries Gemma license terms, so
+check them before choosing it given D-049.
+**Affects:** `src/bundles/embeddings/`, 2.4 (fingerprint), 2.5 (BM25 fallback).
+
+## D-053 — 2.2 retrieval-treesitter: web-tree-sitter (WASM), 4 languages, pure over source text — 2026-09-30
+**Decision:** `ctx.retrievalParse` (flat name, per D-052) parses source text
+with `web-tree-sitter@0.25.10` and grammars from `tree-sitter-wasms@0.1.13`
+(both pinned exactly). Languages: TypeScript, TSX, JavaScript, Python.
+`parse(source, {filename|language})` returns symbols (function, class,
+method, interface, type, enum, namespace) with 1-based line ranges, a
+one-line signature and an `exported` flag, plus `hasErrors`. It reads no
+files: callers pass text, so which files may be read stays the caller's
+decision (the tool-wrapper step, before 2.6).
+**Why:** The native `tree-sitter` package builds through node-gyp, a real risk
+on the owner's 8 GB Windows machine; the WASM build needs no toolchain. 0.25.10
+rather than the newest 0.27.0 because the grammar wasms are older builds
+(ABI 14, loaded and parsed fine on 0.25.10); 0.27.0 was not tried. Symbols come
+from a walk over node types, not tree-sitter queries, which keeps the code
+independent of the query API. Function bodies are deliberately not descended
+into (nested functions are not retrieval units); classes and namespaces are.
+**Limits, stated:** no parse timeout (web-tree-sitter's cancellation option is
+not used); the input size cap (default 512K chars) is the only bound, and a
+pathologically deep file ends in `parse_failed`, never an exception. WASM
+memory is not garbage collected: every tree is deleted after use and every
+parser when the plugin is disposed.
+**Licenses:** web-tree-sitter MIT; tree-sitter-wasms Unlicense.
+**Affects:** `src/bundles/retrieval-treesitter/`, `package.json`, Phase 2.2,
+2.5 (consumes symbol line ranges as chunk boundaries).
+
+## D-052 — 2.1 retrieval-grep design — 2026-09-30
+**Decision:** `ctx.retrievalGrep` (flat name, same convention as
+`ctx.agentLoop`; supersedes the nested `ctx.retrieval.grep` in earlier docs,
+and 2.2 follows with `ctx.retrievalParse`). ripgrep runs through
+`ctx.subprocess` with argv only: query after `-e`, target after `--`.
+`includeSecrets` is config-only and adds `--hidden`; `.git` and `node_modules`
+are excluded regardless. The built-in excludes come AFTER `extraArgs` because a
+later `--glob` wins in ripgrep. Results carry the true `matchCount` (ranking key)
+separately from the capped `matches`. Search paths resolve relative to the root,
+are realpath'd and must stay inside it (`path.relative`, not `startsWith`,
+so a sibling like `root-evil` is refused).
+**Why:** ripgrep skips hidden files by default, so without `--hidden` the
+`includeSecrets` switch did nothing; a prefix comparison accepts sibling
+directories; ranking by the capped match list ties nearly every file.
+**Not covered:** no scan-size limit (only output caps and a 10 s timeout);
+only the five secret patterns in the spec are excluded.
+**Affects:** `src/bundles/retrieval-grep/`, Phase 2.1.
+
+## D-051 — Roles for Phase 2: reviewer writes the code for now — 2026-09-30
+**Decision:** The 2026-09-29 plan (a generator model writes all code, the
+reviewer only reviews and prompts) is paused after its first task. 2.1 and 2.2
+were written directly by the reviewer and verified against real ripgrep and
+real grammars. This supersedes the "opencode/generator does the coding" split in
+`workflow.md` for now, the same way the Claude-only note in `context.md` did;
+the owner will say when a generator re-enters.
+**Why:** The generator's two submissions of 2.1 both failed on first contact
+(see DBG-026); the owner chose to continue directly.
+**Also recorded:** Phase 1 is treated as closed for Phase 2 purposes, but its
+open items are carried, not done: 1B.4 (desktop app; Tauri still provisional,
+D-048), 1.2b (live OpenRouter call, the 429 heuristic is unverified), and the
+Qwen reference-worker license blocker (D-049).
+**Affects:** `docs/workflow.md`, `context.md` role notes.
+
 ## D-046 — Needle: real sources found, license resolved for needle2/3, still no pin — 2026-09-29
 **Found by searching (not recalled):** Needle's code is `github.com/cactus-compute/needle`
 (GitHub's license detector and the PyPI `cactus-needle` page both say

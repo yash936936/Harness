@@ -17,7 +17,9 @@
   "dependencies": {
     "@napi-rs/keyring": "^2.1.0",
     "ajv": "^8.20.0",
-    "cordis": "4.0.0-rc.10"
+    "cordis": "4.0.0-rc.10",
+    "tree-sitter-wasms": "0.1.13",
+    "web-tree-sitter": "0.25.10"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

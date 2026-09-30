@@ -481,8 +481,8 @@ to persist).
 ## Phase 2 — Retrieval pipeline
 
 ### 2.1 — retrieval-grep bundle
-**Goal:** `ctx.retrieval.grep` — cheap filter stage.
-**Files touched:** `src/bundles/retrieval-grep/`
+**Goal:** `ctx.retrievalGrep` (flat name, D-052) — cheap filter stage.
+**Files touched:** `src/bundles/retrieval-grep/`, `test/retrieval-grep.test.ts`
 **Success criteria:**
 - Given a query string and a codebase path, returns candidate file
   matches using ripgrep under the hood.
@@ -492,10 +492,10 @@ to persist).
 - Unit test: string absent from repo → empty result set, no error.
 - Config test: an ignore-pattern flag excludes a matching file that would
   otherwise show up.
-**Status:** Not started
+**Status:** Built and verified on Linux (real ripgrep 14.1.0), 2026-09-30, D-052/DBG-026. Awaiting a run on the owner's Windows machine.
 
 ### 2.2 — retrieval-treesitter bundle
-**Goal:** `ctx.retrieval.parse` — structural parse stage.
+**Goal:** `ctx.retrievalParse` (flat name, D-052/D-053) — structural parse stage.
 **Files touched:** `src/bundles/retrieval-treesitter/`
 **Success criteria:**
 - Given a file, returns a structural parse (functions/classes/symbols) for
@@ -507,7 +507,7 @@ to persist).
   extracted.
 - Failure-mode test: feed a syntactically broken file, assert graceful
   skip + log entry, not a pipeline crash.
-**Status:** Not started
+**Status:** Built and verified on Linux, 2026-09-30, D-053/DBG-027. Languages: TypeScript, TSX, JavaScript, Python. Awaiting a run on the owner's Windows machine.
 
 ### 2.3 — embeddings bundle
 **Goal:** `ctx.embeddings` — embedding generation. *(Amended 2026-09-22,
@@ -523,7 +523,7 @@ batching or a small local model. 2.5 works BM25-only until this exists.)*
   near-identical, provider-dependent) vectors — determinism check.
 - Performance check: batch of N texts takes meaningfully fewer calls than
   N individual embed calls.
-**Status:** Not started
+**Status:** Built 2026-09-30 (D-054/DBG-028): Ollama provider + offline hashing stand-in. Hermetic tests pass; the two integration criteria (determinism, batch vs single) also run against real Ollama via `HARNESS_OLLAMA_EMBED_MODEL=<model> npx vitest run test/embeddings.test.ts`. NOT yet run against a real model.
 
 ### 2.4 — vectorstore-lancedb bundle
 **Goal:** `ctx.vectorstore` provider `lancedb`.

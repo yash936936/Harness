@@ -3,6 +3,63 @@
 > Append-only. Every completed coding task gets an entry here, even "no
 > issues found." Newest entries at top.
 
+## DBG-028 — 2.3 embeddings (and a 2.2 fix found by the smoke run) — 2026-09-30
+**Task:** `src/bundles/embeddings/` (types, service, Ollama and hashing
+providers), `test/embeddings.test.ts` (39 tests, 3 opt-in against real Ollama),
+`scripts/smoke-phase2.ts`.
+**Tested:** the Ollama provider runs over REAL HTTP against a local Node server
+(actual request body/headers, status mapping, timeout, abort, connection
+refused), not a mocked `fetch`. Mutation check: 34 mutations, all caught; the one
+initial survivor (the provider's own abort mapping, masked by the service's
+check) got a direct-provider test. My first surrogate-pair test never hit a split
+(the cut landed cleanly); rewritten with `'abc😀d'` at a limit of 4.
+**Found by the smoke run on real code (2.2):** `declare module 'cordis' {...}`
+(the augmentation block in every bundle) was reported as a namespace `cordis`
+with a symbol `cordis.Context`. String-named ambient modules are now skipped;
+test added, mutant caught.
+**Result:** `tsc` clean; suite 343 passed / 6 skipped. **Not verified:** any
+real Ollama model (the sandbox cannot reach the model registry): determinism,
+the batch-call count and paraphrase-vs-unrelated similarity are covered only by
+the opt-in tests and the smoke script, which the owner must run
+(`HARNESS_OLLAMA_EMBED_MODEL`); embedding quality on code; Windows.
+
+## DBG-027 — 2.2 retrieval-treesitter — 2026-09-30
+**Task:** structural parse bundle (`src/bundles/retrieval-treesitter/`,
+`test/retrieval-treesitter.test.ts`, 27 tests) plus two pinned dependencies.
+**Tested:** real grammar wasms, not mocks. Probed the real output on an awkward
+TypeScript file (emoji/non-ASCII before code, decorators, computed and quoted
+member names, namespaces, overloads) and a Python file, checked by hand, then
+pinned as expectations. Also CRLF, syntax errors, empty and garbage input,
+concurrent first calls, a deep-nesting source, dispose, and WASM-release spies.
+**Found:** (1) top-level `namespace X {}` was missed entirely (the grammar wraps
+it in an expression statement); (2) signatures leaked one-line bodies. Both
+fixed. Two of my own test expectations were wrong (exports inside a namespace
+are exported). Mutation check: 13 code mutations plus 3 more after adding
+spies. Initial survivors: tree deletion, parser deletion, the shared grammar
+load and the dispose-during-load guard (all WASM leaks, invisible to
+behavioural tests; now covered by spying on the real `delete`/`Language.load`
+calls) and one equivalent mutant (a redundant sort, removed).
+**Result:** `tsc` clean; suite 306 passed / 3 skipped. **Not verified:**
+Windows; web-tree-sitter 0.27.0; other languages; that parsing time stays
+bounded on hostile input below the size cap (no timeout exists).
+`npm audit` reports 5 findings, all in the vite/esbuild dev-tooling chain
+(existing); neither new package is flagged.
+
+## DBG-026 — 2.1 retrieval-grep (two rejected drafts, then rewritten) — 2026-09-30
+**Task:** ripgrep wrapper (`src/bundles/retrieval-grep/`,
+`test/retrieval-grep.test.ts`, 28 tests).
+**Found in the generator's drafts (never committed):** draft 1 threw on every
+call (no `static inject`), even patched it always returned an empty result (parser
+read a flat JSON shape; real `rg --json` nests everything under `data`), used
+`-I` (that is `--no-filename`), a prefix-based containment check that accepts
+`root-evil`, and tests that could not fail. Draft 2 fixed most of that but
+`includeSecrets` never searched `.env` (needs `--hidden`), and its tests had no
+`..`, sibling, leading-dash, `extraArgs` or real `rg_missing` coverage.
+**Fixed by rewriting.** 11 mutations tried; one survived (ranking by the capped
+list), the test was strengthened (7 vs 6 matches at a cap of 5) and now kills it.
+**Result:** `tsc` clean. **Not verified:** Windows/`rg.exe`, CRLF fixtures,
+symlink privileges (symlink tests skip themselves if creation fails).
+
 ## DBG-025 — Needle pin registered — 2026-09-29
 Registered `NEEDLE_PIN` from the owner's real `npm run pin` output; 1 new test
 (digest/revision format, prefix, not ollama-checked). Ran `tsc` and the suite

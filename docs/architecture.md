@@ -247,17 +247,20 @@ and size.
 - **Config surface:** agent-browser MCP profile (core/network/state/allowed-domains).
 
 ### retrieval-grep (`bundle-retrieval-grep`)
-- **Responsibility:** `ctx.retrieval.grep` — cheap filter stage of the
-  retrieval pipeline.
+- **Responsibility:** `ctx.retrievalGrep` — cheap filter stage of the
+  retrieval pipeline (built, D-052).
 - **Location:** `src/bundles/retrieval-grep/`
 - **Depends on:** `bundle-subprocess`.
-- **Config surface:** ripgrep path/flags.
+- **Config surface:** root, rgPath, extraArgs, maxResults, maxMatchesPerFile,
+  includeSecrets, timeoutMs.
 
 ### retrieval-treesitter (`bundle-retrieval-treesitter`)
-- **Responsibility:** `ctx.retrieval.parse` — structural parse stage.
+- **Responsibility:** `ctx.retrievalParse` — structural parse stage (built,
+  D-053): symbols with line ranges from web-tree-sitter grammars.
 - **Location:** `src/bundles/retrieval-treesitter/`
 - **Depends on:** none.
-- **Config surface:** language grammars to load.
+- **Config surface:** grammarDir, languages, maxBytes, maxSymbols.
+  Runtime deps: `web-tree-sitter`, `tree-sitter-wasms` (pinned).
 
 ### retrieval-rank (`bundle-retrieval-rank`)
 - **Responsibility:** `ctx.retrieval.rank` — hybrid BM25 + embedding ranking.
@@ -267,11 +270,17 @@ and size.
 - **Config surface:** hybrid weight (BM25 vs. embedding).
 
 ### embeddings (`bundle-embeddings`)
-- **Responsibility:** `ctx.embeddings`. Provider chosen before Phase 2.3 and
-  must fit free-tier request limits (D-028); ranking is BM25-only until then.
-- **Location:** `src/bundles/embeddings/`
-- **Depends on:** `bundle-model-adapter`.
-- **Config surface:** provider, model.
+- **Responsibility:** `ctx.embeddings` — batched text-to-vector, one active
+  provider (built, D-054). Local Ollama `/api/embed` is the supported provider;
+  an offline hashing provider serves tests. Remote providers are refused until
+  the egress gate is wired in. Results, not throws; `info().fingerprint` keys
+  stored vectors.
+- **Location:** `src/bundles/embeddings/` (`providers/ollama.ts`,
+  `providers/hashing.ts`)
+- **Depends on:** `bundle-model-adapter` (reuses its Ollama base-URL helper and
+  `EgressInfo` type).
+- **Config surface:** `ollama: {model, baseUrl, timeoutMs, keepAlive}`,
+  maxBatchSize, maxBatchChars, maxInputChars, normalize, prefixes.
 
 ### vectorstore-lancedb (`bundle-vectorstore-lancedb`)
 - **Responsibility:** `ctx.vectorstore` provider `lancedb` — embedded,
