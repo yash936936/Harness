@@ -252,7 +252,7 @@ and size.
 - **Location:** `src/bundles/retrieval-grep/`
 - **Depends on:** `bundle-subprocess`.
 - **Config surface:** root, rgPath, extraArgs, maxResults, maxMatchesPerFile,
-  includeSecrets, timeoutMs.
+  includeSecrets, timeoutMs, maxFiles. Also `listFiles` (same exclusions as search).
 
 ### retrieval-treesitter (`bundle-retrieval-treesitter`)
 - **Responsibility:** `ctx.retrievalParse` — structural parse stage (built,
@@ -263,11 +263,17 @@ and size.
   Runtime deps: `web-tree-sitter`, `tree-sitter-wasms` (pinned).
 
 ### retrieval-rank (`bundle-retrieval-rank`)
-- **Responsibility:** `ctx.retrieval.rank` — hybrid BM25 + embedding ranking.
-- **Location:** `src/bundles/retrieval-rank/`
-- **Depends on:** `bundle-embeddings`, `bundle-retrieval-grep`,
-  `bundle-retrieval-treesitter`.
-- **Config surface:** hybrid weight (BM25 vs. embedding).
+- **Responsibility:** `ctx.retrievalRank` — final retrieval stage (built, D-056):
+  ripgrep candidates -> tree-sitter chunks -> BM25 -> optional vector side ->
+  weighted rank fusion; also `indexFiles` / `indexProject` / `unindexFiles` for
+  the vector index. Degrades to BM25-only when embeddings or the store fail.
+- **Location:** `src/bundles/retrieval-rank/` (`text.ts` tokenizer + BM25,
+  `chunk.ts` chunker, `index.ts` service)
+- **Depends on:** `retrievalGrep`, `retrievalParse` (required);
+  `embeddings`, `vectorstore` (optional, read with `ctx.get`).
+- **Config surface:** root, collection, k, weight (0 = BM25, 1 = vectors), rrfK,
+  vectorTopK, maxFileBytes, windowLines, maxChunkLines, maxChunkChars, nameBoost,
+  bm25 {k1,b}, maxCandidateChunks, maxHitChars, indexGroupChunks.
 
 ### embeddings (`bundle-embeddings`)
 - **Responsibility:** `ctx.embeddings` — batched text-to-vector, one active

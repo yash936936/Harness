@@ -3,6 +3,37 @@
 > Append-only. Every completed coding task gets an entry here, even "no
 > issues found." Newest entries at top.
 
+## DBG-030 — 2.5 retrieval-rank, retrieval-grep.listFiles; Windows run of 2.1-2.4 — 2026-09-30
+**Windows run (owner):** `tsc` clean, 376 passed / 6 skipped; with
+`HARNESS_OLLAMA_EMBED_MODEL=nomic-embed-text` 379 passed / 3 skipped; the smoke
+script passed every check on win32, including the native LanceDB binary and real
+embeddings (D-057). `npm install` reported 5 audit findings (the same five
+vite/vitest/esbuild dev-tooling packages as before; do not run `npm audit fix --force`
+blindly, it upgrades vitest across a major version). PowerShell 5.1 does not accept
+`&&`; the docs now give commands on separate lines.
+**Task:** `src/bundles/retrieval-rank/` (types, text, chunk, service),
+`test/retrieval-rank.test.ts` (55 tests), `listFiles` added to retrieval-grep (+8
+tests), the smoke script extended.
+**First run, 6 failures, triaged:** one REAL bug (indexing and clean-up failed
+right after a restart because the fingerprint was not yet known; fixed with a
+probe embed and tested); three wrong hand-counted chunk numbers and a missing
+fixture directory in my tests; two tests timed out at 5 s because the first
+vector-store use loads a 192 MB native module (7.5 s cold here), so both vector
+test files now warm it up and set generous timeouts, which matters on slower
+machines.
+**Mutation check:** 8 mutations on `listFiles` and 33 on the ranker, tokenizer,
+BM25 and chunker. Survivors found and fixed: a missing tie-break test (mirrored
+ranks give an exactly equal fused score, so only the tie-break orders them);
+`escapeRegex` was dead code (query tokens are letters and digits only), removed
+and replaced by a test that grep terms can never hold a regex metacharacter. One
+equivalent mutant accepted (weight 0 is gated twice). BM25 values were verified
+against a reference computed independently in Python.
+**Result:** `tsc` clean; suite 439 passed / 6 skipped; the smoke script's 2.5
+checks pass on Linux with the offline provider. **Not verified:** Windows for 2.5,
+ranking quality with the real model (the smoke script prints the top results for
+four questions at weights 0, 0.5 and 1 so a human can judge), indexing time for a
+large project with Ollama.
+
 ## DBG-029 — 2.4 vectorstore-lancedb — 2026-09-30
 **Task:** `src/bundles/vectorstore-lancedb/` (types, service),
 `test/vectorstore-lancedb.test.ts` (33 tests, real native LanceDB in temp dirs),

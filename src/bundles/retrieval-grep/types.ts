@@ -20,6 +20,8 @@ export interface RetrievalGrepConfig {
   includeSecrets?: boolean
   /** ripgrep timeout in ms. Default 10000. */
   timeoutMs?: number
+  /** Max paths returned by `listFiles`. Default 20000. */
+  maxFiles?: number
 }
 
 export interface SearchOptions {
@@ -68,3 +70,12 @@ export type RetrievalGrepResult =
 export class RetrievalGrepConfigError extends Error {
   override name = 'RetrievalGrepConfigError'
 }
+
+export interface ListFilesOptions {
+  /** Directory to list, resolved relative to `root`. Must stay inside `root`. */
+  path?: string
+}
+
+export type ListFilesResult =
+  | { ok: true; files: string[]; /** More files existed than `maxFiles`, or rg output hit the capture cap. */ truncated: boolean }
+  | { ok: false; error: { kind: RetrievalGrepErrorKind; detail?: string } }

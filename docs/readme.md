@@ -42,6 +42,10 @@ Phase 2 (retrieval) is in progress:
   embedding model built a collection and refuses to mix models (2.4). Needs a
   platform that LanceDB has a native build for (Windows x64 is included).
 
+- `ctx.retrievalRank`: ask a question, get the best-matching functions and code
+  blocks, ranked by BM25 and (once the project is indexed) vector similarity,
+  with a weight to trade one for the other (2.5).
+
 None of these is connected to the agent loop yet. To try them on your machine:
 `npx tsx scripts/smoke-phase2.ts`.
 

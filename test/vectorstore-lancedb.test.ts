@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import * as lancedb from '@lancedb/lancedb'
 import { Field, FixedSizeList, Float32, Schema, Utf8 } from 'apache-arrow'
 import { Context } from 'cordis'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import {
   LanceVectorStore,
   VectorStoreConfigError,
@@ -12,9 +12,15 @@ import {
   type VectorStoreResult,
 } from '../src/bundles/vectorstore-lancedb/index.js'
 
+// Loading LanceDB's native module takes seconds on a cold machine; the first test must not time out on it.
+vi.setConfig({ testTimeout: 60_000, hookTimeout: 120_000 })
+
 let base: string
 let n = 0
-beforeAll(() => { base = realpathSync(mkdtempSync(join(tmpdir(), 'vs-'))) })
+beforeAll(async () => {
+  await import('@lancedb/lancedb')
+  base = realpathSync(mkdtempSync(join(tmpdir(), 'vs-')))
+})
 afterAll(() => rmSync(base, { recursive: true, force: true }))
 const freshDir = () => join(base, `db${++n}`)
 

@@ -252,5 +252,19 @@ checked in our code. The embedding fingerprint lives in the table's schema
 metadata, so it cannot drift from the data it describes. `_distance` is selected
 explicitly because implicit projection is deprecated.
 
+## Ranking: fusion, ties and staleness (`RetrievalRank.search`)
+**Where:** `src/bundles/retrieval-rank/index.ts`
+**What it does:** BM25 and vector ranks are merged with weighted reciprocal-rank
+fusion; `weight` 0 skips embeddings entirely.
+**Why it's non-obvious:** raw scores are never mixed (BM25 and cosine similarity
+have unrelated scales). Mirrored ranks (1st by BM25 and 2nd by vectors, and the
+reverse) give an exactly equal fused score, so the tie-break (lexical rank, then
+file and line) really decides the order. A chunk's id contains a hash of its text,
+and a vector hit is accepted only if the lines on disk still hash to it, so an
+edited or deleted file can never be served from an old index. IDF is computed over
+the candidate chunks only, so a score means something within one result and
+nothing across queries. Query tokens contain only letters and digits, which is
+what makes joining them into a ripgrep regex with `|` safe.
+
 ---
 **Next:** Return to [`context.md`](../context.md).

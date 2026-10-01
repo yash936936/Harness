@@ -2,7 +2,20 @@
 
 > Updated every run. Newest entry at top.
 
-## 2026-09-30 (latest) — Phase 2: 2.4 built (D-055)
+## 2026-09-30 (latest) — Phase 2: 2.1-2.4 verified on Windows; 2.5 built (D-056, D-057)
+The owner's Windows run passed everything for 2.1-2.4 (DBG-030, D-057).
+`retrieval-rank` is written: lexical candidates, BM25, optional vector side,
+weighted rank fusion, content-hashed chunk ids so nothing stale is served;
+`retrievalGrep.listFiles` added. Suite 439 passed / 6 skipped. **Owner to run:**
+`npx tsx scripts/smoke-phase2.ts` with `HARNESS_OLLAMA_EMBED_MODEL=nomic-embed-text`
+(it now indexes `src/`, takes a minute or so, and prints the top results for four
+questions at weight 0, 0.5 and 1: please judge whether weight 0.5 or 1 beats 0),
+and paste `ollama list` so the model digest can be pinned (D-027).
+**Next up:** the read-only retrieval tool wrappers (they register `search_code`
+and friends on `ctx.tools` with the right action class; the path and secret
+protections already live in the bundles), then 2.6 (agent loop integration test).
+
+## 2026-09-30 (later still) — Phase 2: 2.4 built (D-055)
 `vectorstore-lancedb` written on embedded LanceDB pinned to 0.30.0 (D-055 has
 the reason); fingerprint-guarded collections, source-scoped delete and query.
 Suite 376 passed / 6 skipped. The smoke script now covers parse -> embed ->

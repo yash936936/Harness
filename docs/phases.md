@@ -492,7 +492,7 @@ to persist).
 - Unit test: string absent from repo → empty result set, no error.
 - Config test: an ignore-pattern flag excludes a matching file that would
   otherwise show up.
-**Status:** Built and verified on Linux (real ripgrep 14.1.0), 2026-09-30, D-052/DBG-026. Awaiting a run on the owner's Windows machine.
+**Status:** Built and verified on Linux (real ripgrep 14.1.0), 2026-09-30, D-052/DBG-026. Verified on the owner's Windows machine 2026-09-30 (DBG-030).
 
 ### 2.2 — retrieval-treesitter bundle
 **Goal:** `ctx.retrievalParse` (flat name, D-052/D-053) — structural parse stage.
@@ -507,7 +507,7 @@ to persist).
   extracted.
 - Failure-mode test: feed a syntactically broken file, assert graceful
   skip + log entry, not a pipeline crash.
-**Status:** Built and verified on Linux, 2026-09-30, D-053/DBG-027. Languages: TypeScript, TSX, JavaScript, Python. Awaiting a run on the owner's Windows machine.
+**Status:** Built and verified on Linux, 2026-09-30, D-053/DBG-027. Languages: TypeScript, TSX, JavaScript, Python. Verified on the owner's Windows machine 2026-09-30 (DBG-030).
 
 ### 2.3 — embeddings bundle
 **Goal:** `ctx.embeddings` — embedding generation. *(Amended 2026-09-22,
@@ -523,7 +523,7 @@ batching or a small local model. 2.5 works BM25-only until this exists.)*
   near-identical, provider-dependent) vectors — determinism check.
 - Performance check: batch of N texts takes meaningfully fewer calls than
   N individual embed calls.
-**Status:** Built 2026-09-30 (D-054/DBG-028): Ollama provider + offline hashing stand-in. Hermetic tests pass; the two integration criteria (determinism, batch vs single) also run against real Ollama via `HARNESS_OLLAMA_EMBED_MODEL=<model> npx vitest run test/embeddings.test.ts`. NOT yet run against a real model.
+**Status:** Built 2026-09-30 (D-054/DBG-028): Ollama provider + offline hashing stand-in. Hermetic tests pass; the two integration criteria (determinism, batch vs single) also run against real Ollama via `HARNESS_OLLAMA_EMBED_MODEL=<model> npx vitest run test/embeddings.test.ts`. Run against a real model on the owner's machine 2026-09-30: deterministic, batch of 20 = one request, paraphrase 0.746 vs unrelated 0.487 (D-057).
 
 ### 2.4 — vectorstore-lancedb bundle
 **Goal:** `ctx.vectorstore` provider `lancedb`.
@@ -536,10 +536,10 @@ batching or a small local model. 2.5 works BM25-only until this exists.)*
   them, assert it's returned in top-K.
 - Persistence test: insert, restart the process, query again, assert data
   survived.
-**Status:** Built 2026-09-30 (D-055/DBG-029), verified on Linux with real LanceDB 0.30.0. Upsert/top-K/persistence criteria pass; the persistence test re-creates the plugin on the same directory. NOT yet run on the owner's Windows machine (native binary).
+**Status:** Built 2026-09-30 (D-055/DBG-029), verified on Linux with real LanceDB 0.30.0. Upsert/top-K/persistence criteria pass; the persistence test re-creates the plugin on the same directory. Verified on the owner's Windows machine 2026-09-30 (native LanceDB binary loads; DBG-030).
 
 ### 2.5 — retrieval-rank bundle
-**Goal:** `ctx.retrieval.rank` — hybrid BM25 + embedding ranking over
+**Goal:** `ctx.retrievalRank` (flat name) — hybrid BM25 + embedding ranking over
 2.1–2.4. *(Amended 2026-09-22, D-028: ships BM25-only first; the embedding
 weight is added once 2.3 and 2.4 exist.)*
 **Files touched:** `src/bundles/retrieval-rank/`
@@ -553,7 +553,7 @@ weight is added once 2.3 and 2.4 exist.)*
   stable and sane (relevant file ranks above an unrelated one).
 - Config test: set weight fully to BM25, then fully to embedding, assert
   the resulting ranking differs between the two settings.
-**Status:** Not started
+**Status:** Built 2026-09-30 (D-056/DBG-030): lexical + vector fusion, weight verified to change the order (test 'WEIGHT CHANGES THE RANKING'), BM25-only fallback. Verified on Linux; real-model quality for the owner to judge via the smoke script.
 
 ### 2.6 — Retrieval pipeline integration test
 **Goal:** Prove classical RAG works end-to-end and is consumable by the

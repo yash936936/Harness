@@ -3,6 +3,8 @@ import { realpathSync } from 'node:fs'
 import { Context, Service } from 'cordis'
 import {
   RetrievalGrepConfigError,
+  type ListFilesOptions,
+  type ListFilesResult,
   type RetrievalGrepConfig,
   type RetrievalGrepResult,
   type SearchMatch,
@@ -87,6 +89,7 @@ export class RetrievalGrep extends Service {
   private readonly maxMatchesPerFile: number
   private readonly includeSecrets: boolean
   private readonly timeoutMs: number
+  private readonly maxFiles: number
 
   constructor(ctx: Context, config: RetrievalGrepConfig) {
     super(ctx, 'retrievalGrep')
@@ -100,6 +103,7 @@ export class RetrievalGrep extends Service {
     this.maxMatchesPerFile = config.maxMatchesPerFile ?? 5
     this.includeSecrets = config.includeSecrets ?? false
     this.timeoutMs = config.timeoutMs ?? 10_000
+    this.maxFiles = config.maxFiles ?? 20_000
   }
 
   async search(query: string, opts: SearchOptions = {}): Promise<RetrievalGrepResult> {
@@ -107,27 +111,16 @@ export class RetrievalGrep extends Service {
       return { ok: false, error: { kind: 'bad_pattern', detail: 'empty query or NUL byte' } }
     }
 
-    let realRoot: string
-    let target: string
-    try {
-      realRoot = realpathSync(this.root)
-    } catch {
-      return { ok: false, error: { kind: 'path_not_found', detail: 'root does not exist' } }
-    }
-    try {
-      target = realpathSync(resolve(realRoot, opts.path ?? '.'))
-    } catch {
-      return { ok: false, error: { kind: 'path_not_found' } }
-    }
-    if (!isInside(realRoot, target)) return { ok: false, error: { kind: 'outside_root' } }
+    const where = this.resolveTarget(opts.path)
+    if (!where.ok) return where
+    const { realRoot, target } = where
 
     const args = ['--json', '--no-config', opts.caseSensitive ? '-s' : '-S']
     if (opts.fixedStrings) args.push('-F')
     if (this.includeSecrets) args.push('--hidden')
     args.push(...this.extraArgs)
     // Later --glob wins in ripgrep, so these come after extraArgs on purpose.
-    for (const g of ALWAYS_EXCLUDED) args.push('--glob', g)
-    if (!this.includeSecrets) for (const g of SECRET_EXCLUDES) args.push('--glob', g)
+    args.push(...this.excludeArgs())
     args.push('-e', query, '--', target)
 
     const res = await this.ctx.subprocess.run(this.rgPath, args, { cwd: realRoot, timeoutMs: this.timeoutMs })
@@ -148,6 +141,63 @@ export class RetrievalGrep extends Service {
       return { ok: false, error: { kind: 'bad_pattern', detail: res.stderr.trim().slice(0, 300) } }
     }
     return { ok: false, error: { kind: 'rg_failed', detail: `exit ${res.exitCode ?? 'null'} signal ${res.signal ?? 'none'}` } }
+  }
+  /** Resolve `path` (relative to the root) to a real directory/file that is inside the real root. */
+  private resolveTarget(path: string | undefined):
+    | { ok: true; realRoot: string; target: string }
+    | { ok: false; error: { kind: 'path_not_found' | 'outside_root'; detail?: string } } {
+    let realRoot: string
+    let target: string
+    try {
+      realRoot = realpathSync(this.root)
+    } catch {
+      return { ok: false, error: { kind: 'path_not_found', detail: 'root does not exist' } }
+    }
+    try {
+      target = realpathSync(resolve(realRoot, path ?? '.'))
+    } catch {
+      return { ok: false, error: { kind: 'path_not_found' } }
+    }
+    if (!isInside(realRoot, target)) return { ok: false, error: { kind: 'outside_root' } }
+    return { ok: true, realRoot, target }
+  }
+
+  /** The exclude globs shared by `search` and `listFiles`. They come after `extraArgs` (a later --glob wins). */
+  private excludeArgs(): string[] {
+    const out: string[] = []
+    for (const g of ALWAYS_EXCLUDED) out.push('--glob', g)
+    if (!this.includeSecrets) for (const g of SECRET_EXCLUDES) out.push('--glob', g)
+    return out
+  }
+
+  /**
+   * Every file `search` could see under `path`, as sorted root-relative paths with forward
+   * slashes: same root confinement, same secret / `.git` / `node_modules` exclusions,
+   * .gitignore respected. Used to decide what to index.
+   */
+  async listFiles(opts: ListFilesOptions = {}): Promise<ListFilesResult> {
+    const where = this.resolveTarget(opts.path)
+    if (!where.ok) return where
+    const { realRoot, target } = where
+    const args = ['--files', '--null', '--no-config']
+    if (this.includeSecrets) args.push('--hidden')
+    args.push(...this.extraArgs, ...this.excludeArgs(), '--', target)
+
+    const res = await this.ctx.subprocess.run(this.rgPath, args, { cwd: realRoot, timeoutMs: this.timeoutMs })
+    if (res.spawnError) return { ok: false, error: { kind: 'rg_missing', detail: res.spawnError } }
+    if (res.timedOut) return { ok: false, error: { kind: 'timeout' } }
+    if (res.exitCode !== 0 && res.exitCode !== 1) {
+      return { ok: false, error: { kind: 'rg_failed', detail: `exit ${res.exitCode ?? 'null'}: ${res.stderr.trim().slice(0, 300)}` } }
+    }
+    const files: string[] = []
+    for (const raw of res.stdout.split('\0')) {
+      if (!raw) continue
+      const abs = resolve(realRoot, raw)
+      if (!isInside(realRoot, abs)) continue
+      files.push(relative(realRoot, abs).split(sep).join('/'))
+    }
+    files.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
+    return { ok: true, files: files.slice(0, this.maxFiles), truncated: files.length > this.maxFiles || res.stdoutTruncated }
   }
 }
 

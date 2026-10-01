@@ -4,6 +4,59 @@
 > if a decision is reversed, log a new entry that supersedes it and reference
 > the old ID.
 
+## D-057 — nomic-embed-text measured on the owner's machine; model pin still pending — 2026-09-30
+**Observed (owner's Windows run, Node 22.18, ripgrep 15.2.0):** `ollama pull
+nomic-embed-text` fetched 274 MB (weights layer `970aa74c0a90...`, as printed by
+the pull); the embeddings produce 768 dimensions with the prefixes from D-054;
+the same string twice gives the same vector; a batch of 20 is one request;
+"sorts a list of numbers in ascending order" vs "orders an array from smallest
+to largest" scored 0.746 against 0.487 for an unrelated text. The gap is real but
+modest (raw cosines are compressed into a narrow band), which is why 2.5 fuses by
+rank (D-056) rather than by raw score.
+**Still open:** D-027 asks for the model's digest to be pinned; only a layer prefix
+from the pull log is known. The owner should paste `ollama list` output.
+Quality on code (not prose) has not been measured: Phase 6 needs a labelled
+retrieval benchmark (recall@k) before anyone treats this as good.
+**Affects:** `docs/decisions.md` D-054 (model choice), Phase 6.
+
+## D-056 — 2.5 ranking: lexical candidates, BM25, optional vectors, weighted rank fusion — 2026-09-30
+**Decision:** `ctx.retrievalRank` runs: query -> terms (identifier-aware tokens,
+English stopwords removed) -> ripgrep finds files containing any term (2.1) ->
+files become chunks (one per tree-sitter symbol, long symbols and code outside
+symbols in windows, 2.2) -> BM25 over those chunks (a symbol's name counts extra:
+`nameBoost` 2) -> if embeddings and the vector store work and `weight > 0`, the
+nearest indexed chunks (2.4) are fetched and the two ranked lists are merged by
+**weighted reciprocal-rank fusion**: `(1-w)/(60+rank_bm25) + w/(60+rank_vector)`.
+`w = 0` is pure BM25 and never calls the embedding provider; `w = 1` orders by
+vectors alone (BM25-only chunks follow); default 0.5; settable per call.
+**Why rank fusion:** BM25 scores and cosine similarities live on unrelated scales
+(D-057: unrelated text already scores 0.49), so mixing the numbers needs
+calibration this project has no data for. Ranks need none. Ties go to the better
+lexical rank, then file and line.
+**Never fails because of the semantic side:** any embeddings, vector-store or
+fingerprint problem returns the BM25 result with `degraded` saying why.
+**Freshness:** chunk ids are `file#start-end#hash(text)`. Vector hits carry that
+hash; at query time the lines are re-read from disk and a hit whose text changed
+(or whose file is gone) is dropped and counted in `stats.staleVectorHits`. Nothing
+stale is ever shown. Re-indexing a file is delete-by-source then upsert;
+`indexFiles`, `indexProject` (uses the new `retrievalGrep.listFiles`, same
+exclusions as search, so secrets are never indexed) and `unindexFiles` exist;
+there is no file watcher, so keeping the index current is the caller's job.
+**Safety:** it reads only regular files inside the real root, at most 1 MB, not
+binary, and re-validates every path it is handed even though grep confines them
+(tested against a misbehaving grep stage).
+**Found in testing:** the embeddings service only learns its fingerprint after a
+first vector, so indexing, clean-up and `unindexFiles` failed right after a
+restart; they now embed one throwaway text to learn it.
+**Limits, stated:** candidates are found lexically, so a question that shares no
+word with the code is answered only through vectors, and only for files that were
+indexed; BM25's idf is computed over the candidate chunks only, so scores are
+comparable within one result, not across queries; stopwords are English; no
+labelled benchmark yet (D-057). Opening the vector store loads a native module:
+1-8 s on first use in a process.
+**Affects:** `src/bundles/retrieval-rank/`, `src/bundles/retrieval-grep/` (added
+`listFiles`), 2.6, the retrieval tool wrappers.
+
 ## D-055 — 2.4 vector store: embedded LanceDB pinned to 0.30.0 (not the latest), fingerprint-guarded collections — 2026-09-30
 **Decision:** `ctx.vectorstore` (the architecture's name) is backed by embedded
 `@lancedb/lancedb` **0.30.0** with `apache-arrow` **18.1.0**, both pinned exactly.

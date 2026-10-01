@@ -1,6 +1,6 @@
 /**
  * Phase 2 smoke check: runs retrieval-grep (2.1), retrieval-treesitter (2.2),
- * embeddings (2.3) and the LanceDB vector store (2.4) for real on this machine and prints PASS/FAIL per check.
+ * embeddings (2.3), the LanceDB vector store (2.4) and the ranker (2.5) for real on this machine and prints PASS/FAIL per check.
  *
  *   npx tsx scripts/smoke-phase2.ts                     # searches the current directory
  *   npx tsx scripts/smoke-phase2.ts <project-dir>
@@ -15,6 +15,7 @@ import { join, resolve } from 'node:path'
 import { Context } from 'cordis'
 import { Embeddings, HashingEmbeddingProvider } from '../src/bundles/embeddings/index.js'
 import { RetrievalGrep } from '../src/bundles/retrieval-grep/index.js'
+import { RetrievalRank } from '../src/bundles/retrieval-rank/index.js'
 import { RetrievalTreesitter } from '../src/bundles/retrieval-treesitter/index.js'
 import { Subprocess } from '../src/bundles/subprocess/index.js'
 import { LanceVectorStore } from '../src/bundles/vectorstore-lancedb/index.js'
@@ -156,6 +157,57 @@ try {
   check('2.4 vectorstore: pipeline', false, e?.message ?? String(e))
 } finally {
   rmSync(vsBase, { recursive: true, force: true })
+}
+
+
+/* ---- 2.5 retrieval-rank: index this project, then rank real questions ---- */
+const rankBase = realpathSync(mkdtempSync(join(tmpdir(), 'harness-smoke-rank-')))
+try {
+  const c7 = new Context()
+  await c7.plugin(Subprocess)
+  await c7.plugin(RetrievalGrep, { root: project })
+  await c7.plugin(RetrievalTreesitter)
+  await c7.plugin(Embeddings, model ? { ollama: { model, timeoutMs: 300_000 }, prefixes: model.startsWith('nomic') ? { document: 'search_document: ', query: 'search_query: ' } : {} } : {})
+  if (!model) c7.embeddings.register(new HashingEmbeddingProvider({ dimensions: 256 }))
+  await c7.plugin(LanceVectorStore, { path: join(rankBase, 'db') })
+  await c7.plugin(RetrievalRank, { root: project })
+  const rank = c7.retrievalRank
+
+  const t0 = Date.now()
+  const idx = await rank.indexProject({ path: 'src' })
+  const secs = ((Date.now() - t0) / 1000).toFixed(1)
+  if (!idx.ok) check('2.5 rank: index the src/ directory', false, `${idx.error.kind}: ${idx.error.detail}`)
+  else {
+    check('2.5 rank: index the src/ directory', idx.files > 10 && idx.chunks > idx.files, `${idx.files} files -> ${idx.chunks} chunks in ${secs}s (${idx.skipped.length} skipped)`)
+    const questions: Array<[string, string]> = [
+      ['ripgrep search confined to a root directory', 'retrieval-grep'],
+      ['parse source code into function and class symbols with tree-sitter', 'retrieval-treesitter'],
+      ['store vectors and find the nearest by cosine similarity', 'vectorstore-lancedb'],
+      ['turn text into embeddings in batches with ollama', 'embeddings'],
+    ]
+    for (const [q, dir] of questions) {
+      const rows: string[] = []
+      let lexTop5 = false
+      for (const w of [0, 0.5, 1]) {
+        const r = await rank.search(q, { k: 5, path: 'src', weight: w })
+        if (!r.ok) {
+          check(`2.5 rank: "${q}" (weight ${w})`, false, `${r.error.kind}: ${r.error.detail}`)
+          continue
+        }
+        const top = r.hits.map((h) => `${h.file.replace('src/bundles/', '')}${h.name ? '::' + h.name : ''}`)
+        rows.push(`      w=${w}${r.mode === 'bm25' && w > 0 ? ' (lexical only: ' + (r.degraded ?? '') + ')' : ''}: ${top.slice(0, 3).join('  |  ')}`)
+        if (w === 0) lexTop5 = r.hits.some((h) => h.file.includes(dir))
+      }
+      check(`2.5 rank: "${q}" finds ${dir} in the top 5 (lexical)`, lexTop5)
+      for (const row of rows) console.log(row)
+    }
+    const hybrid = await rank.search('turn text into embeddings in batches with ollama', { k: 5, path: 'src', weight: 0.5 })
+    check('2.5 rank: hybrid search uses the vector index', hybrid.ok && hybrid.mode === 'hybrid' && hybrid.hits.some((h) => h.vectorRank !== undefined), hybrid.ok ? `mode=${hybrid.mode}, stale=${hybrid.stats.staleVectorHits}` : hybrid.error.detail)
+  }
+} catch (e: any) {
+  check('2.5 rank: pipeline', false, e?.message ?? String(e))
+} finally {
+  rmSync(rankBase, { recursive: true, force: true })
 }
 
 console.log(failed === 0 ? '\nALL CHECKS PASSED' : `\n${failed} CHECK(S) FAILED`)

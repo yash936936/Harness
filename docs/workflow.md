@@ -38,9 +38,9 @@ These logging steps are not optional because Claude is doing more of the
 work. With no separate reviewer, hold them more strictly.
 
 ## Verifying Phase 2 on the dev machine
-1. `npm install` (adds `web-tree-sitter`, `tree-sitter-wasms`, `@lancedb/lancedb`, `apache-arrow`; LanceDB downloads a ~200 MB native binary), then `npm run typecheck && npm test`.
+1. `npm install` (adds `web-tree-sitter`, `tree-sitter-wasms`, `@lancedb/lancedb`, `apache-arrow`; LanceDB downloads a ~200 MB native binary), then `npm run typecheck` and `npm test` as two separate commands (Windows PowerShell 5.1 does not accept `&&`).
 2. Ripgrep must be on PATH (`rg --version`); open a NEW terminal after installing it.
-3. `npx tsx scripts/smoke-phase2.ts` runs 2.1-2.4 for real and prints PASS/FAIL.
+3. `npx tsx scripts/smoke-phase2.ts` runs 2.1-2.5 for real and prints PASS/FAIL.
 4. For real embeddings: `ollama pull <embedding model>`, then set
    `HARNESS_OLLAMA_EMBED_MODEL=<model>` and run the smoke script and
    `npx vitest run test/embeddings.test.ts`.

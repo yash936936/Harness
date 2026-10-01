@@ -291,3 +291,103 @@ describe.skipIf(!hasRg)('RetrievalGrep with real ripgrep', () => {
     expect(r.truncated).toBe(true)
   })
 })
+
+/* ------------------------------------------------------------ listFiles */
+
+describe('RetrievalGrep.listFiles', () => {
+  const stubRun = (canned: Partial<RunResult>) => {
+    const ctx = new Context()
+    class Stub extends Service {
+      constructor(c: Context) { super(c, 'subprocess') }
+      async run() {
+        return { command: 'rg', args: [], cwd: '/', exitCode: 0, signal: null, stdout: '', stderr: '', stdoutTruncated: false, stderrTruncated: false, timedOut: false, aborted: false, durationMs: 1, ...canned } as RunResult
+      }
+    }
+    return { ctx, Stub }
+  }
+  const tmpRoot = realpathSync(tmpdir())
+  const k = (r: { ok: boolean; error?: { kind: string } }) => (r.ok ? 'ok' : r.error!.kind)
+
+  it('maps failures without needing rg (stubbed subprocess)', async () => {
+    for (const [canned, want] of [
+      [{ spawnError: 'ENOENT', exitCode: null }, 'rg_missing'],
+      [{ timedOut: true, exitCode: null }, 'timeout'],
+      [{ exitCode: 2, stderr: 'boom' }, 'rg_failed'],
+      [{ exitCode: null, signal: 'SIGKILL' as const }, 'rg_failed'],
+    ] as const) {
+      const { ctx, Stub } = stubRun(canned)
+      await ctx.plugin(Stub)
+      await ctx.plugin(RetrievalGrep, { root: tmpRoot })
+      expect(k(await ctx.retrievalGrep.listFiles()), JSON.stringify(canned)).toBe(want)
+    }
+  })
+
+  it('splits on NUL (a newline in a file name is part of the name), sorts, drops paths outside root, flags capture truncation', async () => {
+    const out = [join(tmpRoot, 'b.txt'), join(tmpRoot, 'a\nb.txt'), join(tmpRoot, '..', 'outside.txt'), join(tmpRoot, 'sub', 'c.txt')].join('\0') + '\0'
+    const { ctx, Stub } = stubRun({ stdout: out, stdoutTruncated: true })
+    await ctx.plugin(Stub)
+    await ctx.plugin(RetrievalGrep, { root: tmpRoot })
+    const r = await ctx.retrievalGrep.listFiles()
+    expect(r.ok && r.files).toEqual(['a\nb.txt', 'b.txt', 'sub/c.txt'])
+    expect(r.ok && r.truncated).toBe(true)
+  })
+
+  it('exit 1 (nothing to list) is ok and empty', async () => {
+    const { ctx, Stub } = stubRun({ exitCode: 1 })
+    await ctx.plugin(Stub)
+    await ctx.plugin(RetrievalGrep, { root: tmpRoot })
+    const r = await ctx.retrievalGrep.listFiles()
+    expect(r.ok && r.files).toEqual([])
+  })
+
+  describe.skipIf(!hasRg)('with real ripgrep', () => {
+    let base: string
+    let root: string
+    beforeAll(() => {
+      base = realpathSync(mkdtempSync(join(tmpdir(), 'rglist-')))
+      root = join(base, 'root')
+      for (const d of ['root/src/deep', 'root/skip', 'root/node_modules/dep', 'root/.git', 'root-evil']) mkdirSync(join(base, d), { recursive: true })
+      const w = (rel: string, s: string) => writeFileSync(join(base, rel), s)
+      for (const f of ['root/z.txt', 'root/a.txt', 'root/src/app.ts', 'root/src/deep/x.ts', 'root/skip/s.ts', 'root/.env', 'root/.env.local', 'root/prod.env', 'root/key.pem', 'root/deploy.key', 'root/id_rsa', 'root/node_modules/dep/i.js', 'root/.git/config', 'root/.hidden.txt', 'root-evil/loot.txt']) w(f, 'x\n')
+      try { symlinkSync(join(base, 'root-evil'), join(root, 'link-dir'), 'dir') } catch { /* no symlink privilege */ }
+    })
+    afterAll(() => rmSync(base, { recursive: true, force: true }))
+    const list = async (cfg: Partial<import('../src/bundles/retrieval-grep/index.js').RetrievalGrepConfig> = {}, opts = {}) => {
+      const ctx = new Context()
+      await ctx.plugin(Subprocess)
+      await ctx.plugin(RetrievalGrep, { root, ...cfg })
+      return ctx.retrievalGrep.listFiles(opts)
+    }
+
+    it('lists sorted, root-relative, forward-slash paths; no secrets, .git, node_modules, hidden files or symlinked dirs', async () => {
+      const r = await list()
+      expect(r.ok && r.files).toEqual(['a.txt', 'skip/s.ts', 'src/app.ts', 'src/deep/x.ts', 'z.txt'])
+      expect(r.ok && r.truncated).toBe(false)
+    })
+
+    it('includeSecrets adds hidden and secret files but never .git or node_modules', async () => {
+      const r = await list({ includeSecrets: true })
+      expect(r.ok && r.files).toEqual(['.env', '.env.local', '.hidden.txt', 'a.txt', 'deploy.key', 'id_rsa', 'key.pem', 'prod.env', 'skip/s.ts', 'src/app.ts', 'src/deep/x.ts', 'z.txt'])
+    })
+
+    it('extraArgs can narrow the list but cannot re-include secrets', async () => {
+      const narrowed = await list({ extraArgs: ['--glob', '!skip/**'] })
+      expect(narrowed.ok && narrowed.files).not.toContain('skip/s.ts')
+      expect(narrowed.ok && narrowed.files).toContain('src/app.ts')
+      const tried = await list({ extraArgs: ['--glob', '.env', '--glob', '*.pem', '--glob', 'id_rsa'] })
+      expect(tried.ok && tried.files.some((f) => f.startsWith('.env') || f.endsWith('.pem') || f === 'id_rsa')).toBe(false)
+    })
+
+    it('is scoped by path, and path escapes are refused exactly as for search', async () => {
+      expect((await list({}, { path: 'src' })).ok && ((await list({}, { path: 'src' })) as { files: string[] }).files).toEqual(['src/app.ts', 'src/deep/x.ts'])
+      for (const path of ['..', '../root-evil', base]) expect(k(await list({}, { path })), path).toBe('outside_root')
+      expect(k(await list({}, { path: 'nope' }))).toBe('path_not_found')
+    })
+
+    it('maxFiles caps the list and says so', async () => {
+      const r = await list({ maxFiles: 2 })
+      expect(r.ok && r.files).toEqual(['a.txt', 'skip/s.ts'])
+      expect(r.ok && r.truncated).toBe(true)
+    })
+  })
+})
