@@ -266,5 +266,18 @@ the candidate chunks only, so a score means something within one result and
 nothing across queries. Query tokens contain only letters and digits, which is
 what makes joining them into a ripgrep regex with `|` safe.
 
+## What the model is shown, and why it is shaped that way (`retrieval-tools`)
+**Where:** `src/bundles/retrieval-tools/index.ts`
+**What it does:** turns ranked hits into one bounded text block per call.
+**Why it's non-obvious:** each snippet is closed by a marker containing a random per-call
+nonce, so text inside a file cannot fake the end of its own block, and the nonce is
+checked by the tests by parsing with a back-reference. Results that do not fit the
+budget are dropped whole; only a first result bigger than everything is cut (the
+earlier version cut the last one, because it shrank the block before testing whether
+it fit). Line numbers are printed so a model can cite `file:line` and a test can check
+the citation against the real file. Operator reasons are never shown to the model.
+A vector index returns neighbours even when nothing is relevant, which is why the
+ranker has an optional similarity floor.
+
 ---
 **Next:** Return to [`context.md`](../context.md).

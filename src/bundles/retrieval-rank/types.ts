@@ -14,6 +14,14 @@ export interface RetrievalRankConfig {
   rrfK?: number
   /** How many nearest chunks to fetch from the vector store. Default 50. */
   vectorTopK?: number
+  /**
+   * Ignore vector hits whose cosine similarity is below this. A vector index always returns its
+   * nearest neighbours, even when nothing in the project is relevant, so without a floor an
+   * unrelated question still gets results. Off by default because a good value depends on the
+   * embedding model (measured with nomic-embed-text: 0.75 for a paraphrase, 0.49 for unrelated
+   * text); calibrate it with `scripts/smoke-phase2.ts`.
+   */
+  minVectorScore?: number
   /** Files larger than this are skipped. Default 1000000 bytes. */
   maxFileBytes?: number
   /** Window size for code outside symbols, in lines. Default 40. */
@@ -67,6 +75,8 @@ export interface RankStats {
   skippedFiles: number
   /** Vector hits dropped because the file changed after indexing. */
   staleVectorHits: number
+  /** Vector hits dropped for being below `minVectorScore`. */
+  belowFloorVectorHits: number
 }
 
 export type RankErrorKind = 'input' | 'outside_root' | 'path_not_found' | 'grep_failed'

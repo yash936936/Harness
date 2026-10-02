@@ -46,7 +46,13 @@ Phase 2 (retrieval) is in progress:
   blocks, ranked by BM25 and (once the project is indexed) vector similarity,
   with a weight to trade one for the other (2.5).
 
-None of these is connected to the agent loop yet. To try them on your machine:
+- `ctx.retrievalTools`: `search_code` and `list_code_files` as read-only agent
+  tools, so the agent loop can look up project code itself (2.6). Retrieved code is
+  fenced as untrusted data.
+
+Retrieval is connected to the agent loop through those two tools; no profile enables
+them yet. A similarity floor for vector results is configurable but unset until it has
+been measured (see `docs/decisions.md` D-059). To try them on your machine:
 `npx tsx scripts/smoke-phase2.ts`.
 
 Not built yet: the runnable `profile-minimal` (1.6), redaction and the

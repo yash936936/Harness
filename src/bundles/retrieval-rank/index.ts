@@ -61,6 +61,7 @@ export class RetrievalRank extends Service {
   private readonly weight: number
   private readonly rrfK: number
   private readonly vectorTopK: number
+  private readonly minVectorScore: number | undefined
   private readonly maxFileBytes: number
   private readonly chunkOpts: ChunkOptions
   private readonly nameBoost: number
@@ -78,6 +79,7 @@ export class RetrievalRank extends Service {
     this.weight = config.weight ?? 0.5
     this.rrfK = config.rrfK ?? 60
     this.vectorTopK = config.vectorTopK ?? 50
+    this.minVectorScore = config.minVectorScore
     this.maxFileBytes = config.maxFileBytes ?? 1_000_000
     this.chunkOpts = { windowLines: config.windowLines ?? 40, maxChunkLines: config.maxChunkLines ?? 80, maxChunkChars: config.maxChunkChars ?? 6000 }
     this.nameBoost = config.nameBoost ?? 2
@@ -86,6 +88,7 @@ export class RetrievalRank extends Service {
     this.maxHitChars = config.maxHitChars ?? 1500
     this.indexGroupChunks = config.indexGroupChunks ?? 512
     if (!(this.weight >= 0 && this.weight <= 1)) throw new RetrievalRankConfigError('retrieval-rank: weight must be between 0 and 1')
+    if (this.minVectorScore !== undefined && !(this.minVectorScore >= -1 && this.minVectorScore <= 1)) throw new RetrievalRankConfigError('retrieval-rank: minVectorScore must be between -1 and 1')
     for (const [n, v] of [['k', this.k], ['rrfK', this.rrfK], ['vectorTopK', this.vectorTopK], ['windowLines', this.chunkOpts.windowLines], ['maxChunkLines', this.chunkOpts.maxChunkLines], ['indexGroupChunks', this.indexGroupChunks]] as const) {
       if (!Number.isInteger(v) || v < 1) throw new RetrievalRankConfigError(`retrieval-rank: ${n} must be a positive integer`)
     }
@@ -164,7 +167,7 @@ export class RetrievalRank extends Service {
     }
     const inScope = (file: string): boolean => scope === '' || file === scope || file.startsWith(scope + '/')
 
-    const stats: RankStats = { candidateFiles: 0, candidateChunks: 0, skippedFiles: 0, staleVectorHits: 0 }
+    const stats: RankStats = { candidateFiles: 0, candidateChunks: 0, skippedFiles: 0, staleVectorHits: 0, belowFloorVectorHits: 0 }
     const cache = new Map<string, FileRead>()
 
     // 1. semantic side first, so we know whether it will contribute
@@ -270,6 +273,10 @@ export class RetrievalRank extends Service {
 
     const hits: Array<{ key: string; file: string; startLine: number; endLine: number; kind: 'symbol' | 'window'; name?: string; text: string; score: number }> = []
     for (const h of q.hits) {
+      if (this.minVectorScore !== undefined && h.score < this.minVectorScore) {
+        stats.belowFloorVectorHits++
+        continue
+      }
       const m = h.metadata as { file?: unknown; startLine?: unknown; endLine?: unknown; kind?: unknown; name?: unknown; hash?: unknown } | undefined
       if (!m || typeof m.file !== 'string' || typeof m.startLine !== 'number' || typeof m.endLine !== 'number' || typeof m.hash !== 'string') continue
       if (!inScope(m.file)) continue

@@ -350,6 +350,7 @@ describe.skipIf(!hasRg)('lexical ranking (no embeddings)', () => {
     await expect(ctx.plugin(RetrievalRank, { root: 'relative' })).rejects.toBeInstanceOf(RetrievalRankConfigError)
     await expect(ctx.plugin(RetrievalRank, { root, weight: 2 })).rejects.toBeInstanceOf(RetrievalRankConfigError)
     await expect(ctx.plugin(RetrievalRank, { root, k: 0 })).rejects.toBeInstanceOf(RetrievalRankConfigError)
+    for (const minVectorScore of [1.5, -2, NaN]) await expect(ctx.plugin(RetrievalRank, { root, minVectorScore }), String(minVectorScore)).rejects.toBeInstanceOf(RetrievalRankConfigError)
   })
 })
 
@@ -495,6 +496,23 @@ describe.skipIf(!hasRg)('hybrid ranking', () => {
     expect([first!.bm25Rank, first!.vectorRank, second!.bm25Rank, second!.vectorRank]).toEqual([1, 2, 2, 1])
     expect(first!.score).toBe(second!.score) // an exact tie, so only the tie-break decided the order
     expect(first!.file > second!.file).toBe(true) // and file order would have put the other one first
+  })
+
+  it('WITHOUT a similarity floor an index returns its nearest neighbours even for a question nothing answers; with the floor they are dropped and counted', async () => {
+    const unrelated = 'zzqqunrelated gibberishtopic' // shares no word with any file, and the stub puts it on the "other" axis
+    const bare = await indexed()
+    const noFloor = okRes(await bare.rank.search(unrelated, { path: 'src/hybrid', weight: 0.5 }))
+    expect(noFloor.hits.length).toBeGreaterThan(0) // junk: neighbours are always returned
+    expect(noFloor.hits.every((h) => h.bm25Rank === undefined)).toBe(true)
+
+    const b = await boot({ provider: controlled(), config: { minVectorScore: 0.5 } })
+    okIdx(await b.rank.indexProject({ path: 'src/hybrid' }))
+    const floored = okRes(await b.rank.search(unrelated, { path: 'src/hybrid', weight: 0.5 }))
+    expect(floored.hits).toEqual([])
+    expect(floored.stats.belowFloorVectorHits).toBeGreaterThan(0)
+    // the floor keeps genuinely similar chunks (the stub gives sort/ascending text similarity 1)
+    const related = okRes(await b.rank.search('sorting numbers config', { path: 'src/hybrid', weight: 1 }))
+    expect(related.hits.map((h) => h.name)).toContain('orderAscending')
   })
 
   it('a chunk the query shares no words with is found only through vectors', async () => {

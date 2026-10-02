@@ -2,7 +2,23 @@
 
 > Updated every run. Newest entry at top.
 
-## 2026-09-30 (latest) — Phase 2: 2.1-2.4 verified on Windows; 2.5 built (D-056, D-057)
+## 2026-10-01 — Phase 2: 2.6 built; Phase 2 code complete pending the owner's runs (D-058, D-059)
+`retrieval-tools` (`search_code`, `list_code_files`, read-only, nonce-fenced untrusted
+data, bounded output) and the 2.6 end-to-end tests are written: the real agent loop,
+registry, log and LLM service driving the full retrieval stack through a scripted,
+context-faithful model, with negative controls. Suite 475 passed / 7 skipped.
+**Owner to run (Windows PowerShell, separate lines):** `npm install`, `npm run typecheck`,
+`npm test`, then `$env:HARNESS_OLLAMA_EMBED_MODEL="nomic-embed-text"` and
+`npx tsx scripts/smoke-phase2.ts`. Please paste (a) the new "similarity of the best vector
+match" table so a `minVectorScore` can be chosen (D-059), (b) the 2.5 top-3 lines at
+weights 0 / 0.5 / 1, (c) `ollama list` (D-027 pin). Optional and the real test of 2.6:
+`ollama pull` a chat model that supports tools, set `HARNESS_OLLAMA_CHAT_MODEL`, rerun.
+**Phase 2 exit check:** every sub-phase has code and tests; open items are the owner's
+runs above, a floor value, a labelled benchmark (Phase 6) and the embedding-model pin.
+**Next up:** Phase 3 (memory + skills) per `docs/phases.md`, or first the policy-gate
+coverage of the retrieval tools if Phase 5 is pulled forward.
+
+## 2026-09-30 (before) — Phase 2: 2.1-2.4 verified on Windows; 2.5 built (D-056, D-057)
 The owner's Windows run passed everything for 2.1-2.4 (DBG-030, D-057).
 `retrieval-rank` is written: lexical candidates, BM25, optional vector side,
 weighted rank fusion, content-hashed chunk ids so nothing stale is served;

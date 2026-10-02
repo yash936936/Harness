@@ -1,18 +1,25 @@
 /**
  * Phase 2 smoke check: runs retrieval-grep (2.1), retrieval-treesitter (2.2),
- * embeddings (2.3), the LanceDB vector store (2.4) and the ranker (2.5) for real on this machine and prints PASS/FAIL per check.
+ * embeddings (2.3), the LanceDB vector store (2.4), the ranker (2.5) and the agent loop (2.6) for real on this machine and prints PASS/FAIL per check.
  *
  *   npx tsx scripts/smoke-phase2.ts                     # searches the current directory
  *   npx tsx scripts/smoke-phase2.ts <project-dir>
  *
  * Embeddings use local Ollama when HARNESS_OLLAMA_EMBED_MODEL is set
- * (e.g. nomic-embed-text), otherwise the offline hashing provider.
+ * (e.g. nomic-embed-text), otherwise the offline hashing provider. Set HARNESS_OLLAMA_CHAT_MODEL
+ * (a chat model that supports tools) to also let a real model drive the 2.6 agent run.
  * Uses a throwaway temp directory for the secret/path checks; writes nothing in your project.
  */
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { Context } from 'cordis'
+import { AgentLoop } from '../src/bundles/agent-loop/index.js'
+import { EgressPolicy } from '../src/bundles/egress/index.js'
+import { LLMService, MockProvider, OllamaProvider, type ProviderRequest } from '../src/bundles/model-adapter/index.js'
+import { SEARCH_TOOL, RetrievalTools } from '../src/bundles/retrieval-tools/index.js'
+import { SessionLog } from '../src/bundles/session-log/index.js'
+import { ToolRegistry } from '../src/bundles/tool-registry/index.js'
 import { Embeddings, HashingEmbeddingProvider } from '../src/bundles/embeddings/index.js'
 import { RetrievalGrep } from '../src/bundles/retrieval-grep/index.js'
 import { RetrievalRank } from '../src/bundles/retrieval-rank/index.js'
@@ -22,6 +29,7 @@ import { LanceVectorStore } from '../src/bundles/vectorstore-lancedb/index.js'
 
 const project = resolve(process.argv[2] ?? process.cwd())
 const model = process.env['HARNESS_OLLAMA_EMBED_MODEL']
+const chatModel = process.env['HARNESS_OLLAMA_CHAT_MODEL']
 let failed = 0
 const check = (name: string, pass: boolean, detail = ''): void => {
   console.log(`${pass ? 'PASS' : 'FAIL'}  ${name}${detail ? '  ->  ' + detail : ''}`)
@@ -172,6 +180,13 @@ try {
   await c7.plugin(LanceVectorStore, { path: join(rankBase, 'db') })
   await c7.plugin(RetrievalRank, { root: project })
   const rank = c7.retrievalRank
+  // the Phase 1 agent stack, so the same context can run an agent over the retrieval tools (2.6)
+  await c7.plugin(SessionLog, { memory: true })
+  await c7.plugin(EgressPolicy, { projectId: 'smoke' })
+  await c7.plugin(ToolRegistry)
+  await c7.plugin(LLMService, {})
+  await c7.plugin(RetrievalTools, {})
+  await c7.plugin(AgentLoop, { maxSteps: 8 })
 
   const t0 = Date.now()
   const idx = await rank.indexProject({ path: 'src' })
@@ -203,6 +218,62 @@ try {
     }
     const hybrid = await rank.search('turn text into embeddings in batches with ollama', { k: 5, path: 'src', weight: 0.5 })
     check('2.5 rank: hybrid search uses the vector index', hybrid.ok && hybrid.mode === 'hybrid' && hybrid.hits.some((h) => h.vectorRank !== undefined), hybrid.ok ? `mode=${hybrid.mode}, stale=${hybrid.stats.staleVectorHits}` : hybrid.error.detail)
+
+    /* ---- 2.6: an agent answers from retrieved code ---- */
+    const askScripted = async (question: string) => {
+      const model = new MockProvider((req: ProviderRequest) => {
+        const results = req.messages.flatMap((m) => (Array.isArray(m.content) ? m.content.filter((b) => b.type === 'tool_result').map((b) => (b as { content: string }).content) : []))
+        if (results.length === 0) {
+          const first = req.messages[0]
+          const words = [...new Set(((typeof first?.content === 'string' ? first.content : '').toLowerCase().match(/[a-z]{5,}/g) ?? []))].slice(0, 6).join(' ')
+          return { toolCalls: [{ id: 'c1', name: SEARCH_TOOL, input: { query: words } }], content: [{ type: 'tool_use' as const, id: 'c1', name: SEARCH_TOOL, input: { query: words } }] }
+        }
+        const m = results[0]!.match(/<<<CODE \w+ #1 (\S+):(\d+)-(\d+)/)
+        return { text: m ? `Top result: ${m[1]} lines ${m[2]}-${m[3]}` : 'Nothing found.' }
+      })
+      const off = c7.llm.register('scripted', model, { default: true })
+      try {
+        return await c7.agentLoop.run({ sessionId: 'smoke-scripted', prompt: question, provider: 'scripted' })
+      } finally {
+        off()
+      }
+    }
+    for (const [q, dir] of questions.slice(0, 2)) {
+      try {
+        const run = await askScripted(q)
+        check(`2.6 agent: "${q}" is answered from retrieved code (scripted model)`, run.stopReason === 'done' && run.steps === 2 && run.finalText.includes(dir), run.finalText)
+      } catch (e: any) {
+        check(`2.6 agent: "${q}"`, false, e?.message ?? String(e))
+      }
+    }
+    const events = await c7.log.read('smoke-scripted')
+    check('2.6 agent: the search tool call and its result are both in the session log', events.some((e) => e.type === 'tool.call') && events.some((e) => e.type === 'tool.result'), events.map((e) => e.type).join(' '))
+
+    // Calibration data for `minVectorScore`: how similar are the nearest chunks for answerable vs unanswerable questions?
+    console.log('\n      similarity of the best vector match (use this to pick a minVectorScore between the two groups):')
+    const probes: Array<[string, string]> = [...questions.map(([q]) => [q, 'answerable'] as [string, string]), ['how do I bake sourdough bread at home', 'UNANSWERABLE'], ['what colour is the sky on mars', 'UNANSWERABLE']]
+    for (const [q, kind] of probes) {
+      const r = await rank.search(q, { k: 5, path: 'src', weight: 1 })
+      const best = r.ok ? r.hits.find((h) => h.vectorScore !== undefined)?.vectorScore : undefined
+      console.log(`      ${kind.padEnd(12)} ${best === undefined ? '  n/a' : best.toFixed(3)}   ${q}`)
+    }
+
+    if (chatModel) {
+      try {
+        c7.llm.register('chat', new OllamaProvider({ model: chatModel, timeoutMs: 600_000 }), { default: true })
+        const run = await c7.agentLoop.run({
+          sessionId: 'smoke-real',
+          prompt: "In this project, which function parses ripgrep's JSON output into per-file results, and how does it treat paths that are not valid UTF-8? Use the search_code tool first.",
+          provider: 'chat',
+          system: 'You answer questions about a software project. You have a search_code tool. Never guess: search first, then answer only from the code you were shown.',
+        })
+        const calls = (await c7.log.read('smoke-real')).filter((e) => e.type === 'tool.call').length
+        console.log(`\n      real model ${chatModel}: ${run.steps} steps, ${calls} search call(s)\n      answer: ${run.finalText.replace(/\s+/g, ' ').slice(0, 400)}`)
+        check(`2.6 agent: real model ${chatModel} used the search tool`, calls > 0, calls === 0 ? 'it never called search_code (does this model support tool calling?)' : `${calls} call(s); judge the answer above yourself`)
+      } catch (e: any) {
+        check(`2.6 agent: real model ${chatModel}`, false, e?.message ?? String(e))
+      }
+    }
   }
 } catch (e: any) {
   check('2.5 rank: pipeline', false, e?.message ?? String(e))

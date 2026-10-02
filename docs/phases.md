@@ -558,7 +558,7 @@ weight is added once 2.3 and 2.4 exist.)*
 ### 2.6 — Retrieval pipeline integration test
 **Goal:** Prove classical RAG works end-to-end and is consumable by the
 Phase 1 agent loop.
-**Files touched:** none new — integration test only.
+**Files touched:** `src/bundles/retrieval-tools/` (new, D-058: the agent loop can only use retrieval through tools), `test/retrieval-tools.test.ts`, `test/retrieval-agent.test.ts`.
 **Success criteria:**
 - A query run through 2.1→2.5 returns top-K context that the Phase 1
   agent loop can accept and use in a real task.
@@ -567,7 +567,7 @@ Phase 1 agent loop.
   it doesn't already have; confirm it retrieves relevant context via this
   pipeline and the task outcome reflects that context (not a hallucinated
   answer).
-**Status:** Not started
+**Status:** Built 2026-10-01 (D-058/D-059/DBG-031). End-to-end tests pass with a scripted context-faithful model plus negative controls, on Linux. NOT yet run: Windows, and any real chat model driving the loop (opt-in: `HARNESS_OLLAMA_CHAT_MODEL`), which is the real test of the criterion.
 
 ---
 

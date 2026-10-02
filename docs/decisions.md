@@ -4,6 +4,70 @@
 > if a decision is reversed, log a new entry that supersedes it and reference
 > the old ID.
 
+## D-059 — Similarity floor for the vector side (`minVectorScore`), off by default — 2026-10-01
+**Found by the 2.6 tests:** a vector index always returns its nearest neighbours,
+even when nothing in the project is relevant. Pointed at a blog with one
+gardening post, a question about payment retries returned that post; with the
+shop project, a question about a secret returned an unrelated config constant.
+Once an index exists the search tool therefore never says "no matches", and a
+model handed junk can be misled. RRF makes it worse: a junk vector-only hit at
+vector rank 1 outscores the lexical hit at rank 2.
+**Decision:** `RetrievalRank` takes `minVectorScore` (cosine, -1 to 1): vector hits
+below it are ignored and counted in `stats.belowFloorVectorHits`. **Default off**,
+because there is no calibration data: with nomic-embed-text one measured pair gave
+0.746 (paraphrase) vs 0.487 (unrelated), and the offline hashing provider shows no
+separation at all. `scripts/smoke-phase2.ts` now prints the best vector similarity
+for answerable and unanswerable questions so the owner can choose a value between
+the two groups. Until one is set and measured, treat vector results as
+unvalidated: the characterisation test `without a similarity floor ...` documents
+the behaviour on purpose.
+**Not decided:** the default value; whether a relative cutoff (against the
+collection's score distribution) would be better than an absolute one. Phase 6's
+labelled benchmark should settle both.
+**Affects:** `src/bundles/retrieval-rank/`, any profile that enables hybrid search.
+
+## D-058 — 2.6 needs a new bundle: `retrieval-tools` (read-only `search_code`, `list_code_files`) — 2026-10-01
+**Decision:** The agent loop can only use retrieval through tools on `ctx.tools`,
+which no phase listed (2.6 said "no new files"). `ctx.retrievalTools` registers
+two tools, both `read-only`: `search_code(query, path?, k?)` and
+`list_code_files(path?)`. Nothing here writes. They call the ranker and the grep
+service, so root confinement and the secret/`.git`/`node_modules` exclusions hold
+for everything the model can see. There is deliberately **no read-file tool**:
+reading arbitrary files would bypass the secret exclusions and needs the Phase 5
+policy gates first.
+**Untrusted data:** a comment in a repo can say "ignore your instructions". Every
+snippet is fenced `<<<CODE <nonce> #n file:a-b name via=...>>> ... <<<END <nonce>>>`
+with a fresh random nonce per call that file content cannot know (a forged marker
+cannot close the block), and the result opens with a line saying the blocks are data.
+This is the part that has to live with the producer of the text; the general
+input-guardrail hook (`agent/pre-step`) is still Phase 5.
+**Model-facing text:** line numbers are printed (`12| code`) so answers can cite
+them; output is capped (12000 chars): results that do not fit are dropped whole,
+only a first result larger than the whole budget is cut; expected failures
+(path outside the project, not found, no searchable terms) are `isError` results
+with readable messages; `no matches` is a normal answer that suggests other words;
+operator-facing reasons (fingerprint mismatch, etc.) are never shown to the model,
+only "keyword ranking only; semantic search is currently unavailable".
+`k` (max 20), `path` and `query` are model inputs; `weight` and the floor are not.
+**How 2.6 is tested:** the real loop, registry, log, LLM service and the whole
+retrieval stack, with a scripted model that decides ONLY from the transcript: it has
+no knowledge of the fixture project, searches with words from the task, and answers
+from the first code it is shown, citing the file and line as printed. Random 7-digit
+values per run (cannot be memorised) must come back with the right file and line;
+the first model request must not contain the value and the second must (inside the
+tool result, byte-identical to the log). Negative controls: no search tool, a project
+without the code, and a wrong-line check each make the same assertions fail.
+Also covered: no embeddings, an unindexed project, an answer sharing no words with the
+question (vectors only), an edited file (fresh text, never the indexed one), and a secret
+in a visible `.pem` and a hidden `.env` that must never reach the transcript or the log.
+**Limits, stated:** a scripted model proves the plumbing delivers usable context,
+not that a real model uses it well. An opt-in test (`HARNESS_OLLAMA_CHAT_MODEL`) and
+the smoke script run a real local chat model through the same pipeline; **that has not
+been run by anyone yet**, and it needs a model with tool calling.
+**Affects:** `src/bundles/retrieval-tools/`, `tsconfig.json` (now also type-checks
+`scripts/`), Phase 2.6, Phase 5 (policy gates must cover these tools' action class),
+Phase 6.
+
 ## D-057 — nomic-embed-text measured on the owner's machine; model pin still pending — 2026-09-30
 **Observed (owner's Windows run, Node 22.18, ripgrep 15.2.0):** `ollama pull
 nomic-embed-text` fetched 274 MB (weights layer `970aa74c0a90...`, as printed by

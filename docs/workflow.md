@@ -40,8 +40,9 @@ work. With no separate reviewer, hold them more strictly.
 ## Verifying Phase 2 on the dev machine
 1. `npm install` (adds `web-tree-sitter`, `tree-sitter-wasms`, `@lancedb/lancedb`, `apache-arrow`; LanceDB downloads a ~200 MB native binary), then `npm run typecheck` and `npm test` as two separate commands (Windows PowerShell 5.1 does not accept `&&`).
 2. Ripgrep must be on PATH (`rg --version`); open a NEW terminal after installing it.
-3. `npx tsx scripts/smoke-phase2.ts` runs 2.1-2.5 for real and prints PASS/FAIL.
-4. For real embeddings: `ollama pull <embedding model>`, then set
+3. `npx tsx scripts/smoke-phase2.ts` runs 2.1-2.6 for real and prints PASS/FAIL.
+4. `scripts/` is now type-checked by `npm run typecheck`. For a real chat model (the actual test of 2.6), `ollama pull` a model that supports tool calling and set `HARNESS_OLLAMA_CHAT_MODEL`; the smoke script and `test/retrieval-agent.test.ts` then run it through the retrieval tools.
+5. For real embeddings: `ollama pull <embedding model>`, then set
    `HARNESS_OLLAMA_EMBED_MODEL=<model>` and run the smoke script and
    `npx vitest run test/embeddings.test.ts`.
 

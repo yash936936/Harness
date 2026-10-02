@@ -3,6 +3,29 @@
 > Append-only. Every completed coding task gets an entry here, even "no
 > issues found." Newest entries at top.
 
+## DBG-031 — 2.6 retrieval-tools and the agent integration tests — 2026-10-01
+**Task:** `src/bundles/retrieval-tools/` (types, service), `test/retrieval-tools.test.ts`
+(20 tests), `test/retrieval-agent.test.ts` (15 tests, 1 opt-in real model),
+`minVectorScore` in the ranker, the smoke script's 2.6 section, `tsconfig.json`.
+**Found while testing:** (1) a REAL bug in my first version of the tool: results that
+did not fit the output budget were cut instead of dropped, because the block was cut
+to fit before the "does it fit" check ran, so the check could never fire; fixed by
+measuring the uncut block first (two mutants now catch it). (2) the vector index
+returns junk neighbours for unanswerable questions: D-059. (3) my secret test used
+only `.env`, which ripgrep skips as a hidden file regardless of the exclude globs, so it
+proved nothing about them; added a visible `deploy.pem` and removing the globs now fails
+8 tests. (4) `scripts/` was never type-checked (`tsconfig.json` included only `src` and
+`test`); it is now, and it was already clean. (5) the model-facing text leaked
+operator internals ("fingerprint_mismatch"); shortened. (6) my claim that no embeddings
+means no degradation note was wrong, and the test was fixed, not the code.
+**Mutation check:** 17 mutants on the tools, the floor and the secret globs; all
+caught after the fixes above (one needed a stronger test: the drop-vs-cut behaviour).
+**Result:** `tsc` clean; suite 475 passed / 7 skipped (6 opt-in Ollama tests + 1 more
+opt-in real-chat test); the smoke script passes on Linux with the offline provider.
+**Not verified:** Windows for 2.6; ANY real chat model driving the loop; the similarity
+floor value (needs the nomic calibration table); whether a real model uses the tool
+output well (the question 2.6 is really about).
+
 ## DBG-030 — 2.5 retrieval-rank, retrieval-grep.listFiles; Windows run of 2.1-2.4 — 2026-09-30
 **Windows run (owner):** `tsc` clean, 376 passed / 6 skipped; with
 `HARNESS_OLLAMA_EMBED_MODEL=nomic-embed-text` 379 passed / 3 skipped; the smoke

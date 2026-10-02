@@ -272,7 +272,7 @@ and size.
 - **Depends on:** `retrievalGrep`, `retrievalParse` (required);
   `embeddings`, `vectorstore` (optional, read with `ctx.get`).
 - **Config surface:** root, collection, k, weight (0 = BM25, 1 = vectors), rrfK,
-  vectorTopK, maxFileBytes, windowLines, maxChunkLines, maxChunkChars, nameBoost,
+  vectorTopK, minVectorScore (D-059), maxFileBytes, windowLines, maxChunkLines, maxChunkChars, nameBoost,
   bm25 {k1,b}, maxCandidateChunks, maxHitChars, indexGroupChunks.
 
 ### embeddings (`bundle-embeddings`)
@@ -359,6 +359,16 @@ and size.
 - **Depends on:** `bundle-orchestrator`.
 - **Config surface:** default tool/memory permissions per sub-agent.
 
+### retrieval-tools (`bundle-retrieval-tools`)
+- **Responsibility:** `ctx.retrievalTools` — exposes retrieval to the agent loop as
+  two READ-ONLY tools, `search_code` and `list_code_files` (built, D-058). Snippets
+  are fenced with a per-call random nonce and labelled as untrusted data; output is
+  size-capped; expected failures are readable `isError` results. No read-file tool
+  by design (Phase 5 gates first).
+- **Location:** `src/bundles/retrieval-tools/`
+- **Depends on:** `tools`, `retrievalRank`, `retrievalGrep`.
+- **Config surface:** maxOutputChars, defaultK, maxK, maxListFiles.
+
 ### policy-gates (`bundle-policy-gates`)
 - **Responsibility:** hooks on `agent/pre-step`, `tools/pre-execute` —
   enforces the policy table (see below).
@@ -424,6 +434,7 @@ src/
 │   ├── retrieval-grep/
 │   ├── retrieval-treesitter/
 │   ├── retrieval-rank/
+│   ├── retrieval-tools/
 │   ├── embeddings/
 │   ├── vectorstore-lancedb/
 │   ├── vectorstore-qdrant/
