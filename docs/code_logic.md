@@ -279,5 +279,16 @@ the citation against the real file. Operator reasons are never shown to the mode
 A vector index returns neighbours even when nothing is relevant, which is why the
 ranker has an optional similarity floor.
 
+## Incremental indexing (`RetrievalRank.indexFiles`)
+**Where:** `src/bundles/retrieval-rank/index.ts`
+**What it does:** for each file, compares the chunk ids already stored for it with the ids it
+would produce now; identical sets mean "unchanged, do nothing".
+**Why it's non-obvious:** the id is `file#start-end#hash(text)`, so an edit, a moved chunk and
+a corrupted or half-written record all show up as a different set. That is also why a line shift
+re-embeds the whole file (every chunk below the insert has a new range) and why a changed file is
+replaced whole (delete by source, then insert) rather than patched. The collection is opened before
+embedding, which can cost one throwaway embedding if the model's fingerprint is not known yet.
+A `reset` skips the comparison because the collection is empty by then.
+
 ---
 **Next:** Return to [`context.md`](../context.md).

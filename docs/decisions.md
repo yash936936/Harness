@@ -4,6 +4,49 @@
 > if a decision is reversed, log a new entry that supersedes it and reference
 > the old ID.
 
+## D-060 — Measured on the owner's machine: similarity floor 0.60 for nomic-embed-text; indexing cost; incremental indexing — 2026-10-01
+**Windows run (owner, 2026-10-01):** `tsc` clean; `npm test` 478 passed / 4 skipped (the 3
+real-Ollama embedding tests ran because `HARNESS_OLLAMA_EMBED_MODEL` was set; the 4
+skips are 3 older opt-ins plus the real-chat-model test); the smoke script passed every
+check, including the scripted agent over the retrieval tools (2.6).
+**Calibration (nomic-embed-text, prefixes `search_document:`/`search_query:`, this repo's `src/`
+indexed, 6 questions):** best vector similarity 0.702-0.744 for the four answerable
+questions and 0.480 / 0.515 for the two unanswerable ones, a clear gap. A floor of
+**0.60** sits in the middle. Caveats: six questions, one model, one repository, questions
+written by the same person who wrote the code; a legitimately vague question could score
+around 0.55 and be dropped from the VECTOR side (the lexical side still answers it). The
+code default stays unset because the right value depends on the model; set 0.60 wherever
+nomic is configured (a profile, when one exists). `search()` also accepts `minVectorScore`
+per call, and the smoke script now asserts that 0.60 keeps all four answerable questions and
+drops both unanswerable ones whenever a real model is configured.
+**Does weight help? (eyeballed top-3 at weights 0 / 0.5 / 1, four questions, no labelled
+truth):** clearly better at 0.5 and 1 for "store vectors and find the nearest by cosine
+similarity" (w=0 returned the ranker's own types; w>=0.5 returned the vector store's
+types and implementation); slightly better for the ripgrep question (w=1 surfaced
+`retrieval-grep/index.ts`); the same for tree-sitter; mixed for "embeddings in batches"
+(w=0 put `Embeddings.embed`, the batching method, first, w=1 preferred the Ollama provider).
+Verdict: 0.5 was never clearly worse and sometimes much better, so the default stays 0.5.
+This is four questions judged by eye; Phase 6 needs a labelled benchmark. A pattern worth
+testing there: interface/type chunks (`types.ts`) often outrank implementations.
+**Cost:** indexing `src/` (49 files, 622 chunks) took **357 s** on the owner's CPU, about
+0.6 s per chunk, so a 10,000-chunk project would take well over an hour. That is a
+one-time cost only if re-indexing is cheap, and it was not: every run embedded everything.
+**Decision:** `indexFiles` now opens the collection first and treats a file as unchanged when
+the chunk ids stored for it are EXACTLY the ids it would produce now (ids contain the text
+hash and the line range, so any edit changes them); unchanged files cost nothing,
+changed files are replaced whole. Measured here: an unchanged re-index of 624 chunks embeds 0
+and takes 0.5 s. A change that shifts line numbers (an inserted line near the top) changes the
+ids of everything below it, so that file is re-embedded; per-chunk reuse inside a changed file
+would need the stored vectors back and was not built. `onProgress(done, total)` reports
+progress, and the smoke script keeps its index between runs (per embedding model, in the OS
+temp folder).
+**Not done:** a smaller or faster embedding model, trimming the text that is embedded,
+parallel batches. If 6 minutes for a first index is too slow, those are the levers, and the
+cost per chunk (not per file) is what to measure.
+**Affects:** `src/bundles/retrieval-rank/` (incremental indexing, `onProgress`, per-call
+`minVectorScore`), `src/bundles/vectorstore-lancedb/` (`idsForSource`), `scripts/smoke-phase2.ts`,
+D-056, D-059.
+
 ## D-059 — Similarity floor for the vector side (`minVectorScore`), off by default — 2026-10-01
 **Found by the 2.6 tests:** a vector index always returns its nearest neighbours,
 even when nothing in the project is relevant. Pointed at a blog with one

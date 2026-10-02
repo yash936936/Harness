@@ -393,3 +393,39 @@ describe('lifecycle', () => {
     expect(kind(await store.open('c', { fingerprint: FP, dimensions: 3 }))).toBe('io')
   })
 })
+
+describe('idsForSource', () => {
+  it('returns exactly the ids stored for that source, and nothing for an unknown or empty source', async () => {
+    const { col } = await collection()
+    ok(await col.upsert([
+      { id: 'a1', vector: [1, 0, 0], source: 'a.ts' },
+      { id: 'a2', vector: [0, 1, 0], source: 'a.ts' },
+      { id: 'b1', vector: [0, 0, 1], source: 'b.ts' },
+      { id: 'n1', vector: [1, 1, 0] },
+    ]))
+    expect(ok(await col.idsForSource('a.ts')).ids.sort()).toEqual(['a1', 'a2'])
+    expect(ok(await col.idsForSource('b.ts')).ids).toEqual(['b1'])
+    expect(ok(await col.idsForSource('nope.ts')).ids).toEqual([])
+  })
+
+  it('returns ALL of them for a large source (a bare LanceDB scan would return only a small page)', async () => {
+    const { col } = await collection()
+    ok(await col.upsert(Array.from({ length: 1500 }, (_, i) => ({ id: `r${i}`, vector: [1, i + 1, 0], source: 'big.ts' }))))
+    ok(await col.upsert([{ id: 'other', vector: [1, 0, 1], source: 'small.ts' }]))
+    const ids = ok(await col.idsForSource('big.ts')).ids
+    expect(ids).toHaveLength(1500)
+    expect(new Set(ids).size).toBe(1500)
+    expect(ids).not.toContain('other')
+  })
+
+  it('handles quotes, backslashes and unicode in the source; rejects bad input; reports closed', async () => {
+    const { col, fiber } = await collection()
+    const weird = ["it's.ts", 'back\\slash.ts', 'ünï 日本.ts', "'; DROP TABLE x; --"]
+    ok(await col.upsert(weird.map((w, i) => ({ id: `id${i}`, vector: [1, i + 1, 0], source: w }))))
+    for (const [i, w] of weird.entries()) expect(ok(await col.idsForSource(w)).ids, w).toEqual([`id${i}`])
+    expect(kind(await col.idsForSource(''))).toBe('input')
+    expect(kind(await col.idsForSource('x'.repeat(1025)))).toBe('input')
+    await fiber.dispose()
+    expect(kind(await col.idsForSource('a'))).toBe('closed')
+  })
+})

@@ -175,6 +175,15 @@ class LanceCollection implements VectorCollection {
     })
   }
 
+  idsForSource(source: string): Promise<VectorStoreResult<{ ids: string[] }>> {
+    return this.guard(async () => {
+      const bad = checkText('source', source, MAX_SOURCE)
+      if (bad) return fail('input', bad)
+      const rows = await this.table.query().where(`\`source\` = ${sql(source)}`).select(['id']).toArray()
+      return { ok: true as const, ids: rows.map((r: any) => r.id as string) }
+    })
+  }
+
   deleteSource(source: string): Promise<VectorStoreResult<{ deleted: number }>> {
     return this.guard(async () => {
       const bad = checkText('source', source, MAX_SOURCE)

@@ -44,7 +44,8 @@ Phase 2 (retrieval) is in progress:
 
 - `ctx.retrievalRank`: ask a question, get the best-matching functions and code
   blocks, ranked by BM25 and (once the project is indexed) vector similarity,
-  with a weight to trade one for the other (2.5).
+  with a weight to trade one for the other (2.5). Indexing is incremental: the first index of a
+  project with a local model takes minutes, later runs only embed what changed.
 
 - `ctx.retrievalTools`: `search_code` and `list_code_files` as read-only agent
   tools, so the agent loop can look up project code itself (2.6). Retrieved code is

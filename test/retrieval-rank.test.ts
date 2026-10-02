@@ -515,6 +515,20 @@ describe.skipIf(!hasRg)('hybrid ranking', () => {
     expect(related.hits.map((h) => h.name)).toContain('orderAscending')
   })
 
+  it('minVectorScore can be set per call (and overrides the configured one); a bad value is an input error', async () => {
+    const unrelated = 'zzqqunrelated gibberishtopic'
+    const { rank } = await indexed() // no configured floor
+    expect(okRes(await rank.search(unrelated, { path: 'src/hybrid', weight: 0.5 })).hits.length).toBeGreaterThan(0)
+    expect(okRes(await rank.search(unrelated, { path: 'src/hybrid', weight: 0.5, minVectorScore: 0.5 })).hits).toEqual([])
+    const strict = await boot({ provider: controlled(), config: { minVectorScore: 0.9 } })
+    okIdx(await strict.rank.indexProject({ path: 'src/hybrid' }))
+    expect(okRes(await strict.rank.search('sorting numbers config', { path: 'src/hybrid', weight: 1, minVectorScore: -1 })).hits.length).toBeGreaterThan(0)
+    for (const minVectorScore of [1.5, -2, NaN]) {
+      const r = await rank.search(unrelated, { minVectorScore })
+      expect(r.ok ? 'ok' : r.error.kind, String(minVectorScore)).toBe('input')
+    }
+  })
+
   it('a chunk the query shares no words with is found only through vectors', async () => {
     const { rank } = await indexed()
     expect(okRes(await rank.search(Q, { path: 'src/hybrid', weight: 0 })).hits.some((h) => h.name === 'orderAscending')).toBe(false)
@@ -681,6 +695,148 @@ describe.skipIf(!hasRg)('indexing', () => {
     expect(r.ok).toBe(true)
     const c = await col(b)
     expect(((await c.count()) as { count: number }).count).toBe(0)
+  })
+
+  describe('incremental indexing', () => {
+    const counting = () => {
+      const inner = new HashingEmbeddingProvider({ dimensions: 64 })
+      const p: EmbeddingProvider & { calls: number; texts: number } = {
+        name: 'h', model: inner.model, egress: inner.egress, calls: 0, texts: 0,
+        embed: async (t) => { p.calls++; p.texts += t.length; return inner.embed(t) },
+      }
+      return p
+    }
+    const dirFiles = ['src/inc/a.ts', 'src/inc/b.ts', 'src/inc/c.ts']
+    const write = (name: string, body: string) => { mkdirSync(join(root, 'src/inc'), { recursive: true }); writeFileSync(join(root, 'src/inc', name), body) }
+    const seed = () => {
+      write('a.ts', `export function alpha() {\n  return 1\n}\n`)
+      write('b.ts', `export function bravo() {\n  return 2\n}\n\nexport function bravo2() {\n  return 3\n}\n`)
+      write('c.ts', `export function charlie() {\n  return 4\n}\n`)
+    }
+    const stats = (r: Awaited<ReturnType<RetrievalRankLike['indexFiles']>>) => {
+      if (!r.ok) throw new Error(`${r.error.kind}: ${r.error.detail}`)
+      return { files: r.files, chunks: r.chunks, embedded: r.embeddedChunks, reusedFiles: r.reusedFiles, reusedChunks: r.reusedChunks }
+    }
+    type RetrievalRankLike = Awaited<ReturnType<typeof boot>>['rank']
+
+    it('the first run embeds everything; an unchanged second run embeds NOTHING and makes no provider call', async () => {
+      seed()
+      const p = counting()
+      const b = await boot({ provider: p })
+      expect(stats(await b.rank.indexFiles(dirFiles))).toEqual({ files: 3, chunks: 4, embedded: 4, reusedFiles: 0, reusedChunks: 0 })
+      p.calls = 0
+      p.texts = 0
+      expect(stats(await b.rank.indexFiles(dirFiles))).toEqual({ files: 3, chunks: 4, embedded: 0, reusedFiles: 3, reusedChunks: 4 })
+      expect(p.calls).toBe(0)
+    })
+
+    it('editing one file re-embeds only that file; the others are reused', async () => {
+      seed()
+      const p = counting()
+      const b = await boot({ provider: p })
+      await b.rank.indexFiles(dirFiles)
+      p.calls = 0
+      p.texts = 0
+      write('b.ts', `export function bravo() {\n  return 2\n}\n\nexport function bravo2() {\n  return 999\n}\n`)
+      expect(stats(await b.rank.indexFiles(dirFiles))).toEqual({ files: 3, chunks: 4, embedded: 2, reusedFiles: 2, reusedChunks: 2 })
+      expect(p.texts).toBe(2)
+      seed()
+    })
+
+    it('the edit is really in the index afterwards (not just counted): the new text is what a search finds', async () => {
+      seed()
+      const b = await boot({ provider: counting() })
+      await b.rank.indexFiles(dirFiles)
+      write('a.ts', `export function alpha() {\n  return 'zzfreshmarker'\n}\n`)
+      await b.rank.indexFiles(dirFiles)
+      const c = await col(b)
+      const q = await c.query(new Float32Array(64).fill(1), 50, { source: 'src/inc/a.ts' })
+      expect(q.ok && q.hits).toHaveLength(1)
+      expect(q.ok && (q.hits[0]!.metadata as { hash: string }).hash).toBeTruthy()
+      seed()
+    })
+
+    it('a line shift is a change (ids contain the line range): the file is re-embedded once, then reused again', async () => {
+      seed()
+      const p = counting()
+      const b = await boot({ provider: p })
+      await b.rank.indexFiles(dirFiles)
+      write('c.ts', `// a new first line\nexport function charlie() {\n  return 4\n}\n`)
+      const shifted = stats(await b.rank.indexFiles(dirFiles))
+      expect(shifted.embedded).toBeGreaterThan(0)
+      expect(shifted.reusedFiles).toBe(2)
+      expect(stats(await b.rank.indexFiles(dirFiles)).embedded).toBe(0)
+      seed()
+    })
+
+    it('a partly-stored file (a chunk went missing) is repaired by re-embedding that file', async () => {
+      seed()
+      const b = await boot({ provider: counting() })
+      await b.rank.indexFiles(dirFiles)
+      const c = await col(b)
+      const ids = (await c.idsForSource('src/inc/b.ts')) as { ok: true; ids: string[] }
+      expect(ids.ids).toHaveLength(2)
+      await c.deleteIds([ids.ids[0]!])
+      const fixed = stats(await b.rank.indexFiles(dirFiles))
+      expect(fixed).toMatchObject({ embedded: 2, reusedFiles: 2 })
+      expect(((await c.count()) as { count: number }).count).toBe(4)
+    })
+
+    it('an extra stale chunk in the store (not produced by the file any more) is removed, not kept', async () => {
+      seed()
+      const b = await boot({ provider: counting() })
+      await b.rank.indexFiles(dirFiles)
+      const c = await col(b)
+      await c.upsert([{ id: 'src/inc/a.ts#99-99#deadbeef0000', vector: new Float32Array(64).fill(1), source: 'src/inc/a.ts' }])
+      expect(((await c.count()) as { count: number }).count).toBe(5)
+      stats(await b.rank.indexFiles(dirFiles))
+      expect(((await c.count()) as { count: number }).count).toBe(4)
+    })
+
+    it('reset re-embeds everything even though nothing changed', async () => {
+      seed()
+      const p = counting()
+      const b = await boot({ provider: p })
+      await b.rank.indexFiles(dirFiles)
+      p.calls = 0
+      expect(stats(await b.rank.indexFiles(dirFiles, { reset: true }))).toEqual({ files: 3, chunks: 4, embedded: 4, reusedFiles: 0, reusedChunks: 0 })
+      expect(p.calls).toBeGreaterThan(0)
+    })
+
+    it('an index built by a previous process is reused after a restart (nothing embedded)', async () => {
+      seed()
+      const dbPath = join(base, 'db-incremental-restart')
+      const a = await boot({ provider: counting(), dbPath })
+      await a.rank.indexFiles(dirFiles)
+      await a.dbFiber!.dispose()
+      const p = counting()
+      const b = await boot({ provider: p, dbPath })
+      expect(stats(await b.rank.indexFiles(dirFiles))).toMatchObject({ embedded: 0, reusedFiles: 3 })
+      expect(p.texts).toBe(1) // only the one throwaway text that learns the embedding fingerprint
+    })
+
+    it('reports progress: reused work first, then each stored batch, ending at the total; a throwing callback is ignored', async () => {
+      seed()
+      const b = await boot({ provider: counting(), config: { indexGroupChunks: 1 } })
+      await b.rank.indexFiles(['src/inc/a.ts'])
+      const seen: Array<[number, number]> = []
+      const r = await b.rank.indexFiles(dirFiles, { onProgress: (d, t) => seen.push([d, t]) })
+      expect(r.ok).toBe(true)
+      expect(seen[0]).toEqual([1, 4]) // a.ts (1 chunk) was already stored
+      expect(seen.at(-1)).toEqual([4, 4])
+      expect(seen.map((x) => x[0])).toEqual([...seen.map((x) => x[0])].sort((a, z) => a - z))
+      expect(seen.length).toBeGreaterThanOrEqual(3)
+      const boom = await b.rank.indexFiles(dirFiles, { reset: true, onProgress: () => { throw new Error('ui crashed') } })
+      expect(boom.ok).toBe(true)
+    })
+
+    it('nothing to do (no files, no reset) never even loads the embedding fingerprint', async () => {
+      const p = counting()
+      const b = await boot({ provider: p })
+      const r = await b.rank.indexFiles([])
+      expect(r).toMatchObject({ ok: true, files: 0, chunks: 0, embeddedChunks: 0 })
+      expect(p.calls).toBe(0)
+    })
   })
 
   it('without embeddings or a store there is nothing to index into', async () => {

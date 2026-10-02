@@ -266,7 +266,7 @@ and size.
 - **Responsibility:** `ctx.retrievalRank` — final retrieval stage (built, D-056):
   ripgrep candidates -> tree-sitter chunks -> BM25 -> optional vector side ->
   weighted rank fusion; also `indexFiles` / `indexProject` / `unindexFiles` for
-  the vector index. Degrades to BM25-only when embeddings or the store fail.
+  the vector index (incremental: unchanged files are skipped, D-060; `onProgress`). Degrades to BM25-only when embeddings or the store fail.
 - **Location:** `src/bundles/retrieval-rank/` (`text.ts` tokenizer + BM25,
   `chunk.ts` chunker, `index.ts` service)
 - **Depends on:** `retrievalGrep`, `retrievalParse` (required);
@@ -297,7 +297,7 @@ and size.
 - **Depends on:** no code dependency on `bundle-embeddings`; the caller passes
   `ctx.embeddings.info().fingerprint` and dimensions to `open()`. Runtime deps:
   `@lancedb/lancedb` 0.30.0 (lazy-loaded), `apache-arrow` 18.1.0 (pinned).
-- **Config surface:** `path` (absolute directory).
+- **Config surface:** `path` (absolute directory). `idsForSource(source)` lets a caller see what is already stored for a file.
 
 ### vectorstore-qdrant (`bundle-vectorstore-qdrant`)
 - **Responsibility:** `ctx.vectorstore` provider `qdrant` — multi-user

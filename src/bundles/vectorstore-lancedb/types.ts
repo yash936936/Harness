@@ -54,6 +54,8 @@ export interface VectorCollection {
   query(vector: ArrayLike<number>, k: number, opts?: { source?: string }): Promise<VectorStoreResult<{ hits: VectorHit[] }>>
   /** Returns how many records were removed. Ids that do not exist are ignored. */
   deleteIds(ids: readonly string[]): Promise<VectorStoreResult<{ deleted: number }>>
+  /** Every record id stored for `source` (empty if none). Lets a caller skip work for files that are already indexed. */
+  idsForSource(source: string): Promise<VectorStoreResult<{ ids: string[] }>>
   /** Remove every record that came from `source`. */
   deleteSource(source: string): Promise<VectorStoreResult<{ deleted: number }>>
   count(): Promise<VectorStoreResult<{ count: number }>>

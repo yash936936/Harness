@@ -3,6 +3,26 @@
 > Append-only. Every completed coding task gets an entry here, even "no
 > issues found." Newest entries at top.
 
+## DBG-032 — incremental indexing, idsForSource, per-call floor (after the owner's Windows run) — 2026-10-01
+**Why:** the owner's run showed a 357 s first index and a calibration table (D-060).
+**Done:** `idsForSource` on the vector store; `indexFiles` skips files whose stored chunk
+ids equal the ids they would produce now, reports `embeddedChunks` / `reusedFiles` /
+`reusedChunks`, and accepts `onProgress`; `search` accepts a per-call `minVectorScore`;
+the smoke script persists its index and asserts the 0.60 floor when a real model is set.
+**Found:** my first comment on `idsForSource` claimed a bare LanceDB scan returns only a
+small page, and a 1,500-row test proved it does not (two mutants survived); the `limit`
+and count check were removed rather than keeping a false comment. Initially my smoke
+output looked empty only because of how I wrapped the command, not a failure.
+**Mutation check:** 13 mutants on the incremental logic, progress and per-call floor, 12
+caught; the survivor (`reset` still consulting the store) is equivalent because a reset
+collection is empty. Tests cover: first run embeds all, unchanged run embeds nothing and
+makes zero provider calls, one edited file re-embeds only itself, a line shift re-embeds
+that file once then reuses, a half-stored file is repaired, an extra stale chunk is
+removed, reset re-embeds everything, reuse works after a restart, progress ordering, a
+throwing progress callback, and an empty request never probes the embedding model.
+**Result:** `tsc` clean; suite 489 passed / 7 skipped on Linux. **Not verified:** the new
+paths on Windows; what a first index costs after any speed work.
+
 ## DBG-031 — 2.6 retrieval-tools and the agent integration tests — 2026-10-01
 **Task:** `src/bundles/retrieval-tools/` (types, service), `test/retrieval-tools.test.ts`
 (20 tests), `test/retrieval-agent.test.ts` (15 tests, 1 opt-in real model),

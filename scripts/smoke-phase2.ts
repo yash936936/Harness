@@ -169,7 +169,9 @@ try {
 
 
 /* ---- 2.5 retrieval-rank: index this project, then rank real questions ---- */
-const rankBase = realpathSync(mkdtempSync(join(tmpdir(), 'harness-smoke-rank-')))
+// The index lives in a fixed folder (one per embedding model) and is kept between runs: re-indexing unchanged
+// files costs nothing, so only your FIRST run with a real model is slow (about 6 minutes for src/ on a laptop CPU).
+const rankBase = join(tmpdir(), 'harness-smoke-index', (model ?? 'hashing').replace(/[^A-Za-z0-9_.-]/g, '_'))
 try {
   const c7 = new Context()
   await c7.plugin(Subprocess)
@@ -189,11 +191,21 @@ try {
   await c7.plugin(AgentLoop, { maxSteps: 8 })
 
   const t0 = Date.now()
-  const idx = await rank.indexProject({ path: 'src' })
+  let lastShown = -1
+  const idx = await rank.indexProject({
+    path: 'src',
+    onProgress: (done, total) => {
+      const pct = Math.floor((done / Math.max(total, 1)) * 100)
+      if (pct !== lastShown && (pct % 10 === 0 || done === total)) {
+        lastShown = pct
+        console.log(`      indexing: ${done}/${total} chunks (${pct}%), ${((Date.now() - t0) / 1000).toFixed(0)}s`)
+      }
+    },
+  })
   const secs = ((Date.now() - t0) / 1000).toFixed(1)
   if (!idx.ok) check('2.5 rank: index the src/ directory', false, `${idx.error.kind}: ${idx.error.detail}`)
   else {
-    check('2.5 rank: index the src/ directory', idx.files > 10 && idx.chunks > idx.files, `${idx.files} files -> ${idx.chunks} chunks in ${secs}s (${idx.skipped.length} skipped)`)
+    check('2.5 rank: index the src/ directory', idx.files > 10 && idx.chunks > idx.files, `${idx.files} files -> ${idx.chunks} chunks in ${secs}s: ${idx.embeddedChunks} embedded now, ${idx.reusedChunks} reused from the saved index (${idx.skipped.length} skipped)`)
     const questions: Array<[string, string]> = [
       ['ripgrep search confined to a root directory', 'retrieval-grep'],
       ['parse source code into function and class symbols with tree-sitter', 'retrieval-treesitter'],
@@ -217,6 +229,9 @@ try {
       for (const row of rows) console.log(row)
     }
     const hybrid = await rank.search('turn text into embeddings in batches with ollama', { k: 5, path: 'src', weight: 0.5 })
+    const t1 = Date.now()
+    const again = await rank.indexProject({ path: 'src' })
+    check('2.5 rank: re-indexing unchanged files embeds nothing (incremental)', again.ok && again.embeddedChunks === 0 && again.reusedChunks === again.chunks, again.ok ? `${again.embeddedChunks} embedded, ${again.reusedChunks} reused, ${((Date.now() - t1) / 1000).toFixed(1)}s` : again.error.detail)
     check('2.5 rank: hybrid search uses the vector index', hybrid.ok && hybrid.mode === 'hybrid' && hybrid.hits.some((h) => h.vectorRank !== undefined), hybrid.ok ? `mode=${hybrid.mode}, stale=${hybrid.stats.staleVectorHits}` : hybrid.error.detail)
 
     /* ---- 2.6: an agent answers from retrieved code ---- */
@@ -258,6 +273,21 @@ try {
       console.log(`      ${kind.padEnd(12)} ${best === undefined ? '  n/a' : best.toFixed(3)}   ${q}`)
     }
 
+    if (model) {
+      const FLOOR = 0.6 // chosen from the table above (D-060): between the unanswerable (<= 0.52) and answerable (>= 0.70) groups
+      let keeps = 0
+      let drops = 0
+      for (const [q] of questions) {
+        const r = await rank.search(q, { k: 5, path: 'src', weight: 1, minVectorScore: FLOOR })
+        if (r.ok && r.hits.length > 0) keeps++
+      }
+      for (const q of ['how do I bake sourdough bread at home', 'what colour is the sky on mars']) {
+        const r = await rank.search(q, { k: 5, path: 'src', weight: 1, minVectorScore: FLOOR })
+        if (r.ok && r.hits.length === 0) drops++
+      }
+      check(`2.5 rank: a ${FLOOR} similarity floor keeps all ${questions.length} answerable questions and drops both unanswerable ones`, keeps === questions.length && drops === 2, `kept ${keeps}/${questions.length}, dropped ${drops}/2`)
+    }
+
     if (chatModel) {
       try {
         c7.llm.register('chat', new OllamaProvider({ model: chatModel, timeoutMs: 600_000 }), { default: true })
@@ -278,7 +308,7 @@ try {
 } catch (e: any) {
   check('2.5 rank: pipeline', false, e?.message ?? String(e))
 } finally {
-  rmSync(rankBase, { recursive: true, force: true })
+  console.log(`\n(the saved index in ${rankBase} makes the next run fast; delete that folder to start over)`)
 }
 
 console.log(failed === 0 ? '\nALL CHECKS PASSED' : `\n${failed} CHECK(S) FAILED`)

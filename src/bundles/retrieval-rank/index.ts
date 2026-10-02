@@ -149,6 +149,8 @@ export class RetrievalRank extends Service {
     if (!Number.isInteger(k) || k < 1 || k > MAX_K) return { ok: false, error: { kind: 'input', detail: `k must be an integer from 1 to ${MAX_K}` } }
     const wanted = opts.weight ?? this.weight
     if (!(wanted >= 0 && wanted <= 1)) return { ok: false, error: { kind: 'input', detail: 'weight must be between 0 and 1' } }
+    const floor = opts.minVectorScore ?? this.minVectorScore
+    if (floor !== undefined && !(floor >= -1 && floor <= 1)) return { ok: false, error: { kind: 'input', detail: 'minVectorScore must be between -1 and 1' } }
     const { tokens, grepTerms } = queryTerms(query)
     if (tokens.length === 0) return { ok: false, error: { kind: 'input', detail: 'the query has no searchable terms (only stopwords or single characters)' } }
 
@@ -178,7 +180,7 @@ export class RetrievalRank extends Service {
     type VecHit = { key: string; file: string; startLine: number; endLine: number; kind: 'symbol' | 'window'; name?: string; text: string; score: number }
     const vecHits: VecHit[] = []
     if (emb && vs) {
-      const sem = await this.semanticHits(emb, vs, query, realRoot, cache, stats, inScope)
+      const sem = await this.semanticHits(emb, vs, query, realRoot, cache, stats, inScope, floor)
       if (sem.ok) vecHits.push(...sem.hits)
       else degraded = sem.reason
     }
@@ -261,6 +263,7 @@ export class RetrievalRank extends Service {
     cache: Map<string, FileRead>,
     stats: RankStats,
     inScope: (file: string) => boolean,
+    floor: number | undefined,
   ): Promise<{ ok: true; hits: Array<{ key: string; file: string; startLine: number; endLine: number; kind: 'symbol' | 'window'; name?: string; text: string; score: number }> } | { ok: false; reason: string }> {
     const e = await emb.embed([query], { kind: 'query' })
     if (!e.ok) return { ok: false, reason: `embeddings ${e.error.kind}: ${e.error.detail}` }
@@ -273,7 +276,7 @@ export class RetrievalRank extends Service {
 
     const hits: Array<{ key: string; file: string; startLine: number; endLine: number; kind: 'symbol' | 'window'; name?: string; text: string; score: number }> = []
     for (const h of q.hits) {
-      if (this.minVectorScore !== undefined && h.score < this.minVectorScore) {
+      if (floor !== undefined && h.score < floor) {
         stats.belowFloorVectorHits++
         continue
       }
@@ -340,27 +343,60 @@ export class RetrievalRank extends Service {
       }
       prepared.push({ file: rel, chunks: await this.chunksOf(rel, f) })
     }
-
-    let collection: VectorCollection | undefined
-    let reset = opts.reset === true
-    let filesDone = 0
-    let chunksDone = 0
-
-    const open = async (): Promise<string | undefined> => {
-      const info = await this.fingerprintOf(emb)
-      if ('error' in info) return info.error
-      const o = await vs.open(this.collectionName, { fingerprint: info.fingerprint, dimensions: info.dimensions, reset })
-      if (!o.ok) return `${o.error.kind}: ${o.error.detail}`
-      reset = false
-      collection = o.collection
-      return undefined
+    const totalChunks = prepared.reduce((n, p) => n + p.chunks.length, 0)
+    let doneChunks = 0
+    const progress = (): void => {
+      try {
+        opts.onProgress?.(doneChunks, totalChunks)
+      } catch {
+        // a broken progress callback must not break indexing
+      }
     }
 
-    // group files so that each embed call covers about indexGroupChunks chunks
+    const result = (extra: { embeddedChunks: number; reusedFiles: number; reusedChunks: number; embeddedFiles: number }): IndexResult => ({
+      ok: true,
+      files: extra.embeddedFiles + extra.reusedFiles,
+      chunks: extra.embeddedChunks + extra.reusedChunks,
+      embeddedChunks: extra.embeddedChunks,
+      reusedFiles: extra.reusedFiles,
+      reusedChunks: extra.reusedChunks,
+      skipped,
+    })
+    if (prepared.length === 0 && gone.length === 0 && opts.reset !== true) return result({ embeddedChunks: 0, reusedFiles: 0, reusedChunks: 0, embeddedFiles: 0 })
+
+    // Open the collection first: we need it to see what is already stored.
+    const fp = await this.fingerprintOf(emb)
+    if ('error' in fp) return { ok: false, error: { kind: 'embeddings', detail: fp.error } }
+    const opened = await vs.open(this.collectionName, { fingerprint: fp.fingerprint, dimensions: fp.dimensions, reset: opts.reset === true })
+    if (!opened.ok) return { ok: false, error: { kind: 'vectorstore', detail: `${opened.error.kind}: ${opened.error.detail}` } }
+    const col = opened.collection
+
+    // A file whose stored chunk ids are EXACTLY the ids it would produce now is unchanged: ids contain the
+    // text hash and the line range, so any edit changes them. Those files cost nothing to "re-index".
+    let reusedFiles = 0
+    let reusedChunks = 0
+    const todo: typeof prepared = []
+    for (const p of prepared) {
+      let same = false
+      if (opts.reset !== true) {
+        const existing = await col.idsForSource(p.file)
+        if (!existing.ok) return { ok: false, error: { kind: 'vectorstore', detail: `${existing.error.kind}: ${existing.error.detail}` } }
+        const have = new Set(existing.ids)
+        same = have.size === p.chunks.length && p.chunks.every((c) => have.has(c.id))
+      }
+      if (same) {
+        reusedFiles++
+        reusedChunks += p.chunks.length
+        doneChunks += p.chunks.length
+      } else todo.push(p)
+    }
+    progress()
+
+    // Group the changed files so that each embed call covers about indexGroupChunks chunks.
     const groups: Array<typeof prepared> = []
     let cur: typeof prepared = []
     let n = 0
-    for (const p of prepared) {
+    for (const p of todo) {
       cur.push(p)
       n += p.chunks.length
       if (n >= this.indexGroupChunks) {
@@ -371,6 +407,8 @@ export class RetrievalRank extends Service {
     }
     if (cur.length) groups.push(cur)
 
+    let embeddedFiles = 0
+    let embeddedChunks = 0
     for (const group of groups) {
       const all = group.flatMap((g) => g.chunks)
       let vectors: Float32Array[] = []
@@ -379,11 +417,6 @@ export class RetrievalRank extends Service {
         if (!e.ok) return { ok: false, error: { kind: 'embeddings', detail: `${e.error.kind}: ${e.error.detail}` } }
         vectors = e.vectors
       }
-      if (!collection) {
-        const err = await open()
-        if (err) return { ok: false, error: { kind: 'vectorstore', detail: err } }
-      }
-      const col = collection as VectorCollection
       let at = 0
       for (const g of group) {
         const d = await col.deleteSource(g.file)
@@ -397,19 +430,15 @@ export class RetrievalRank extends Service {
         at += g.chunks.length
         const u = await col.upsert(records)
         if (!u.ok) return { ok: false, error: { kind: 'vectorstore', detail: `${u.error.kind}: ${u.error.detail}` } }
-        filesDone++
-        chunksDone += g.chunks.length
+        embeddedFiles++
+        embeddedChunks += g.chunks.length
       }
+      doneChunks += all.length
+      progress()
     }
 
-    if (gone.length > 0 || reset) {
-      if (!collection) {
-        const err = await open()
-        if (err) return { ok: false, error: { kind: 'vectorstore', detail: err } }
-      }
-      for (const f of gone) await (collection as VectorCollection).deleteSource(f)
-    }
-    return { ok: true, files: filesDone, chunks: chunksDone, skipped }
+    for (const f of gone) await col.deleteSource(f)
+    return result({ embeddedChunks, reusedFiles, reusedChunks, embeddedFiles })
   }
 
   /** Index every file `retrievalGrep.listFiles` reports under `path` (default: the whole root). */

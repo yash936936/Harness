@@ -2,6 +2,17 @@
 
 > Updated every run. Newest entry at top.
 
+## 2026-10-01 (later) — Windows run of 2.6 passed; calibration and indexing cost measured (D-060)
+Owner's Windows run: everything passed, including the 2.5/2.6 smoke checks with real
+nomic-embed-text. Results led to D-060: similarity floor 0.60 for nomic (answerable 0.70-0.74
+vs unanswerable 0.48-0.52), weight 0.5 stays the default, and indexing `src/` took 357 s,
+so indexing is now incremental (unchanged files cost nothing; measured 0 embedded in 0.5 s).
+Suite 489 passed / 7 skipped on Linux.
+**Still open:** a real chat model driving the loop (`HARNESS_OLLAMA_CHAT_MODEL`, the true test
+of 2.6), `ollama list` for the D-027 model pin, a labelled retrieval benchmark (Phase 6), and
+whether a 6-minute first index is acceptable.
+**Next up:** Phase 3 (memory + skills), or policy-gate coverage of the retrieval tools first.
+
 ## 2026-10-01 — Phase 2: 2.6 built; Phase 2 code complete pending the owner's runs (D-058, D-059)
 `retrieval-tools` (`search_code`, `list_code_files`, read-only, nonce-fenced untrusted
 data, bounded output) and the 2.6 end-to-end tests are written: the real agent loop,

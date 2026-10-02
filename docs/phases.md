@@ -553,7 +553,7 @@ weight is added once 2.3 and 2.4 exist.)*
   stable and sane (relevant file ranks above an unrelated one).
 - Config test: set weight fully to BM25, then fully to embedding, assert
   the resulting ranking differs between the two settings.
-**Status:** Built 2026-09-30 (D-056/DBG-030): lexical + vector fusion, weight verified to change the order (test 'WEIGHT CHANGES THE RANKING'), BM25-only fallback. Verified on Linux; real-model quality for the owner to judge via the smoke script.
+**Status:** Built 2026-09-30 (D-056/DBG-030): lexical + vector fusion, weight verified to change the order (test 'WEIGHT CHANGES THE RANKING'), BM25-only fallback. Verified on Linux and on the owner's Windows machine (2026-10-01: smoke passed with real nomic-embed-text; weights compared by eye, D-060; incremental indexing added after a 357 s first index).
 
 ### 2.6 — Retrieval pipeline integration test
 **Goal:** Prove classical RAG works end-to-end and is consumable by the

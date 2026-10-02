@@ -49,6 +49,8 @@ export interface SearchOptions {
   path?: string
   /** Override the configured embedding weight for this call (0-1). */
   weight?: number
+  /** Override the configured similarity floor for this call (-1 to 1). */
+  minVectorScore?: number
 }
 
 export interface RankHit {
@@ -98,6 +100,12 @@ export type RankResult =
 export interface IndexOptions {
   /** Drop the existing collection first (use after changing the embedding model). */
   reset?: boolean
+  /**
+   * Called after files that need no work are counted, and after each batch is stored, with
+   * (chunks done, chunks total). Indexing a real project with a local model takes minutes (357 s
+   * for 622 chunks measured), so a caller should show progress. Errors thrown here are ignored.
+   */
+  onProgress?: (done: number, total: number) => void
 }
 
 export interface IndexSkip {
@@ -108,9 +116,14 @@ export interface IndexSkip {
 export type IndexResult =
   | {
       ok: true
-      /** Files whose chunks are now in the index. */
+      /** Files whose chunks are now in the index (new work plus unchanged ones). */
       files: number
+      /** Chunks now in the index for those files. */
       chunks: number
+      /** Chunks that had to be embedded this time (the rest were already stored and unchanged). */
+      embeddedChunks: number
+      reusedFiles: number
+      reusedChunks: number
       skipped: IndexSkip[]
     }
   | { ok: false; error: { kind: 'unavailable' | 'input' | 'embeddings' | 'vectorstore' | 'outside_root' | 'path_not_found' | 'grep_failed'; detail: string } }
