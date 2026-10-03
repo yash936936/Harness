@@ -72,6 +72,8 @@ export function textOf(content: ContentBlock[]): string {
 export interface SystemSectionContext {
   sessionId: string
   actor?: string
+  /** The task this run was started with (3.5: lets a section pick content that fits it). */
+  prompt: string
 }
 
 /** Returns the section's text, or undefined/'' to contribute nothing to this run. */

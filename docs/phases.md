@@ -646,7 +646,7 @@ disclosure) mapped to the procedural tier.
   specified, not all-or-nothing.
 - Integration test: a task matching a skill's description triggers full
   instruction loading; an unrelated task does not.
-**Status:** Not started
+**Status:** Built 2026-10-03 (D-065/DBG-039). `ctx.skills`: `load_skill`, `read_skill_resource`, index section, optional `autoLoad`; 31 tests, mutation-checked. Skills are read, never executed. Not verified against a real chat model; not wired into a profile; procedural-tier link from compaction not built.
 
 ### 3.6 — Memory system integration test
 **Goal:** Prove memory actually improves outcomes across sessions, not

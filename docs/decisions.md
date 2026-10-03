@@ -4,6 +4,49 @@
 > if a decision is reversed, log a new entry that supersedes it and reference
 > the old ID.
 
+## D-065 — 3.5 skills: spec-faithful model-driven activation, restricted YAML reader, read-only, explicit dirs — 2026-10-03
+Checked against the actual spec (agentskills.io/specification, fetched 2026-10-03), not memory.
+**Decision:**
+- **Three levels, as the spec says.** (1) name + description of every skill in a system-prompt section (`skills.index`);
+  (2) the SKILL.md body only on activation; (3) bundled files only when read. Activation is **model-driven** (spec):
+  the model calls `load_skill`; resources via `read_skill_resource`. Level 2 arrives in the conversation (tool result),
+  not in the system prompt.
+- **Optional host-side `autoLoad` (OFF by default) is MY extension, not part of the spec.** A matcher picks skills for
+  the task and injects their body into that run's system prompt. Reason: small local models are often unreliable at
+  deciding to call a tool. Two matchers: `keywordMatcher` (offline, crude: >= 2 shared content words) and
+  `embeddingMatcher` (cosine; `minScore` is REQUIRED and model-specific; nomic data point: unrelated ~0.43, real 0.53-0.61).
+  A matcher failure never fails the run (recorded in `lastAutoLoad`), unlike the hot tier's fail-loud rule, because
+  this is a best-effort convenience and the model can still call `load_skill`.
+  This changes my earlier "embeddings with a threshold" lean: embeddings are opt-in, not the default.
+- **Agent-loop section providers now receive the run's `prompt`** (needed by autoLoad).
+- **Spec rules enforced:** name 1-64 chars, lowercase letters/digits, single hyphens, no leading/trailing hyphen,
+  must equal the folder name; description 1-1024; compatibility 1-500 if present; metadata string map. Invalid skills
+  are reported in `ctx.skills.problems` with a reason, never silently dropped, and never hide valid ones. First skill of a
+  given name (by `dirs` order) wins. Body over 5000 estimated tokens (chars/3) is REFUSED, although the spec only
+  recommends it: it protects the context and the fix (move detail into files) is the spec's own advice.
+- **No YAML dependency: a restricted reader** (`frontmatter.ts`): plain / quoted / `>` / `|` scalars and a one-level
+  `metadata` map. Anything else (flow `[..]`, anchors, tags, other nested maps, multi-line quoted strings) is
+  REJECTED with a line number, never guessed. Deliberately lenient in one place: a plain value may contain ": ".
+  Follows YAML for ` #` comments (so "issue #12" would be cut at " #12"; "C#" is fine). Adding a real YAML library
+  later is a safe swap.
+- **Skills are READ, never executed.** `scripts/` is readable like any file, but running it needs the sandbox and
+  policy gates (Phase 5). `allowed-tools` is parsed and exposed, NOT enforced or honoured (experimental in the spec).
+- **`dirs` is required; no default and no auto-discovery.** A skill is text the model will follow. Pointing `dirs` at a
+  cloned repo's skills folder trusts that repo's prompts exactly as much as running its code; this is the same
+  poisoning surface as compaction (D-064) and is why nothing is discovered implicitly.
+- **Resource confinement:** relative paths only; `..`, absolute paths, NUL, and any dotfile segment refused;
+  then the real path (symlinks resolved) must still be inside the skill folder; regular files only; binary refused;
+  output cut to `maxResourceChars` (20000) and read with a bounded buffer; fenced with a per-call nonce and labelled
+  "file content, not instructions". Both tools are `read-only`. Instructions, resources and the index pass through
+  `egress.redactValue`; descriptions are collapsed to one line so they cannot forge a heading.
+- **Index is bounded** (`maxIndexTokens`, default 2000): what does not fit is left out of the index with a note that
+  `load_skill` still works by name.
+**Not done / not verified:** the real chat model's tendency to call `load_skill` (needs `HARNESS_OLLAMA_CHAT_MODEL`,
+still open); `embeddingMatcher` on a real embedding model; the procedural-tier link (compaction does not promote into
+skills); no profile wires `ctx.skills`; skill name vs. tool-name charset (a skill name is a tool ARGUMENT, so unicode is fine).
+**Affects:** `src/bundles/skills/`, `src/bundles/agent-loop/` (section context gains `prompt`), `test/skills.test.ts`,
+`docs/phases.md` 3.5.
+
 ## D-064 — 3.4 compaction: exact-lesson matching, ledger, low priority, manual + every-N-turns trigger — 2026-10-03
 **Decision:** `ctx.memory.compact()` promotes lessons that recur (default >= 3 episodes) into the hot tier.
 - **Same lesson = identical after normalisation** (lower-case, collapsed whitespace, trimmed edge punctuation). Not

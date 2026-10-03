@@ -104,11 +104,11 @@ export class AgentLoop extends Service {
     }
   }
 
-  private async buildSystem(base: string | undefined, sessionId: string, actor?: string): Promise<string | undefined> {
+  private async buildSystem(base: string | undefined, sessionId: string, prompt: string, actor?: string): Promise<string | undefined> {
     const parts: string[] = base ? [base] : []
     const ordered = this.sections.map((s, i) => ({ s, i })).sort((a, b) => a.s.order - b.s.order || a.i - b.i)
     for (const { s } of ordered) {
-      const text = await s.provider({ sessionId, ...(actor ? { actor } : {}) })
+      const text = await s.provider({ sessionId, prompt, ...(actor ? { actor } : {}) })
       if (text) parts.push(text)
     }
     return parts.length ? parts.join('\n\n') : undefined
@@ -128,7 +128,7 @@ export class AgentLoop extends Service {
     const maxSteps = opts.maxSteps ?? this.maxSteps
     const reflectionOn = opts.reflection ?? this.reflection
     const model = opts.model ?? this.model
-    const system = await this.buildSystem(opts.system ?? this.system, opts.sessionId, opts.actor)
+    const system = await this.buildSystem(opts.system ?? this.system, opts.sessionId, opts.prompt, opts.actor)
 
     const messages: Message[] = [{ role: 'user', content: opts.prompt }]
     let steps = 0

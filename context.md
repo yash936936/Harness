@@ -80,15 +80,16 @@ Root folder on disk: `D:\Users\yash\downloads\Harness` (Git Bash:
   the working loop.
 
 ## Next task
-Phase 2 done (D-060). Phase 3: 3.1 episodic, 3.2 hot and 3.3 semantic are done and verified on the owner's machine
-(3.3 also against a real model: 6/6 found, 5/6 ranked first). 3.4 compaction is built (D-064, DBG-038) and awaits the
-owner's Windows run (expect 546 passed / 7 skipped). Next is 3.5 skills bundle; see the open questions at the top of
-`docs/status.md`. Known gaps to keep in view: nothing writes lessons yet (compaction is inert in real use), and
-auto-promotion into the system prompt is a poisoning path (D-064).
-Cordis rules learned: a bundle must declare every service it touches in `static inject` (an undeclared one throws on
-access), and the object form's keys are service names, not `required`/`optional` flags. Tests that load LanceDB need
-`vi.setConfig({ testTimeout: 60_000, hookTimeout: 120_000 })` (cold native load). The owner's shell is Git Bash: give
-commands in bash syntax (`VAR=x cmd`), not PowerShell.
-Still open from earlier phases: a real chat model driving the loop (`HARNESS_OLLAMA_CHAT_MODEL`), `ollama list`
-for the D-027 pin, a labelled retrieval benchmark (Phase 6), Tauri sidecar measurement and 1B.4 (desktop shell),
-and the Qwen research-license replacement before any commercial release (D-049).
+Phase 2 done (D-060). Phase 3: 3.1 episodic, 3.2 hot, 3.3 semantic and 3.4 compaction are done and verified on the owner's
+machine (3.3 also on a real embedding model). 3.5 skills is built (D-065, DBG-039) and awaits the owner's Windows run
+(expect 577 passed / 7 skipped). Next is 3.6 (memory integration test); see the open questions at the top of
+`docs/status.md`: what "improves outcomes" can honestly mean with a scripted model vs a real one.
+Known gaps to keep in view: nothing writes lessons yet (D-064); auto-promotion (D-064) and skills (D-065) both put text into
+the system prompt, so both are prompt-poisoning surfaces with only partial mitigation until Phase 5; no real chat model has
+driven the loop yet (`HARNESS_OLLAMA_CHAT_MODEL`).
+Rules learned: a bundle must declare every service it touches in `static inject` (an undeclared one throws on access), and
+the object form's keys are service names, not `required`/`optional` flags. Tests that load LanceDB need
+`vi.setConfig({ testTimeout: 60_000, hookTimeout: 120_000 })`. The owner's shell is Git Bash: give commands in bash syntax
+(`VAR=x cmd`), not PowerShell. Read the actual spec before building to a standard (3.5 changed shape after reading it).
+Still open from earlier phases: `ollama list` for the D-027 pin, a labelled retrieval benchmark (Phase 6), Tauri sidecar
+measurement and 1B.4 (desktop shell), and the Qwen research-license replacement before any commercial release (D-049).

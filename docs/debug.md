@@ -3,6 +3,34 @@
 > Append-only. Every completed coding task gets an entry here, even "no
 > issues found." Newest entries at top.
 
+## DBG-039 — 3.5 skills bundle — 2026-10-03
+**Tested:** `test/skills.test.ts`, 31 tests (+ the existing hot-tier suite re-run under every mutation). Parser:
+valid forms, CRLF/BOM, comments, and 11 rejections. Validation: each spec rule has its own failing skill and a named
+reason (11 problems reported while the one good skill still loads); oversize body, missing dir, duplicates, `dirs`
+required, `reload()`. THE 3.5 CRITERION, in a real agent run with markers that exist at one level only: stage 1 has the
+index and none of BODY/REFERENCE/other-skill/script text; stage 2 has the matched body in the conversation (not the
+system prompt), lists the files without loading them, and still has no reference or other body; stage 3 has exactly the
+one resource asked for; request sizes strictly grow by at least the added text. Auto-load: matching task -> body in the
+system prompt, unrelated task -> not (index still present), off by default, `max`, failing matcher does not fail the
+run, a bogus name does not stop valid ones, embedding matcher (ranking, minScore, caching, failure), keyword overlap.
+Tools: instructions + file list, unknown skill, schema errors, nonce fencing, confinement (`..`, `..\`, absolute,
+dotfiles, directory, missing, symlink escape), binary, truncation, read-only, redaction. Index: newline collapse, budget
+with "N more not listed", `index:false`, empty, dispose + re-register.
+**Mutation-checked (21), all caught after fixing two test gaps:** no `..` check, no lexical confinement, no symlink
+check, hidden files, absolute paths, binary, resource/instruction/description redaction, index budget, name-folder
+match, description length, oversize body, duplicate overwrite, `max`, matcher error fails run, constant nonce,
+dotfile listing, prompt not passed to sections, nonexistent skill named by matcher, SKILL.md offered as a resource.
+**What I got wrong:** (1) REAL BUG, caught by my own rejection test: a nested map under `metadata`
+(`deep:` then a deeper-indented `x: 1`) was silently FLATTENED to `{deep:'', x:'1'}`, the exact misreading the parser
+promises not to do. Fixed: entries must share one indentation. (2) Two mutations survived at first: a bogus matcher
+name only "passed" because it sent the whole run down the error path (the real requirement is that valid names
+returned alongside it still load), and my `not.toContain('SKILL.md\n')` could not match an entry at the end of the
+list. Both tests rewritten; both mutations now fail. (3) First assumed activation was host-side (embedding matcher);
+the spec says model-driven. Re-planned after reading it.
+**Environment note:** Linux sandbox 486 passed / 98 skipped. Expect on Windows 577 passed / 7 skipped. The symlink test
+skips itself (and says so) where symlinks cannot be created.
+**Open / unverified:** a real chat model calling `load_skill`; `embeddingMatcher` with real embeddings; Windows run.
+
 ## DBG-038 — 3.4 compaction; follow-up to DBG-037 — 2026-10-03
 **DBG-037 follow-up:** the owner's rerun printed the competitor: `free-tier` (0.566) outranked `retry` (0.531) for
 "...rate-limits it and asks it to wait". Confirms the miss was an ambiguous query, not a retrieval defect. Final real-model

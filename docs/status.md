@@ -2,6 +2,21 @@
 
 > Updated every run. Newest entry at top.
 
+## 2026-10-04 — 3.4 verified on Windows; 3.5 skills bundle built (D-065, DBG-039)
+3.4 confirmed on the owner's Windows run: 546 passed / 7 skipped, as predicted.
+3.5: `ctx.skills` per the real Agent Skills spec: index (level 1), `load_skill` (level 2), `read_skill_resource` (level 3),
+spec validation with reported problems, restricted YAML reader, confined read-only resource access, optional
+host-side `autoLoad` with keyword and embedding matchers. 31 new tests, 21 mutations all caught. Linux sandbox 486 passed / 98 skipped.
+**Owner to run (Git Bash):** `npm install`, `npm run typecheck`, `npm test`; expect 577 passed / 7 skipped.
+**Not verified (needs a real model):** does a real chat model call `load_skill` unprompted (needs `HARNESS_OLLAMA_CHAT_MODEL`,
+open since Phase 2), and does `embeddingMatcher` behave on a real embedding model. Unit tests use scripted stand-ins.
+**Next up:** 3.6 memory-system integration test: "prove memory improves outcomes across sessions, not just accumulates".
+Open design questions for the owner: (a) what is the measurable outcome? With a scripted model, "improved" can only mean
+the right context reached the model, which is plumbing, not improvement. A real chat model on a fixed task set, with and
+without memory, is the honest test but needs HARNESS_OLLAMA_CHAT_MODEL and costs time; (b) lessons: something must write
+them (D-064). I lean: build the scripted-model plumbing test now (fact stored in session 1 reaches session 2 and changes
+the answer) and clearly label it as plumbing; defer the real-model before/after to Phase 6.
+
 ## 2026-10-03 (late) — 3.3 closed; 3.4 compaction built (D-064, DBG-038)
 3.3: owner's rerun confirmed `free-tier` outranked `retry` (ambiguous query); all real-model checks pass.
 3.4: `ctx.memory.compact()` (+ optional `compaction.everyTurns`), exact-normalised lesson matching, ledger so removed rules

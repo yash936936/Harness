@@ -318,12 +318,15 @@ and size.
 - **Built (3.1, D-061):** episodic tier. `ctx.memory.runTurn()` writes one entry per turn; `ctx.memory.episodic.{record,query,verifyLink}`; append-only JSONL or in-process.
 - **Config surface:** `path`, `maxFieldChars`, `now`, `hotTokenCap`, `estimateTokens`, `injectHot`, `compaction.{minOccurrences,everyTurns,promotedPriority}` (built).
 
-### skills (`bundle-skills`)
-- **Responsibility:** `ctx.skills` — Agent Skills spec (`SKILL.md` folders,
-  progressive disclosure), mapped onto the procedural memory tier.
-- **Location:** `src/bundles/skills/`
-- **Depends on:** `bundle-memory` (procedural tier).
-- **Config surface:** skills directory path(s).
+### skills (`bundle-skills`) - BUILT (3.5, D-065)
+- **Responsibility:** `ctx.skills` — Agent Skills spec (`SKILL.md` folders), three levels: index in the system prompt
+  (`skills.index`), `load_skill` (instructions), `read_skill_resource` (one bundled file). Read-only; skills are never
+  executed. Optional host-side `autoLoad` (off by default; `keywordMatcher` / `embeddingMatcher`).
+- **Location:** `src/bundles/skills/` (`frontmatter.ts` restricted YAML reader, `types.ts`, `index.ts`)
+- **Depends on (services):** `tools`, `agentLoop`, `egress`. It does NOT depend on `bundle-memory`: the "procedural tier"
+  link is not built (compaction promotes into the hot tier only, D-064). It reuses `defaultEstimateTokens` from memory's code.
+- **Config surface:** `dirs` (required, no default), `index`, `maxIndexTokens`, `maxInstructionTokens`, `maxResourceChars`,
+  `autoLoad: { matcher, max }`.
 
 ### agent-loop (`bundle-agent-loop`)
 - **Responsibility:** ReAct loop over `ctx.llm` and `ctx.tools`: reason,
@@ -443,7 +446,7 @@ src/
 │   ├── vectorstore-lancedb/
 │   ├── vectorstore-qdrant/
 │   ├── memory/            (3.1 episodic, 3.2 hot, 3.3 semantic, 3.4 compaction: types.ts, store.ts, hot.ts, semantic.ts, compaction.ts, index.ts)
-│   ├── skills/
+│   ├── skills/            (3.5: frontmatter.ts, types.ts, index.ts)
 │   ├── agent-loop/
 │   ├── orchestrator/
 │   ├── subagent-scope/
