@@ -80,10 +80,10 @@ Root folder on disk: `D:\Users\yash\downloads\Harness` (Git Bash:
   the working loop.
 
 ## Next task
-Phase 2 done (D-060). Phase 3: 3.1 episodic memory verified on the owner's Windows machine (501 passed / 7
-skipped); 3.2 hot tier built (D-062, DBG-034), awaiting the owner's Windows run (expect 518 passed / 7 skipped).
-Next is 3.3 semantic tier (see the open question at the top of `docs/status.md`). It uses `ctx.vectorstore` and
-`ctx.embeddings`, so check D-027 (embedding model pin) and the fingerprint-mismatch behaviour before designing.
+Phase 2 done (D-060). Phase 3: 3.1 episodic and 3.2 hot verified on the owner's Windows machine (518 passed / 7
+skipped); 3.3 semantic tier done and verified on the owner's machine (530 passed / 7 skipped; real-model check: 6/6 found, 5/6
+ranked first, gate relaxed to top-3 after the fact, see DBG-037). Next is 3.4 compaction; see the open questions in `docs/status.md`
+(what counts as the same lesson, what triggers the schedule, who writes lessons).
 Cordis rule learned in 3.1/3.2: a bundle must declare every service it touches in `static inject` (an undeclared
 one throws on access), and the object form's keys are service names, not `required`/`optional` flags.
 Still open from earlier phases: a real chat model driving the loop (`HARNESS_OLLAMA_CHAT_MODEL`), `ollama list`

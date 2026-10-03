@@ -99,6 +99,50 @@ export interface MemoryConfig {
   now?: () => Date
 }
 
+/**
+ * A semantic-tier fact (3.3): something about the architecture or the project
+ * that is NOT easy to reconstruct from the code. Unlike an {@link Episode}
+ * (an append-only record of a turn) a fact is curated: it can be replaced by
+ * id or removed, and it is found by meaning, not by session or time.
+ */
+export interface SemanticFact {
+  /** Distinguishes it from an episodic entry in any mixed listing. */
+  tier: 'semantic'
+  id: string
+  text: string
+  /**
+   * Why this is worth storing: what makes it non-trivial to reconstruct from the
+   * code (a decision's reason, a cross-file invariant, an outside constraint).
+   * Required. This is the guard against filing things the code already says (D-063).
+   */
+  why: string
+  tags?: string[]
+  /** Where it came from (`user`, a doc path, ...). Free text. */
+  source?: string
+  ts: string
+  updatedTs?: string
+}
+
+export interface SemanticHit {
+  fact: SemanticFact
+  /** Cosine similarity of the query to the fact text. Higher is better. */
+  score: number
+}
+
+export type SemanticFailure = { ok: false; error: { kind: string; detail: string } }
+
+export interface SemanticConfig {
+  /** Directory for `semantic.json` (the facts themselves). Omit to keep facts in-process. */
+  path?: string
+  /** Vector collection holding the search index. Default `memory-semantic`. */
+  collection?: string
+  /** Default 1000 chars. */
+  maxTextChars?: number
+  /** Default 500 chars. */
+  maxWhyChars?: number
+  now?: () => Date
+}
+
 export class MemoryError extends Error {
   override name = 'MemoryError'
 }

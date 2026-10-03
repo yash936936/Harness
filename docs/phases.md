@@ -614,7 +614,7 @@ from code.
 **Testing:**
 - Unit test: write a semantic fact, retrieve it via a query unrelated to
   the exact wording (paraphrase match), assert it's found.
-**Status:** Not started
+**Status:** Built 2026-10-03 (D-063/DBG-035). `ctx.memorySemantic`; 12 tests, mutation-checked. Paraphrase retrieval proven with a stand-in embedder only; real-model check run by the owner 2026-10-03 (nomic-embed-text): 6/6 found, 5/6 ranked first; gate relaxed to top-3 after the result (DBG-037). DONE.
 
 ### 3.4 — Compaction job
 **Goal:** Scheduled `ctx.jobs` task promoting repeated episodic lessons

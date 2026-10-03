@@ -15,6 +15,7 @@ import {
 export * from './types.js'
 export { JsonlEpisodeStore, MemoryEpisodeStore } from './store.js'
 export { HotTier, HOT_HEADER, defaultEstimateTokens } from './hot.js'
+export { MemorySemantic, type AddResult } from './semantic.js'
 
 declare module 'cordis' {
   interface Context {
@@ -118,8 +119,9 @@ export class EpisodicMemory {
 }
 
 /**
- * `ctx.memory` (Phase 3). Built: episodic (3.1) and hot (3.2). Semantic,
- * compaction and skills are 3.3-3.5 and are not present yet.
+ * `ctx.memory` (Phase 3). Built: episodic (3.1) and hot (3.2). The semantic tier
+ * (3.3) is a separate service, `ctx.memorySemantic` (see semantic.ts). Compaction
+ * and skills are 3.4-3.5 and are not present yet.
  *
  * Needs `log` (events to link to), `egress` (memory is written to disk and
  * later shown to models, so registered secrets are redacted first; egress is

@@ -4,6 +4,31 @@
 > if a decision is reversed, log a new entry that supersedes it and reference
 > the old ID.
 
+## D-063 — 3.3 semantic tier: caller-stated `why` instead of a grep guard; facts are the source of truth, the index is derived — 2026-10-03
+**Decision:**
+- **Who decides a fact is "non-trivial to reconstruct from code": the caller, explicitly, by supplying `why`**
+  (required, stored with the fact, shown in `list()`). I first proposed an automatic grep-the-repo guard and
+  REJECTED my own proposal: a grep cannot tell whether a fact is reconstructable, so it would either refuse good
+  facts or pass trivia while giving false assurance. A required, auditable rationale puts the judgement where it can
+  be reviewed. Exact duplicates (case/whitespace-insensitive) are refused. Not enforced: whether the `why` is
+  actually good. That is a limitation, not solved.
+- **Separate service `ctx.memorySemantic`**, not part of `ctx.memory`. Episodic and hot need no embeddings or vector
+  store, and `profile-minimal` has neither; making `Memory` depend on them would stop it starting there.
+  Injects `egress`, `embeddings`, `vectorstore`.
+- **Facts live in `<path>/semantic.json` (source of truth, atomic write, unreadable file refused not overwritten).
+  The LanceDB collection `memory-semantic` is a derived index.** Vectors from one embedding model are meaningless
+  under another (D-027 fingerprint rule), so the index must be rebuildable: `reindex({reset})` rebuilds from the facts.
+- **Save first, then index.** An embedding outage returns `indexed: false` + `indexError`; the fact is not lost.
+  `query()` reports `stale: true` when the vector count differs from the fact count. A model change is a
+  `fingerprint_mismatch` result whose detail says to run `reindex({reset:true})`. A vector whose fact was removed is
+  never returned.
+- **Different retention from episodic (the 3.3 criterion):** facts carry `tier: 'semantic'`; they are curated
+  (replace by id keeps the creation time and sets `updatedTs`; remove deletes fact and vector), whereas episodic is
+  append-only with no update/remove. Found by meaning, not by session/time.
+- Embedded with `kind: 'document'`, queried with `kind: 'query'` (nomic prefixes). Only `text` is embedded, not `why`.
+- Not decided: whether episodic entries also get embedded (3.4 compaction may want similarity between lessons).
+**Affects:** `src/bundles/memory/semantic.ts`, `test/memory-semantic.test.ts`, `scripts/smoke-phase3.ts`, `docs/phases.md` 3.3.
+
 ## D-062 — 3.2 hot tier: token estimate, whole-entry trimming, system-section injection point — 2026-10-03
 **Decision:**
 - **No tokenizer; estimate = ceil(chars / 3).** Cap default 2000 estimated tokens, header included, configurable
