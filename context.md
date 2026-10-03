@@ -80,12 +80,15 @@ Root folder on disk: `D:\Users\yash\downloads\Harness` (Git Bash:
   the working loop.
 
 ## Next task
-Phase 2 done (D-060). Phase 3: 3.1 episodic and 3.2 hot verified on the owner's Windows machine (518 passed / 7
-skipped); 3.3 semantic tier done and verified on the owner's machine (530 passed / 7 skipped; real-model check: 6/6 found, 5/6
-ranked first, gate relaxed to top-3 after the fact, see DBG-037). Next is 3.4 compaction; see the open questions in `docs/status.md`
-(what counts as the same lesson, what triggers the schedule, who writes lessons).
-Cordis rule learned in 3.1/3.2: a bundle must declare every service it touches in `static inject` (an undeclared
-one throws on access), and the object form's keys are service names, not `required`/`optional` flags.
+Phase 2 done (D-060). Phase 3: 3.1 episodic, 3.2 hot and 3.3 semantic are done and verified on the owner's machine
+(3.3 also against a real model: 6/6 found, 5/6 ranked first). 3.4 compaction is built (D-064, DBG-038) and awaits the
+owner's Windows run (expect 546 passed / 7 skipped). Next is 3.5 skills bundle; see the open questions at the top of
+`docs/status.md`. Known gaps to keep in view: nothing writes lessons yet (compaction is inert in real use), and
+auto-promotion into the system prompt is a poisoning path (D-064).
+Cordis rules learned: a bundle must declare every service it touches in `static inject` (an undeclared one throws on
+access), and the object form's keys are service names, not `required`/`optional` flags. Tests that load LanceDB need
+`vi.setConfig({ testTimeout: 60_000, hookTimeout: 120_000 })` (cold native load). The owner's shell is Git Bash: give
+commands in bash syntax (`VAR=x cmd`), not PowerShell.
 Still open from earlier phases: a real chat model driving the loop (`HARNESS_OLLAMA_CHAT_MODEL`), `ollama list`
 for the D-027 pin, a labelled retrieval benchmark (Phase 6), Tauri sidecar measurement and 1B.4 (desktop shell),
 and the Qwen research-license replacement before any commercial release (D-049).

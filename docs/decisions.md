@@ -4,6 +4,32 @@
 > if a decision is reversed, log a new entry that supersedes it and reference
 > the old ID.
 
+## D-064 — 3.4 compaction: exact-lesson matching, ledger, low priority, manual + every-N-turns trigger — 2026-10-03
+**Decision:** `ctx.memory.compact()` promotes lessons that recur (default >= 3 episodes) into the hot tier.
+- **Same lesson = identical after normalisation** (lower-case, collapsed whitespace, trimmed edge punctuation). Not
+  similarity: lessons are caller-supplied (D-061) and episodes are not embedded, so fuzzy matching would need new
+  machinery and a threshold nobody has measured. Cost: two differently-worded lessons for the same idea never merge.
+- **No model call**: the promoted rule is the lesson's own wording (most recent occurrence), same reasoning as D-061.
+- **Idempotent, and a removed rule stays removed.** Hot id = `lesson-<sha1 of the normalised text>`, plus a ledger
+  (`compaction.json`) of what was ever promoted. Without the ledger, deleting a promoted rule would be undone by the
+  next run. A rule in the hot tier but missing from the ledger (crash between the two writes) is adopted, not rewritten.
+- **Promoted rules have priority -1** (owner-added default is 0), so under the hot cap automatic promotion can never
+  evict a curated rule.
+- **Trigger: manual `compact()` plus optional `compaction.everyTurns`** (after every Nth stored episode in `runTurn`,
+  counted from stored episodes so it survives restarts). There is no `ctx.jobs` in this repo; the phase text's
+  "scheduled ctx.jobs task" is NOT built, and wall-clock scheduling is deferred. A failing automatic run never fails
+  the user's turn: it is kept in `ctx.memory.lastCompaction`.
+- **Poisoning risk, stated plainly:** compaction turns repeated lessons into standing instructions in every future
+  system prompt. A lesson written by a compromised model or document, repeated 3 times, would become a rule.
+  Mitigations here are partial: hot-tier redaction and one-line collapsing, low priority, `dryRun`, and an `approve`
+  hook. The DEFAULT still auto-promotes, as the phase criterion requires. Real mitigation (policy gates, Phase 5, or
+  requiring owner approval by default) is not done and should be decided before lessons come from model output.
+- **Target is the hot tier only.** The procedural tier arrives with 3.5, so "or procedures" is not built.
+- **Not solved: nothing in the product writes lessons yet** (they only arrive via `runTurn({ lesson })`), so in real
+  use compaction has nothing to promote until a lesson source exists (3.6 or an owner-facing "note a lesson" action).
+**Affects:** `src/bundles/memory/compaction.ts`, `index.ts` (`compact`, `lastCompaction`, `compaction` config),
+`test/memory-compaction.test.ts`, `docs/phases.md` 3.4.
+
 ## D-063 — 3.3 semantic tier: caller-stated `why` instead of a grep guard; facts are the source of truth, the index is derived — 2026-10-03
 **Decision:**
 - **Who decides a fact is "non-trivial to reconstruct from code": the caller, explicitly, by supplying `why`**

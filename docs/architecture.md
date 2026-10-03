@@ -312,10 +312,11 @@ and size.
   episodic lessons into hot rules or procedures.
 - **Location:** `src/bundles/memory/`
 - **Depends on:** `bundle-session-log`, `bundle-egress`, `bundle-agent-loop` (built, 3.1); `bundle-vectorstore-*` (semantic tier, 3.3, not built).
+- **Built (3.4, D-064):** compaction. `ctx.memory.compact({minOccurrences, dryRun, approve})` and optional `compaction.everyTurns`; promotes recurring exact-normalised lessons into the hot tier (priority -1, ledger `compaction.json`). No `ctx.jobs`; hot target only.
 - **Built (3.3, D-063):** semantic tier as a separate service `ctx.memorySemantic` (injects `egress`, `embeddings`, `vectorstore`): facts in `semantic.json`, derived LanceDB index `memory-semantic`, `add` (needs `why`) / `query` / `reindex` / `remove` / `list`.
 - **Built (3.2, D-062):** hot tier. `ctx.memory.hot.{add,remove,list,render}`, injected via `ctx.agentLoop.addSystemSection('memory.hot', ..., {order: 10})`; whole-entry priority trimming under a token cap (estimate chars/3).
 - **Built (3.1, D-061):** episodic tier. `ctx.memory.runTurn()` writes one entry per turn; `ctx.memory.episodic.{record,query,verifyLink}`; append-only JSONL or in-process.
-- **Config surface:** `path`, `maxFieldChars`, `now`, `hotTokenCap`, `estimateTokens`, `injectHot` (built); compaction schedule (not built).
+- **Config surface:** `path`, `maxFieldChars`, `now`, `hotTokenCap`, `estimateTokens`, `injectHot`, `compaction.{minOccurrences,everyTurns,promotedPriority}` (built).
 
 ### skills (`bundle-skills`)
 - **Responsibility:** `ctx.skills` — Agent Skills spec (`SKILL.md` folders,
@@ -441,7 +442,7 @@ src/
 │   ├── embeddings/
 │   ├── vectorstore-lancedb/
 │   ├── vectorstore-qdrant/
-│   ├── memory/            (3.1 episodic, 3.2 hot, 3.3 semantic: types.ts, store.ts, hot.ts, semantic.ts, index.ts)
+│   ├── memory/            (3.1 episodic, 3.2 hot, 3.3 semantic, 3.4 compaction: types.ts, store.ts, hot.ts, semantic.ts, compaction.ts, index.ts)
 │   ├── skills/
 │   ├── agent-loop/
 │   ├── orchestrator/

@@ -629,7 +629,7 @@ into hot rules or procedures.
 - Integration test: seed 3+ episodic entries with the same recurring
   lesson, run compaction, assert exactly one promoted entry appears.
 - Idempotency test: run compaction again immediately, assert no duplicate.
-**Status:** Not started
+**Status:** Built 2026-10-03 (D-064/DBG-038). `ctx.memory.compact()` + optional `compaction.everyTurns`; hot tier only; 16 tests, mutation-checked. NOT built: `ctx.jobs` / wall-clock schedule (does not exist in this repo), procedural-tier target (3.5). Nothing writes lessons yet, so inert in real use until a lesson source exists.
 
 ### 3.5 — skills bundle
 **Goal:** `ctx.skills` — Agent Skills spec (`SKILL.md`, progressive

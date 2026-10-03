@@ -2,6 +2,20 @@
 
 > Updated every run. Newest entry at top.
 
+## 2026-10-03 (late) — 3.3 closed; 3.4 compaction built (D-064, DBG-038)
+3.3: owner's rerun confirmed `free-tier` outranked `retry` (ambiguous query); all real-model checks pass.
+3.4: `ctx.memory.compact()` (+ optional `compaction.everyTurns`), exact-normalised lesson matching, ledger so removed rules
+stay removed, promoted rules at priority -1, `dryRun`/`approve`. 16 new tests, 12 mutations all caught. Linux sandbox
+455 passed / 98 skipped.
+**Owner to run (Git Bash):** `npm install`, `npm run typecheck`, `npm test`; expect 546 passed / 7 skipped.
+**Honest limits:** (1) nothing writes lessons yet, so compaction is inert in real use until a lesson source exists;
+(2) auto-promotion into every system prompt is a poisoning path (D-064) with only partial mitigation; (3) no `ctx.jobs`
+and no wall-clock schedule; (4) hot tier only, procedural comes with 3.5.
+**Next up:** 3.5 skills bundle (Agent Skills spec: SKILL.md, progressive disclosure). Open design questions for the owner:
+(a) where do skill folders live (a project `skills/` dir, a user-level dir, or both)? (b) what makes "the task matches a
+skill's description": embedding similarity (reuses `ctx.embeddings`, needs a minScore, and I have one measured data point
+for nomic: ~0.48) or simple keyword matching first? I lean embeddings with an explicit threshold plus an exact-name override.
+
 ## 2026-10-03 (night) — 3.3 verified against a real model, with one caveat (DBG-037)
 Owner's Ollama run: 6/6 facts found, 5/6 first (one ambiguous miss at rank 2), real matches 0.531-0.614 vs unrelated
 0.428-0.437. 3.3 is DONE on the criterion "found by a differently-worded query". The gate was relaxed from top-1 to

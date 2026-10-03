@@ -3,12 +3,15 @@ import type { RunResult, RunTaskOptions } from '../agent-loop/index.js'
 import type { SessionEvent } from '../session-log/index.js'
 import { JsonlEpisodeStore, MemoryEpisodeStore } from './store.js'
 import { HotTier, defaultEstimateTokens } from './hot.js'
+import { Compaction } from './compaction.js'
 import {
   MemoryError,
   type Episode,
   type EpisodeQuery,
   type EpisodeStore,
+  type CompactionResult,
   type MemoryConfig,
+  type PromotionCandidate,
   type RecordTurnInput,
 } from './types.js'
 
@@ -16,6 +19,7 @@ export * from './types.js'
 export { JsonlEpisodeStore, MemoryEpisodeStore } from './store.js'
 export { HotTier, HOT_HEADER, defaultEstimateTokens } from './hot.js'
 export { MemorySemantic, type AddResult } from './semantic.js'
+export { normaliseLesson, lessonId } from './compaction.js'
 
 declare module 'cordis' {
   interface Context {
@@ -132,6 +136,10 @@ export class Memory extends Service {
 
   readonly episodic: EpisodicMemory
   readonly hot: HotTier
+  private readonly compaction: Compaction
+  private readonly everyTurns: number | undefined
+  /** The most recent automatic compaction (3.4): its result, or the error that stopped it. Never thrown into a user's turn. */
+  lastCompaction: { ts: string; result?: CompactionResult; error?: string } | undefined
 
   constructor(ctx: Context, config: MemoryConfig = {}) {
     super(ctx, 'memory')
@@ -139,11 +147,29 @@ export class Memory extends Service {
     const now = config.now ?? (() => new Date())
     this.episodic = new EpisodicMemory(store, ctx, config.maxFieldChars ?? DEFAULT_MAX_CHARS, now)
     this.hot = new HotTier(ctx, config.path, config.hotTokenCap ?? DEFAULT_HOT_CAP, config.estimateTokens ?? defaultEstimateTokens, now)
+    this.everyTurns = config.compaction?.everyTurns
+    if (this.everyTurns !== undefined && (!Number.isInteger(this.everyTurns) || this.everyTurns < 1)) throw new MemoryError('memory: compaction.everyTurns must be a positive integer')
+    this.compaction = new Compaction(
+      this.episodic,
+      this.hot,
+      config.path,
+      { minOccurrences: config.compaction?.minOccurrences ?? 3, promotedPriority: config.compaction?.promotedPriority ?? -1 },
+      now,
+    )
     if (config.injectHot ?? true) {
       // 'Early' among the sections (order 10, ahead of the default 100); the base system prompt still comes first.
       const remove = ctx.agentLoop.addSystemSection('memory.hot', async () => (await this.hot.render()).text || undefined, { order: 10 })
       ctx.effect(() => remove)
     }
+  }
+
+  /**
+   * Promote lessons that recur across episodes into the hot tier (3.4). Manual
+   * entry point; `compaction.everyTurns` also calls it from `runTurn`.
+   * Idempotent. See `Compaction` for the rules.
+   */
+  compact(opts: { minOccurrences?: number; dryRun?: boolean; approve?: (c: PromotionCandidate) => boolean | Promise<boolean> } = {}): Promise<CompactionResult> {
+    return this.compaction.run(opts)
   }
 
   /**
@@ -169,7 +195,7 @@ export class Memory extends Service {
       throw err
     }
     const toSeq = (await this.ctx.log.resume(opts.sessionId)).nextSeq - 1
-    const { episode } = await this.episodic.record({
+    const { episode, created } = await this.episodic.record({
       ...base,
       toSeq,
       outcome: result.stopReason,
@@ -177,7 +203,22 @@ export class Memory extends Service {
       steps: result.steps,
       ...(lesson !== undefined ? { lesson } : {}),
     })
+    if (created && this.everyTurns !== undefined) {
+      // Counted from the stored episodes, not a counter, so the schedule survives a restart.
+      const n = (await this.episodic.query({})).length
+      if (n % this.everyTurns === 0) await this.autoCompact()
+    }
     return { ...result, episode }
+  }
+
+  private async autoCompact(): Promise<void> {
+    const ts = new Date().toISOString()
+    try {
+      this.lastCompaction = { ts, result: await this.compaction.run({}) }
+    } catch (err) {
+      // A memory problem must not fail the user's turn; it is recorded here instead.
+      this.lastCompaction = { ts, error: err instanceof Error ? err.message : String(err) }
+    }
   }
 }
 

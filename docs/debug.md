@@ -3,6 +3,27 @@
 > Append-only. Every completed coding task gets an entry here, even "no
 > issues found." Newest entries at top.
 
+## DBG-038 — 3.4 compaction; follow-up to DBG-037 — 2026-10-03
+**DBG-037 follow-up:** the owner's rerun printed the competitor: `free-tier` (0.566) outranked `retry` (0.531) for
+"...rate-limits it and asks it to wait". Confirms the miss was an ambiguous query, not a retrieval defect. Final real-model
+result for 3.3: 6/6 found, 5/6 first, all checks pass under the (relaxed) top-3 gate.
+**Tested (3.4):** `test/memory-compaction.test.ts`, 16 tests: 3 episodes with the same lesson in different casing/
+punctuation across two sessions -> exactly one hot entry (one-off and null lessons ignored); threshold; idempotency
+(second run promotes nothing and does not rewrite the entry, same ts); removed rule stays removed across a restart;
+no double promotion after a restart; promoted rule reaches the model's system prompt on the next run (3.2+3.4); under a
+tight cap the curated rule survives and the promoted one drops; dryRun/approve (veto not remembered); too-large lesson
+reported as `failed` without aborting; redaction; bad thresholds and a corrupt ledger refused; three overlapping runs
+promote once; every-N trigger counted from stored episodes; a compaction failure does not fail the turn.
+**Mutation-checked (12), all caught:** no threshold, ledger ignored, no idempotency, promoted outranks curated,
+approve ignored, dryRun writes, runs not serialised, first wording kept, sessions not counted, compaction error fails
+the turn, every turn instead of every Nth, failure aborts the run.
+**What I got wrong in the tests:** a nonsense `resume(session) ? session : session` line left in a helper (TS caught
+it), and wrong cap arithmetic in the priority test (35 tokens fits under 40, so nothing dropped; cap 30 is right).
+Test-side only; no product bug found this slice.
+**Environment note:** Linux sandbox 455 passed / 98 skipped (no ripgrep). Expect on Windows 546 passed / 7 skipped.
+**Open:** not run on Windows by me; compaction not wired into any profile; see D-064 for the poisoning risk and the
+missing lesson source.
+
 ## DBG-037 — 3.3 real-model check (owner's Ollama, nomic-embed-text) — 2026-10-03
 **Result:** all 6 facts found; top-1 for 5/6; the sixth (`retry`, query "what does the agent do when the provider
 rate-limits it and asks it to wait") ranked 2nd (similarity 0.531). Separation passed: weakest real match 0.531 vs

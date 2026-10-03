@@ -93,6 +93,7 @@ export interface MemoryConfig {
   estimateTokens?: (text: string) => number
   /** Add the hot tier to every agent run's system prompt. Default true. */
   injectHot?: boolean
+  compaction?: CompactionConfig
   /** Longest stored task / result / approach text. Default 2000 chars. */
   maxFieldChars?: number
   /** Injectable clock for tests. */
@@ -141,6 +142,43 @@ export interface SemanticConfig {
   /** Default 500 chars. */
   maxWhyChars?: number
   now?: () => Date
+}
+
+export interface CompactionConfig {
+  /** A lesson must appear in at least this many episodes to be promoted. Default 3. */
+  minOccurrences?: number
+  /** Run compaction automatically after every Nth episode written by `runTurn`. Omit for manual `compact()` only. */
+  everyTurns?: number
+  /** Hot-tier priority of promoted rules. Default -1: below anything the owner adds (default 0), so promotion can never push a curated rule out. */
+  promotedPriority?: number
+}
+
+export interface PromotionCandidate {
+  /** Hot-tier id the rule is/would be stored under (`lesson-<hash of the normalised lesson>`). */
+  id: string
+  /** The lesson as worded in its most recent episode. */
+  text: string
+  /** How many episodes carry this lesson. */
+  occurrences: number
+  /** Distinct sessions those episodes came from. */
+  sessions: number
+}
+
+export interface CompactionResult {
+  examined: number
+  /** Written to the hot tier by this run (or, with `dryRun`, what would have been). */
+  promoted: PromotionCandidate[]
+  skipped: {
+    /** Recurring lessons already promoted before (a rule the owner removed stays removed). */
+    alreadyPromoted: number
+    /** Lessons seen fewer than `minOccurrences` times. */
+    belowThreshold: number
+    /** Recurring lessons `approve` said no to. Not remembered: they are asked about again next run. */
+    rejected: number
+  }
+  /** Recurring lessons that could not be stored (e.g. too large for the hot tier). Retried next run. */
+  failed: { id: string; reason: string }[]
+  dryRun: boolean
 }
 
 export class MemoryError extends Error {
