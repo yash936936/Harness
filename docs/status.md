@@ -2,6 +2,18 @@
 
 > Updated every run. Newest entry at top.
 
+## 2026-10-03 — Phase 3 started: 3.1 episodic memory built (D-061, DBG-033)
+`bundle-memory` / `ctx.memory.episodic` written: `ctx.memory.runTurn()` runs a turn through the agent loop and
+writes exactly one linked entry (task, approach from the log, result, outcome, optional caller-supplied lesson),
+idempotent, redacted, JSONL-persisted, queryable by session/agent/task/outcome/time. Typecheck clean; 12 new
+tests mutation-checked. Linux sandbox total 410 passed (98 skipped: no ripgrep there).
+**Owner to run (Windows PowerShell, separate lines):** `npm install`, `npm run typecheck`, `npm test` and paste
+the totals (expected roughly 501 passed / 7 skipped: 489 + 12).
+**Still open from Phase 2:** a real chat model driving the loop (`HARNESS_OLLAMA_CHAT_MODEL`), `ollama list` for
+the D-027 pin, a labelled retrieval benchmark (Phase 6), whether a 6-minute first index is acceptable.
+**Next up:** 3.2 hot tier (token-capped, injected into the system prompt). Open design question for the owner:
+what counts as a token when there is no tokenizer (D-061 did not need one; 3.2 does).
+
 ## 2026-10-01 (later) — Windows run of 2.6 passed; calibration and indexing cost measured (D-060)
 Owner's Windows run: everything passed, including the 2.5/2.6 smoke checks with real
 nomic-embed-text. Results led to D-060: similarity floor 0.60 for nomic (answerable 0.70-0.74

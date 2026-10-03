@@ -80,16 +80,12 @@ Root folder on disk: `D:\Users\yash\downloads\Harness` (Git Bash:
   the working loop.
 
 ## Next task
-D-031 is resolved (D-032): the Windows env-allowlist "leak" was Node's own
-platform behavior (11 non-secret baseline vars always injected when
-spawning on Windows), root-caused with a bundle-independent diagnostic, not
-a bug here. 1.4 and 1.5 are both done. 1.6 (`profile-minimal` end-to-end
-wiring) is next on `phases.md`, no longer gated — though the owner hasn't
-yet re-run `npx vitest run test/subprocess.test.ts` on Windows with the fix
-applied; worth asking for that confirmation.
-Before the harness sends real code to a cloud provider,
-Phase 1B.1 (redaction, secrets proxy, per-project opt-in) must exist (D-029).
-Reference worker is local Ollama, `qwen2.5-coder:3b-instruct` (D-030);
-Ornith-1.5 9B is confirmed not on OpenRouter. Open items for the owner: run
-the Electron and Tauri measurement on the 8 GB machine; confirm the 3B model
-runs at an acceptable speed and whether the 7B tag is also worth trying.
+Phase 2 is done and verified on the owner's Windows machine (489 passed / 7 skipped; smoke script all green,
+D-060). Phase 3 has started: 3.1 episodic memory is built (D-061, DBG-033) and awaits the owner's Windows run.
+Next is 3.2 (hot tier: always-loaded, token-capped, injected as an early system-prompt section). Before
+starting it, check how the agent loop builds its system prompt (`AgentLoopConfig.system`/`RunTaskOptions.system`
+are plain strings today, so 3.2 needs an injection point) and decide what a "token" is without a tokenizer.
+Still open from earlier phases: a real chat model driving the loop (`HARNESS_OLLAMA_CHAT_MODEL`), `ollama list`
+for the D-027 model pin, a labelled retrieval benchmark (Phase 6), Tauri sidecar measurement and 1B.4 (desktop
+shell), and the Qwen research-license replacement before any commercial release (D-049).
+Before the harness sends real code to a cloud provider, egress controls exist (1B.1, D-029).

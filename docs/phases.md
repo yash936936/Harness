@@ -586,7 +586,7 @@ at turn end.
   linkage back to session-log event IDs.
 - Query test: filter by a time range and agent ID, assert correct subset
   returned.
-**Status:** Not started
+**Status:** Built 2026-10-03 (D-061/DBG-033). `ctx.memory.runTurn()` / `ctx.memory.episodic.{record,query,verifyLink}`; one entry per turn including `max_steps` and error turns; lesson is caller-supplied only. 12 tests, mutation-checked, Linux only so far; not wired into `profile-minimal`.
 
 ### 3.2 — Hot tier
 **Goal:** Always-loaded, token-capped tier as an early system-prompt-section

@@ -3,6 +3,25 @@
 > Append-only. Every completed coding task gets an entry here, even "no
 > issues found." Newest entries at top.
 
+## DBG-033 — 3.1 episodic memory (bundle-memory) — 2026-10-03
+**Tested:** `test/memory-episodic.test.ts`, 12 tests, real agent loop + registry + log + egress with a scripted
+provider: N turns -> N entries with contiguous non-overlapping seq ranges and tool-call counts matched against the
+log; same turn twice -> one entry; lesson stays null unless supplied; `max_steps` and error turns recorded (error
+rethrown as the same object); query by agent / task text / outcome / session / time range, including that
+combined filters narrow rather than union; secret redaction; field clipping; bad or empty seq range refused;
+JSONL persistence across a fresh boot; torn last line tolerated, mid-file corruption throws.
+**Mutation-checked (6, each broke the test written for it):** skip redaction, off-by-one on the seq range,
+time filter as union, error turn recorded as `done`, invented lesson, no duplicate check.
+**What broke:** (1) `ctx.memory` was `undefined` after `ctx.plugin(Memory)`: I wrote
+`static inject = { required: [...], optional: [...] }`. In this Cordis (4.0.0-rc.10) the object form's KEYS are
+service names, so it waited on services called "required"/"optional" and never started. (2) Cordis throws
+`cannot get property "agentLoop" without inject` for any service not declared, so "optional, read lazily" is not
+available: a bundle must declare every service it touches. Both fixed by declaring `['log','egress','agentLoop']`.
+(3) A test used `new LLMError(kind, message)`; the constructor also needs the provider name. Test-side only.
+**Environment note:** in the Linux sandbox without ripgrep the retrieval tests skip (410 passed / 98 skipped);
+on Windows with rg they run. The 12 new tests do not depend on rg.
+**Open:** not run on Windows by me; not wired into `profile-minimal`.
+
 ## DBG-032 — incremental indexing, idsForSource, per-call floor (after the owner's Windows run) — 2026-10-01
 **Why:** the owner's run showed a 357 s first index and a calibration table (D-060).
 **Done:** `idsForSource` on the vector store; `indexFiles` skips files whose stored chunk

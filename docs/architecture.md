@@ -311,8 +311,9 @@ and size.
   procedural) plus a scheduled compaction job that promotes repeated
   episodic lessons into hot rules or procedures.
 - **Location:** `src/bundles/memory/`
-- **Depends on:** `bundle-session-log`, `bundle-vectorstore-*`.
-- **Config surface:** hot-tier token cap, compaction schedule.
+- **Depends on:** `bundle-session-log`, `bundle-egress`, `bundle-agent-loop` (built, 3.1); `bundle-vectorstore-*` (semantic tier, 3.3, not built).
+- **Built (3.1, D-061):** episodic tier only. `ctx.memory.runTurn()` writes one entry per turn; `ctx.memory.episodic.{record,query,verifyLink}`; append-only JSONL or in-process.
+- **Config surface:** `path`, `maxFieldChars`, `now` (built); hot-tier token cap, compaction schedule (not built).
 
 ### skills (`bundle-skills`)
 - **Responsibility:** `ctx.skills` — Agent Skills spec (`SKILL.md` folders,
@@ -438,7 +439,7 @@ src/
 │   ├── embeddings/
 │   ├── vectorstore-lancedb/
 │   ├── vectorstore-qdrant/
-│   ├── memory/
+│   ├── memory/            (3.1 episodic only: types.ts, store.ts, index.ts)
 │   ├── skills/
 │   ├── agent-loop/
 │   ├── orchestrator/

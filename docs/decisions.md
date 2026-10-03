@@ -4,6 +4,28 @@
 > if a decision is reversed, log a new entry that supersedes it and reference
 > the old ID.
 
+## D-061 — 3.1 episodic memory: one entry per `runTurn`, deterministic fields, caller-supplied lessons — 2026-10-03
+**Decision:** `bundle-memory` (`ctx.memory`, `src/bundles/memory/`) starts with the episodic tier only.
+- **A turn is one `ctx.memory.runTurn()` call** (one `agentLoop.run`). It writes exactly one entry, id
+  `<sessionId>:<fromSeq>`, covering the inclusive session-log range of that turn. Writing the same turn again
+  returns the existing entry and writes nothing (enforced in the store, serialised for the JSONL file).
+- **Failed and `max_steps` turns are recorded too** (`outcome: 'error' | 'max_steps'`), and the original error is
+  rethrown unchanged. Reason: a failure is what 3.4/3.6 most need to learn from. Alternative considered: record
+  only `done` turns; rejected because "exactly one per completed turn" would then silently drop the interesting ones.
+- **No model call to write an entry.** `approach` is derived from the `tool.call` events in the range
+  (`search_code -> read x2`); `result` is the final answer. `lesson` is `null` unless the caller supplies it.
+  Reasons: the free OpenRouter tier is 50 requests/day (a summary call per turn would eat it), and a lesson the
+  model invents about itself is exactly the self-report the project already distrusts (5.4). Compaction (3.4)
+  decides what repeated lessons become rules.
+- **Redaction before storage:** every entry passes through `ctx.egress.redactValue`, because memory is written to
+  disk and will later be shown to models (hot tier, 3.2). So the bundle injects `log`, `egress`, `agentLoop`.
+- **Storage:** append-only JSONL (`<path>/episodic.jsonl`) or in-process; torn last line tolerated, corruption
+  elsewhere throws (same stance as the session log). No update/delete API. Fields are clipped to 2000 chars.
+- **Not decided yet:** whether episodic entries are also embedded for similarity search (3.3 needs that for
+  semantic; 3.1 queries are structural: session, agent, task text, outcome, time range).
+**Not built:** hot tier, semantic tier, compaction, skills (3.2-3.5); `memory` is not in `profile-minimal` yet.
+**Affects:** `src/bundles/memory/`, `test/memory-episodic.test.ts`, `docs/phases.md` 3.1.
+
 ## D-060 — Measured on the owner's machine: similarity floor 0.60 for nomic-embed-text; indexing cost; incremental indexing — 2026-10-01
 **Windows run (owner, 2026-10-01):** `tsc` clean; `npm test` 478 passed / 4 skipped (the 3
 real-Ollama embedding tests ran because `HARNESS_OLLAMA_EMBED_MODEL` was set; the 4
