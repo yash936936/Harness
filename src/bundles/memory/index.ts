@@ -2,6 +2,7 @@ import { Context, Service } from 'cordis'
 import type { RunResult, RunTaskOptions } from '../agent-loop/index.js'
 import type { SessionEvent } from '../session-log/index.js'
 import { JsonlEpisodeStore, MemoryEpisodeStore } from './store.js'
+import { HotTier, defaultEstimateTokens } from './hot.js'
 import {
   MemoryError,
   type Episode,
@@ -13,6 +14,7 @@ import {
 
 export * from './types.js'
 export { JsonlEpisodeStore, MemoryEpisodeStore } from './store.js'
+export { HotTier, HOT_HEADER, defaultEstimateTokens } from './hot.js'
 
 declare module 'cordis' {
   interface Context {
@@ -21,6 +23,7 @@ declare module 'cordis' {
 }
 
 const DEFAULT_MAX_CHARS = 2000
+const DEFAULT_HOT_CAP = 2000
 
 function clip(s: string, max: number): string {
   return s.length <= max ? s : s.slice(0, Math.max(0, max - 1)) + '…'
@@ -115,8 +118,8 @@ export class EpisodicMemory {
 }
 
 /**
- * `ctx.memory` (Phase 3). 3.1 builds the episodic tier only; hot, semantic,
- * compaction and skills are 3.2-3.5 and are not present yet.
+ * `ctx.memory` (Phase 3). Built: episodic (3.1) and hot (3.2). Semantic,
+ * compaction and skills are 3.3-3.5 and are not present yet.
  *
  * Needs `log` (events to link to), `egress` (memory is written to disk and
  * later shown to models, so registered secrets are redacted first; egress is
@@ -126,11 +129,19 @@ export class Memory extends Service {
   static inject = ['log', 'egress', 'agentLoop']
 
   readonly episodic: EpisodicMemory
+  readonly hot: HotTier
 
   constructor(ctx: Context, config: MemoryConfig = {}) {
     super(ctx, 'memory')
     const store = config.path ? new JsonlEpisodeStore(config.path) : new MemoryEpisodeStore()
-    this.episodic = new EpisodicMemory(store, ctx, config.maxFieldChars ?? DEFAULT_MAX_CHARS, config.now ?? (() => new Date()))
+    const now = config.now ?? (() => new Date())
+    this.episodic = new EpisodicMemory(store, ctx, config.maxFieldChars ?? DEFAULT_MAX_CHARS, now)
+    this.hot = new HotTier(ctx, config.path, config.hotTokenCap ?? DEFAULT_HOT_CAP, config.estimateTokens ?? defaultEstimateTokens, now)
+    if (config.injectHot ?? true) {
+      // 'Early' among the sections (order 10, ahead of the default 100); the base system prompt still comes first.
+      const remove = ctx.agentLoop.addSystemSection('memory.hot', async () => (await this.hot.render()).text || undefined, { order: 10 })
+      ctx.effect(() => remove)
+    }
   }
 
   /**

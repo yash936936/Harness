@@ -4,6 +4,35 @@
 > if a decision is reversed, log a new entry that supersedes it and reference
 > the old ID.
 
+## D-062 — 3.2 hot tier: token estimate, whole-entry trimming, system-section injection point — 2026-10-03
+**Decision:**
+- **No tokenizer; estimate = ceil(chars / 3).** Cap default 2000 estimated tokens, header included, configurable
+  (`hotTokenCap`, `estimateTokens`). 3 rather than 4 chars/token because code and symbols tokenize denser than prose,
+  and the cap exists to keep the prompt small, so it should err toward counting too much. Alternative considered: a
+  real tokenizer dependency; rejected because providers differ (Ollama/OpenRouter/Anthropic) so no single tokenizer
+  would be exact anyway. The rendered text is re-measured as one string, so a non-additive estimator cannot exceed the cap.
+- **Trimming drops whole entries, never part of one.** Order: highest `priority` first, ties newest first. Greedy:
+  an entry too big for the room left is skipped and smaller lower-priority ones may still fit. Trade-off accepted:
+  a lower-priority entry can appear while a bigger higher-priority one is dropped. `render()` reports `dropped` ids;
+  dropped entries stay stored, they are just not shown. Alternative: stop at the first misfit (stricter priority
+  semantics, wastes room); rejected.
+- **An entry that can never fit is refused at `add()`** (loud error pointing to the semantic tier), not stored silently.
+- **Hot tier is editable** (add/replace by id/remove), unlike episodic. It is a curated working set that compaction
+  (3.4) and the owner revise. Persisted as `<path>/hot.json`, written via temp file + rename; an unreadable file is
+  refused rather than overwritten.
+- **Entries are one line and redacted.** Whitespace collapses so stored text cannot forge a heading or extra list
+  item in the system prompt; `ctx.egress.redactValue` runs on add. This matters because 3.4 will promote text that
+  originated in model output into this tier.
+- **Injection point:** `ctx.agentLoop.addSystemSection(name, provider, {order})` (new, agent-loop). The loop does
+  not know about memory; memory registers `memory.hot` at order 10 (default 100). Final system prompt = base prompt,
+  then sections by order. "Early" is read as early among sections: the base prompt still comes first (open: if
+  real-model runs show the model weights rules better ahead of the base prompt, change the order). Providers run
+  once per run before the first model call; a change made mid-run is seen by the next run. A throwing provider
+  FAILS the run (no model call is made) instead of being skipped, because a model silently missing its rules is worse
+  than a loud error. The section is removed when the memory plugin is disposed. `injectHot: false` turns it off.
+**Affects:** `src/bundles/memory/hot.ts`, `src/bundles/agent-loop/` (`addSystemSection`), `test/memory-hot.test.ts`,
+`docs/phases.md` 3.2.
+
 ## D-061 — 3.1 episodic memory: one entry per `runTurn`, deterministic fields, caller-supplied lessons — 2026-10-03
 **Decision:** `bundle-memory` (`ctx.memory`, `src/bundles/memory/`) starts with the episodic tier only.
 - **A turn is one `ctx.memory.runTurn()` call** (one `agentLoop.run`). It writes exactly one entry, id

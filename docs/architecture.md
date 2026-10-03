@@ -312,8 +312,9 @@ and size.
   episodic lessons into hot rules or procedures.
 - **Location:** `src/bundles/memory/`
 - **Depends on:** `bundle-session-log`, `bundle-egress`, `bundle-agent-loop` (built, 3.1); `bundle-vectorstore-*` (semantic tier, 3.3, not built).
-- **Built (3.1, D-061):** episodic tier only. `ctx.memory.runTurn()` writes one entry per turn; `ctx.memory.episodic.{record,query,verifyLink}`; append-only JSONL or in-process.
-- **Config surface:** `path`, `maxFieldChars`, `now` (built); hot-tier token cap, compaction schedule (not built).
+- **Built (3.2, D-062):** hot tier. `ctx.memory.hot.{add,remove,list,render}`, injected via `ctx.agentLoop.addSystemSection('memory.hot', ..., {order: 10})`; whole-entry priority trimming under a token cap (estimate chars/3).
+- **Built (3.1, D-061):** episodic tier. `ctx.memory.runTurn()` writes one entry per turn; `ctx.memory.episodic.{record,query,verifyLink}`; append-only JSONL or in-process.
+- **Config surface:** `path`, `maxFieldChars`, `now`, `hotTokenCap`, `estimateTokens`, `injectHot` (built); compaction schedule (not built).
 
 ### skills (`bundle-skills`)
 - **Responsibility:** `ctx.skills` — Agent Skills spec (`SKILL.md` folders,
@@ -439,7 +440,7 @@ src/
 │   ├── embeddings/
 │   ├── vectorstore-lancedb/
 │   ├── vectorstore-qdrant/
-│   ├── memory/            (3.1 episodic only: types.ts, store.ts, index.ts)
+│   ├── memory/            (3.1 episodic, 3.2 hot: types.ts, store.ts, hot.ts, index.ts)
 │   ├── skills/
 │   ├── agent-loop/
 │   ├── orchestrator/

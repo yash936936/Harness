@@ -62,9 +62,37 @@ export interface EpisodeStore {
   all(): Promise<Episode[]>
 }
 
+/** One always-loaded rule or fact. */
+export interface HotEntry {
+  /** Caller-chosen or generated. Adding an existing id replaces that entry. */
+  id: string
+  text: string
+  /** Higher survives trimming longer. Default 0. */
+  priority: number
+  ts: string
+  /** Where it came from (`user`, `compaction`, ...). Free text. */
+  source?: string
+}
+
+export interface HotRender {
+  /** The text to inject. '' when nothing is stored (then nothing is injected, not even the header). */
+  text: string
+  /** Estimated tokens of `text`, header included. Never above the cap. */
+  tokens: number
+  included: string[]
+  /** Entries that did not fit. They stay stored; they just are not shown. */
+  dropped: string[]
+}
+
 export interface MemoryConfig {
-  /** Directory for `episodic.jsonl`. Omit to keep memory in-process. */
+  /** Directory for `episodic.jsonl` and `hot.json`. Omit to keep memory in-process. */
   path?: string
+  /** Hot-tier cap in estimated tokens, header included. Default 2000. */
+  hotTokenCap?: number
+  /** Token estimate. Default: ceil(chars / 3). There is no tokenizer in this project (D-062). */
+  estimateTokens?: (text: string) => number
+  /** Add the hot tier to every agent run's system prompt. Default true. */
+  injectHot?: boolean
   /** Longest stored task / result / approach text. Default 2000 chars. */
   maxFieldChars?: number
   /** Injectable clock for tests. */

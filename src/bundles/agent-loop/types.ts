@@ -67,3 +67,12 @@ export class AgentLoopError extends Error {
 export function textOf(content: ContentBlock[]): string {
   return content.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('')
 }
+
+/** What a system-prompt section provider is told about the run it is contributing to. */
+export interface SystemSectionContext {
+  sessionId: string
+  actor?: string
+}
+
+/** Returns the section's text, or undefined/'' to contribute nothing to this run. */
+export type SystemSectionProvider = (c: SystemSectionContext) => string | undefined | Promise<string | undefined>

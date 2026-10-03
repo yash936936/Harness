@@ -9,6 +9,7 @@ import {
   type RetryConfig,
   type RunResult,
   type RunTaskOptions,
+  type SystemSectionProvider,
 } from './types.js'
 
 export * from './types.js'
@@ -69,6 +70,7 @@ export class AgentLoop extends Service {
   private readonly system?: string
   private readonly retry: Required<RetryConfig>
   private readonly sleep: (ms: number, signal?: AbortSignal) => Promise<void>
+  private readonly sections: { name: string; order: number; provider: SystemSectionProvider }[] = []
 
   constructor(ctx: Context, config: AgentLoopConfig = {}) {
     super(ctx, 'agentLoop')
@@ -81,6 +83,35 @@ export class AgentLoop extends Service {
     this.retry = { ...DEFAULT_RETRY, ...config.retry }
     this.sleep = config.sleep ?? defaultSleep
     if (this.maxSteps < 1) throw new AgentLoopError('agent-loop: maxSteps must be at least 1')
+  }
+
+  /**
+   * Let another bundle add text to every run's system prompt (3.2: hot memory).
+   * Sections follow the base system prompt, lowest `order` first (default 100,
+   * ties in registration order). Providers run once per run, before the first
+   * model call, so a change made before the next run is seen by that run and a
+   * change made mid-run is not. A provider that throws fails the run: silently
+   * dropping a section would leave the model without rules it is assumed to
+   * have. Returns a function that removes the section.
+   */
+  addSystemSection(name: string, provider: SystemSectionProvider, opts: { order?: number } = {}): () => void {
+    if (this.sections.some((s) => s.name === name)) throw new AgentLoopError(`agent-loop: system section "${name}" is already registered`)
+    const entry = { name, order: opts.order ?? 100, provider }
+    this.sections.push(entry)
+    return () => {
+      const i = this.sections.indexOf(entry)
+      if (i >= 0) this.sections.splice(i, 1)
+    }
+  }
+
+  private async buildSystem(base: string | undefined, sessionId: string, actor?: string): Promise<string | undefined> {
+    const parts: string[] = base ? [base] : []
+    const ordered = this.sections.map((s, i) => ({ s, i })).sort((a, b) => a.s.order - b.s.order || a.i - b.i)
+    for (const { s } of ordered) {
+      const text = await s.provider({ sessionId, ...(actor ? { actor } : {}) })
+      if (text) parts.push(text)
+    }
+    return parts.length ? parts.join('\n\n') : undefined
   }
 
   async run(opts: RunTaskOptions): Promise<RunResult> {
@@ -97,7 +128,7 @@ export class AgentLoop extends Service {
     const maxSteps = opts.maxSteps ?? this.maxSteps
     const reflectionOn = opts.reflection ?? this.reflection
     const model = opts.model ?? this.model
-    const system = opts.system ?? this.system
+    const system = await this.buildSystem(opts.system ?? this.system, opts.sessionId, opts.actor)
 
     const messages: Message[] = [{ role: 'user', content: opts.prompt }]
     let steps = 0

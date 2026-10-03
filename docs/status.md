@@ -2,6 +2,17 @@
 
 > Updated every run. Newest entry at top.
 
+## 2026-10-03 (later) — 3.1 verified on Windows; 3.2 hot tier built (D-062, DBG-034)
+3.1 confirmed by the owner's Windows run: 501 passed / 7 skipped, typecheck clean (as predicted).
+3.2: `ctx.memory.hot` (add/replace/remove/list/render), token-capped (estimate chars/3, default 2000), whole-entry
+priority trimming, injected into every agent run through the new `ctx.agentLoop.addSystemSection()`. 17 new tests,
+9 mutations all caught. Linux sandbox 427 passed / 98 skipped.
+**Owner to run (PowerShell, separate lines):** `npm install`, `npm run typecheck`, `npm test`; expect 518 passed / 7 skipped.
+**Next up:** 3.3 semantic tier (architecture facts, only when non-trivial to reconstruct from code; backed by
+`ctx.vectorstore`, so it needs `ctx.embeddings`). Open design question for the owner: who decides a fact is
+"non-trivial to reconstruct from code" - the caller explicitly, or an automatic check? (I lean explicit caller +
+a cheap guard that refuses facts already answerable by grep of the repo; automatic judgment would need a model call.)
+
 ## 2026-10-03 — Phase 3 started: 3.1 episodic memory built (D-061, DBG-033)
 `bundle-memory` / `ctx.memory.episodic` written: `ctx.memory.runTurn()` runs a turn through the agent loop and
 writes exactly one linked entry (task, approach from the log, result, outcome, optional caller-supplied lesson),

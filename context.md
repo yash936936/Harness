@@ -80,12 +80,12 @@ Root folder on disk: `D:\Users\yash\downloads\Harness` (Git Bash:
   the working loop.
 
 ## Next task
-Phase 2 is done and verified on the owner's Windows machine (489 passed / 7 skipped; smoke script all green,
-D-060). Phase 3 has started: 3.1 episodic memory is built (D-061, DBG-033) and awaits the owner's Windows run.
-Next is 3.2 (hot tier: always-loaded, token-capped, injected as an early system-prompt section). Before
-starting it, check how the agent loop builds its system prompt (`AgentLoopConfig.system`/`RunTaskOptions.system`
-are plain strings today, so 3.2 needs an injection point) and decide what a "token" is without a tokenizer.
+Phase 2 done (D-060). Phase 3: 3.1 episodic memory verified on the owner's Windows machine (501 passed / 7
+skipped); 3.2 hot tier built (D-062, DBG-034), awaiting the owner's Windows run (expect 518 passed / 7 skipped).
+Next is 3.3 semantic tier (see the open question at the top of `docs/status.md`). It uses `ctx.vectorstore` and
+`ctx.embeddings`, so check D-027 (embedding model pin) and the fingerprint-mismatch behaviour before designing.
+Cordis rule learned in 3.1/3.2: a bundle must declare every service it touches in `static inject` (an undeclared
+one throws on access), and the object form's keys are service names, not `required`/`optional` flags.
 Still open from earlier phases: a real chat model driving the loop (`HARNESS_OLLAMA_CHAT_MODEL`), `ollama list`
-for the D-027 model pin, a labelled retrieval benchmark (Phase 6), Tauri sidecar measurement and 1B.4 (desktop
-shell), and the Qwen research-license replacement before any commercial release (D-049).
-Before the harness sends real code to a cloud provider, egress controls exist (1B.1, D-029).
+for the D-027 pin, a labelled retrieval benchmark (Phase 6), Tauri sidecar measurement and 1B.4 (desktop shell),
+and the Qwen research-license replacement before any commercial release (D-049).

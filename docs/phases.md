@@ -601,7 +601,7 @@ plugin.
   the run doesn't fail.
 - Integration test: a fact placed in hot tier is verifiably visible to the
   model on the very next turn (via a task that requires it).
-**Status:** Not started
+**Status:** Built 2026-10-03 (D-062/DBG-034). `ctx.memory.hot`, `ctx.agentLoop.addSystemSection()`; 17 tests, mutation-checked; Linux only so far.
 
 ### 3.3 — Semantic tier
 **Goal:** Architecture facts written only when non-trivial to reconstruct

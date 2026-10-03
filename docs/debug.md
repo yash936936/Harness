@@ -3,6 +3,27 @@
 > Append-only. Every completed coding task gets an entry here, even "no
 > issues found." Newest entries at top.
 
+## DBG-034 — 3.2 hot tier and agent-loop system sections — 2026-10-03
+**Tested:** `test/memory-hot.test.ts`, 17 tests. Cap/trimming: overfilled tier renders under the cap, whole entries
+only, lowest priority dropped first, all entries still stored; the cap holds in a real agent run with 40 entries;
+deterministic tie-break (newest first) with exact token arithmetic; skip-then-fit-smaller; oversized/empty/NaN
+entries refused. Injection: a context-faithful scripted model that can only answer from its own system prompt says
+"I don't know" before the fact is added and "7421" on the very next run, and the fact is in that run's
+`model.request` log event but not the earlier one; hot text goes after the base prompt; removing an entry removes
+it next run; `injectHot:false`; `runTurn` carries it; persistence, and an unreadable `hot.json` is left untouched.
+Agent-loop: section ordering, empty providers skipped, disposer, duplicate name refused, throwing provider fails the
+run with zero model calls.
+**Mutation-checked (9):** no cap in render, ascending priority, header not counted, no newline collapse, no
+redaction, stop-at-first-misfit, swallowed provider error, reversed section order, no cleanup on dispose. All caught.
+**What broke / what I got wrong:** (1) The first dispose mutation SURVIVED: nothing tested that the section is
+removed when the plugin is disposed (reloading would have hit "already registered"). Added a test; it now fails
+under that mutation. (2) My first tie-break test had an `if` branch that let it pass either way; rewritten with exact
+arithmetic. (3) In the test, `ctx.registry.get(Memory)` returns a Runtime with no `dispose`; the Fiber returned by
+`ctx.plugin()` is what has it. Test-side only.
+**Environment note:** Linux sandbox: 427 passed / 98 skipped (no ripgrep). Expect on Windows 518 passed / 7 skipped.
+**Open:** not run on Windows by me; with the mock provider only, so whether a real model uses the hot section well
+is untested (needs the real chat model, still open from Phase 2).
+
 ## DBG-033 — 3.1 episodic memory (bundle-memory) — 2026-10-03
 **Tested:** `test/memory-episodic.test.ts`, 12 tests, real agent loop + registry + log + egress with a scripted
 provider: N turns -> N entries with contiguous non-overlapping seq ranges and tool-call counts matched against the
