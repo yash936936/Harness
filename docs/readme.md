@@ -7,7 +7,7 @@ stacks, from a single-agent smoke-test kernel up to a governed, multi-agent,
 multi-user system.
 
 ## Status
-Phases 1 and 2 are done and Phase 3 (memory and skills) is built; Phase 4 onward is not started. This file was
+Phases 1 and 2 are done, Phase 3 (memory and skills) is built, and Phase 4 has started (only `subagent-scope`, tool grants, exists; see D-069). This file was
 behind the code for a while; the per-phase lists below are what exists and is tested. Phase 1 (the `profile-minimal` kernel):
 
 - `ctx.log`: append-only session log with replay and fork (1.1).

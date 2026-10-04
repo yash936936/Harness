@@ -163,7 +163,7 @@ export class AgentLoop extends Service {
 
       const resultBlocks: ContentBlock[] = []
       for (const call of res.toolCalls) {
-        const result = await this.ctx.tools.call(call.name, call.input, { sessionId: opts.sessionId, ...(opts.actor ? { actor: opts.actor } : {}) })
+        const result = await this.ctx.tools.call(call.name, call.input, { sessionId: opts.sessionId, ...(opts.actor ? { actor: opts.actor } : {}), allowedTools: toolNames })
         resultBlocks.push({ type: 'tool_result', toolUseId: call.id, content: result.content, isError: !result.ok })
       }
       messages.push({ role: 'user', content: resultBlocks })

@@ -4,6 +4,53 @@
 > if a decision is reversed, log a new entry that supersedes it and reference
 > the old ID.
 
+## D-069 — 4.3 sub-agent scope: grants enforced twice, never inherited; memory NOT scoped yet — 2026-10-04
+**Decision:** `ctx.subagents.spawn({ id, sessionId, tools, parent? })` returns a handle whose runs use actor `subagent:<id>` and
+offer the model only its grant. Enforced in two independent places: (1) the registry refuses any call outside the offered list
+(D-068); (2) a `tools/pre-execute` hook denies any call from a `subagent:<id>` actor outside that agent's grant, whoever made
+the call. A `subagent:` actor with no live scope (closed or forged) is denied everything. A child's grant must be a subset of its
+parent's; a `run` may narrow its grant, never widen it; closing a parent closes its children; a closed id can never be reused
+(so a closed agent cannot come back with a wider grant). Spawn and close are logged, and spawn is logged BEFORE the scope exists.
+**Naming:** a top-level `ctx.subagents`, not `ctx.agents.spawn`, for the same reason `ctx.agentLoop` is top-level (see 1.5).
+**Not done, on purpose:** memory scoping. `phases.md` 4.3 asks for "write to A's memory, B cannot read it". The memory bundle has
+no per-scope namespace (hot memory is one list injected into every run; episodic is queryable by agent but not access-controlled),
+so any claim of memory isolation now would be false. Needs a decision: add a scope key to memory (changes 3.x APIs) or declare
+memory shared-by-design for v1. 4.3's memory criterion stays OPEN.
+**Not done:** scope does not make a scoped agent safe against injected content; it limits what a manipulated agent can reach.
+**Affects:** `src/bundles/subagent-scope/`, `test/subagent-scope.test.ts`, `docs/phases.md` 4.3.
+
+## D-068 — The loop executed tools the model was not offered; registry now refuses them — 2026-10-04
+**Found (while reading the loop for 4.3, reproduced before fixing):** `AgentLoop.run` offered the model only `opts.tools`, but
+ran whatever name the model returned through `ctx.tools.call`. With `tools: ['safe']`, a call to a registered
+`real-fs-write` tool executed. Models do emit names they were not given (llama3.2:3b wrote `run_typecheck` and
+`release-procedure` in the real run), so this was reachable, and it would also have bypassed Phase 5 policy gates' intent.
+**Decision:** `ToolContext.allowedTools` (optional). When present, `ToolRegistry.call` refuses any name outside it, BEFORE the
+unknown-tool branch, so the reply names only the offered tools and never leaks the rest of the registry. A registered but
+unoffered tool is `denied`; an unregistered name stays `unknown_tool`. The refusal is a normal logged `tool.result`. The loop
+passes its offered list on every call. Absent means unrestricted, so no other caller changes.
+**Affects:** `tool-registry/index.ts`, `tool-registry/types.ts`, `agent-loop/index.ts`, `test/subagent-scope.test.ts`.
+
+## D-070 — Real-model run 2: the tools-capability hypothesis is false; neither 3B model is shown reliable — 2026-10-04
+**Evidence (owner's machine, n=3 per condition, so counts not rates):** `ollama show qwen2.5-coder:3b-instruct` DOES list
+`tools` under Capabilities, so D-067's hypothesis (template not tool-capable) is falsified: the model has the capability and still
+writes calls as text. With `textToolCalls` on, 38 of 38 tool calls came from recovered text.
+- qwen + recovery: lookup_port called 3/3, correct answer 1/3 (it passed the argument schema as the argument: "input/service must be
+  string"); B looped run_tests/typecheck to the step cap with an empty answer in both conditions (hot rule: no effect);
+  load_skill 1/3 with the index, and in the auto-load condition emitted `{"name": "release-procedure"}` as its answer, i.e. a skill
+  name used as a tool name.
+- llama3.2:3b, native channel, recovery off: lookup_port 3/3 and correct 3/3 (the only clean result in either run); B: a tool call
+  failed 3/3 and it ran only run_tests, inventing a `run_typecheck` tool; skills: load_skill 1/3, and it wrote skill calls as text under
+  invented names.
+**What this does and does not show:** a 3B model can do one single-tool lookup (llama3.2 natively, qwen only with recovery). Neither
+was seen to follow a hot rule, and load_skill use is 1/3 for both. Not shown: whether the failures are the models, or our tool
+names/descriptions (`load_skill` vs a skill's own name is a likely confusion, untested). Samples are tiny; the first llama trial
+includes a 148 s model load.
+**Decision:** D-030 is NOT reversed and no model is swapped: one run on three trials cannot pick a winner, and the worker is a
+config value. But D-030's "assumed native tool calling" is recorded as FALSE for qwen2.5-coder:3b. Gate in `context.md` is
+satisfied for "some model has been seen to call tools" and NOT for "use memory/skills"; Phase 4 may proceed with the design
+constraint that workers are weak: narrow subtasks, few tools per sub-agent, plan validated by schema, loops capped.
+**Open:** a larger-n comparison before choosing the worker (Phase 6 bench); try a skill-tool rename; try a 7B+ model if memory allows.
+
 ## D-067 — A real model did not use the tool-call channel; opt-in recovery of tool calls written as text — 2026-10-04
 **Finding (first real-model run, owner's machine, `qwen2.5-coder:3b-instruct`, n=3 per condition):** in every trial the model
 answered a tool request by WRITING the call as text (`{"name": "lookup_port", "arguments": {...}}`, sometimes in a ```json

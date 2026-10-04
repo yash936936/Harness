@@ -112,6 +112,14 @@ export class ToolRegistry extends Service {
     }
     const fail = (errorKind: NonNullable<ToolResult['errorKind']>, content: string) => finish({ ok: false, content, errorKind })
 
+    // D-068: a caller that was offered a specific tool list may only call from it. Checked before
+    // the unknown-tool branch so the reply names only the offered tools, never the whole registry.
+    if (tctx.allowedTools && !tctx.allowedTools.includes(name)) {
+      const offered = tctx.allowedTools.join(', ') || 'none'
+      const kind = this.entries.has(name) ? 'denied' : 'unknown_tool'
+      return fail(kind, `Tool "${name}" is not available in this run. Available tools: ${offered}.`)
+    }
+
     const entry = this.entries.get(name)
     if (!entry) {
       const avail = this.list().map((t) => t.name).join(', ') || 'none'

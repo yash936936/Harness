@@ -8,6 +8,12 @@ export type ActionClass = 'read-only' | 'sandbox-write' | 'real-fs-write' | 'ext
 export interface ToolContext {
   sessionId: string
   actor?: string
+  /**
+   * The tools this caller was offered. When present, `ToolRegistry.call` refuses any other
+   * name (D-068): offering a model a list of tools is not enough if a call for a tool outside
+   * the list still runs. Absent means no restriction, as before.
+   */
+  allowedTools?: readonly string[]
 }
 
 export interface ToolDefinition<I = any> {

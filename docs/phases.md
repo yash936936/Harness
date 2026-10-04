@@ -710,7 +710,8 @@ just accumulates.
   to call an ungranted tool from each, assert both are blocked.
 - Isolation test: write to sub-agent A's memory scope, assert sub-agent B
   cannot read it directly (only via explicit sharing, if that exists).
-**Status:** Not started
+**Status:** PARTLY BUILT — 2026-10-04 (D-068, D-069, DBG-043). Tool scoping done and tested (security test, both agents blocked).
+The MEMORY isolation criterion is NOT met: the memory bundle has no per-scope namespace; needs an owner decision (D-069).
 
 ### 4.4 — Multi-agent integration test
 **Goal:** Prove the orchestrator + sub-agent scoping works together on a

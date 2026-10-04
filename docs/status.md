@@ -2,6 +2,17 @@
 
 > Updated every run. Newest entry at top.
 
+## 2026-10-04 (end of day) — real-model reruns in; Phase 4 started with 4.3 (D-068, D-069, D-070, DBG-043)
+Owner's Windows run of the 3.6+recovery tree: 599 passed / 7 skipped (as predicted). Real-model run 2 (D-070): `tools` capability IS listed
+for qwen2.5-coder:3b, so the hypothesis failed; it still writes calls as text (38/38 recovered). llama3.2:3b used the native channel and
+passed the single-lookup case 3/3. Neither followed a hot rule; load_skill use 1/3 each. n=3, so counts not rates.
+**Found a bug while starting Phase 4:** the loop ran tools the model was not offered. Fixed (D-068).
+**Built:** 4.3 `subagent-scope` (D-069), tools only. 15 tests, 8 mutations caught. Linux 523 passed / 98 skipped.
+**Verified on Windows:** 614 passed / 7 skipped, 33 files, typecheck clean; D-068 mutation reproduced by the owner (3 fail, restored 15/15).
+**Next up:** 4.1 planner. Design constraint from D-070: workers are weak, so the plan is a schema-validated list of narrow subtasks and an
+invalid plan is rejected, not executed. Open owner decisions: (a) memory scoping: add a scope key to memory, or declare memory shared in v1
+(blocks 4.3's last criterion and 4.4)? (b) which model plans: the same 3B worker, or a stronger one (an OpenRouter free model) for planning only?
+
 ## 2026-10-04 (late night) — 3.6 verified on Windows; FIRST REAL-MODEL RUN FOUND A FAILURE; recovery built (D-067, DBG-042)
 3.6 verified: 586 passed / 7 skipped. Real-model run 1 (qwen2.5-coder:3b-instruct): NO tool call ran in any trial; the model wrote
 calls as text, so the loop treated them as answers. Memory and skills results are therefore uninformative for this model so far.

@@ -3,6 +3,24 @@
 > Append-only. Every completed coding task gets an entry here, even "no
 > issues found." Newest entries at top.
 
+## DBG-043 — 4.3 sub-agent scope; found and fixed unoffered-tool execution (D-068, D-069, D-070) — 2026-10-04
+**Real-model reruns (owner):** see D-070. Capability flag present, behaviour still wrong for qwen; llama3.2 clean on one lookup only.
+**Bug found, reproduced first:** the loop ran tools the model was not offered (a `real-fs-write` tool ran with `tools:['safe']`).
+Fixed at the registry choke point (D-068).
+**Built:** `subagent-scope` (D-069). `test/subagent-scope.test.ts`, 15 tests: unoffered registered tool refused and logged without
+leaking other names; hallucinated name is `unknown_tool`; spawn validation (id, duplicate, unregistered grant, widening a parent, closed
+parent); spawn/close logged; two agents with different grants each blocked from the other's tool through the real loop; granted tool runs under
+the agent's actor; direct registry call with a scoped actor denied; forged/closed actor denied; run cannot widen, may narrow; closing a
+parent closes children; closed id not reusable; unscoped actors unaffected.
+**Mutation-checked (8 + 1 control), all caught:** registry offered-list check removed (3 fail), hook grant check removed (1), fail-closed
+removed (1), parent-subset removed (1), run-widening allowed (1), children not closed (1), unknown/denied kind collapsed (1), loop stops passing
+the offered list (3). Note: removing the hook alone fails only the direct-call test, because the registry check still catches the loop path:
+that overlap is the intended two-layer design.
+**Tested:** Linux sandbox 523 passed / 98 skipped (508 + 15). typecheck clean. VERIFIED on the owner's Windows run (2026-10-04): 614 passed / 7 skipped, 33 files, typecheck clean; with the registry check disabled by hand, 3 tests failed (2 registry + 'run may narrow'), restored 15/15.
+**What I got wrong:** a first draft had a junk `get()` stub that compiled (`undefined as never ?? undefined`); removed before testing. A first typecheck
+failed because `SubagentRunOptions` still required `prompt`; fixed.
+**Not tested / open:** memory isolation (not built, D-069); scope under policy gates (Phase 5); nothing yet puts `ctx.subagents` in a profile.
+
 ## DBG-042 — real-model run 1, and text tool-call recovery (D-067) — 2026-10-04
 **Verified on Windows:** the owner's rerun of the 3.6 tree: 586 passed / 7 skipped, 31 files, `memory-integration.test.ts` (8)
 and `memory-compaction.test.ts` (17) present. 3.6 is verified.
