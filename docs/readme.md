@@ -7,7 +7,8 @@ stacks, from a single-agent smoke-test kernel up to a governed, multi-agent,
 multi-user system.
 
 ## Status
-Phase 1 (the `profile-minimal` kernel) is in progress. Built and tested:
+Phases 1 and 2 are done and Phase 3 (memory and skills) is built; Phase 4 onward is not started. This file was
+behind the code for a while; the per-phase lists below are what exists and is tested. Phase 1 (the `profile-minimal` kernel):
 
 - `ctx.log`: append-only session log with replay and fork (1.1).
 - `ctx.llm`: provider registry with Ollama (local), an OpenAI-compatible
@@ -56,10 +57,30 @@ them yet. A similarity floor for vector results is configurable but unset until 
 been measured (see `docs/decisions.md` D-059). To try them on your machine:
 `npx tsx scripts/smoke-phase2.ts`.
 
-Not built yet: the runnable `profile-minimal` (1.6), redaction and the
-secrets proxy (1B.1), the first-run wizard (1B.2), retrieval, memory,
-orchestration, sandboxes, policy gates, evals and the browser. See
-`docs/phases.md` and `docs/status.md`.
+Phase 3 (memory and skills), all in `src/bundles/memory/` and `src/bundles/skills/`:
+
+- `ctx.memory.episodic`: one entry per agent turn (task, tools used, answer, outcome, optional lesson), linked to the
+  session-log events it covers, append-only, saved to disk (3.1).
+- `ctx.memory.hot`: a small set of standing rules shown to the model on every run, under a token cap. The cap is an
+  estimate (characters / 3), not a real tokenizer (3.2).
+- `ctx.memorySemantic`: facts found by meaning (embeddings + LanceDB). Each fact must say why it is not obvious from the
+  code. Checked against a real embedding model (nomic-embed-text): 6 of 6 paraphrased questions found their fact within
+  the top 3, 5 of 6 ranked first (3.3).
+- `ctx.memory.compact()`: promotes a lesson that recurs in 3 or more episodes into the hot tier, once; a rule you delete
+  stays deleted (3.4).
+- `ctx.skills`: Agent Skills (agentskills.io): the model sees each skill's name and description, loads instructions with
+  `load_skill`, and reads bundled files one at a time. Skills are read, never run (3.5).
+- 3.6 integration test: a lesson learned in one session changes the next session's behaviour through the whole chain,
+  with controls. It uses a scripted stand-in for the model, so it proves the plumbing, NOT that a real model improves.
+
+Things to know before relying on Phase 3: nothing in the product writes lessons yet (they only arrive through
+`runTurn({ lesson })`), so compaction has nothing to promote in real use until something does. Lessons promoted by
+compaction and skills both become text in the system prompt, so a poisoned lesson or skill could steer the model; only
+partial protections exist until the policy gates in Phase 5 (see `docs/decisions.md` D-064, D-065). No profile enables
+memory or skills yet, and no real chat model has driven the loop.
+
+Not built yet: orchestration and sub-agents (Phase 4), remote sandboxes and policy gates (Phase 5), evals (Phase 6),
+the browser (Phase 7), multi-user scale (Phase 8). See `docs/phases.md` and `docs/status.md`.
 
 ## What data leaves your machine
 The harness collects no telemetry. What leaves depends on how you set it up:
@@ -72,8 +93,8 @@ The harness collects no telemetry. What leaves depends on how you set it up:
 - **Remote sandbox (planned):** the repository goes to that sandbox.
 
 A remote provider is refused unless you set `egress: { consent: true }`.
-Redaction before sending is not built yet, so if a cloud provider is used
-before Phase 1B.1, only send content you are comfortable sharing with it.
+Registered secrets are redacted from every request before it is sent (`ctx.egress`, 1B.1); that only covers secrets
+the harness knows about, so the rest of what the model sees (your code and prompts) still goes to a cloud provider.
 A purely local Ollama binding is not affected by that gate: its `egress.remote`
 is `false` for `localhost`/`127.0.0.1`.
 

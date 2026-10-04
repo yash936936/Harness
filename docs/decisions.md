@@ -4,6 +4,28 @@
 > if a decision is reversed, log a new entry that supersedes it and reference
 > the old ID.
 
+## D-066 — 3.6: what "memory improves outcomes" is shown to mean here, and what it is not — 2026-10-04
+**Decision:** 3.6 is a plumbing test with a deterministic stand-in model, labelled as such in the test file, the readme and
+here. The stand-in runs the typecheck first only if an instruction in its system prompt or task text says so, so a
+change in its behaviour can only come from what memory put in front of it. The chain exercised end to end, all read from
+the session log: mistake (tests fail) -> user correction -> `runTurn({lesson})` x3 sessions -> compaction (manual and
+`everyTurns`) -> hot tier on disk -> NEW process, new session, differently-worded task, lesson not restated -> typecheck
+runs first, no failed tool result, rule visible in the `model.request` system prompt of that session.
+**Controls (so it cannot pass by the stand-in being nice):** same task with no memory still fails; accumulation without
+compaction changes nothing (6 episodes stored, behaviour unchanged); a lesson seen twice is not promoted; removing the
+promoted rule brings the failure back and compaction does not re-add it.
+**Finding worth keeping:** episodic and semantic memory are NOT injected into any prompt. The only path from experience to
+behaviour is episodic -> compaction -> hot tier (plus skills and explicit `memory` reads that nothing calls yet). So
+"memory grew" and "memory helped" are different claims, and the test shows the first without the second.
+**The same machinery can hurt:** a harmful lesson ("skip the typecheck to save time") repeated 3 times is promoted by
+default and breaks a task that worked; an `approve` hook that refuses it prevents that. The stand-in resolves a conflict
+between a curated rule and a promoted one by letting "skip" win. That is a stand-in choice; how a real model resolves such
+a conflict is unknown. This demonstrates D-064's risk, it does not measure it.
+**NOT shown, deferred to Phase 6:** that a real language model changes its behaviour because of its hot tier; any
+before/after rate over a task set; the semantic tier and skills as part of the loop (they are covered by their own tests).
+Needs `HARNESS_OLLAMA_CHAT_MODEL` and a fixed task set.
+**Affects:** `test/memory-integration.test.ts`, `docs/phases.md` 3.6, `docs/readme.md`.
+
 ## D-065 — 3.5 skills: spec-faithful model-driven activation, restricted YAML reader, read-only, explicit dirs — 2026-10-03
 Checked against the actual spec (agentskills.io/specification, fetched 2026-10-03), not memory.
 **Decision:**

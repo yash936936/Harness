@@ -88,6 +88,27 @@ describe('compaction (3.4): promotes a recurring lesson', () => {
     expect(await ctx.memory.hot.list()).toHaveLength(1)
   })
 
+  it('crash recovery: a rule already in the hot tier but missing from the ledger is adopted (not rewritten), and a later removal then sticks', async () => {
+    const dir = await tmp()
+    const { ctx } = await boot({ path: dir })
+    const s = await session(ctx, 's')
+    for (let i = 0; i < 3; i++) await turn(ctx, LESSON, s)
+    // simulate a crash between the hot write and the ledger write: the rule is in hot.json, compaction.json does not exist
+    const id = lessonId(normaliseLesson(LESSON))
+    await ctx.memory.hot.add({ id, text: 'edited by the owner meanwhile', priority: 7, source: 'compaction' })
+    const before = await ctx.memory.hot.list()
+
+    const r = await ctx.memory.compact()
+    expect(r.promoted).toEqual([]) // nothing newly promoted
+    expect(r.skipped.alreadyPromoted).toBe(1)
+    expect(await ctx.memory.hot.list()).toEqual(before) // the owner's edited text and priority are untouched
+
+    // it is now in the ledger, so removing it sticks
+    await ctx.memory.hot.remove(id)
+    expect((await ctx.memory.compact()).promoted).toEqual([])
+    expect(await ctx.memory.hot.list()).toEqual([])
+  })
+
   it('a rule the owner removed stays removed, even across a restart', async () => {
     const dir = await tmp()
     const { ctx } = await boot({ path: dir })

@@ -661,7 +661,7 @@ just accumulates.
   corrected; compaction runs; session B is given a similar task; assert
   the failure mode does not recur and the relevant hot/procedural entry
   was used (visible in session log).
-**Status:** Not started
+**Status:** Built 2026-10-04 (D-066/DBG-040). `test/memory-integration.test.ts`, 8 tests, plumbing only with a stand-in model (real-model before/after deferred to Phase 6). Phase 3 is built; 3.1-3.5 verified on the owner's Windows machine.
 
 ---
 

@@ -3,6 +3,40 @@
 > Append-only. Every completed coding task gets an entry here, even "no
 > issues found." Newest entries at top.
 
+## DBG-041 — real-model script written; owner's last Windows run was the OLD tree — 2026-10-04
+**Found:** the owner's `npm test` after the 3.6 delivery showed 577 passed / 30 files: that is the 3.5 tree. 3.6 should show
+586 passed / 31 files including `memory-integration.test.ts`, which is absent from the list. So 3.6 is NOT yet verified on the
+owner's machine (most likely the 3.5 zip was still extracted). Asked the owner to re-extract the 3.6 zip and rerun.
+**Built:** `scripts/smoke-real-model.ts`: drives the real agent loop with a real Ollama chat model through three experiments:
+A tool use (`lookup_port`); B hot-rule effect (typecheck-before-tests, with and without a hot rule); C skills (no skills /
+index only, model must call `load_skill` / host auto-load) using an unguessable release code so a correct answer can only
+come from the skill. Prints counts per condition, a few raw samples, and a verdict line that says NO HEADROOM or NO CLEAR
+EFFECT when that is what the numbers mean. Never pass/fail; exits 1 only if Ollama or the model is unreachable.
+**Self-tested here (no Ollama in the sandbox):** with a deterministic stand-in the counting and verdict logic work
+(A 5/5, B 0/5 -> 5/5, C 0/5, 5/5, 5/5), and the unreachable-server path prints a clear message and exits 1. This tests the
+SCRIPT only; it measures no model. No product code changed, so no new unit tests and no mutation run this slice.
+**Limits stated in the script:** samples at Ollama's default temperature (no per-run temperature option exists), small n,
+a difference of one trial is noise, installed models are 3B-class (`qwen2.5-coder:3b-instruct`, `llama3.2:3b`).
+**Open:** the real run itself (owner).
+
+## DBG-040 — 3.6 memory integration test; Phase 3 close-out — 2026-10-04
+**3.5 on Windows:** owner's run 577 passed / 7 skipped, as predicted (the 31 skills tests ran there).
+**Tested:** `test/memory-integration.test.ts`, 8 tests (see D-066): two-session test across a fresh process; four controls
+(no memory, accumulation without compaction, one-off lesson, ablation); the automatic every-6-turns path; a poisoned lesson
+that breaks a working task, and the approve hook that stops it. Assertions read the session log (`tool.call` order,
+`tool.result` FAILED count, hot rule inside the `model.request` system prompt), not stand-in internals.
+**Mutation-checked the product code against this test (7 + 1 redone), all caught:** hot tier never injected, compaction
+promotes nothing, lesson dropped by `runTurn`, hot tier not persisted, promote after one sighting, approve ignored,
+automatic trigger off, ledger ignored.
+**What I got wrong / found:** (1) my first "lesson dropped" mutation (a sed) produced a syntax error, so the file failed
+to load ("no tests"); that is not a catch, I redid it correctly. (2) A mutation that I labelled "expected survivable"
+(compaction's crash-recovery branch: rule already in hot, missing from the ledger) really survived: a 3.4 test gap, not
+a 3.6 one. Added a test for it (the owner's edited text/priority stay untouched, and a later removal then sticks); both
+halves of that branch are now caught. (3) The readme had drifted far behind the code (said Phase 1 in progress, retrieval
+and memory "not built", redaction "not built" although `model-adapter` redacts every request). Corrected and extended.
+**Environment note:** Linux sandbox 495 passed / 98 skipped. Expect on Windows 586 passed / 7 skipped.
+**Open:** Windows run; everything marked "not shown" in D-066.
+
 ## DBG-039 — 3.5 skills bundle — 2026-10-03
 **Tested:** `test/skills.test.ts`, 31 tests (+ the existing hot-tier suite re-run under every mutation). Parser:
 valid forms, CRLF/BOM, comments, and 11 rejections. Validation: each spec rule has its own failing skill and a named

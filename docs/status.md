@@ -2,6 +2,30 @@
 
 > Updated every run. Newest entry at top.
 
+## 2026-10-04 (night) — real-model script ready; 3.6 still unverified on Windows (DBG-041)
+The owner's latest `npm test` output was the 3.5 tree (577 passed, 30 files, no `memory-integration.test.ts`), so 3.6 is NOT
+verified there yet: re-extract `Harness-phase3.6.zip` (it now also contains the real-model script) and rerun; expect 586 passed / 7 skipped, 31 files.
+`ollama list` shows: nomic-embed-text, qwen2.5-coder:3b-instruct (D-030 reference worker), llama3.2:3b.
+**Owner to run (Git Bash), in this order:**
+1. `HARNESS_TRIALS=3 HARNESS_OLLAMA_CHAT_MODEL=qwen2.5-coder:3b-instruct npx tsx scripts/smoke-real-model.ts` (quick first look; the first trial includes model load time)
+2. if that works, the fuller run: `HARNESS_OLLAMA_CHAT_MODEL=qwen2.5-coder:3b-instruct,llama3.2:3b npx tsx scripts/smoke-real-model.ts` (n=5 each; allow a long time on CPU)
+Paste the whole output. `ollama serve` must be running.
+**Next up:** decide Phase 4 vs fixing what the real run exposes, once the output is in. Do not start Phase 4 on the assumption that a 3B model drives the loop well.
+
+## 2026-10-04 (later) — 3.5 verified on Windows; 3.6 built; PHASE 3 BUILT (D-066, DBG-040)
+3.5 confirmed on the owner's Windows run: 577 passed / 7 skipped, as predicted.
+3.6: two-session integration test with a stand-in model, 4 controls, poisoning demo. Plumbing only (D-066). Added a missing
+crash-recovery test for compaction (found by a surviving mutation). Readme rewritten to match reality. Linux sandbox 495
+passed / 98 skipped.
+**Owner to run (Git Bash):** `npm install`, `npm run typecheck`, `npm test`; expect 586 passed / 7 skipped.
+**Phase 3 summary:** 3.1-3.6 built; 3.1-3.5 verified on Windows; 3.3 also on a real embedding model. NOT shown: that a real
+chat model changes behaviour because of memory or calls `load_skill`; nothing writes lessons; compaction/skills are
+prompt-poisoning surfaces with partial mitigation; no profile wires memory or skills (profile-coding is Phase 5's finish line).
+**Next up:** Phase 4 (orchestrator + sub-agents) or, first, closing the gaps above. My recommendation: before Phase 4, run a
+real chat model through the loop once (`HARNESS_OLLAMA_CHAT_MODEL`): it is the largest unverified claim in the whole project
+(Phases 1-3 have never had a real model drive the loop), and Phase 4 multiplies whatever is wrong with it. Open questions for
+the owner: (a) which chat model is installed (`ollama list`)? (b) do you want that real-model run before Phase 4, or Phase 4 first?
+
 ## 2026-10-04 — 3.4 verified on Windows; 3.5 skills bundle built (D-065, DBG-039)
 3.4 confirmed on the owner's Windows run: 546 passed / 7 skipped, as predicted.
 3.5: `ctx.skills` per the real Agent Skills spec: index (level 1), `load_skill` (level 2), `read_skill_resource` (level 3),
