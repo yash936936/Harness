@@ -80,9 +80,9 @@ Root folder on disk: `D:\Users\yash\downloads\Harness` (Git Bash:
   the working loop.
 
 ## Next task
-Phases 1-3 done. Phase 4 STARTED: 4.3 `subagent-scope` built (tools only; memory scoping open, D-069). Real-model run 2 (D-070) satisfied the
+Phases 1-3 done. Phase 4 STARTED: 4.3 `subagent-scope` built and Windows-verified (tools only; memory scoping open, D-069); 4.1 planner built (D-071), real-model plan validity unmeasured (`scripts/smoke-plan.ts`). Real-model run 2 (D-070) satisfied the
 "some model calls tools" gate but NOT "uses memory/skills": hot rule no effect and load_skill 1/3 on both 3B models (n=3). Treat workers as weak.
-Next: 4.1 planner (schema-validated narrow subtasks, invalid plan rejected), then 4.2 executor, then 4.4. Owner decisions pending: memory scoping
+Next: 4.2 executor (after the owner's smoke-plan output), then 4.4. Owner decisions pending: memory scoping
 (scope key vs shared in v1) and which model plans (see `docs/status.md`).
 D-068: `ToolContext.allowedTools` makes the registry refuse tools the caller was not offered; keep passing it from any new loop caller.
 Known gaps: nothing writes lessons (D-064); compaction (D-064) and skills (D-065) are prompt-poisoning surfaces until Phase 5; memory, skills

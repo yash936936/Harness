@@ -4,6 +4,25 @@
 > if a decision is reversed, log a new entry that supersedes it and reference
 > the old ID.
 
+## D-071 — 4.1 planner: schema-validated plan, one repair, reject rather than guess — 2026-10-04
+**Decision:** `ctx.orchestrator.plan({ sessionId, task, tools? })` asks a model (no tools offered) for exactly one JSON object
+`{"subtasks":[{id, goal, tools?, dependsOn?}]}`. Accepted raw or in one fenced block; ANY prose around it is a rejection (same
+all-or-nothing stance as D-067: a plan is an instruction to act, so it is not guessed out of surrounding text). Validation: 1..8
+subtasks, unique ids, non-empty goal at most 400 chars, at most 3 tools per subtask, every tool registered AND offered to the planner,
+`dependsOn` may name only EARLIER subtasks (so a cycle is impossible by construction, and list order is a valid execution order).
+Up to 10 errors are collected at once. On failure the model gets the exact errors plus its truncated previous reply and ONE repair
+attempt (`maxRepairs`, default 1); after that `PlanError` and a `plan.rejected` event. A valid plan is logged as `plan.created` BEFORE
+`plan()` returns. Nothing is executed in 4.1.
+**Why these limits:** D-070: the 3B models cannot be trusted with long plans or many tools. They are config, not constants.
+**Reuses the agent loop** for the model call (`tools: []`, `maxSteps: 1`), so retry, fallback providers and logging are unchanged, and
+D-068 means a planner that emits a tool call anyway runs nothing (tested).
+**Planner model:** not chosen. `provider`/`model` are config, so the planner can be a different model from the worker.
+**Not shown:** that a real model produces VALID plans (`scripts/smoke-plan.ts` measures exactly that and has not been run), nor that valid
+plans are GOOD. Validity is checked; quality is not. The 4.1 criterion "plan appears in the log before the first subtask's execution
+events" is only half testable here: `plan.created` follows the model reply and no `tool.call` exists; the ordering against subtask
+execution is a 4.2 test.
+**Affects:** `src/bundles/orchestrator/` (`types.ts`, `plan.ts`, `index.ts`), `test/orchestrator-plan.test.ts`, `scripts/smoke-plan.ts`.
+
 ## D-069 — 4.3 sub-agent scope: grants enforced twice, never inherited; memory NOT scoped yet — 2026-10-04
 **Decision:** `ctx.subagents.spawn({ id, sessionId, tools, parent? })` returns a handle whose runs use actor `subagent:<id>` and
 offer the model only its grant. Enforced in two independent places: (1) the registry refuses any call outside the offered list

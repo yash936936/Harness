@@ -2,6 +2,14 @@
 
 > Updated every run. Newest entry at top.
 
+## 2026-10-04 (night) — 4.1 planner built (D-071, DBG-044)
+4.3 verified on Windows (614 passed / 7 skipped). 4.1: `ctx.orchestrator.plan()`; 13 tests, 14 mutations caught; Linux 536 passed / 98 skipped.
+**Owner to run (Git Bash):** `npm install`, `npm run typecheck`, `npm test` (expect 627 passed / 7 skipped, 34 files), THEN the check that matters:
+`HARNESS_TRIALS=3 HARNESS_OLLAMA_CHAT_MODEL=llama3.2:3b,qwen2.5-coder:3b-instruct npx tsx scripts/smoke-plan.ts` and paste the whole output.
+**Next up:** 4.2 executor, ideally after seeing that output: if neither 3B model can produce a valid plan, the planner needs a stronger model
+(an OpenRouter free model for planning only) and that changes 4.2's assumptions. Still open: memory scoping (blocks 4.3's last criterion and 4.4);
+I proceeded because 4.1 does not depend on it. Also open: executor failure policy (retry / abort / skip: which default?).
+
 ## 2026-10-04 (end of day) — real-model reruns in; Phase 4 started with 4.3 (D-068, D-069, D-070, DBG-043)
 Owner's Windows run of the 3.6+recovery tree: 599 passed / 7 skipped (as predicted). Real-model run 2 (D-070): `tools` capability IS listed
 for qwen2.5-coder:3b, so the hypothesis failed; it still writes calls as text (38/38 recovered). llama3.2:3b used the native channel and

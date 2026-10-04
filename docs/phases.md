@@ -680,7 +680,8 @@ just accumulates.
   expected subtask count/shape.
 - Log test: confirm the plan appears in the session log prior to the
   first subtask's execution events.
-**Status:** Not started
+**Status:** BUILT, plumbing only (2026-10-04, D-071, DBG-044). Plan is schema-validated, logged as `plan.created`, rejected invalid plans never execute.
+Real-model plan validity is UNMEASURED (`scripts/smoke-plan.ts`). The "plan logged before first subtask event" ordering test belongs to 4.2.
 
 ### 4.2 — Executor (orchestrator, execution half)
 **Goal:** Executes a plan's subtasks against the agent-loop from Phase 1.

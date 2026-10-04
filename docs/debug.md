@@ -3,6 +3,21 @@
 > Append-only. Every completed coding task gets an entry here, even "no
 > issues found." Newest entries at top.
 
+## DBG-044 — 4.1 planner (D-071) — 2026-10-04
+**Verified first:** 4.3 on Windows, 614 passed / 7 skipped (see DBG-043).
+**Built:** `orchestrator` planning half; `scripts/smoke-plan.ts` for real models.
+**Tested:** `test/orchestrator-plan.test.ts`, 13 tests: valid plan, defaults, trimmed goals, dedupe; fenced JSON; planner shown only the offered
+tools and no tool specs; repair feeds the exact errors back; exhausted budget gives PlanError, `plan.rejected`, no `plan.created`, nothing
+executed; `maxRepairs` 0 and 2; a planner emitting a tool call runs nothing; misuse raises before any model call; 20+ validation cases (shapes,
+caps, duplicates, unknown/non-string tools, self/forward/unknown dependencies, error cap of 10); `extractJson` all-or-nothing.
+**Mutation-checked (14), all caught:** prose accepted, dependency rule, unknown tool, subtask cap, tool cap, goal cap, duplicate id, trim, dedupe,
+`plan.created` not logged, `plan.rejected` not logged, repair budget off by one, errors not fed back, planner offered every tool.
+**What I got wrong:** two of my first mutations were syntactically broken ("no tests"), so they proved nothing; redone with a clean replacement.
+The smoke script's error counter read its map with the raw message and wrote with the normalised one, so repeats would never have added up;
+caught by running the script against a deliberately bad stand-in.
+**Tested:** Linux sandbox 536 passed / 98 skipped (523 + 13). Expect on Windows: 627 passed / 7 skipped, 34 files.
+**Not tested:** any real model producing a plan (scripted models only, so this is plumbing, D-066).
+
 ## DBG-043 — 4.3 sub-agent scope; found and fixed unoffered-tool execution (D-068, D-069, D-070) — 2026-10-04
 **Real-model reruns (owner):** see D-070. Capability flag present, behaviour still wrong for qwen; llama3.2 clean on one lookup only.
 **Bug found, reproduced first:** the loop ran tools the model was not offered (a `real-fs-write` tool ran with `tools:['safe']`).
