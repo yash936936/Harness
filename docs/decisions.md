@@ -4,6 +4,33 @@
 > if a decision is reversed, log a new entry that supersedes it and reference
 > the old ID.
 
+## D-067 — A real model did not use the tool-call channel; opt-in recovery of tool calls written as text — 2026-10-04
+**Finding (first real-model run, owner's machine, `qwen2.5-coder:3b-instruct`, n=3 per condition):** in every trial the model
+answered a tool request by WRITING the call as text (`{"name": "lookup_port", "arguments": {...}}`, sometimes in a ```json
+fence) instead of using Ollama's `tool_calls` field. The loop correctly saw a final text answer and ran nothing: 0 tool
+calls in 18 runs. So the run shows NOTHING about hot memory or skills with this model: every B and C number is an artifact
+of no tool ever running. Same run, two other signals: with no skill the model invented a release code ("STAGING-123"), and
+it put the argument SCHEMA where the argument belonged (`"module": {"type": "string", ...}`).
+**Hypothesis, unverified:** this model's Ollama template does not register as tool-capable (check `ollama show <model>`
+for a tools capability). Native tool calling for this reference worker (D-030, chosen on RAM grounds) was assumed, never verified.
+**Decision:** `OllamaProvider` option `textToolCalls` (default OFF). When on, a reply that is EXACTLY one or more tool calls
+(raw JSON object, a fenced block, or `<tool_call>` tags), each naming a tool offered in THAT request, with `arguments` (or
+`parameters`) an object or a JSON string of one, becomes real tool calls. ALL-OR-NOTHING: any prose around it, an unknown
+tool, non-object arguments, bad JSON, more than 8 calls, a request with no tools, or a model that already used the proper
+channel leaves the reply untouched. Recovery is logged (`recoveredToolCalls` on the `model.response` event) so the audit
+trail shows which calls came from text.
+**Why opt-in:** it changes what counts as a tool call. A model quoting call-shaped JSON as its whole answer would now execute
+it. Mitigations: strict shape, only tools offered, and recovered calls pass through the same registry schema validation (and,
+later, policy gates) as native ones. Not an injection fix: text derived from untrusted content could still steer the model into
+emitting such a reply, exactly as with native calls.
+**Not repaired on purpose:** the schema-in-arguments mistake. The tool's own input schema rejects it and the model can retry
+(tested end to end).
+**Not done:** the same recovery for the OpenAI-compatible provider; any claim that this makes the 3B model good at tool use
+(untested: needs the owner's rerun with `HARNESS_TEXT_TOOL_CALLS=1`); the alternative of switching the reference worker to a
+model with native tool support (`llama3.2:3b` is installed and untested).
+**Affects:** `src/bundles/model-adapter/providers/ollama.ts`, `types.ts`, `index.ts`, `test/ollama-text-tool-calls.test.ts`,
+`scripts/smoke-real-model.ts`, `docs/readme.md`.
+
 ## D-066 — 3.6: what "memory improves outcomes" is shown to mean here, and what it is not — 2026-10-04
 **Decision:** 3.6 is a plumbing test with a deterministic stand-in model, labelled as such in the test file, the readme and
 here. The stand-in runs the typecheck first only if an instruction in its system prompt or task text says so, so a

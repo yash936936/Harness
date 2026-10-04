@@ -73,6 +73,11 @@ Phase 3 (memory and skills), all in `src/bundles/memory/` and `src/bundles/skill
 - 3.6 integration test: a lesson learned in one session changes the next session's behaviour through the whole chain,
   with controls. It uses a scripted stand-in for the model, so it proves the plumbing, NOT that a real model improves.
 
+Real-model status (read this first): a real model has been run through the loop once. `qwen2.5-coder:3b-instruct` did NOT use
+Ollama's tool-call channel (it wrote tool calls as text), so no tool ran and nothing about memory or skills was learned from it. The
+Ollama provider has an opt-in `textToolCalls` option that recovers such calls (strictly; see D-067); whether that makes a 3B model
+usable is not yet known. Try it: `HARNESS_TEXT_TOOL_CALLS=1 HARNESS_OLLAMA_CHAT_MODEL=<model> npx tsx scripts/smoke-real-model.ts`.
+
 Things to know before relying on Phase 3: nothing in the product writes lessons yet (they only arrive through
 `runTurn({ lesson })`), so compaction has nothing to promote in real use until something does. Lessons promoted by
 compaction and skills both become text in the system prompt, so a poisoned lesson or skill could steer the model; only

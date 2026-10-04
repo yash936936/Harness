@@ -52,6 +52,8 @@ export interface CompletionResponse {
   toolCalls: ToolCall[]
   stopReason: StopReason
   usage: { inputTokens: number; outputTokens: number }
+  /** Set only when tool calls were recovered from the reply TEXT because the model did not use the tool-call channel (Ollama `textToolCalls`, D-067). */
+  recoveredToolCalls?: number
 }
 
 /** What a provider receives: the request minus routing/logging fields. */

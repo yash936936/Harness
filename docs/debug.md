@@ -3,6 +3,32 @@
 > Append-only. Every completed coding task gets an entry here, even "no
 > issues found." Newest entries at top.
 
+## DBG-042 — real-model run 1, and text tool-call recovery (D-067) — 2026-10-04
+**Verified on Windows:** the owner's rerun of the 3.6 tree: 586 passed / 7 skipped, 31 files, `memory-integration.test.ts` (8)
+and `memory-compaction.test.ts` (17) present. 3.6 is verified.
+**Real-model result (qwen2.5-coder:3b-instruct, n=3 per condition):** no tool call ran in any of 18 trials; the model wrote
+calls as text. A 0/3; B and C therefore uninformative. Control worked: the unguessable code never appeared (0/3) and the model
+fabricated a different one. See D-067.
+**Built:** `textToolCalls` (opt-in), strict all-or-nothing recovery, logged in `model.response`; script switch
+`HARNESS_TEXT_TOOL_CALLS=1` plus a "tool calls made / recovered from text" line and a loud warning when no tool ran at all.
+**Tested:** `test/ollama-text-tool-calls.test.ts`, 13 tests, using the model's REAL outputs as fixtures: recovery forms
+(raw, fenced one-line as observed, fenced multi-line, tags, several calls, string/`parameters`/absent arguments); 16
+non-recoveries incl. prose around, unknown tool, bad JSON, non-object payloads; all-or-nothing and the 8-call cap; off by
+default; only when tools were offered in that request; native channel untouched; through the real loop and registry: the
+regression of the actual failure (off: loop ends at step 1 with JSON as the answer), the working path (tool runs, model
+answers, log marks the recovery), and the schema-in-arguments mistake rejected by the tool schema then retried.
+**Mutation-checked (11), all caught after fixing one gap:** on by default, unknown tool accepted, prose around tags, prose
+before raw JSON, recovery despite native calls, not limited to offered tools, non-object arguments, no call cap, non-object
+payload, recovery not logged, count not returned.
+**What I got wrong:** (1) T9 survived: with the plain-object guard removed, a `null` payload inside a fence or tag throws a
+TypeError out of the provider and would crash the run; my tests only used non-object JSON starting with `{`. Added fenced/tagged
+`null`, numbers, strings, arrays, booleans; T9 now fails. (2) A test helper defaulted a parameter, so passing `undefined` silently
+used the default and the "no tools in the request" case tested nothing until I used a sentinel.
+(3) The BIGGER miss, earlier: Phases 1-3 shipped with every agent test using scripted models; the first real model exposed
+a failure no stand-in could (D-067). The stand-in tests are plumbing tests (D-066 said so); this is why that label mattered.
+**Environment note:** Linux sandbox 508 passed / 98 skipped. Expect on Windows 599 passed / 7 skipped.
+**Open:** the owner's rerun with recovery on; `llama3.2:3b`; the `ollama show` capability check.
+
 ## DBG-041 — real-model script written; owner's last Windows run was the OLD tree — 2026-10-04
 **Found:** the owner's `npm test` after the 3.6 delivery showed 577 passed / 30 files: that is the 3.5 tree. 3.6 should show
 586 passed / 31 files including `memory-integration.test.ts`, which is absent from the list. So 3.6 is NOT yet verified on the

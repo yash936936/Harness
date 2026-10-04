@@ -7,7 +7,9 @@
  *   HARNESS_OLLAMA_CHAT_MODEL=qwen2.5-coder:3b-instruct npx tsx scripts/smoke-real-model.ts
  *   HARNESS_OLLAMA_CHAT_MODEL=qwen2.5-coder:3b-instruct,llama3.2:3b HARNESS_TRIALS=3 npx tsx scripts/smoke-real-model.ts
  *
- * Other settings: HARNESS_TRIALS (default 5), HARNESS_EXPERIMENTS (default A,B,C), OLLAMA_HOST.
+ * Other settings: HARNESS_TRIALS (default 5), HARNESS_EXPERIMENTS (default A,B,C), OLLAMA_HOST,
+ * HARNESS_TEXT_TOOL_CALLS=1 (recover tool calls the model writes as text instead of using Ollama's tool-call
+ * field; qwen2.5-coder:3b-instruct needed this on the owner's first run, see D-067).
  * Without HARNESS_OLLAMA_CHAT_MODEL it runs a deterministic STAND-IN so the script itself can be
  * tested; that output is not a measurement of any model.
  *
@@ -31,6 +33,7 @@ import { ToolRegistry } from '../src/bundles/tool-registry/index.js'
 const models = (process.env['HARNESS_OLLAMA_CHAT_MODEL'] ?? '').split(',').map((s) => s.trim()).filter(Boolean)
 const TRIALS = Math.max(1, Number(process.env['HARNESS_TRIALS'] ?? 5) || 5)
 const WANT = new Set((process.env['HARNESS_EXPERIMENTS'] ?? 'A,B,C').toUpperCase().split(',').map((s) => s.trim()))
+const TEXT_TOOLS = process.env['HARNESS_TEXT_TOOL_CALLS'] === '1'
 const STAND_IN = models.length === 0
 
 const BASE_SYSTEM = 'You are a coding assistant. Use the tools you are given when they help. Keep answers short.'
@@ -67,6 +70,8 @@ interface Trial {
   tools: string[]
   failedTool: boolean
   finalText: string
+  /** Tool calls that came from the reply text (textToolCalls), not the tool-call channel. */
+  recovered: number
 }
 
 const evText = (e: SessionEvent) => String((e.data as { content?: unknown }).content ?? '')
@@ -121,9 +126,10 @@ async function trial(exp: Exp, provider: LLMProvider, skillsDir: string): Promis
       tools: log.filter((e) => e.type === 'tool.call').map((e) => String((e.data as { name?: unknown }).name)),
       failedTool: log.some((e) => e.type === 'tool.result' && evText(e).includes('FAILED')),
       finalText: r.finalText,
+      recovered: log.filter((e) => e.type === 'model.response').reduce((n, e) => n + Number((e.data as { recoveredToolCalls?: number }).recoveredToolCalls ?? 0), 0),
     }
   } catch (e: any) {
-    return { ok: false, error: e?.message ?? String(e), ms: Date.now() - t0, steps: 0, tools: [], failedTool: false, finalText: '' }
+    return { ok: false, error: e?.message ?? String(e), ms: Date.now() - t0, steps: 0, tools: [], failedTool: false, finalText: '', recovered: 0 }
   }
 }
 
@@ -146,6 +152,9 @@ async function runModel(label: string, provider: LLMProvider, skillsDir: string)
   }
   const errors = Object.values(results).flat().filter((t) => !t.ok)
   const lines: string[] = []
+  const all = Object.values(results).flat().filter((t) => t.ok)
+  lines.push(`tool calls made ${all.reduce((n, t) => n + t.tools.length, 0)}, of which recovered from reply text ${all.reduce((n, t) => n + t.recovered, 0)}   (text recovery ${TEXT_TOOLS ? 'ON' : 'OFF'})`)
+  if (!STAND_IN && all.length > 0 && all.every((t) => t.tools.length === 0)) lines.push('!! NO tool call ran in any trial. Every result below says nothing about memory or skills. If the answers look like JSON tool calls, rerun with HARNESS_TEXT_TOOL_CALLS=1.')
   const ok = (e: Exp) => results[e]!.filter((t) => t.ok)
   if (results['A']) {
     const t = ok('A')
@@ -194,7 +203,7 @@ try {
     await runModel('stand-in (deterministic)', new MockProvider(standIn as never), skillsDir)
   } else {
     for (const m of models) {
-      const provider = new OllamaProvider({ model: m, timeoutMs: 300_000 })
+      const provider = new OllamaProvider({ model: m, timeoutMs: 300_000, ...(TEXT_TOOLS ? { textToolCalls: true } : {}) })
       try {
         const installed = await provider.listModels()
         if (!installed.some((n) => n === m || n === `${m}:latest`)) {

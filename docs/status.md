@@ -2,6 +2,18 @@
 
 > Updated every run. Newest entry at top.
 
+## 2026-10-04 (late night) — 3.6 verified on Windows; FIRST REAL-MODEL RUN FOUND A FAILURE; recovery built (D-067, DBG-042)
+3.6 verified: 586 passed / 7 skipped. Real-model run 1 (qwen2.5-coder:3b-instruct): NO tool call ran in any trial; the model wrote
+calls as text, so the loop treated them as answers. Memory and skills results are therefore uninformative for this model so far.
+Built opt-in `textToolCalls` recovery for the Ollama provider (strict, all-or-nothing, logged). Linux sandbox 508 passed / 98 skipped.
+**Owner to run (Git Bash):**
+1. `npm install`, `npm run typecheck`, `npm test` (expect 599 passed / 7 skipped, 32 test files including the new `ollama-text-tool-calls.test.ts`)
+2. `ollama show qwen2.5-coder:3b-instruct` and paste it (is "tools" listed under Capabilities? it tests the hypothesis)
+3. `HARNESS_TEXT_TOOL_CALLS=1 HARNESS_TRIALS=3 HARNESS_OLLAMA_CHAT_MODEL=qwen2.5-coder:3b-instruct npx tsx scripts/smoke-real-model.ts`
+4. the same without `HARNESS_TEXT_TOOL_CALLS` for `llama3.2:3b` (it may use the tool channel natively): `HARNESS_TRIALS=3 HARNESS_OLLAMA_CHAT_MODEL=llama3.2:3b npx tsx scripts/smoke-real-model.ts`
+**Decision waiting on the output:** which model is the reference worker (D-030 assumed qwen2.5-coder:3b; that assumption failed its
+first test). Phase 4 should not start until some model has been seen to call tools and use memory/skills.
+
 ## 2026-10-04 (night) — real-model script ready; 3.6 still unverified on Windows (DBG-041)
 The owner's latest `npm test` output was the 3.5 tree (577 passed, 30 files, no `memory-integration.test.ts`), so 3.6 is NOT
 verified there yet: re-extract `Harness-phase3.6.zip` (it now also contains the real-model script) and rerun; expect 586 passed / 7 skipped, 31 files.

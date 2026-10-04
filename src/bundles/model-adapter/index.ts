@@ -7,7 +7,7 @@ import { OpenAICompatibleProvider, type OpenAICompatibleConfig } from './provide
 import { LLMError, type CompletionRequest, type CompletionResponse, type LLMProvider } from './types.js'
 
 export * from './types.js'
-export { OllamaProvider, resolveBaseUrl, type OllamaConfig } from './providers/ollama.js'
+export { OllamaProvider, recoverTextToolCalls, resolveBaseUrl, type OllamaConfig } from './providers/ollama.js'
 export { OpenAICompatibleProvider, type OpenAICompatibleConfig } from './providers/openai-compatible.js'
 export { MockProvider } from './providers/mock.js'
 export { RateLimiter, type RateLimiterConfig } from './rate-limiter.js'
@@ -130,7 +130,7 @@ export class LLMService extends Service {
       await log.append(
         sessionId,
         'model.response',
-        { provider: name, model: out.model, text: out.text, toolCalls: out.toolCalls, stopReason: out.stopReason, usage: out.usage },
+        { provider: name, model: out.model, text: out.text, toolCalls: out.toolCalls, stopReason: out.stopReason, usage: out.usage, ...(out.recoveredToolCalls ? { recoveredToolCalls: out.recoveredToolCalls } : {}) },
         actor,
       )
       return out

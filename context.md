@@ -80,18 +80,18 @@ Root folder on disk: `D:\Users\yash\downloads\Harness` (Git Bash:
   the working loop.
 
 ## Next task
-Phases 1-2 done. Phase 3 (memory + skills) is BUILT: 3.1-3.5 verified on the owner's Windows machine, 3.6 built (D-066,
-DBG-040) but NOT yet verified on the owner's machine (their last run was the old tree; see DBG-041; expect 586 passed / 7
-skipped / 31 files). The owner chose to run a real model before Phase 4: `scripts/smoke-real-model.ts` exists for that
-(see the top of `docs/status.md` for the commands); the output decides whether Phase 4 starts or the loop needs fixing first.
-Installed chat models: qwen2.5-coder:3b-instruct (D-030 reference worker), llama3.2:3b.
-Known gaps: nothing writes lessons (D-064); compaction (D-064) and skills (D-065) are prompt-poisoning surfaces with only
-partial mitigation until Phase 5; memory and skills are in no profile; "memory improves outcomes" is shown for plumbing only
-(D-066).
-Rules learned: a bundle must declare every service it touches in `static inject` (an undeclared one throws on access), and
-the object form's keys are service names, not `required`/`optional` flags. Tests that load LanceDB need
-`vi.setConfig({ testTimeout: 60_000, hookTimeout: 120_000 })`. The owner's shell is Git Bash: give commands in bash syntax
-(`VAR=x cmd`), not PowerShell. Read the actual spec before building to a standard. A mutation labelled "expected survivable"
-is a test gap until a test says otherwise. No assistant attribution on git commits (owner's standing preference).
-Still open from earlier phases: `ollama list` for the D-027 pin, a labelled retrieval benchmark (Phase 6), Tauri sidecar
-measurement and 1B.4 (desktop shell), and the Qwen research-license replacement before any commercial release (D-049).
+Phases 1-2 done. Phase 3 built and verified on the owner's machine (586 passed / 7 skipped; 3.6 is plumbing only, D-066).
+FIRST REAL-MODEL RUN (DBG-042, D-067): `qwen2.5-coder:3b-instruct` never used the tool-call channel (it wrote calls as text), so no
+tool ran and the memory/skills experiments say nothing about that model. An opt-in `textToolCalls` recovery now exists on the Ollama
+provider; its effect on a real model is UNTESTED until the owner reruns `scripts/smoke-real-model.ts` with `HARNESS_TEXT_TOOL_CALLS=1`
+(commands at the top of `docs/status.md`). `llama3.2:3b` is installed and untested. D-030's reference-worker choice assumed native tool
+calling and never verified it; reopen it if the reruns say so. Do NOT start Phase 4 on a stand-in-only footing.
+Known gaps: nothing writes lessons (D-064); compaction (D-064) and skills (D-065) are prompt-poisoning surfaces with partial
+mitigation until Phase 5; memory and skills are in no profile; a real model has never been seen to follow a hot rule or load a skill.
+Rules learned: a bundle must declare every service it touches in `static inject` (an undeclared one throws on access), and the object
+form's keys are service names. LanceDB tests need `vi.setConfig({ testTimeout: 60_000, hookTimeout: 120_000 })`. The owner's shell is Git
+Bash: use bash syntax (`VAR=x cmd`). Read the actual spec before building to a standard. A mutation labelled "expected survivable" is
+a test gap until a test says otherwise. Scripted-model tests are plumbing tests; only a real model can show a model-behaviour claim.
+No assistant attribution on git commits (owner's standing preference).
+Still open from earlier phases: a labelled retrieval benchmark (Phase 6), Tauri sidecar measurement and 1B.4 (desktop shell), and the
+Qwen research-license replacement before any commercial release (D-049).
