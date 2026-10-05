@@ -3,6 +3,13 @@
 > Append-only. Every completed coding task gets an entry here, even "no
 > issues found." Newest entries at top.
 
+## DBG-049 — real-model measurements for 4.1/4.2 and the schema size limits (D-077) — 2026-10-06
+**Owner's runs:** see D-077 for the tables. Windows 690 passed / 7 skipped (37 files) before and after 4.4; commit 8492894 pushed (4.1-4.3). 4.4 (e2e test and docs) was extracted after that commit and is NOT yet committed.
+**Change:** array-size limits in the plan schema, switchable. +2 tests (limits present from config and switchable; validator still rejects an oversized plan from a provider that ignores the schema). 5 mutations, all caught.
+**Tested:** Linux 601 passed / 98 skipped (599 + 2). Expect Windows 692 passed / 7 skipped, 37 files.
+**Not tested:** that the owner's Ollama honors `maxItems` (rerun `scripts/smoke-plan.ts` constrained: validity should stay at 15/15 and `too many subtasks` should not appear).
+**Measurement lesson:** my D-072 estimate from n=9 was too pessimistic; I flagged then that the true rate was uncertain and still wrote a conclusion from it. Intervals are now computed before conclusions.
+
 ## DBG-048 — 4.4 multi-agent end-to-end test (D-076) — 2026-10-05
 **Tested:** `test/phase4-e2e.test.ts`, 11 tests (full run on a real workspace; log audit; unchanged-until-editor; dependency flow; memory isolation + episodes; log ordering; read-only ceiling; failing editor; three doctored-log tests of the auditor).
 **Mutation-checked:** single enforcement layer removed = green (redundancy confirmed); both removed = 5 fail; whole-ceiling grant = 5 fail; five other mutations = 1 fail each; one control = green.

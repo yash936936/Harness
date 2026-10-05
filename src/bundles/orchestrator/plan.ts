@@ -78,18 +78,22 @@ export function validatePlan(
  * cannot emit malformed JSON. Length and count limits are left to `validatePlan`, which stays the authority:
  * a provider may ignore the schema, and not every limit is expressible in every grammar engine.
  */
-export function planSchema(tools: string[]): Record<string, unknown> {
+export function planSchema(tools: string[], limits?: Pick<PlannerLimits, 'maxSubtasks' | 'maxToolsPerSubtask'>): Record<string, unknown> {
+  // Array SIZES only (D-077): the one rejection seen with the schema on was a 9-subtask plan against a limit of 8. String lengths and
+  // everything else stay with `validatePlan`, which is still the authority.
+  const toolsArray = (items?: Record<string, unknown>): Record<string, unknown> => ({ type: 'array', ...(items ? { items } : {}), ...(limits ? { maxItems: tools.length ? limits.maxToolsPerSubtask : 0 } : tools.length ? {} : { maxItems: 0 }) })
   return {
     type: 'object',
     properties: {
       subtasks: {
         type: 'array',
+        ...(limits ? { minItems: 1, maxItems: limits.maxSubtasks } : {}),
         items: {
           type: 'object',
           properties: {
             id: { type: 'string' },
             goal: { type: 'string' },
-            tools: tools.length ? { type: 'array', items: { type: 'string', enum: tools } } : { type: 'array', maxItems: 0 },
+            tools: tools.length ? toolsArray({ type: 'string', enum: tools }) : toolsArray(),
             dependsOn: { type: 'array', items: { type: 'string' } },
           },
           required: ['id', 'goal', 'tools', 'dependsOn'],

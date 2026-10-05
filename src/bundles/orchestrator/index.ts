@@ -68,7 +68,7 @@ export class Orchestrator extends Service {
     const maxRepairs = opts.maxRepairs ?? this.cfg.maxRepairs ?? 1
     const provider = opts.provider ?? this.cfg.provider
     const model = opts.model ?? this.cfg.model
-    const schema = (opts.structured ?? this.cfg.structured ?? true) ? planSchema(offered) : undefined
+    const schema = (opts.structured ?? this.cfg.structured ?? true) ? planSchema(offered, (this.cfg.schemaLimits ?? true) ? this.limits : undefined) : undefined
 
     let prompt = opts.task
     let errors: string[] = []

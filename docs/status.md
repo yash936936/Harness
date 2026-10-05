@@ -2,6 +2,13 @@
 
 > Updated every run. Newest entry at top.
 
+## 2026-10-06 — phases 4.1-4.4 closed; real-model results in (D-077, DBG-049)
+Windows 690 passed / 7 skipped (37 files). Planner n=15: constrained 29/30 first-try valid vs 20/30 unconstrained (p=0.006 pooled); 30/30 vs 28/30 after repair. First real executor run: 11 of 12 plans executed to completion, 0 failed subtasks of 30.
+Not shown: answer correctness, plan quality, any real failure through the D-074 policy, qwen as a worker. Added array-size limits to the plan schema (unverified on the owner's Ollama).
+**Owner to do:** extract `Harness-phase4.5prep.zip`, `npm install`, `npm run typecheck`, `npm test` (expect 692 passed / 7 skipped, 37 files); then COMMIT 4.4 and this (4.4's test and docs were not in commit 8492894).
+Optional measurements, each cheap: (a) `HARNESS_TRIALS=5 HARNESS_OLLAMA_CHAT_MODEL=llama3.2:3b,qwen2.5-coder:3b-instruct npx tsx scripts/smoke-plan.ts` to confirm the size limits do not break the schema on this Ollama; (b) the split config (qwen plans, llama works).
+**Next up:** Phase 5 (policy gates) is my recommendation; planners already request write tools, and a `real-fs-write` grant is held back only by the ceiling. 4.5 (router) stays optional and has its own prerequisites.
+
 ## 2026-10-05 (end) — 4.4 end-to-end test done (D-076, DBG-048)
 11 tests, no `src/` change. Linux 599 passed / 98 skipped. **Owner to run (Git Bash):** `npm install`, `npm run typecheck`, `npm test` (expect 690 passed / 7 skipped, 37 files).
 Phases 4.1-4.4 are done against scripted models. Still owed by the owner, and needed to call 4.1/4.2 measured rather than just built: the `scripts/smoke-plan.ts` comparison (D-072) and a first `scripts/smoke-execute.ts` run (D-075).

@@ -680,7 +680,7 @@ just accumulates.
   expected subtask count/shape.
 - Log test: confirm the plan appears in the session log prior to the
   first subtask's execution events.
-**Status:** BUILT, plumbing only (2026-10-04, D-071, DBG-044). Plan is schema-validated, logged as `plan.created`, rejected invalid plans never execute.
+**Status:** CLOSED (2026-10-06, D-071, D-072, D-077). Windows-verified; real-model plan validity measured, n=15 per model: 15/15 valid after repair for both 3B models with the schema on (first try 14/15 and 15/15). Plan QUALITY unmeasured. Plan is schema-validated, logged as `plan.created`, rejected invalid plans never execute.
 Real-model plan validity is UNMEASURED (`scripts/smoke-plan.ts`). The "plan logged before first subtask event" ordering test belongs to 4.2.
 
 ### 4.2 — Executor (orchestrator, execution half)
@@ -696,7 +696,7 @@ Real-model plan validity is UNMEASURED (`scripts/smoke-plan.ts`). The "plan logg
   correctly.
 - Failure-mode test: force one subtask to fail, assert the configured
   failure policy is actually applied (not silently ignored).
-**Status:** BUILT, plumbing only (2026-10-05, D-074, D-075, DBG-047). Both criteria and both tests met with scripted models. NOT shown: a real model completing a subtask
+**Status:** CLOSED (2026-10-06, D-074, D-075, D-077). Windows-verified; first real-model run: 11 of 12 plans executed to completion, 30 subtasks, 0 failures. The failure policy has NOT been exercised by a real failure. (Original note follows.) Both criteria and both tests met with scripted models. NOT shown: a real model completing a subtask
 (`scripts/smoke-execute.ts`, not yet run).
 
 ### 4.3 — subagent-scope bundle
@@ -712,7 +712,7 @@ Real-model plan validity is UNMEASURED (`scripts/smoke-plan.ts`). The "plan logg
   to call an ungranted tool from each, assert both are blocked.
 - Isolation test: write to sub-agent A's memory scope, assert sub-agent B
   cannot read it directly (only via explicit sharing, if that exists).
-**Status:** BUILT — 2026-10-05 (D-068, D-069, D-073, DBG-043, DBG-046). Tools are scoped and enforced twice; memory is scoped per agent (hot rules, episodes, compaction)
+**Status:** CLOSED (2026-10-06) — BUILT 2026-10-05 (D-068, D-069, D-073, DBG-043, DBG-046). Tools are scoped and enforced twice; memory is scoped per agent (hot rules, episodes, compaction)
 with the isolation test passing. Semantic memory is not exposed to scoped agents. Scripted-model tests only.
 
 ### 4.4 — Multi-agent integration test
@@ -726,7 +726,7 @@ real task.
 **Testing:**
 - End-to-end test: run the task, inspect the session log to confirm no
   scope violations occurred and the final result is correct.
-**Status:** DONE with a scripted model (2026-10-05, D-076, DBG-048). Two scoped agents complete a real task on a real workspace; an independent log audit finds no scope violation. NOT shown: a real model doing it.
+**Status:** CLOSED (2026-10-06, D-076). Windows-verified (690 passed / 7 skipped). Done with a scripted model; a real-model version is not built. Two scoped agents complete a real task on a real workspace; an independent log audit finds no scope violation. NOT shown: a real model doing it.
 
 ### 4.5 — router bundle (Needle)
 **Goal:** `ctx.router` — a small local model picks the sub-agent, the

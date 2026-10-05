@@ -4,6 +4,34 @@
 > if a decision is reversed, log a new entry that supersedes it and reference
 > the old ID.
 
+## D-077 — Real-model results for 4.1 and 4.2; phases 4.1-4.4 closed; corrects D-072's reading — 2026-10-06
+**Verified on Windows:** 690 passed / 7 skipped, 37 files, typecheck clean (twice, before and after 4.4). 4.1-4.3 committed as 8492894.
+**smoke-plan, n=15 per model per condition (owner's machine, llama3.2:3b and qwen2.5-coder:3b-instruct, 3 tasks x 5 trials):**
+| | first try valid | valid after one repair | rejected |
+|---|---|---|---|
+| llama, unconstrained | 9/15 | 13/15 | 2/15 |
+| qwen, unconstrained | 11/15 | 15/15 | 0/15 |
+| llama, constrained | 14/15 | 15/15 | 0/15 |
+| qwen, constrained | 15/15 | 15/15 | 0/15 |
+Pooled first-try validity 20/30 (95% CI 49-81%) unconstrained vs 29/30 (83-99%) constrained, Fisher exact p=0.006; per model the difference is borderline (llama p=0.08, qwen p=0.10), only the pooled result is clear.
+Final validity (after one repair) is 28/30 vs 30/30: the repair attempt already covered most of the gap; constrained decoding mainly removes the need for it.
+**Correction to D-072:** its reading ("a 3B planner fails about one task in four or three") came from n=9 (6/9 and 7/9) and was too pessimistic. With n=15 the unconstrained final validity is 13/15 and 15/15. The n=9 intervals (35-88%, 45-94%) already contained these numbers; I over-read a small sample.
+**smoke-execute (llama3.2:3b as planner AND worker, 6 trials per run, canned tool outputs):** run 1 (abort, no retries): plan valid 6/6, fully completed 6/6, 13 real tool calls, 13 subtasks completed.
+Run 2 (continue, retries 1): plan valid 5/6, all 5 valid-plan runs completed, 16 real tool calls, 17 subtasks completed; the one rejection was `too many subtasks (9)` (limit 8) AFTER the repair attempt.
+**What this shows:** a 3B model plans valid, in-schema plans most of the time and, as a worker with native tool calls, finishes small subtasks with real tool calls (about one per subtask). It is the first real-model run of the executor, and nothing crashed or left an undefined state.
+**What it does NOT show:**
+- **Correctness.** "Completed" means a non-empty answer that did not hit the step cap. Tools return canned text, so nothing here can say an answer is RIGHT. The run-1 sample has three subtasks giving near-identical answers ("The retry logic lives in src/net/retry.ts..."), which suggests a worker can restate the first result instead of doing its own subtask; the script printed only the first 80 characters and not the goals, so this is a suspicion, not a finding.
+- **The failure policy.** There were ZERO failed subtasks in 30. D-074's retry, continue and abort-on-failure paths ran only under scripted failures; no real model has exercised them, so the defaults still rest on reasoning, not data.
+- **Plan quality.** Valid is not good. The constrained llama sample contains near-duplicate subtasks ("Add unit test..." and "Write unit test..."), and qwen's plans assign `edit_file`/`run_tests` to subtasks. The latter matters: planners will ask for write tools, so Phase 5 gates are not optional.
+- **Qwen as a worker.** Not tested here (the script does not enable text recovery, D-067).
+- **Per-task breakdown.** Not printed, so a trivial task may be flattering the totals.
+**Decisions:**
+- Structured output stays default ON; the one-repair budget stays (it still rescued 4/15 + 1/15 unconstrained/constrained cases).
+- Array SIZES (subtask count, tools per subtask) are now also in the schema (`schemaLimits`, default true), because the only structured-run rejection was an oversized plan. UNVERIFIED on the owner's Ollama: if it ignores or rejects `maxItems`, set `schemaLimits: false`. String lengths remain with the validator, which is still the authority.
+- D-030 is not reversed. A split is worth measuring, not adopting: qwen planned 15/15 first-try constrained and needs no tool calling to plan, while llama is the worker that calls tools natively (D-070). Try `HARNESS_PLANNER_MODEL=qwen2.5-coder:3b-instruct HARNESS_WORKER_MODEL=llama3.2:3b`.
+**Phase status:** 4.1, 4.2, 4.3, 4.4 are CLOSED as built, tested, Windows-verified and smoke-measured on real models for validity and completion. They are NOT closed as proven useful: answer correctness and the real-failure policy are unmeasured.
+**Affects:** `orchestrator/{plan,index,types}.ts`, `test/orchestrator-plan.test.ts` (+2), `docs/phases.md`.
+
 ## D-076 — 4.4 end-to-end test: what it proves, how, and what it does not — 2026-10-05
 **Built:** `test/phase4-e2e.test.ts` only (the spec says no new files in `src/`). A real task on a real temp workspace: find a bug, fix it, verify it, as three subtasks across two distinctly
 scoped sub-agents: a read-only researcher/verifier (`search_files`, `read_file`) and a write-only editor (`write_file`, a `real-fs-write` tool). The plan comes from `plan()` (with the constrained schema) and runs

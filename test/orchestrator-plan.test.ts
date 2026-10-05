@@ -148,7 +148,7 @@ describe('planner: structured output (D-072)', () => {
     const { ctx, mock } = await boot([reply(good)])
     await ctx.orchestrator.plan({ sessionId: 's', task: 'T', tools: ['search', 'read'] })
     const schema = mock.calls[0]!.jsonSchema as any
-    expect(schema).toEqual(planSchema(['search', 'read']))
+    expect(schema).toEqual(planSchema(['search', 'read'], { maxSubtasks: 8, maxToolsPerSubtask: 3 }))
     expect(toolsEnum(schema)).toEqual(['search', 'read'])
     expect(schema.properties.subtasks.items.required).toEqual(['id', 'goal', 'tools', 'dependsOn'])
   })
@@ -171,5 +171,23 @@ describe('planner: structured output (D-072)', () => {
   })
   it('with no tools offered the schema allows only an empty tools array', () => {
     expect((planSchema([]) as any).properties.subtasks.items.properties.tools).toEqual({ type: 'array', maxItems: 0 })
+  })
+  it('array sizes are in the schema (D-077), from the configured limits, and can be switched off', async () => {
+    const a = await boot([reply(good)], { maxSubtasks: 5, maxToolsPerSubtask: 2 })
+    await a.ctx.orchestrator.plan({ sessionId: 's', task: 'T' })
+    const sch = a.mock.calls[0]!.jsonSchema as any
+    expect(sch.properties.subtasks).toMatchObject({ minItems: 1, maxItems: 5 })
+    expect(sch.properties.subtasks.items.properties.tools.maxItems).toBe(2)
+    const b = await boot([reply(good)], { schemaLimits: false })
+    await b.ctx.orchestrator.plan({ sessionId: 's', task: 'T' })
+    const off = b.mock.calls[0]!.jsonSchema as any
+    expect(off.properties.subtasks.maxItems).toBeUndefined()
+    expect(off.properties.subtasks.items.properties.tools.maxItems).toBeUndefined()
+    expect(planSchema([], { maxSubtasks: 8, maxToolsPerSubtask: 3 }) as any).toMatchObject({ properties: { subtasks: { items: { properties: { tools: { maxItems: 0 } } } } } })
+  })
+  it('the validator still rejects an oversized plan from a provider that ignores the schema', async () => {
+    const big = { subtasks: Array.from({ length: 9 }, (_, i) => ({ id: `s${i}`, goal: 'g' })) }
+    const { ctx } = await boot([reply(big), reply(big)])
+    await expect(ctx.orchestrator.plan({ sessionId: 's', task: 'T' })).rejects.toThrow(/too many subtasks \(9\)/)
   })
 })

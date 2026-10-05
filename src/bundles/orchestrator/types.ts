@@ -46,6 +46,8 @@ export interface PlanResult {
 }
 
 export interface OrchestratorConfig extends Partial<PlannerLimits> {
+  /** Put the array-size limits (subtask count, tools per subtask) in the plan schema too. Default true. Set false if a provider rejects `maxItems`. */
+  schemaLimits?: boolean
   /** Upper bound for `ExecuteOptions.retries`. Default 3. */
   maxRetries?: number
   /** Each dependency result passed on to a later subtask is cut to this many characters. Default 2000. */
