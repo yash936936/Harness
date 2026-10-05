@@ -4,13 +4,15 @@ import { join } from 'node:path'
 import type { EpisodicMemory } from './index.js'
 import type { HotTier } from './hot.js'
 import { MemoryError, type CompactionResult, type PromotionCandidate } from './types.js'
+import { isScopedActor } from './access.js'
 
 /** Same lesson = same text after lower-casing, collapsing whitespace and trimming edge punctuation. */
 export function normaliseLesson(s: string): string {
   return s.toLowerCase().replace(/\s+/g, ' ').replace(/^[\s.,;:!?'"()-]+|[\s.,;:!?'"()-]+$/g, '')
 }
-export function lessonId(normalised: string): string {
-  return 'lesson-' + createHash('sha1').update(normalised).digest('hex').slice(0, 16)
+/** A scoped lesson gets its own id, so the same words learned by two agents are two separate rules. A global id is unchanged (compatible with existing stores). */
+export function lessonId(normalised: string, scope?: string): string {
+  return 'lesson-' + createHash('sha1').update(scope ? `${scope}\u0000${normalised}` : normalised).digest('hex').slice(0, 16)
 }
 
 interface Ledger {
@@ -61,12 +63,16 @@ export class Compaction {
     if (!Number.isInteger(min) || min < 2) throw new MemoryError('memory: minOccurrences must be an integer >= 2')
     const dryRun = opts.dryRun === true
     const episodes = await this.episodic.query({}) // oldest first
-    const groups = new Map<string, { text: string; occurrences: number; sessions: Set<string> }>()
+    // D-073: lessons are counted PER SUB-AGENT and promoted into that agent's scope only. Counting across agents and promoting
+    // globally would let one agent's repeated (possibly poisoned) lesson become a standing rule in every other agent's prompt.
+    const groups = new Map<string, { norm: string; scope: string | undefined; text: string; occurrences: number; sessions: Set<string> }>()
     for (const e of episodes) {
       if (!e.lesson) continue
-      const key = normaliseLesson(e.lesson)
-      if (!key) continue
-      const g = groups.get(key) ?? { text: e.lesson, occurrences: 0, sessions: new Set<string>() }
+      const norm = normaliseLesson(e.lesson)
+      if (!norm) continue
+      const scope = isScopedActor(e.agentId) ? e.agentId : undefined
+      const key = scope ? `${scope}\u0000${norm}` : norm
+      const g = groups.get(key) ?? { norm, scope, text: e.lesson, occurrences: 0, sessions: new Set<string>() }
       g.text = e.lesson // keep the most recent wording
       g.occurrences++
       g.sessions.add(e.sessionId)
@@ -82,12 +88,12 @@ export class Compaction {
         result.skipped.belowThreshold++
         continue
       }
-      const id = lessonId(key)
+      const id = lessonId(g.norm, g.scope)
       if (ledger.promoted[key]) {
         result.skipped.alreadyPromoted++
         continue
       }
-      const candidate: PromotionCandidate = { id, text: g.text, occurrences: g.occurrences, sessions: g.sessions.size }
+      const candidate: PromotionCandidate = { id, text: g.text, occurrences: g.occurrences, sessions: g.sessions.size, ...(g.scope ? { scope: g.scope } : {}) }
       if (inHot.has(id)) {
         // In the hot tier but missing from the ledger (e.g. a crash between the two writes): adopt it, write nothing to the hot tier.
         if (!dryRun) await this.record(key, candidate)
@@ -103,7 +109,7 @@ export class Compaction {
         continue
       }
       try {
-        await this.hot.add({ id, text: g.text, priority: this.defaults.promotedPriority, source: 'compaction' })
+        await this.hot.add({ id, text: g.text, priority: this.defaults.promotedPriority, source: 'compaction', ...(g.scope ? { scope: g.scope } : {}) })
       } catch (err) {
         result.failed.push({ id, reason: err instanceof Error ? err.message : String(err) })
         continue

@@ -40,6 +40,8 @@ export interface RunTaskOptions {
   provider?: string
   fallbackProviders?: string[]
   model?: string
+  /** Passed to every model call of this run as `CompletionRequest.jsonSchema` (see there). */
+  jsonSchema?: Record<string, unknown>
   signal?: AbortSignal
 }
 

@@ -2,6 +2,7 @@ import { Context, Service } from 'cordis'
 import '../session-log/index.js'
 import '../tool-registry/index.js'
 import '../agent-loop/index.js'
+import '../memory/index.js'
 import { ToolDeniedError, type ToolCallEvent } from '../tool-registry/index.js'
 import { ScopeError, type SubAgent, type SubagentRunOptions, type SubagentSpec } from './types.js'
 
@@ -33,11 +34,21 @@ interface Scope {
  *      in that agent's grant, whoever made the call. An actor in the `subagent:` namespace with no
  *      live scope (closed, or forged) is denied everything: fail closed.
  * Grants are explicit and never inherited: a child's grant must be a subset of its parent's, and a
- * sibling's grant has no effect on it. NOT scoped here: memory (the memory bundle has no per-scope
- * namespace yet; see D-068).
+ * sibling's grant has no effect on it.
+ *
+ * Memory (D-073), when the memory bundle is loaded: each agent also gets a `MemoryGrant`. It always sees its own episodes
+ * and its own scoped hot rules; global hot rules only if granted (default yes). Closing the agent revokes the grant, and a
+ * `subagent:` actor with no live grant sees nothing from memory. Runs are recorded as episodes under the agent's own id.
  */
 export class SubagentScope extends Service {
+  // `memory` is deliberately NOT injected: in this cordis, every injected service is required, and sub-agents must work without
+  // it. It is read through the root context instead (see `mem`), which sees it if and when it is loaded.
   static inject = ['log', 'tools', 'agentLoop']
+
+  /** The memory service if the memory bundle is loaded, else undefined. */
+  private get mem() {
+    return (this.ctx.root as Context & { memory?: Context['memory'] }).memory
+  }
 
   private scopes = new Map<string, Scope>()
 
@@ -72,6 +83,7 @@ export class SubagentScope extends Service {
     // Log first: a spawn that cannot be recorded must not exist.
     await this.ctx.log.append(spec.sessionId, 'subagent.spawn', { id: spec.id, tools: grant, parent: spec.parent ?? null }, 'subagent-scope')
     this.scopes.set(spec.id, scope)
+    this.mem?.access.grant(scope.actor, spec.memory ?? { hot: 'global' })
     return this.handle(scope, spec)
   }
 
@@ -89,14 +101,17 @@ export class SubagentScope extends Service {
       get closed() {
         return scope.closed
       },
+      get memory() {
+        return self.mem?.view(scope.actor)
+      },
       async run(prompt: string, opts: SubagentRunOptions = {}) {
         if (scope.closed) throw new ScopeError(`sub-agent "${scope.id}" is closed`)
         const tools = opts.tools ?? [...scope.tools]
         for (const t of tools) {
           if (!scope.tools.has(t)) throw new ScopeError(`sub-agent "${scope.id}": run asked for tool "${t}" outside its grant`)
         }
-        const { sessionId, tools: _t, system, maxSteps, ...rest } = opts
-        return self.ctx.agentLoop.run({
+        const { sessionId, tools: _t, system, maxSteps, lesson, ...rest } = opts
+        const runOpts = {
           ...rest,
           sessionId: sessionId ?? spec.sessionId,
           actor: scope.actor,
@@ -104,13 +119,22 @@ export class SubagentScope extends Service {
           tools,
           ...((system ?? spec.system) !== undefined ? { system: (system ?? spec.system)! } : {}),
           ...((maxSteps ?? spec.maxSteps) !== undefined ? { maxSteps: (maxSteps ?? spec.maxSteps)! } : {}),
-        })
+        }
+        const memory = self.mem
+        if (!memory) return self.ctx.agentLoop.run(runOpts)
+        return memory.runTurn({ ...runOpts, ...(lesson !== undefined ? { lesson } : {}) })
       },
       async close() {
         if (scope.closed) return
         scope.closed = true
+        self.mem?.access.revoke(scope.actor)
         // Children die with the parent: a grant cannot outlive the grant it was cut from.
-        for (const s of self.scopes.values()) if (s.parent === scope.id && !s.closed) s.closed = true
+        for (const s of self.scopes.values()) {
+          if (s.parent === scope.id && !s.closed) {
+            s.closed = true
+            self.mem?.access.revoke(s.actor)
+          }
+        }
         await self.ctx.log.append(spec.sessionId, 'subagent.close', { id: scope.id }, 'subagent-scope')
       },
     }

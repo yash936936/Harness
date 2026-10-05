@@ -4,6 +4,76 @@
 > if a decision is reversed, log a new entry that supersedes it and reference
 > the old ID.
 
+## D-075 — 4.2 executor built (implements D-074); design choices beyond it — 2026-10-05
+**Built:** `ctx.orchestrator.execute(plan, { sessionId, allowedTools, onFailure?, retries?, ... })` (needs `ctx.subagents`). Each subtask runs in its own short-lived sub-agent
+(`subagent:<runId>-<subtaskId>`), closed afterwards, with a grant of exactly the tools the subtask lists.
+**Choices not fixed by D-074:**
+- `allowedTools` is a REQUIRED explicit ceiling. A plan is model output, so what it asks for is never what it gets by itself. The whole plan is re-validated (shape, caps, earlier-only
+  dependencies, every tool inside the ceiling) BEFORE anything runs, so a hand-written or reloaded plan gets the same checks, and a bad plan costs nothing and logs nothing.
+- The full plan is logged inside `execute.started` before the first subtask, whatever produced it (so the audit trail does not depend on the plan having come from `plan()`).
+- A subtask receives only the results of the subtasks it depends on, fenced as `<result id="..">` data, truncated (default 2000 chars), and unable to close its own fence.
+  This is a small guard against one subtask's output steering the next, NOT the Phase 5 content-boundary/injection layer, which does not exist yet.
+- Sequential. Dependencies point only backwards, so plan order is a valid order; parallel independent subtasks are deferred (a concurrency bug is a poor trade for a weak worker, D-070).
+- Failure = the run throws, hits `max_steps`, or ends with an empty answer. Config errors (bad grant, unregistered tool, unknown provider, bad credentials) are never retried: they fail the same way every time and retries burn the 50/day free tier.
+- A retry is refused if the failed attempt called any tool that is not `read-only` / `sandbox-write`, or whose class is unknown, read from the session log; the reason says so.
+- The orchestrator's OWN log failures are fatal and propagate (a subtask that cannot be recorded must not run); remaining subtasks are still given a terminal `not-run` record and `execute.finished` is attempted.
+  Limit: a log failure raised from inside a model/tool run cannot be told apart from the run failing, so it surfaces as that subtask failing, with its message.
+- Terminal states: completed / failed / blocked / not-run. Events: `execute.started`, `subtask.started|completed|failed|retry|blocked|not-run`, `execute.finished`.
+**Not shown:** that any real model completes a subtask, uses its granted tools, or gives a useful answer. All tests are scripted. `scripts/smoke-execute.ts` is the real-model check and has not been run.
+**Not built yet:** parallel subtasks; the router (4.5); the 4.4 end-to-end test; Phase 5 gates (a subtask granted a `real-fs-write` tool is only held back by the ceiling you pass, not by approval).
+**Affects:** `orchestrator/{execute,index,types}.ts`, `test/orchestrator-execute.test.ts`, `scripts/smoke-execute.ts`, `docs/phases.md` 4.2.
+
+## D-074 — Executor failure policy (for 4.2): abort by default; retry and continue are opt-in — 2026-10-05
+**Decided as the default, from the owner's "continue" after the recommendation; reopen it if you disagree. Not built yet (4.2).**
+**What counts as a failed subtask:** the run throws, ends at `max_steps`, or ends with an empty final answer (D-070 saw qwen do exactly that). A failed
+TOOL result alone does not: the model can recover from it.
+**Policy:** `onFailure: 'abort'` and `retries: 0` by default. Abort stops the run; everything not yet started is logged `not-run`.
+`retries: n` (capped) is opt-in and retries ONLY when the failed attempt made no side-effecting tool call (read from the session log), so a retry never re-applies a half edit.
+`onFailure: 'continue'` is opt-in: it runs the independent subtasks and marks the failed subtask's transitive dependents `blocked`, never run.
+Skipping a failed subtask while still running its dependents is NOT offered: that is running on missing inputs, the undefined state 4.2's criterion forbids.
+Every subtask ends in a logged terminal state (completed / failed / blocked / not-run) and the run result lists them.
+**Why abort first:** the free tier is 50 requests/day (D-061 notes), step-cap loops are likely to repeat, an off-track agent can leave half-applied edits, and the Phase 5 gates do
+not exist yet. The evidence for retry is thin: the planner's repair rescued 2 of llama's 5 failures and 0 of qwen's 2.
+**Counterpoint kept open:** for a plan whose tools are all read-only, abort wastes finished work and continue is harmless; a plan-dependent default is a reasonable later refinement.
+Revisit the defaults once the executor produces real failure-rate data.
+**Affects:** 4.2 `executor`, `docs/phases.md` 4.2 criteria.
+
+## D-073 — Memory is scoped per sub-agent (replaces my earlier "shared in v1" lean) — 2026-10-05
+**Why scoped:** the PRD ("their own tool/memory permissions"), `architecture.md`, the design draft and `phases.md` 4.3 ("no implicit access", with an isolation test) all require it.
+The earlier lean to share memory in v1 contradicted four requirements, and I overstated its cost: hot sections already receive the `actor` and episodes already carry `agentId`.
+**A real cross-scope leak found while reading:** compaction ignored `agentId`. A lesson repeated three times across agents became a GLOBAL hot rule in every agent's prompt (D-064's poisoning risk, crossing the boundary).
+**Decision (4.3b, built):**
+- Hot entries have an optional `scope` (a `subagent:<id>` actor). No scope = global, so existing stores load unchanged. `render(view)` filters to what the viewer may see BEFORE the token cap, so another agent's rules cannot crowd out mine.
+- `ctx.memory.access` holds one live `MemoryGrant { hot: 'global' | 'none' }` per sub-agent, written by `subagent-scope` on spawn, removed on close (and for children when a parent closes). A `subagent:` actor with NO grant sees nothing from memory, global rules included: fail closed.
+- The main/host actor sees global rules only, never a sub-agent's scoped rules.
+- `ctx.memory.view(actor)` is the only memory handle a sub-agent gets: its own episodes (a caller-supplied `agentId` is overridden) and its hot view; it throws once the grant is gone.
+- `SubAgent.run` goes through `memory.runTurn` when memory is loaded, so each agent's runs are recorded as episodes under its own id. Without the memory bundle, sub-agents work as before.
+- Compaction counts lessons PER sub-agent and promotes into that agent's scope only. The same lesson from different agents is never promoted automatically. Non-sub-agent actors promote globally as before.
+- Default grant is `{ hot: 'global' }`: the global hot rules are owner-curated, and now contain nothing a sub-agent put there. A judgment call; `'none'` is the strict alternative.
+**Stricter than I first proposed:** I said cross-scope promotion would need owner approval. It is simply not automatic; the owner adds a global rule by hand (`hot.add`). The cost: a genuinely common lesson learned separately by several agents does not consolidate.
+**Not covered, on purpose:** semantic memory is not exposed to scoped agents (no model-facing path to it exists today). Host code calling `memory.episodic` / `memory.hot` directly is trusted and unrestricted, like the registry's unscoped actors: the enforcement points are the model-facing hot section and `view`. Any future memory TOOL for models must go through `view`.
+**Not shown:** that any real model uses its memory at all (D-070). This is access control, tested with scripted models; it is not evidence of a benefit.
+**Implementation note (cordis):** in this cordis every `inject` entry is required, and `{required:false}` is only interception metadata. `subagent-scope` therefore reads memory through the root context, so it loads with or without the memory bundle.
+**Affects:** `memory/{access,hot,compaction,index,types}.ts`, `subagent-scope/{index,types}.ts`, `test/memory-scope.test.ts`, `docs/phases.md` 4.3.
+
+## D-072 — Planner reality check (smoke-plan run 1) and structured output via constrained decoding — 2026-10-05
+**Evidence (owner's machine, 3 trials x 3 tasks per model = n=9, unconstrained, one repair allowed):**
+- llama3.2:3b: accepted first try 4/9, after repair 2/9, rejected 3/9. Final-attempt errors: invented tool name x3, malformed JSON x2.
+- qwen2.5-coder:3b-instruct: first try 7/9, after repair 0/9, rejected 2/9. Errors: unquoted id in an array (`[s1]`) x1, invented tool name x1.
+**Reading it honestly:** valid plans came out 6/9 and 7/9. At n=9 that cannot rank the models (one trial apart) and the true rate could plausibly be anywhere from about
+40% to 95%. What IS clear: a 3B planner fails often enough (about one task in four or three) that "the model plans, we validate" is not a reliable
+foundation by itself. The error counts are per distinct final error, not per task. The repair rescued llama 2 times and qwen 0 (of 2 attempts), too few to say it helps.
+The three tasks were not broken out, so a trivial task may be flattering the totals. Validity only: no one has judged whether any plan is GOOD (the qwen sample
+contains a glitched goal, "thepurpose").
+**Both failure classes are ones constrained decoding removes:** malformed JSON and unknown tool names (D-070 saw invented names in tool calls too).
+**Decision:** add `CompletionRequest.jsonSchema`, an optional REQUEST that the provider constrain its reply to a JSON Schema. Ollama sends it as `format`; no other
+provider uses it yet (OpenAI-compatible endpoints differ in support, so it is not guessed at). The planner passes a schema whose tool names are an enum of the
+OFFERED tools (an empty array when none are offered), on the first attempt and on repairs, default on, `structured: false` to turn off. `validatePlan` stays the
+authority: a provider may ignore the schema, and caps (counts, lengths, earlier-only dependencies) are not in the schema.
+**Not shown:** that Ollama's constrained decoding actually fixes these failures on the owner's version and models (`HARNESS_STRUCTURED=0` vs default in
+`scripts/smoke-plan.ts` is the measurement), or that constraining the output does not make plans worse in content (a constrained 3B model can be steered into valid but empty plans).
+**Affects:** `model-adapter/types.ts`, `providers/ollama.ts`, `agent-loop/{index,types}.ts`, `orchestrator/{plan,index,types}.ts`, `scripts/smoke-plan.ts`.
+
 ## D-071 — 4.1 planner: schema-validated plan, one repair, reject rather than guess — 2026-10-04
 **Decision:** `ctx.orchestrator.plan({ sessionId, task, tools? })` asks a model (no tools offered) for exactly one JSON object
 `{"subtasks":[{id, goal, tools?, dependsOn?}]}`. Accepted raw or in one fenced block; ANY prose around it is a rejection (same

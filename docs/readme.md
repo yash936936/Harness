@@ -7,7 +7,7 @@ stacks, from a single-agent smoke-test kernel up to a governed, multi-agent,
 multi-user system.
 
 ## Status
-Phases 1 and 2 are done, Phase 3 (memory and skills) is built, and Phase 4 has started (`subagent-scope` tool grants and the planner exist, the executor does not; see D-069, D-071). This file was
+Phases 1 and 2 are done, Phase 3 (memory and skills) is built, and Phase 4 has started (`subagent-scope` with tool and memory scoping, and the planner and the executor exist; see D-069, D-071, D-073, D-075). This file was
 behind the code for a while; the per-phase lists below are what exists and is tested. Phase 1 (the `profile-minimal` kernel):
 
 - `ctx.log`: append-only session log with replay and fork (1.1).
@@ -84,7 +84,7 @@ compaction and skills both become text in the system prompt, so a poisoned lesso
 partial protections exist until the policy gates in Phase 5 (see `docs/decisions.md` D-064, D-065). No profile enables
 memory or skills yet, and no real chat model has driven the loop.
 
-Not built yet: orchestration and sub-agents (Phase 4), remote sandboxes and policy gates (Phase 5), evals (Phase 6),
+Not built yet: the Phase 4 end-to-end test and router (planning, execution and scoped sub-agents exist but have only been run against scripted models), remote sandboxes and policy gates (Phase 5), evals (Phase 6),
 the browser (Phase 7), multi-user scale (Phase 8). See `docs/phases.md` and `docs/status.md`.
 
 ## What data leaves your machine

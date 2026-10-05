@@ -3,6 +3,41 @@
 > Append-only. Every completed coding task gets an entry here, even "no
 > issues found." Newest entries at top.
 
+## DBG-047 — 4.2 executor (D-075) — 2026-10-05
+**Tested:** `test/orchestrator-execute.test.ts`, 25 tests. Happy path: 3 subtasks, each in its own sub-agent, outputs aggregated, sub-agents all closed; only declared dependency results passed; fencing and truncation;
+the whole plan logged before the first subtask; `plan.created` < `execute.started` < `subtask.started` when the plan came from `plan()`. Grants: exactly the listed tools (an in-ceiling but unlisted tool is refused);
+a tool outside the ceiling rejects the whole plan with nothing run or logged; every up-front validation (forward dependency, empty task, unregistered ceiling tool, bad runId, bad retries, bad policy); missing subagent-scope.
+Failure policy: abort stops and leaves later subtasks `not-run` with the model never called for them; continue runs independent subtasks and blocks dependents transitively, never run on missing inputs; the three failure kinds
+with their reasons; a failed tool result alone is not a failed subtask; retries (opt-in, bounded, default none, logged); side-effect guard (an `edit` is applied once, never twice; a read-only failure is retried);
+config errors not retried; spawn failure is a failed subtask, not an exception; run-id handling. Cancellation: signal already fired, fired between subtasks, fired during a failing attempt; log failure mid-run.
+**Mutation-checked (22), all caught.** 3 slipped through the first round and were fixed:
+(1) an `InfraError` rethrow inside the run-catch was DEAD CODE (nothing in `agent.run` can raise it), so I removed it rather than keep untestable code;
+(2) retries ignoring a fired signal and (3) retrying config errors had no test; added both.
+**Bugs found by my own tests:** a log failure writing `subtask.started` was swallowed as an ordinary failed subtask (the spawn catch caught it); it is now fatal and propagates. Also: my guard missed `LLMError` kind `config`
+(an unknown provider), which is what the loop actually throws; it was retried until I checked what really gets thrown.
+**Tested:** Linux 588 passed / 98 skipped (563 + 25). Expect Windows 679 passed / 7 skipped, 36 files.
+**Not tested:** any real model. The stand-in run of `scripts/smoke-execute.ts` only checks the script.
+
+## DBG-046 — 4.3b memory scoping (D-073) and the failure policy decision (D-074) — 2026-10-05
+**Built:** memory access grants, scoped hot entries and views, per-agent episodes via `runTurn`, per-agent compaction; `subagent-scope` wired to it.
+**Tested:** `test/memory-scope.test.ts`, 21 tests: scoped/global/main visibility through the real loop; grant `none`; fail-closed for never-spawned and closed actors; token cap spent on visible entries only;
+scope validation; persistence and an old unscoped `hot.json` loading as global; per-agent episodes; caller `agentId` cannot widen a view; closed/ghost views throw; the phases.md "A writes, B cannot read" test;
+compaction: one agent's lesson promotes into its scope only, the same lesson from three agents promotes nowhere, non-sub-agent lessons still promote globally, ids differ per scope, a deleted scoped rule stays deleted per scope;
+works without the memory bundle; spawn grants / close revokes / parent close revokes children; run records an episode with a lesson.
+**Mutation-checked (14), all caught,** including "compaction counts across agents" (the old channel) and "no grant fails open".
+**Existing tests:** all 54 memory tests and the 15 sub-agent tests pass unchanged. Linux 563 passed / 98 skipped (542 + 21). Expect Windows 654 passed / 7 skipped, 35 files.
+**What I got wrong, and fixed:** (1) my optional-injection probe in the previous step was misread: in this cordis every injected service is required, so "WITHOUT: undefined" was the plugin not loading at all. It broke 12 tests, which is how I found it; fixed by reading memory via the root context.
+(2) test fixtures: sequence numbers start at 1, episodes must point at real session events, session ids cannot contain `:`, and compaction's default threshold is 3, not 2.
+**Not tested:** any real model with scoped memory; memory scoping under Phase 5 gates.
+
+## DBG-045 — structured planner output (D-072) — 2026-10-05
+**Owner's smoke-plan run, unconstrained:** llama 6/9 valid, qwen 7/9 valid (D-072). Not good enough to build the executor on unexamined.
+**Built:** `jsonSchema` on the completion request, passed through the loop, sent by Ollama as `format`; planner schema with a tool-name enum.
+**Tested:** +1 model-adapter test (format sent / absent), +5 planner tests (enum is exactly the offered tools, repair also constrained, opt-out per call and in config,
+schema is not the authority, empty-tools schema). **Mutation-checked (6), all caught:** Ollama drops `format`, loop drops the schema, planner sends none, default flipped off,
+enum removed, empty-tools cap removed. Linux 542 passed / 98 skipped. Expect Windows 633 passed / 7 skipped, 34 files.
+**Not tested:** any real model with the schema on. That is the next owner run.
+
 ## DBG-044 — 4.1 planner (D-071) — 2026-10-04
 **Verified first:** 4.3 on Windows, 614 passed / 7 skipped (see DBG-043).
 **Built:** `orchestrator` planning half; `scripts/smoke-plan.ts` for real models.

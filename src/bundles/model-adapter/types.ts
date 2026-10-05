@@ -29,6 +29,12 @@ export interface CompletionRequest {
   model?: string
   maxTokens?: number
   temperature?: number
+  /**
+   * Ask the provider to constrain its reply to this JSON Schema (constrained decoding). A request, not a
+   * guarantee: a provider that cannot do it ignores it, so the caller must still validate the reply.
+   * Ollama sends it as `format`; no other provider uses it yet.
+   */
+  jsonSchema?: Record<string, unknown>
   /** Named provider registered on ctx.llm; defaults to the service default. */
   provider?: string
   /** Attribution for the session log (agent id, bundle name). */

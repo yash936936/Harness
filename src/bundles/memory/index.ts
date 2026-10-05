@@ -11,15 +11,19 @@ import {
   type EpisodeStore,
   type CompactionResult,
   type MemoryConfig,
+  type HotView,
   type PromotionCandidate,
   type RecordTurnInput,
+  type ScopedMemory,
 } from './types.js'
+import { MemoryAccess, isScopedActor, type MemoryGrant } from './access.js'
 
 export * from './types.js'
 export { JsonlEpisodeStore, MemoryEpisodeStore } from './store.js'
 export { HotTier, HOT_HEADER, defaultEstimateTokens } from './hot.js'
 export { MemorySemantic, type AddResult } from './semantic.js'
 export { normaliseLesson, lessonId } from './compaction.js'
+export { MemoryAccess, SCOPED_ACTOR_PREFIX, isScopedActor, type MemoryGrant } from './access.js'
 
 declare module 'cordis' {
   interface Context {
@@ -136,6 +140,8 @@ export class Memory extends Service {
 
   readonly episodic: EpisodicMemory
   readonly hot: HotTier
+  /** Live grants for sub-agent actors (D-073). `subagent-scope` writes it; nothing else should. */
+  readonly access = new MemoryAccess()
   private readonly compaction: Compaction
   private readonly everyTurns: number | undefined
   /** The most recent automatic compaction (3.4): its result, or the error that stopped it. Never thrown into a user's turn. */
@@ -158,8 +164,41 @@ export class Memory extends Service {
     )
     if (config.injectHot ?? true) {
       // 'Early' among the sections (order 10, ahead of the default 100); the base system prompt still comes first.
-      const remove = ctx.agentLoop.addSystemSection('memory.hot', async () => (await this.hot.render()).text || undefined, { order: 10 })
+      const remove = ctx.agentLoop.addSystemSection('memory.hot', async (c) => (await this.hot.render(this.hotView(c.actor))).text || undefined, { order: 10 })
       ctx.effect(() => remove)
+    }
+  }
+
+  /**
+   * What the hot tier shows to `actor` (D-073). Host/main actors see global rules only. A sub-agent sees its own scoped rules,
+   * plus global ones if its grant says so. A sub-agent actor with no live grant sees nothing: fail closed.
+   */
+  hotView(actor: string | undefined): HotView {
+    if (!isScopedActor(actor)) return {}
+    const g = this.access.get(actor)
+    if (!g) return { none: true }
+    return { scope: actor, globals: g.hot === 'global' }
+  }
+
+  /**
+   * A scoped, read-only handle on memory for one actor: the only memory handle a sub-agent should be given. Enforcement point
+   * is the model-facing paths (the hot section above) and this view; host code calling `memory.episodic` / `memory.hot`
+   * directly is trusted and unrestricted, like the registry's unscoped actors. Any future model-facing memory TOOL must go through here.
+   */
+  view(actor: string): ScopedMemory {
+    const check = () => {
+      if (isScopedActor(actor) && !this.access.get(actor)) throw new MemoryError(`memory: "${actor}" has no live memory grant`)
+    }
+    return {
+      actor,
+      episodes: async (query = {}) => {
+        check()
+        return this.episodic.query({ ...query, agentId: actor }) // agentId last: a caller-supplied one cannot win
+      },
+      hot: async () => {
+        check()
+        return this.hot.render(this.hotView(actor))
+      },
     }
   }
 

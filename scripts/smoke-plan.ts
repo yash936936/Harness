@@ -3,6 +3,7 @@
  *
  *   HARNESS_OLLAMA_CHAT_MODEL=llama3.2:3b HARNESS_TRIALS=3 npx tsx scripts/smoke-plan.ts
  *   HARNESS_OLLAMA_CHAT_MODEL=qwen2.5-coder:3b-instruct,llama3.2:3b npx tsx scripts/smoke-plan.ts
+ *   HARNESS_STRUCTURED=0 ...   (same, without constrained decoding: the baseline)
  *
  * Counts, per model and task: accepted first try / accepted after the one repair / rejected. Plus the
  * errors the planner raised, most common first, and one sample plan or failure. It checks that a plan is
@@ -21,6 +22,7 @@ import { ToolRegistry } from '../src/bundles/tool-registry/index.js'
 
 const models = (process.env['HARNESS_OLLAMA_CHAT_MODEL'] ?? '').split(',').map((s) => s.trim()).filter(Boolean)
 const TRIALS = Math.max(1, Number(process.env['HARNESS_TRIALS'] ?? 3) || 3)
+const STRUCTURED = process.env['HARNESS_STRUCTURED'] !== '0' // HARNESS_STRUCTURED=0 measures the unconstrained model
 const STAND_IN = models.length === 0
 const TASKS = [
   'Find where the retry logic lives, explain how it works, and add a unit test for the case where all retries fail.',
@@ -39,7 +41,7 @@ async function run(provider: LLMProvider) {
   await ctx.plugin(AgentLoop, {})
   for (const [name, actionClass] of [['search_code', 'read-only'], ['read_file', 'read-only'], ['edit_file', 'real-fs-write'], ['run_tests', 'sandbox-write']] as const)
     ctx.tools.register({ name, description: `${name.replace('_', ' ')}`, inputSchema: { type: 'object' }, actionClass, execute: () => 'ok' })
-  await ctx.plugin(Orchestrator, {})
+  await ctx.plugin(Orchestrator, { structured: STRUCTURED })
   const out = { first: 0, repaired: 0, rejected: 0, errors: new Map<string, number>(), sample: '' }
   for (let i = 0; i < TRIALS; i++) {
     for (const task of TASKS) {
@@ -63,7 +65,7 @@ async function run(provider: LLMProvider) {
   return out
 }
 
-console.log(STAND_IN ? '(STAND-IN, not a measurement of any model)' : `n=${TRIALS} trials x ${TASKS.length} tasks per model`)
+console.log(STAND_IN ? '(STAND-IN, not a measurement of any model)' : `n=${TRIALS} trials x ${TASKS.length} tasks per model, structured output ${STRUCTURED ? 'ON' : 'OFF'}`)
 for (const m of STAND_IN ? ['stand-in'] : models) {
   const provider = STAND_IN ? new MockProvider(() => ({ text: GOOD })) : new OllamaProvider({ model: m, timeoutMs: 300_000 })
   if (!STAND_IN) {

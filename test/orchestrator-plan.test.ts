@@ -6,6 +6,7 @@ import { ToolRegistry, type ToolDefinition } from '../src/bundles/tool-registry/
 import { LLMService, MockProvider } from '../src/bundles/model-adapter/index.js'
 import { AgentLoop } from '../src/bundles/agent-loop/index.js'
 import { Orchestrator, OrchestratorError, PlanError, extractJson, validatePlan, type OrchestratorConfig } from '../src/bundles/orchestrator/index.js'
+import { planSchema } from '../src/bundles/orchestrator/plan.js'
 
 const reply = (o: unknown) => ({ text: typeof o === 'string' ? o : JSON.stringify(o), stopReason: 'end_turn' as const })
 const good = { subtasks: [{ id: 's1', goal: 'find the file', tools: ['search'], dependsOn: [] }, { id: 's2', goal: 'read it', tools: ['read'], dependsOn: ['s1'] }] }
@@ -138,5 +139,37 @@ describe('validatePlan / extractJson', () => {
     expect(extractJson('```\n{"a":1}\n```')).toEqual({ ok: true, value: { a: 1 } })
     for (const t of ['Here: {"a":1}', '{"a":1} thanks', '{"a":1}\n{"b":2}', '[1]', '', '{bad}', '```json\n{"a":1}\n``` and more'])
       expect(extractJson(t).ok).toBe(false)
+  })
+})
+
+describe('planner: structured output (D-072)', () => {
+  const toolsEnum = (schema: any) => schema.properties.subtasks.items.properties.tools.items.enum
+  it('asks the provider to constrain output to a schema whose tool enum is exactly the offered tools', async () => {
+    const { ctx, mock } = await boot([reply(good)])
+    await ctx.orchestrator.plan({ sessionId: 's', task: 'T', tools: ['search', 'read'] })
+    const schema = mock.calls[0]!.jsonSchema as any
+    expect(schema).toEqual(planSchema(['search', 'read']))
+    expect(toolsEnum(schema)).toEqual(['search', 'read'])
+    expect(schema.properties.subtasks.items.required).toEqual(['id', 'goal', 'tools', 'dependsOn'])
+  })
+  it('the repair attempt is constrained too', async () => {
+    const { ctx, mock } = await boot([reply('nope'), reply(good)])
+    await ctx.orchestrator.plan({ sessionId: 's', task: 'T' })
+    expect(mock.calls.map((c) => !!c.jsonSchema)).toEqual([true, true])
+  })
+  it('can be turned off per call or in config, to measure the unconstrained model', async () => {
+    const a = await boot([reply(good)])
+    await a.ctx.orchestrator.plan({ sessionId: 's', task: 'T', structured: false })
+    expect(a.mock.calls[0]!.jsonSchema).toBeUndefined()
+    const b = await boot([reply(good)], { structured: false })
+    await b.ctx.orchestrator.plan({ sessionId: 's', task: 'T' })
+    expect(b.mock.calls[0]!.jsonSchema).toBeUndefined()
+  })
+  it('the schema is a request, not the authority: a provider that ignores it is still validated', async () => {
+    const { ctx } = await boot([reply(sub({ tools: ['run_typecheck'] })), reply(sub({ tools: ['run_typecheck'] }))])
+    await expect(ctx.orchestrator.plan({ sessionId: 's', task: 'T' })).rejects.toBeInstanceOf(PlanError)
+  })
+  it('with no tools offered the schema allows only an empty tools array', () => {
+    expect((planSchema([]) as any).properties.subtasks.items.properties.tools).toEqual({ type: 'array', maxItems: 0 })
   })
 })

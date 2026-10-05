@@ -2,7 +2,8 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import type { Context } from 'cordis'
-import { MemoryError, type HotEntry, type HotRender } from './types.js'
+import { MemoryError, type HotEntry, type HotRender, type HotView } from './types.js'
+import { SCOPED_ACTOR_PREFIX, isScopedActor } from './access.js'
 
 export const HOT_HEADER = '## Standing rules and facts (hot memory)'
 
@@ -48,7 +49,10 @@ export class HotTier {
     return this.estimate(`${this.line({ text } as HotEntry)}\n`)
   }
 
-  async add(input: { text: string; priority?: number; id?: string; source?: string }): Promise<HotEntry> {
+  async add(input: { text: string; priority?: number; id?: string; source?: string; scope?: string }): Promise<HotEntry> {
+    if (input.scope !== undefined && !isScopedActor(input.scope)) {
+      throw new MemoryError(`memory: hot scope must be a sub-agent actor ("${SCOPED_ACTOR_PREFIX}<id>"), got ${JSON.stringify(input.scope)}`)
+    }
     const priority = input.priority ?? 0
     if (!Number.isFinite(priority)) throw new MemoryError('memory: hot priority must be a finite number')
     let text = oneLine(input.text ?? '')
@@ -64,6 +68,7 @@ export class HotTier {
       priority,
       ts: this.now().toISOString(),
       ...(input.source ? { source: input.source } : {}),
+      ...(input.scope ? { scope: input.scope } : {}),
     }
     await this.mutate((list) => {
       const i = list.findIndex((e) => e.id === entry.id)
@@ -90,10 +95,12 @@ export class HotTier {
   }
 
   /** Highest priority first; among equals, newest first. Greedy: an entry too big for the room left is skipped, smaller ones may still fit. */
-  async render(): Promise<HotRender> {
+  async render(view: HotView = {}): Promise<HotRender> {
     const all = await this.load()
-    if (all.length === 0) return { text: '', tokens: 0, included: [], dropped: [] }
-    const ranked = [...all].sort((a, b) => b.priority - a.priority || (a.ts < b.ts ? 1 : a.ts > b.ts ? -1 : 0))
+    // Filter to what THIS viewer may see first: the cap is spent only on visible entries, so another agent's rules cannot crowd mine out.
+    const visible = view.none ? [] : all.filter((e) => (e.scope === undefined ? view.globals !== false : e.scope === view.scope))
+    if (visible.length === 0) return { text: '', tokens: 0, included: [], dropped: [] }
+    const ranked = [...visible].sort((a, b) => b.priority - a.priority || (a.ts < b.ts ? 1 : a.ts > b.ts ? -1 : 0))
     let used = this.estimate(HOT_HEADER + '\n')
     const included: HotEntry[] = []
     const dropped: string[] = []

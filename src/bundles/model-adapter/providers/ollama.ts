@@ -88,6 +88,7 @@ export class OllamaProvider implements LLMProvider {
       messages: toWireMessages(req),
       ...(Object.keys(options).length ? { options } : {}),
     }
+    if (req.jsonSchema) body['format'] = req.jsonSchema
     if (req.tools?.length) {
       body['tools'] = req.tools.map((t) => ({
         type: 'function',

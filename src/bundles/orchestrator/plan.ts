@@ -72,6 +72,34 @@ export function validatePlan(
   return { ok: true, plan: { task, subtasks } }
 }
 
+/**
+ * JSON Schema for the plan, for providers that can constrain decoding (D-072). Tool names are an enum of the
+ * OFFERED tools (none offered: an empty array), so a constrained model cannot name an unknown one; ids/goals/arrays are typed so it
+ * cannot emit malformed JSON. Length and count limits are left to `validatePlan`, which stays the authority:
+ * a provider may ignore the schema, and not every limit is expressible in every grammar engine.
+ */
+export function planSchema(tools: string[]): Record<string, unknown> {
+  return {
+    type: 'object',
+    properties: {
+      subtasks: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            id: { type: 'string' },
+            goal: { type: 'string' },
+            tools: tools.length ? { type: 'array', items: { type: 'string', enum: tools } } : { type: 'array', maxItems: 0 },
+            dependsOn: { type: 'array', items: { type: 'string' } },
+          },
+          required: ['id', 'goal', 'tools', 'dependsOn'],
+        },
+      },
+    },
+    required: ['subtasks'],
+  }
+}
+
 export function plannerSystem(tools: { name: string; description: string }[], limits: PlannerLimits): string {
   const toolText = tools.length ? tools.map((t) => `- ${t.name}: ${t.description}`).join('\n') : '(no tools)'
   return [

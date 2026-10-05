@@ -80,10 +80,10 @@ Root folder on disk: `D:\Users\yash\downloads\Harness` (Git Bash:
   the working loop.
 
 ## Next task
-Phases 1-3 done. Phase 4 STARTED: 4.3 `subagent-scope` built and Windows-verified (tools only; memory scoping open, D-069); 4.1 planner built (D-071), real-model plan validity unmeasured (`scripts/smoke-plan.ts`). Real-model run 2 (D-070) satisfied the
+Phases 1-3 done. Phase 4 STARTED: 4.3 `subagent-scope` built (tools verified on Windows; memory scoping built 4.3b, D-073, pending the owner's Windows run); 4.1 planner and 4.2 executor built (D-071, D-075); real-model run: 6/9 and 7/9 valid unconstrained, so structured output was added (D-072), effect unmeasured (`scripts/smoke-plan.ts`). Real-model run 2 (D-070) satisfied the
 "some model calls tools" gate but NOT "uses memory/skills": hot rule no effect and load_skill 1/3 on both 3B models (n=3). Treat workers as weak.
-Next: 4.2 executor (after the owner's smoke-plan output), then 4.4. Owner decisions pending: memory scoping
-(scope key vs shared in v1) and which model plans (see `docs/status.md`).
+Next: 4.4 end-to-end test, then the optional 4.5 router. Owner still owes: the smoke-plan comparison (D-072) and the first real run of `scripts/smoke-execute.ts`. Memory scoping is decided and built (D-073); the executor failure policy is decided (D-074: abort by default,
+retry and continue opt-in). Owner decision still pending: which model plans (see `docs/status.md`).
 D-068: `ToolContext.allowedTools` makes the registry refuse tools the caller was not offered; keep passing it from any new loop caller.
 Known gaps: nothing writes lessons (D-064); compaction (D-064) and skills (D-065) are prompt-poisoning surfaces until Phase 5; memory, skills
 and subagents are in no profile; a real model has never followed a hot rule. Rules learned: a bundle must declare every service it touches in

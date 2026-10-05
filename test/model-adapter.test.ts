@@ -63,6 +63,16 @@ describe('ollama provider (mocked HTTP)', () => {
     expect(JSON.stringify(c.init.headers)).not.toMatch(/key|auth|bearer/i)
   })
 
+  it('sends jsonSchema as Ollama `format`, and sends no `format` without it (D-072)', async () => {
+    const { f, calls } = fakeFetch(() => json(200, okBody()))
+    const ctx = await boot({ model: 'm', fetch: f })
+    const schema = { type: 'object', properties: { a: { type: 'string' } } }
+    await ctx.llm.complete(req({ jsonSchema: schema }))
+    await ctx.llm.complete(req())
+    expect(JSON.parse(calls[0]!.init.body as string).format).toEqual(schema)
+    expect('format' in JSON.parse(calls[1]!.init.body as string)).toBe(false)
+  })
+
   it('maps tools, tool_calls in the response, and tool_use/tool_result history', async () => {
     const { f, calls } = fakeFetch(() =>
       json(200, okBody({ message: { role: 'assistant', content: '', tool_calls: [{ function: { name: 'read_file', arguments: { path: 'a.txt' } } }] } })))

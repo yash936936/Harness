@@ -1,4 +1,5 @@
 import type { RunResult, RunTaskOptions } from '../agent-loop/index.js'
+import type { Episode, MemoryGrant, ScopedMemory } from '../memory/index.js'
 
 export interface SubagentSpec {
   /** 1-64 of [A-Za-z0-9_-]. Becomes the actor `subagent:<id>` on every log event the agent causes. */
@@ -11,10 +12,14 @@ export interface SubagentSpec {
   parent?: string
   system?: string
   maxSteps?: number
+  /** Memory this agent may see (D-073). Default `{ hot: 'global' }`: its own episodes and scoped rules, plus global hot rules. Ignored when the memory bundle is not loaded. */
+  memory?: MemoryGrant
 }
 
 export type SubagentRunOptions = Omit<RunTaskOptions, 'actor' | 'sessionId' | 'tools' | 'prompt'> & {
   sessionId?: string
+  /** Recorded on this run's episode when memory is loaded (see `Memory.runTurn`). */
+  lesson?: string | null
   /** May only NARROW the grant. Naming a tool outside it throws `ScopeError`. */
   tools?: string[]
 }
@@ -25,7 +30,10 @@ export interface SubAgent {
   readonly tools: readonly string[]
   readonly parent?: string
   readonly closed: boolean
-  run(prompt: string, opts?: SubagentRunOptions): Promise<RunResult>
+  /** This agent's scoped view of memory; `undefined` when the memory bundle is not loaded. */
+  readonly memory: ScopedMemory | undefined
+  /** With memory loaded, the run is recorded as an episode under this agent's own id. */
+  run(prompt: string, opts?: SubagentRunOptions): Promise<RunResult & { episode?: Episode }>
   close(): Promise<void>
 }
 

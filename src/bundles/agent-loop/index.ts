@@ -140,7 +140,7 @@ export class AgentLoop extends Service {
       opts.signal?.throwIfAborted()
 
       const { res, retries: r } = await this.callModel(
-        { sessionId: opts.sessionId, ...(opts.actor ? { actor: opts.actor } : {}), messages, ...(system ? { system } : {}), ...(toolSpecs.length ? { tools: toolSpecs } : {}), ...(model ? { model } : {}) },
+        { sessionId: opts.sessionId, ...(opts.actor ? { actor: opts.actor } : {}), messages, ...(system ? { system } : {}), ...(toolSpecs.length ? { tools: toolSpecs } : {}), ...(model ? { model } : {}), ...(opts.jsonSchema ? { jsonSchema: opts.jsonSchema } : {}) },
         providerChain,
         opts.signal,
       )

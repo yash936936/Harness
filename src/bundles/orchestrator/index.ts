@@ -2,8 +2,9 @@ import { Context, Service } from 'cordis'
 import '../session-log/index.js'
 import '../tool-registry/index.js'
 import '../agent-loop/index.js'
-import { DEFAULT_LIMITS, extractJson, plannerSystem, validatePlan } from './plan.js'
-import { OrchestratorError, PlanError, type OrchestratorConfig, type PlanOptions, type PlanResult, type PlannerLimits } from './types.js'
+import { DEFAULT_LIMITS, extractJson, planSchema, plannerSystem, validatePlan } from './plan.js'
+import { executePlan } from './execute.js'
+import { OrchestratorError, PlanError, type ExecuteOptions, type ExecutionResult, type OrchestratorConfig, type Plan, type PlanOptions, type PlanResult, type PlannerLimits } from './types.js'
 
 export * from './types.js'
 export { validatePlan, extractJson } from './plan.js'
@@ -32,10 +33,14 @@ export class Orchestrator extends Service {
 
   private readonly limits: PlannerLimits
   private readonly cfg: OrchestratorConfig
+  private readonly maxRetries: number
+  private readonly maxResultChars: number
 
   constructor(ctx: Context, config: OrchestratorConfig = {}) {
     super(ctx, 'orchestrator')
     this.cfg = config
+    this.maxRetries = config.maxRetries ?? 3
+    this.maxResultChars = config.maxResultChars ?? 2000
     this.limits = {
       maxSubtasks: config.maxSubtasks ?? DEFAULT_LIMITS.maxSubtasks,
       maxToolsPerSubtask: config.maxToolsPerSubtask ?? DEFAULT_LIMITS.maxToolsPerSubtask,
@@ -43,6 +48,14 @@ export class Orchestrator extends Service {
       maxIdChars: config.maxIdChars ?? DEFAULT_LIMITS.maxIdChars,
     }
     if (this.limits.maxSubtasks < 1 || this.limits.maxToolsPerSubtask < 0) throw new OrchestratorError('orchestrator: invalid planner limits')
+  }
+
+  /**
+   * Run a plan (4.2). Needs `ctx.subagents`. Failure handling is the D-074 policy: abort by default, opt-in retries
+   * and continue. See `executePlan`.
+   */
+  execute(plan: Plan, opts: ExecuteOptions): Promise<ExecutionResult> {
+    return executePlan({ ctx: this.ctx, limits: this.limits, maxRetries: this.maxRetries, maxResultChars: this.maxResultChars }, plan, opts)
   }
 
   async plan(opts: PlanOptions): Promise<PlanResult> {
@@ -55,6 +68,7 @@ export class Orchestrator extends Service {
     const maxRepairs = opts.maxRepairs ?? this.cfg.maxRepairs ?? 1
     const provider = opts.provider ?? this.cfg.provider
     const model = opts.model ?? this.cfg.model
+    const schema = (opts.structured ?? this.cfg.structured ?? true) ? planSchema(offered) : undefined
 
     let prompt = opts.task
     let errors: string[] = []
@@ -68,6 +82,7 @@ export class Orchestrator extends Service {
         tools: [],
         system,
         maxSteps: 1,
+        ...(schema ? { jsonSchema: schema } : {}),
         ...(provider !== undefined ? { provider } : {}),
         ...(model !== undefined ? { model } : {}),
         ...(opts.signal ? { signal: opts.signal } : {}),

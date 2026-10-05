@@ -2,6 +2,27 @@
 
 > Updated every run. Newest entry at top.
 
+## 2026-10-05 (night) — 4.2 executor built (D-075, DBG-047)
+Executor implements the D-074 policy; 25 tests, 22 mutations caught; Linux 588 passed / 98 skipped.
+**Owner to run (Git Bash):** `npm install`, `npm run typecheck`, `npm test` (expect 679 passed / 7 skipped, 36 files). Then, with Ollama serving, the first real end-to-end run:
+`HARNESS_TRIALS=3 HARNESS_OLLAMA_CHAT_MODEL=llama3.2:3b npx tsx scripts/smoke-execute.ts` (planner and worker are the same model; split them with HARNESS_PLANNER_MODEL / HARNESS_WORKER_MODEL). Paste it whole.
+Still pending from before: the constrained-vs-unconstrained `scripts/smoke-plan.ts` comparison (D-072). It decides which model PLANS; it does not block 4.4.
+**Next up:** 4.4 end-to-end test (scripted, a plan across at least two scoped sub-agents, each confined to its own scope, all visible in the log), then 4.5 router if wanted.
+
+## 2026-10-05 (later) — 4.3b memory scoping built (D-073); executor failure policy decided (D-074)
+Memory is scoped per sub-agent (access grants, scoped hot rules, per-agent episodes, per-agent compaction); a real cross-agent compaction leak was found and closed.
+Linux 563 passed / 98 skipped. **Owner to run (Git Bash):** `npm install`, `npm run typecheck`, `npm test` (expect 654 passed / 7 skipped, 35 files).
+**Still waiting on the owner:** the constrained-vs-unconstrained `scripts/smoke-plan.ts` comparison (see the entry below). 4.2 depends on it; nothing else does.
+**Next up:** 4.2 executor with the D-074 policy, once the comparison is in. Then 4.4.
+
+## 2026-10-05 — planner reality check; structured output added (D-072, DBG-045)
+smoke-plan unconstrained: llama 6/9 valid, qwen 7/9 (n=9, cannot rank). Constrained decoding built and unit-tested; effect on real models UNMEASURED.
+**Owner to run (Git Bash):** `npm install`, `npm run typecheck`, `npm test` (expect 633 passed / 7 skipped, 34 files), then BOTH:
+`HARNESS_TRIALS=5 HARNESS_STRUCTURED=0 HARNESS_OLLAMA_CHAT_MODEL=llama3.2:3b,qwen2.5-coder:3b-instruct npx tsx scripts/smoke-plan.ts` (baseline, n=15) and the same
+without `HARNESS_STRUCTURED=0`. Paste both whole.
+**Next up:** 4.2 executor only after that comparison. If structured output lifts validity near 100% the executor can assume plans; if not, the planner needs a stronger model.
+Open: memory scoping (blocks 4.3's last criterion and 4.4); executor failure policy (lean: abort by default).
+
 ## 2026-10-04 (night) — 4.1 planner built (D-071, DBG-044)
 4.3 verified on Windows (614 passed / 7 skipped). 4.1: `ctx.orchestrator.plan()`; 13 tests, 14 mutations caught; Linux 536 passed / 98 skipped.
 **Owner to run (Git Bash):** `npm install`, `npm run typecheck`, `npm test` (expect 627 passed / 7 skipped, 34 files), THEN the check that matters:

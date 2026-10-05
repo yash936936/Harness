@@ -696,7 +696,8 @@ Real-model plan validity is UNMEASURED (`scripts/smoke-plan.ts`). The "plan logg
   correctly.
 - Failure-mode test: force one subtask to fail, assert the configured
   failure policy is actually applied (not silently ignored).
-**Status:** Not started
+**Status:** BUILT, plumbing only (2026-10-05, D-074, D-075, DBG-047). Both criteria and both tests met with scripted models. NOT shown: a real model completing a subtask
+(`scripts/smoke-execute.ts`, not yet run).
 
 ### 4.3 — subagent-scope bundle
 **Goal:** `ctx.agents.spawn` — each sub-agent is a scoped `ctx` realm.
@@ -711,8 +712,8 @@ Real-model plan validity is UNMEASURED (`scripts/smoke-plan.ts`). The "plan logg
   to call an ungranted tool from each, assert both are blocked.
 - Isolation test: write to sub-agent A's memory scope, assert sub-agent B
   cannot read it directly (only via explicit sharing, if that exists).
-**Status:** PARTLY BUILT — 2026-10-04 (D-068, D-069, DBG-043). Tool scoping done and tested (security test, both agents blocked).
-The MEMORY isolation criterion is NOT met: the memory bundle has no per-scope namespace; needs an owner decision (D-069).
+**Status:** BUILT — 2026-10-05 (D-068, D-069, D-073, DBG-043, DBG-046). Tools are scoped and enforced twice; memory is scoped per agent (hot rules, episodes, compaction)
+with the isolation test passing. Semantic memory is not exposed to scoped agents. Scripted-model tests only.
 
 ### 4.4 — Multi-agent integration test
 **Goal:** Prove the orchestrator + sub-agent scoping works together on a

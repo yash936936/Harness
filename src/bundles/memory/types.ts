@@ -72,6 +72,27 @@ export interface HotEntry {
   ts: string
   /** Where it came from (`user`, `compaction`, ...). Free text. */
   source?: string
+  /** A sub-agent actor (`subagent:<id>`). Absent = a GLOBAL rule, visible to everyone with a global grant. Scoped rules are visible only to that actor (D-073). */
+  scope?: string
+}
+
+/** Who is looking at the hot tier. `{}` is the host/main agent: global rules only, never another agent's scoped rules. */
+export interface HotView {
+  /** Also show rules scoped to this actor. */
+  scope?: string
+  /** Show global rules (default true). */
+  globals?: boolean
+  /** Show nothing at all (a scoped actor with no live grant). */
+  none?: boolean
+}
+
+/** A scoped read-only view of memory for one actor. The only memory handle a sub-agent is given. */
+export interface ScopedMemory {
+  readonly actor: string
+  /** This actor's OWN episodes. An `agentId` in the query is overridden, not honoured. */
+  episodes(query?: Omit<EpisodeQuery, 'agentId'>): Promise<Episode[]>
+  /** The hot rules this actor would be shown. */
+  hot(): Promise<HotRender>
 }
 
 export interface HotRender {
@@ -162,6 +183,8 @@ export interface PromotionCandidate {
   occurrences: number
   /** Distinct sessions those episodes came from. */
   sessions: number
+  /** Set when the lesson recurred in ONE sub-agent's episodes: it is promoted into that agent's scope only (D-073). */
+  scope?: string
 }
 
 export interface CompactionResult {
