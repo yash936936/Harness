@@ -726,7 +726,7 @@ real task.
 **Testing:**
 - End-to-end test: run the task, inspect the session log to confirm no
   scope violations occurred and the final result is correct.
-**Status:** Not started
+**Status:** DONE with a scripted model (2026-10-05, D-076, DBG-048). Two scoped agents complete a real task on a real workspace; an independent log audit finds no scope violation. NOT shown: a real model doing it.
 
 ### 4.5 — router bundle (Needle)
 **Goal:** `ctx.router` — a small local model picks the sub-agent, the

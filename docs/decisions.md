@@ -4,6 +4,26 @@
 > if a decision is reversed, log a new entry that supersedes it and reference
 > the old ID.
 
+## D-076 — 4.4 end-to-end test: what it proves, how, and what it does not — 2026-10-05
+**Built:** `test/phase4-e2e.test.ts` only (the spec says no new files in `src/`). A real task on a real temp workspace: find a bug, fix it, verify it, as three subtasks across two distinctly
+scoped sub-agents: a read-only researcher/verifier (`search_files`, `read_file`) and a write-only editor (`write_file`, a `real-fs-write` tool). The plan comes from `plan()` (with the constrained schema) and runs
+through `execute()`, with the memory bundle loaded and one global, one researcher-scoped and one editor-scoped hot rule.
+**Real:** planner call, executor, tool and memory scoping, registry, session log, memory bundle, and the FILES ON DISK. **Scripted:** the model, a deterministic function that does a tiny real computation on the file text
+and deliberately makes one out-of-scope call per agent (the researcher tries `write_file`; the editor tries `read_file`).
+**How "no scope violation" is shown:** `auditScopes` reads the session log independently of the enforcement code and reports (a) out-of-grant calls ATTEMPTED, (b) out-of-grant calls that SUCCEEDED, (c) calls by actors that are not
+this run's sub-agents, (d) calls with no logged result. Expected and asserted: exactly the two attempts, both refused as `denied`; zero executed; zero foreign actors; zero unpaired. The auditor is itself tested against a doctored log
+(a success flipped, a foreign actor, a dropped result), so a clean report means something.
+**Also asserted:** the file is actually fixed on disk and the other files are byte-identical; exactly one write, by the editor; the file was still ORIGINAL when the editor started (the researcher's blocked write changed nothing);
+the editor received the researcher's result through the fence and the verifier only the editor's; each agent's logged system prompt contains its own scoped rule and the global one and never another agent's (the planner sees none);
+one episode per sub-agent; log order plan.created < execute.started < s1 < s2 < s3 < execute.finished; a ceiling without `write_file` rejects the plan with the disk untouched and no sub-agent model call; a failing editor aborts with the disk untouched.
+**Mutation results (they are the evidence):** removing EITHER enforcement layer alone leaves the test green (defense in depth, by design); removing BOTH fails 5 tests; granting each subtask the whole ceiling fails 5; breaking dependency
+passing, scoped-rule visibility, per-agent episodes, or closing sub-agents each fail 1.
+**Bug the test caught in itself:** the first run reported `completed` while the verifier said "STILL BROKEN": my scripted researcher selected a search-hit line instead of the file text, so the editor wrote garbage to disk. A log-only test would
+have passed; the real-disk assertion is what exposed it. That was a bug in the test script, not in the harness.
+**Not shown:** that any real model can do this task or stays in scope on its own (the scripted model's out-of-scope calls are made on purpose; a real one may make different mistakes); behaviour under Phase 5 approval gates; parallel
+subtasks; prompt-injection through file contents (the dependency fence is a small guard, not a defence). The "correct result" is checked against known text, because the model is scripted.
+**Affects:** `test/phase4-e2e.test.ts`, `docs/phases.md` 4.4.
+
 ## D-075 — 4.2 executor built (implements D-074); design choices beyond it — 2026-10-05
 **Built:** `ctx.orchestrator.execute(plan, { sessionId, allowedTools, onFailure?, retries?, ... })` (needs `ctx.subagents`). Each subtask runs in its own short-lived sub-agent
 (`subagent:<runId>-<subtaskId>`), closed afterwards, with a grant of exactly the tools the subtask lists.

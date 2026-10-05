@@ -2,6 +2,12 @@
 
 > Updated every run. Newest entry at top.
 
+## 2026-10-05 (end) — 4.4 end-to-end test done (D-076, DBG-048)
+11 tests, no `src/` change. Linux 599 passed / 98 skipped. **Owner to run (Git Bash):** `npm install`, `npm run typecheck`, `npm test` (expect 690 passed / 7 skipped, 37 files).
+Phases 4.1-4.4 are done against scripted models. Still owed by the owner, and needed to call 4.1/4.2 measured rather than just built: the `scripts/smoke-plan.ts` comparison (D-072) and a first `scripts/smoke-execute.ts` run (D-075).
+**Next up:** 4.5 router (Needle), which is optional and has its own prerequisites (pinned model in the model store 1B.3, a frozen router suite). Or Phase 5 (policy gates), which is what actually makes a `real-fs-write` grant safe.
+Open: whether to do 4.5 before Phase 5.
+
 ## 2026-10-05 (night) — 4.2 executor built (D-075, DBG-047)
 Executor implements the D-074 policy; 25 tests, 22 mutations caught; Linux 588 passed / 98 skipped.
 **Owner to run (Git Bash):** `npm install`, `npm run typecheck`, `npm test` (expect 679 passed / 7 skipped, 36 files). Then, with Ollama serving, the first real end-to-end run:

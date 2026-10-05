@@ -3,6 +3,14 @@
 > Append-only. Every completed coding task gets an entry here, even "no
 > issues found." Newest entries at top.
 
+## DBG-048 — 4.4 multi-agent end-to-end test (D-076) — 2026-10-05
+**Tested:** `test/phase4-e2e.test.ts`, 11 tests (full run on a real workspace; log audit; unchanged-until-editor; dependency flow; memory isolation + episodes; log ordering; read-only ceiling; failing editor; three doctored-log tests of the auditor).
+**Mutation-checked:** single enforcement layer removed = green (redundancy confirmed); both removed = 5 fail; whole-ceiling grant = 5 fail; five other mutations = 1 fail each; one control = green.
+**Found:** a bug in my own scripted model (it took the first tool result containing the text, which was the search hit, not the file). Caught only because the test checks the real file; the run itself said `completed`.
+**No `src/` change** in this step; the harness code was not touched, which is itself a result: nothing in 4.1-4.3 needed fixing for the integration to work.
+**Tested:** Linux 599 passed / 98 skipped (588 + 11). Expect Windows 690 passed / 7 skipped, 37 files.
+**Not tested:** any real model; Phase 5 gates.
+
 ## DBG-047 — 4.2 executor (D-075) — 2026-10-05
 **Tested:** `test/orchestrator-execute.test.ts`, 25 tests. Happy path: 3 subtasks, each in its own sub-agent, outputs aggregated, sub-agents all closed; only declared dependency results passed; fencing and truncation;
 the whole plan logged before the first subtask; `plan.created` < `execute.started` < `subtask.started` when the plan came from `plan()`. Grants: exactly the listed tools (an in-ceiling but unlisted tool is refused);
