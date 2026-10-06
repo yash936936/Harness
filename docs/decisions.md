@@ -4,6 +4,45 @@
 > if a decision is reversed, log a new entry that supersedes it and reference
 > the old ID.
 
+## D-079 — Phase 5.3-5.5: the policy gates (`ctx.policy`) — 2026-10-06
+**Built:** `src/bundles/policy-gates/` (`index.ts`, `denylist.ts`, `signals.ts`, `types.ts`). A `tools/pre-execute` hook that applies the policy table to every call, in this precedence:
+1. **deny-listed (any class, including read-only):** blocked with the matching rule named; no override path, no approval is requested, and an approver that approves everything is never asked.
+2. **external-side-effect:** ALWAYS held, whatever any score says.
+3. **real-fs-write:** allowed if the combined score is at least the threshold (default 0.8), otherwise held.
+4. **sandbox-write:** allowed, decision logged. 5. **read-only:** allowed, no approval step (the decision is still logged).
+**Confidence (5.4):** combined = MIN(the model's self-reported `confidence` field, every independent signal). Built-in independent signals: path criticality (project-root-relative; outside the root = 0; `.git` 0.1, CI config 0.3, lockfiles 0.4, manifests 0.5, env files 0.3, tool config 0.6)
+and diff size (1.0 to 2,000 characters, falling to 0.2 at 50,000+). With NO independent signal available, or no valid self-report (missing, out of range, non-number), the write is HELD: a self-report alone can never allow a write. Custom signals can be added.
+**Approvals:** `approval.pending` and `approval.resolved` events; settle with `ctx.policy.resolve(id, {approve, by, note})` or an `approver` callback. An approver that throws or returns nothing valid is a denial. An unanswered hold is a denial after `approvalTimeoutMs` (default 120 s); a late answer is refused.
+**Logging:** every decision is a `policy.decision` event written BEFORE the tool runs. A decision (or a hold) that cannot be logged denies the call: the registry already treats a throwing hook as a denial, and the gate relies on it.
+**Deny-list:** pattern-based on every string in the input, plus the strings joined (so `{command:'rm', args:['-rf','/']}` is caught). Rules: rm with recursive AND force in any spelling/order/wrapper (sudo, env, command, absolute path, quotes, backslash-escapes, `${IFS}`, tabs), Windows (`Remove-Item -Recurse -Force`, `rd /s /q`, `del /s /q`), `find -delete`,
+code-level recursive deletes (`shutil.rmtree`, `rimraf`, `fs.rm({recursive:true})`), git force-push (`--force`, `-f` alone or combined like `-fu`, `--force-with-lease`, `--mirror`, `+refspec`), and credential/key files (AWS, SSH keys, .npmrc, .netrc, kubeconfig, .pem/.p12, production env files, service-account keys, /etc/shadow).
+Backslashes are read both as POSIX escapes (`r\m`) and as Windows separators (`C:\tools\rm.exe`); a first version deleted them and missed the Windows path, caught by a test. Built-in rules cannot be removed; extra rules can be added.
+**Known limits, pinned by tests where possible:**
+- Text that merely MENTIONS a forbidden command is denied too (a commit message "push -f later", `echo rm -rf`). Conservative on purpose; `git rm -rf` counts as rm -rf.
+- Encoded or indirect commands are NOT caught (`base64 -d | sh`, `X=rm; $X -rf /`). A script written to disk is a gated write and running it is a gated call, but nothing here inspects what it will do.
+- The gate trusts each tool's DECLARED action class. A tool mislabeled `sandbox-write` that really writes outside the sandbox is only caught by the deny-list patterns, not by classification.
+- Weak models will rarely give a calibrated `confidence`. A missing one holds, so with a 3B worker a real-fs-write is effectively always approval-gated. Not measured with a real model.
+- The test-coverage heuristic from the spec is not built (the spec says any one independent signal suffices).
+- A hold with no approver waits the full timeout before denying; unattended runs should set a short `approvalTimeoutMs`. There is no "deny immediately when nobody can answer" mode yet.
+- Load this bundle AFTER `subagent-scope`: a call the scope refuses is then refused before anyone is asked to approve it (tested). The `confidence` field reaches the tool in its input; tools should ignore it.
+- This is the ACTION layer only. The design's input layer (content boundary markers, prompt-injection check, token budget at `agent/pre-step`) and output layer (egress/credential redaction at `tools/post-execute`) are not part of 5.3-5.5 and are not built.
+**Found while building: the repo registers only read-only tools** (skills, retrieval). There is no built-in file-edit or shell tool, so today the gate guards tools that do not exist yet; the write tools in tests and smoke scripts are fakes. The gate is only as useful as the classes the future write/exec tools are registered with.
+**Not done:** 5.6 (all five classes in one end-to-end run; `profile-coding` refusing to boot with the gates off). No `profile-coding` file exists yet (only `profile-minimal`).
+**Affects:** `src/bundles/policy-gates/*`, `test/policy-gates.test.ts`, `docs/phases.md` 5.3-5.5.
+
+## D-078 — Two more real runs (owner, 2026-10-06): schema size limits and the planner/worker split — 2026-10-06
+**Windows:** 692 passed / 7 skipped, 37 files.
+**smoke-plan, constrained, with array-size limits in the schema, n=15 per model:** llama 15/15 first try, qwen 15/15 first try, no repairs, no rejections (earlier without limits: 14/15 and 15/15). This shows the limits did not break the schema on this Ollama.
+It does NOT show that Ollama enforces `maxItems`: oversized plans were about 1 in 30 before, so none appearing is not evidence either way, and 14/15 to 15/15 is noise.
+**smoke-execute, split config (qwen2.5-coder:3b plans, llama3.2:3b works), 6 runs:** plan valid 6/6, completed 6/6, 28 subtasks, 16 real tool calls. Compared with llama planning for itself: 13 subtasks in 6 runs (2.2 per run) and 17 in 5 (3.4), with about 1.0 and 0.94 tool calls per subtask.
+The split gives 4.7 subtasks per run and 0.57 calls per subtask. n is 6 each and the same two tasks, so this is a hint, not a result.
+If real, the split costs more model requests per task (each subtask is at least one request; relevant to the 50/day free tier) with fewer tool calls per subtask. Two explanations I cannot separate: subtasks that legitimately need no tool, or workers skipping tools they were given.
+**Plan quality observations (two printed samples, so anecdote):** llama gave `edit_file` to "explain retry logic"; qwen gave `edit_file` to "Explain how the retry logic works by commenting on key parts" and `read_file` (not `search_code`) to "Identify the file ... where retry logic is implemented".
+Planners over-grant write tools relative to the goal, and nothing checks a goal against a tool class. qwen also dropped a space twice across runs ("Understandthe", earlier "thepurpose"): cosmetic, but a pattern.
+The run-1 sample again shows two different subtasks returning the same first sentence; the script still prints only 80 characters and not the goals.
+**Decision:** no change to defaults; the split is NOT adopted (more requests per task, no evidence of better results). Still worth a later look: print each subtask's goal and tool-call count in `smoke-execute`, so "completed" can be read against what was asked.
+**Why this matters for Phase 5:** it is the evidence that the gate, not the plan, must protect the disk (D-079).
+
 ## D-077 — Real-model results for 4.1 and 4.2; phases 4.1-4.4 closed; corrects D-072's reading — 2026-10-06
 **Verified on Windows:** 690 passed / 7 skipped, 37 files, typecheck clean (twice, before and after 4.4). 4.1-4.3 committed as 8492894.
 **smoke-plan, n=15 per model per condition (owner's machine, llama3.2:3b and qwen2.5-coder:3b-instruct, 3 tasks x 5 trials):**

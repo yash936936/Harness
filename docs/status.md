@@ -2,6 +2,13 @@
 
 > Updated every run. Newest entry at top.
 
+## 2026-10-06 (later) — Phase 5.3-5.5 policy gates built (D-079, DBG-050); two more real runs recorded (D-078)
+`ctx.policy`: deny-list, external-side-effect always held, confidence-scored real-fs-write with approvals, sandbox/read-only logged. 44 tests, 24 mutations caught. Linux 645 passed / 98 skipped.
+**Owner to run (Git Bash):** extract `Harness-phase5.zip`, `npm install`, `npm run typecheck`, `npm test` (expect 736 passed / 7 skipped, 38 files), then commit and push.
+**Found:** the repo registers only read-only tools, so the gate currently guards tools that do not exist yet. The deny-list does not catch encoded or indirect commands.
+**Next up:** 5.6 integration test (all five classes in one run; `profile-coding` must refuse to boot with the gates off). That needs a `profile-coding` file, which does not exist yet.
+Beyond 5.6, the real gap is that there are no actual write or shell tools: building a file-edit tool and a shell tool (over `ctx.subprocess`), registered with the right classes, would make the gates guard something real. 5.1 (crabbox) is amended and needs measurements first; 5.2 is deferred to Phase 8.
+
 ## 2026-10-06 — phases 4.1-4.4 closed; real-model results in (D-077, DBG-049)
 Windows 690 passed / 7 skipped (37 files). Planner n=15: constrained 29/30 first-try valid vs 20/30 unconstrained (p=0.006 pooled); 30/30 vs 28/30 after repair. First real executor run: 11 of 12 plans executed to completion, 0 failed subtasks of 30.
 Not shown: answer correctness, plan quality, any real failure through the D-074 policy, qwen as a worker. Added array-size limits to the plan schema (unverified on the owner's Ollama).

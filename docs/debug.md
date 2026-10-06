@@ -3,6 +3,16 @@
 > Append-only. Every completed coding task gets an entry here, even "no
 > issues found." Newest entries at top.
 
+## DBG-050 — policy gates 5.3-5.5 (D-079) — 2026-10-06
+**Tested:** `test/policy-gates.test.ts`, 44 tests: the deny-list battery (about 150 positive and negative strings across rm, Windows deletes, find, code deletes, git force-push, credential files; split-field commands; pinned false positives; pinned undetectable encodings);
+the policy table through `evaluate`; confidence scoring (capped by a low independent signal; MIN of all signals; low self-report; every kind of invalid self-report; no independent signal; outside the root; path and size scoring; threshold boundary exactly at and just under; custom signals; config validation);
+through the real registry: read-only no approval step; sandbox write logged; decision logged before execution; hold then approve then run, with the log order asserted; denied approval; approver callback; approver that throws, returns nonsense or nothing; timeout then late answer refused; resolve on unknown or answered ids; two concurrent holds;
+a critical file held at confidence 1; external side effect held at confidence 1; deny-listed calls blocked with the approver never asked; wrapped and aliased forms; decision-log failure fails closed; hold-log failure fails closed with no orphan; scope refusal precedes approval; both layers apply to a granted write tool.
+**Mutation-checked (24), all caught,** after two rounds: the first showed 2 survivors. One was an equivalent mutant (changing the `approve` flag of a timeout does nothing because the `outcome` decides; the real mutation, "a timeout counts as approved", is caught) and one was a real gap (removing the explicit no-self-report branch still held, by accident, because `Math.min(null)` coerces to 0; now the reason text is pinned).
+**Bugs found by my own tests:** (1) the command normaliser deleted backslashes, so `C:\tools\rm.exe -rf x` slipped through; both readings are now tried. (2) a first version of the rm rule stashed state on a token array (`__hit`); rewritten. (3) a command split across fields (`command` plus `args`) was not matched until the strings were also joined.
+**Tested:** Linux 645 passed / 98 skipped (601 + 44). Expect Windows 736 passed / 7 skipped, 38 files.
+**Not tested:** any real model producing a `confidence` field; real write or shell tools (none exist); 5.6.
+
 ## DBG-049 — real-model measurements for 4.1/4.2 and the schema size limits (D-077) — 2026-10-06
 **Owner's runs:** see D-077 for the tables. Windows 690 passed / 7 skipped (37 files) before and after 4.4; commit 8492894 pushed (4.1-4.3). 4.4 (e2e test and docs) was extracted after that commit and is NOT yet committed.
 **Change:** array-size limits in the plan schema, switchable. +2 tests (limits present from config and switchable; validator still rejects an oversized plan from a provider that ignores the schema). 5 mutations, all caught.

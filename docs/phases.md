@@ -791,7 +791,7 @@ execution.
   event is created.
 - Unit test: dispatch a sandbox-scoped write, assert it executes AND a
   log entry is created.
-**Status:** Not started
+**Status:** BUILT (2026-10-06, D-079, DBG-050). Both criteria and both tests met, with test-defined tools.
 
 ### 5.4 — policy-gates: real-fs-write + confidence scoring
 **Goal:** Third row — approval or confidence-threshold auto-approve.
@@ -809,7 +809,7 @@ execution.
   (proves it's not trusting self-report alone).
 - Integration test: approve a held action via the approval mechanism,
   assert execution then proceeds and the resolution is logged.
-**Status:** Not started
+**Status:** BUILT (2026-10-06, D-079, DBG-050). Combined score is the MIN of the self-report and the independent signals; a low independent signal holds despite a perfect self-report (tested, and mutation-checked). Approve-then-execute and the logged resolution tested. Test-coverage heuristic not built.
 
 ### 5.5 — policy-gates: external-side-effect + deny-list
 **Goal:** Fourth and fifth rows — always-approval and hard-block, both
@@ -826,7 +826,7 @@ with no threshold override.
   bypass exists for this class.
 - Security test: attempt a deny-listed action via a wrapped/aliased form
   (e.g. an alias for `rm -rf`), assert it's still blocked by pattern match.
-**Status:** Not started
+**Status:** BUILT (2026-10-06, D-079, DBG-050). External side effects always hold, at any confidence; deny-listed calls (including wrapped, aliased and Windows forms) are blocked with no override. Encoded or indirect commands are NOT caught (documented, pinned by a test).
 
 ### 5.6 — Full guardrail integration test
 **Goal:** All five action classes verified together, plus profile-level

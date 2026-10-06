@@ -84,7 +84,7 @@ compaction and skills both become text in the system prompt, so a poisoned lesso
 partial protections exist until the policy gates in Phase 5 (see `docs/decisions.md` D-064, D-065). No profile enables
 memory or skills yet, and no real chat model has driven the loop.
 
-Not built yet: the Phase 4 router (planning, execution and scoped sub-agents exist but have only been run against scripted models), remote sandboxes and policy gates (Phase 5), evals (Phase 6),
+Not built yet: the Phase 4 router, remote sandboxes (Phase 5.1/5.2), the Phase 5.6 integration test and `profile-coding`, any real file-edit or shell tool (the policy gates exist and are tested, but only against test-defined tools), evals (Phase 6),
 the browser (Phase 7), multi-user scale (Phase 8). See `docs/phases.md` and `docs/status.md`.
 
 ## What data leaves your machine
