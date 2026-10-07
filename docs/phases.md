@@ -828,10 +828,13 @@ with no threshold override.
   (e.g. an alias for `rm -rf`), assert it's still blocked by pattern match.
 **Status:** BUILT (2026-10-06, D-079, DBG-050). External side effects always hold, at any confidence; deny-listed calls (including wrapped, aliased and Windows forms) are blocked with no override. Encoded or indirect commands are NOT caught (documented, pinned by a test).
 
+### 5.5b — Real tools (D-080)
+**Status:** BUILT (2026-10-07). `bundle-tools-local`: read_file, edit_file, write_file, run_command, registered real-fs-write (reads read-only); `commandRisk` signal; 40 tests. Windows `npm`/`npx` via `run_command` unverified and likely to fail (see D-080). Not measured with a real model.
+
 ### 5.6 — Full guardrail integration test
 **Goal:** All five action classes verified together, plus profile-level
 enforcement.
-**Files touched:** none new — integration test only.
+**Files touched:** `src/profiles/profile-coding.ts` (new, must pass `commandRisk` to the gate), integration test.
 **Success criteria:**
 - A single test run exercises all five action classes and each resolves
   per the policy table.
@@ -843,7 +846,7 @@ enforcement.
   assert every gate decision appears correctly in the session log.
 - Config test: attempt to boot `profile-coding` with policy-gates
   disabled, assert boot fails or is rejected.
-**Status:** Not started
+**Status:** BUILT (2026-10-07, D-081, DBG-052). Sandbox-write and external-side-effect are exercised with stand-in tools because 5.1/5.2 are unbuilt. Not run with a real model. Windows unverified.
 
 ---
 

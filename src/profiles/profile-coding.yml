@@ -1,0 +1,29 @@
+# profile-coding - config data reference for `bootProfileCoding()` (src/profiles/profile-coding.ts, 5.6, D-081).
+# NOT auto-loaded (same reasoning as D-033). Keep in sync with ProfileCodingConfig by hand.
+#
+# There is deliberately NO way to turn the policy gates off here: `policy: false`, `policy.enabled: false`
+# and unknown options are refused at boot, and boot fails unless `verifyGates` proves they enforce.
+
+projectId: my-project            # required
+projectRoot: /absolute/path      # required, absolute: files, commands, retrieval and the gate are all confined to it
+
+sessionLog:
+  memory: true                   # or path: ./.harness/sessions
+
+policy:                          # optional
+  confidenceThreshold: 0.8       # 0.5 .. 1 (floor enforced)
+  approvalTimeoutMs: 120000      # a hold nobody answers is a denial
+  # approver: <callback, set in code>
+  # signals / extraDenyRules: add to the built-ins; commandRisk is always included
+
+localTools:
+  # commandTimeoutSeconds: 60
+  # envAllowlist: [PATH]
+  # allowSecretReads: false
+
+# skills:                        # never auto-discovered; name each folder or skills are not loaded
+#   dirs: [./skills]
+
+# retrieval:
+#   embeddings: {}               # give BOTH embeddings and vectorStore for vector search, else BM25 only
+#   vectorStore: { path: ./.harness/vectors }

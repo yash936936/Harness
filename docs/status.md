@@ -2,6 +2,20 @@
 
 > Updated every run. Newest entry at top.
 
+## 2026-10-07 (later) — 5.6 built: `profile-coding` + guardrail integration test (D-081, DBG-052)
+`bootProfileCoding` boots the full coding stack (scope before gate; real tools; `commandRisk` always wired; threshold floor 0.5) and **refuses to boot with the gates off, or if `verifyGates` cannot prove they enforce** (a probe `rm -rf /` must be blocked, a shell command held). One scripted run hits all five classes and an independent log audit finds nothing. 38 tests, Linux 723 passed / 98 skipped.
+**Owner to run (Git Bash):** extract the new zip over the repo, `npm install`, `npm run typecheck`, `npm test` (expect 814 passed / 7 skipped, 40 files), commit and push. Also still wanted from the last step: output of `run_command` with `node --version`, `git status`, `npm test` on Windows.
+**Decision for you:** the 0.5 floor on `confidenceThreshold` is my choice (D-081).
+**Phase 5 is NOT fully closed:** 5.1/5.2 (real sandboxes) are unbuilt, so no real tool is sandbox-write or external-side-effect yet.
+**Next up:** a first real-model run on `profile-coding` (does a 3B model produce a valid `edit_file`, and a `confidence`?); then decide between 5.1 (sandbox), the Phase 4 router, or Phase 6 (evals).
+
+## 2026-10-07 — real tools built (D-080, DBG-051)
+`bundle-tools-local`: `read_file`, `edit_file`, `write_file`, `run_command` over the real filesystem and `ctx.subprocess`, registered real-fs-write (read_file read-only). The gates now guard real tools. 40 tests, 15 mutations (14 caught, 1 equivalent). Linux 685 passed / 98 skipped.
+**Owner to run (Git Bash):** extract the new zip over the repo, `npm install`, `npm run typecheck`, `npm test` (expect 776 passed / 7 skipped, 39 files; a few more skipped if symlinks cannot be created), then commit and push.
+**Found:** a command call would have scored 1.0 on the path and size signals and auto-run at confidence 0.9. Fixed by design (no path-like fields, so no signal means HOLD) plus the `commandRisk` signal, which the profile MUST pass to the gate.
+**Likely problem on Windows (unverified):** `run_command {command:'npm'}` probably cannot start (`.cmd` with no shell). Please try `node --version` and `git status` (should work) and `npm test` (probably fails) and paste the output.
+**Next up:** 5.6 with `profile-coding` (wires tools-local, policy-gates with `commandRisk`, subagent-scope ordering; refuses to boot with the gates off). Then a first real-model run with these tools (does a 3B model produce a valid `edit_file`, and any `confidence`?).
+
 ## 2026-10-06 (later) — Phase 5.3-5.5 policy gates built (D-079, DBG-050); two more real runs recorded (D-078)
 `ctx.policy`: deny-list, external-side-effect always held, confidence-scored real-fs-write with approvals, sandbox/read-only logged. 44 tests, 24 mutations caught. Linux 645 passed / 98 skipped.
 **Owner to run (Git Bash):** extract `Harness-phase5.zip`, `npm install`, `npm run typecheck`, `npm test` (expect 736 passed / 7 skipped, 38 files), then commit and push.

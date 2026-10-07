@@ -370,11 +370,17 @@ and size.
 - **Responsibility:** `ctx.retrievalTools` — exposes retrieval to the agent loop as
   two READ-ONLY tools, `search_code` and `list_code_files` (built, D-058). Snippets
   are fenced with a per-call random nonce and labelled as untrusted data; output is
-  size-capped; expected failures are readable `isError` results. No read-file tool
-  by design (Phase 5 gates first).
+  size-capped; expected failures are readable `isError` results. (`read_file` now
+  lives in `tools-local`, D-080.)
 - **Location:** `src/bundles/retrieval-tools/`
 - **Depends on:** `tools`, `retrievalRank`, `retrievalGrep`.
 - **Config surface:** maxOutputChars, defaultK, maxK, maxListFiles.
+
+### tools-local (`bundle-tools-local`) - BUILT (D-080)
+- **Responsibility:** `ctx.localTools` - `read_file` (read-only), `edit_file`, `write_file` and `run_command` (all real-fs-write; no sandbox exists yet). Paths are confined to the project root with symlinks resolved; `.git` is never touched; commands run with no shell and an env allowlist. Exports `commandRisk`, the independent signal `policy-gates` needs to judge commands; without it every command is held.
+- **Location:** `src/bundles/tools-local/`
+- **Depends on:** `tools`, `subprocess` (and `policy-gates` for the `confidence` schema field only).
+- **Config surface:** root, maxReadChars, maxFileBytes, commandTimeoutSeconds, maxCommandTimeoutSeconds, maxCommandOutputBytes, envAllowlist, allowSecretReads.
 
 ### policy-gates (`bundle-policy-gates`)
 - **Responsibility:** hooks on `agent/pre-step`, `tools/pre-execute` —
@@ -457,7 +463,8 @@ src/
 └── profiles/
     ├── profile-minimal.ts    # bootProfileMinimal() — the real boot path (1.6, D-033)
     ├── profile-minimal.yml   # config-shape reference only, not auto-loaded
-    ├── profile-coding.yml
+    ├── profile-coding.ts     # bootProfileCoding() - built (5.6, D-081)
+    ├── profile-coding.yml    # config-shape reference only
     ├── profile-research.yml
     └── profile-full.yml
 app/

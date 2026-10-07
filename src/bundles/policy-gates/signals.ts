@@ -2,7 +2,8 @@ import { isAbsolute, relative, resolve } from 'node:path'
 import type { Signal, SignalResult } from './types.js'
 
 const PATH_KEYS = new Set(['path', 'paths', 'file', 'files', 'filepath', 'file_path', 'filename', 'target', 'destination', 'dest', 'dir', 'directory', 'cwd'])
-const CONTENT_KEYS = new Set(['content', 'contents', 'new_string', 'newstring', 'text', 'patch', 'diff', 'data', 'body'])
+// `old_string` counts: deleting a large block (empty new_string) is as big a change as writing one.
+const CONTENT_KEYS = new Set(['content', 'contents', 'new_string', 'newstring', 'old_string', 'oldstring', 'text', 'patch', 'diff', 'data', 'body'])
 
 /** Path-like values in the input, from well-known keys (top level and one level of nesting). */
 export function pathsOf(input: unknown): string[] {
