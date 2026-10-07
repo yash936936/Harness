@@ -112,6 +112,11 @@ export interface MemoryConfig {
   hotTokenCap?: number
   /** Token estimate. Default: ceil(chars / 3). There is no tokenizer in this project (D-062). */
   estimateTokens?: (text: string) => number
+  /**
+   * When a turn is run without a caller-supplied lesson, write one from the turn's log: a fixed template filled only with harness facts (tool name,
+   * error kind, deny-rule id, approval outcome), never with model or file text (D-083). Default false.
+   */
+  deriveLessons?: boolean
   /** Add the hot tier to every agent run's system prompt. Default true. */
   injectHot?: boolean
   compaction?: CompactionConfig

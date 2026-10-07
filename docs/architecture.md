@@ -376,6 +376,11 @@ and size.
 - **Depends on:** `tools`, `retrievalRank`, `retrievalGrep`.
 - **Config surface:** maxOutputChars, defaultK, maxK, maxListFiles.
 
+### input-guard (`bundle-input-guard`) - BUILT (D-083)
+- **Responsibility:** `ctx.inputGuard` - a `tools/post-execute` hook that fences every successful tool result in a per-call nonce and flags instruction-like text (`input.flagged` event). Heuristic, not prevention. Skips tools that fence themselves and `load_skill`.
+- **Location:** `src/bundles/input-guard/`
+- **Depends on:** `log`, `tools`.
+
 ### tools-local (`bundle-tools-local`) - BUILT (D-080)
 - **Responsibility:** `ctx.localTools` - `read_file` (read-only), `edit_file`, `write_file` and `run_command` (all real-fs-write; no sandbox exists yet). Paths are confined to the project root with symlinks resolved; `.git` is never touched; commands run with no shell and an env allowlist. Exports `commandRisk`, the independent signal `policy-gates` needs to judge commands; without it every command is held.
 - **Location:** `src/bundles/tools-local/`

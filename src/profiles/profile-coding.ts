@@ -8,6 +8,7 @@ import { Subprocess, type SubprocessConfig } from '../bundles/subprocess/index.j
 import { AgentLoop, type AgentLoopConfig } from '../bundles/agent-loop/index.js'
 import { SubagentScope } from '../bundles/subagent-scope/index.js'
 import { PolicyGates, CONFIDENCE_FIELD, type PolicyConfig } from '../bundles/policy-gates/index.js'
+import { InputGuard, type InputGuardConfig } from '../bundles/input-guard/index.js'
 import { Memory, type MemoryConfig } from '../bundles/memory/index.js'
 import { RetrievalGrep, type RetrievalGrepConfig } from '../bundles/retrieval-grep/index.js'
 import { RetrievalTreesitter, type RetrievalTreesitterConfig } from '../bundles/retrieval-treesitter/index.js'
@@ -46,6 +47,9 @@ export interface ProfileCodingConfig {
    */
   policy?: Omit<PolicyConfig, 'projectRoot'>
   localTools?: Omit<LocalToolsConfig, 'root'>
+  /** Fences and scans every tool result (D-083). Always on; this only tunes it. */
+  inputGuard?: InputGuardConfig
+  /** `deriveLessons` defaults to TRUE in this profile (templated from harness facts, D-083). */
   memory?: MemoryConfig
   /** Skills are never auto-discovered (D-0xx): without `dirs` the skills bundle is not loaded. */
   skills?: SkillsConfig
@@ -61,7 +65,7 @@ export interface ProfileCodingConfig {
   orchestrator?: OrchestratorConfig
 }
 
-const ALLOWED_KEYS = new Set(['projectId', 'projectRoot', 'sessionLog', 'egress', 'modelAdapter', 'toolRegistry', 'subprocess', 'agentLoop', 'policy', 'localTools', 'memory', 'skills', 'retrieval', 'orchestrator'])
+const ALLOWED_KEYS = new Set(['projectId', 'projectRoot', 'sessionLog', 'egress', 'modelAdapter', 'toolRegistry', 'subprocess', 'agentLoop', 'policy', 'inputGuard', 'localTools', 'memory', 'skills', 'retrieval', 'orchestrator'])
 const GATE_WORDS = /(polic|gate|guardrail|approval|confidence|deny)/i
 
 /** Refuse, at boot and by name, anything that tries to switch the gates off or weaken them below the floor. */
@@ -134,7 +138,7 @@ export async function verifyGates(ctx: Context): Promise<void> {
 /** Services this profile must end up with. A plugin whose dependency is absent is never started and does not throw, so boot checks for them by name. */
 export function missingServices(ctx: Context, withSkills: boolean): string[] {
   const live = ctx as unknown as Record<string, unknown>
-  return ['log', 'egress', 'llm', 'tools', 'subprocess', 'agentLoop', 'memory', 'subagents', 'policy', 'retrievalGrep', 'retrievalRank', 'retrievalTools', 'localTools', 'orchestrator', ...(withSkills ? ['skills'] : [])].filter((k) => !live[k])
+  return ['log', 'egress', 'llm', 'tools', 'subprocess', 'agentLoop', 'memory', 'subagents', 'policy', 'inputGuard', 'retrievalGrep', 'retrievalRank', 'retrievalTools', 'localTools', 'orchestrator', ...(withSkills ? ['skills'] : [])].filter((k) => !live[k])
 }
 
 /**
@@ -157,13 +161,13 @@ export async function bootProfileCoding(config: ProfileCodingConfig): Promise<Co
     await ctx.plugin(ToolRegistry, config.toolRegistry)
     await ctx.plugin(Subprocess, config.subprocess)
     await ctx.plugin(AgentLoop, config.agentLoop)
-    if (config.memory) await ctx.plugin(Memory, config.memory)
-    else await ctx.plugin(Memory, {})
+    await ctx.plugin(Memory, { deriveLessons: true, ...config.memory })
     await ctx.plugin(SubagentScope)
     const userSignals = (config.policy?.signals ?? []).filter((s) => s !== commandRisk)
     await ctx.plugin(PolicyGates, { ...config.policy, projectRoot: root, signals: [commandRisk, ...userSignals] })
 
     const r = config.retrieval ?? {}
+    await ctx.plugin(InputGuard, config.inputGuard)
     await ctx.plugin(RetrievalGrep, { ...r.grep, root })
     await ctx.plugin(RetrievalTreesitter, r.treesitter)
     if (r.embeddings && r.vectorStore) {

@@ -16,6 +16,11 @@ policy:                          # optional
   # approver: <callback, set in code>
   # signals / extraDenyRules: add to the built-ins; commandRisk is always included
 
+inputGuard: {}                   # always on: fences and flags tool results (D-083); only tunable (skipTools)
+
+memory:
+  # deriveLessons: true          # default TRUE here: lessons templated from harness facts, never model text
+
 localTools:
   # commandTimeoutSeconds: 60
   # envAllowlist: [PATH]

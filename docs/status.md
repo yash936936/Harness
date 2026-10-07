@@ -2,6 +2,16 @@
 
 > Updated every run. Newest entry at top.
 
+## 2026-10-08 (later) — open items 2, 3, 4 closed in code (D-083, DBG-054)
+Done: stale known-gaps line corrected (`profile-coding` wires memory, subagents, skills-when-named); `input-guard` fences and flags every tool result (heuristic, not prevention); lessons are now derived by template from harness facts and promoted through existing compaction. Linux 770 passed / 98 skipped.
+**Owner to run (Git Bash):** extract the new zip over the repo, `npm install`, `npm run typecheck`, `npm test` (expect 861 passed / 7 skipped, 42 files), commit, push.
+**Open-item register now:** 1 done (D-082) | 2 done | 3 done in code, real-model respect unmeasured | 4 done | 5 first real-model run on `profile-coding` (NEXT, needs the owner's Ollama) | 6 which model plans | 7 never measured: real failures (D-074), answer correctness, hot-rule following | 8 benchmark stays in Phase 6 (agreed) | 9 Tauri/1B.4 | 10 Qwen license (D-049). Then 4.5 router, 5.1, 5.2, Phase 6.
+
+## 2026-10-08 — Windows-verified 5.6 and real tools; one bug found and fixed (D-082, DBG-053)
+Owner run: 814 passed / 7 skipped, commit 7719e84 pushed. `run_command` works on Windows for `node`, `git` and `npm` (my "npm will fail" prediction was wrong). `npm.cmd` exposed a real bug in `ctx.subprocess` (use before declaration on a synchronous spawn failure); fixed with a regression test. Linux: typecheck clean, subprocess tests 19/19.
+**Owner to run (Git Bash):** extract the new zip over the repo, `npm install`, `npm run typecheck`, `npm test` (expect 815 passed / 7 skipped, 40 files), commit, push.
+**Plan set by owner:** close ALL remaining open items, then Phase 4 router (4.5, Needle), then 5.1 (sandbox), then Phase 6. Open-item register below in this entry's next step (see the reply that produced it); to be copied here once the owner confirms the order.
+
 ## 2026-10-07 (later) — 5.6 built: `profile-coding` + guardrail integration test (D-081, DBG-052)
 `bootProfileCoding` boots the full coding stack (scope before gate; real tools; `commandRisk` always wired; threshold floor 0.5) and **refuses to boot with the gates off, or if `verifyGates` cannot prove they enforce** (a probe `rm -rf /` must be blocked, a shell command held). One scripted run hits all five classes and an independent log audit finds nothing. 38 tests, Linux 723 passed / 98 skipped.
 **Owner to run (Git Bash):** extract the new zip over the repo, `npm install`, `npm run typecheck`, `npm test` (expect 814 passed / 7 skipped, 40 files), commit and push. Also still wanted from the last step: output of `run_command` with `node --version`, `git status`, `npm test` on Windows.

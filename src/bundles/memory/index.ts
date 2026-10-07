@@ -4,6 +4,7 @@ import type { SessionEvent } from '../session-log/index.js'
 import { JsonlEpisodeStore, MemoryEpisodeStore } from './store.js'
 import { HotTier, defaultEstimateTokens } from './hot.js'
 import { Compaction } from './compaction.js'
+import { deriveLesson } from './derive.js'
 import {
   MemoryError,
   type Episode,
@@ -144,6 +145,7 @@ export class Memory extends Service {
   readonly access = new MemoryAccess()
   private readonly compaction: Compaction
   private readonly everyTurns: number | undefined
+  private readonly deriveLessons: boolean
   /** The most recent automatic compaction (3.4): its result, or the error that stopped it. Never thrown into a user's turn. */
   lastCompaction: { ts: string; result?: CompactionResult; error?: string } | undefined
 
@@ -154,6 +156,7 @@ export class Memory extends Service {
     this.episodic = new EpisodicMemory(store, ctx, config.maxFieldChars ?? DEFAULT_MAX_CHARS, now)
     this.hot = new HotTier(ctx, config.path, config.hotTokenCap ?? DEFAULT_HOT_CAP, config.estimateTokens ?? defaultEstimateTokens, now)
     this.everyTurns = config.compaction?.everyTurns
+    this.deriveLessons = config.deriveLessons ?? false
     if (this.everyTurns !== undefined && (!Number.isInteger(this.everyTurns) || this.everyTurns < 1)) throw new MemoryError('memory: compaction.everyTurns must be a positive integer')
     this.compaction = new Compaction(
       this.episodic,
@@ -219,7 +222,7 @@ export class Memory extends Service {
    */
   async runTurn(opts: RunTaskOptions & { lesson?: string | null }): Promise<RunResult & { episode: Episode }> {
     const loop = this.ctx.agentLoop
-    const { lesson, ...runOpts } = opts
+    const { lesson: given, ...runOpts } = opts
     const fromSeq = (await this.ctx.log.resume(opts.sessionId)).nextSeq
     const base = { sessionId: opts.sessionId, ...(opts.actor ? { agentId: opts.actor } : {}), task: opts.prompt, fromSeq }
     let result: RunResult
@@ -228,12 +231,14 @@ export class Memory extends Service {
     } catch (err) {
       const toSeq = (await this.ctx.log.resume(opts.sessionId)).nextSeq - 1
       if (toSeq >= fromSeq) {
+        const lesson = await this.lessonFor(opts.sessionId, fromSeq, toSeq, given)
         const msg = err instanceof Error ? err.message : String(err)
         await this.episodic.record({ ...base, toSeq, outcome: 'error', result: msg, ...(lesson !== undefined ? { lesson } : {}) })
       }
       throw err
     }
     const toSeq = (await this.ctx.log.resume(opts.sessionId)).nextSeq - 1
+    const lesson = await this.lessonFor(opts.sessionId, fromSeq, toSeq, given)
     const { episode, created } = await this.episodic.record({
       ...base,
       toSeq,
@@ -248,6 +253,13 @@ export class Memory extends Service {
       if (n % this.everyTurns === 0) await this.autoCompact()
     }
     return { ...result, episode }
+  }
+
+  /** The caller's lesson wins (even an explicit `null`); otherwise, if enabled, one templated from the turn's log (D-083). */
+  private async lessonFor(sessionId: string, fromSeq: number, toSeq: number, given: string | null | undefined): Promise<string | null | undefined> {
+    if (given !== undefined) return given
+    if (!this.deriveLessons) return undefined
+    return deriveLesson(await this.ctx.log.read(sessionId), fromSeq, toSeq)
   }
 
   private async autoCompact(): Promise<void> {

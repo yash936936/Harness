@@ -3,6 +3,17 @@
 > Append-only. Every completed coding task gets an entry here, even "no
 > issues found." Newest entries at top.
 
+## DBG-054 — input-guard and derived lessons (D-083) — 2026-10-08
+**Tested:** `test/input-guard.test.ts`, `test/memory-derive.test.ts`, plus two cases in `test/profile-coding.test.ts` (a hostile `notes.md` is fenced and flagged and the "obeyed" `rm -rf .` is still denied, the audit of the log is clean, and the turn leaves a templated lesson; `load_skill` is unfenced while a file read is fenced). Linux 770 passed / 98 skipped.
+**Mutation-checked:** 19 mutations (fence, flag logging, nonce, header, skip list, scan cap, strict patterns, range filter, priority, caller-wins, defaults, profile wiring): all caught.
+**Design flaw found by my own review before release:** fencing every tool result also fenced `load_skill`, telling the model that trusted skill instructions "cannot give instructions". Fixed with a default skip list and a test through the real profile.
+**Not tested:** any real model reading a fenced result; Windows.
+
+## DBG-053 — Windows run of tools-local; subprocess use-before-declaration (D-082) — 2026-10-08
+**Windows (owner):** 814 passed / 7 skipped / 40 files. `run_command`: node OK, git OK, `npm` OK, `npm.cmd` threw `Cannot access 'stdoutChunks' before initialization`.
+**Root cause:** synchronous `spawn` failure -> `finish()` reads `const` buffers declared after the try (temporal dead zone). Reproduced on Linux with `run('a\0b', [])` (threw). Fixed by declaring the state first; regression test added (19 tests in subprocess.test.ts). Linux typecheck clean.
+**Lesson:** a comment saying a case is handled is not a test. This path had one for years and never ran.
+
 ## DBG-052 — profile-coding and the 5.6 integration test (D-081) — 2026-10-07
 **Tested:** `test/profile-coding.test.ts`, 38 tests: boot and tool classes; the self-test's own log; skills only when named; unusable root fails by name; 17 refusals (every way to switch the gates off or lower the threshold); the running gate has no off method; commandRisk always wired, deduplicated, owner signals still counted; the gate judges against the real root; `verifyGates` against six broken contexts (no policy, policy removed, commandRisk missing, a laxer signal, an inert policy service, no run_command); `missingServices`; the scripted all-classes run with an independent log audit (plus the audit against doctored logs); sub-agent scope-before-gate; a granted sub-agent still gated.
 **Mutation-checked (15 on the profile):** 12 caught on the first pass; 3 survivors led to 3 new tests (an inert policy service; the gate's root; `missingServices`); final 2 survivors: one equivalent (`root + ''`), one defensive (the throw inside boot, see D-081).

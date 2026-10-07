@@ -137,6 +137,13 @@ describe('subprocess: failure modes are surfaced, not swallowed', () => {
     expect(res.spawnError).toBeUndefined()
   })
 
+  it('a spawn that throws synchronously (NUL byte in the command) resolves with spawnError instead of throwing (D-082)', async () => {
+    const ctx = await boot()
+    const res = await ctx.subprocess.run('a\0b', [])
+    expect(res.spawnError).toBeTruthy()
+    expect(res.exitCode).toBeNull()
+    expect(res.stdout).toBe('')
+  })
   it('a command that does not exist resolves with spawnError, and does not throw', async () => {
     const ctx = await boot()
     const res = await ctx.subprocess.run('this-command-does-not-exist-xyz')

@@ -68,16 +68,7 @@ export class Subprocess extends Service {
     const start = Date.now()
 
     return new Promise<RunResult>((resolve) => {
-      let child: ChildProcess
-      try {
-        child = spawn(command, args, { cwd, env, shell: false, windowsHide: true })
-      } catch (e: any) {
-        // Some invalid inputs (e.g. a command containing a NUL byte) throw synchronously
-        // instead of emitting 'error'. Treat the same as a spawn failure either way.
-        resolve(finish({ spawnError: e?.message ?? String(e) }))
-        return
-      }
-
+      // Declared BEFORE the spawn: a synchronous spawn failure calls finish(), which reads these (a use-before-declaration bug, found on Windows, D-082).
       let settled = false
       let timedOut = false
       let aborted = false
@@ -87,6 +78,16 @@ export class Subprocess extends Service {
       let stderrBytes = 0
       let stdoutTruncated = false
       let stderrTruncated = false
+
+      let child: ChildProcess
+      try {
+        child = spawn(command, args, { cwd, env, shell: false, windowsHide: true })
+      } catch (e: any) {
+        // Some invalid inputs (e.g. a command containing a NUL byte) throw synchronously
+        // instead of emitting 'error'. Treat the same as a spawn failure either way.
+        resolve(finish({ spawnError: e?.message ?? String(e) }))
+        return
+      }
 
       const collect = (chunks: Buffer[], data: Buffer, bytes: number, truncated: boolean) => {
         if (truncated) return { bytes, truncated }
