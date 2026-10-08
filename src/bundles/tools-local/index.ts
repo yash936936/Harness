@@ -28,6 +28,14 @@ export const WRITE_TOOL = 'write_file'
 const MAX_EDIT_STRING = 20_000
 const MAX_WRITE_CHARS = 100_000
 
+/** null, "", 0 and undefined mean "not given"; a whole number of 1 or more (or a string of digits) is a line; anything else is refused. */
+function lineArg(v: unknown, name: string): number | undefined {
+  if (v === undefined || v === null || v === '' || v === 0 || v === '0') return undefined
+  const n = typeof v === 'string' && /^\s*\d+\s*$/.test(v) ? Number(v) : v
+  if (typeof n === 'number' && Number.isInteger(n) && n >= 1) return n
+  throw new Error(`${name} must be a whole number of 1 or more, or left out`)
+}
+
 function posInt(name: string, v: number): void {
   if (!Number.isInteger(v) || v < 1) throw new LocalToolsConfigError(`tools-local: ${name} must be a positive integer`)
 }
@@ -117,7 +125,7 @@ export class LocalTools extends Service {
     }
   }
 
-  private readTool(): ToolDefinition<{ path: string; startLine?: number; endLine?: number }> {
+  private readTool(): ToolDefinition<{ path: string; startLine?: number | string | null; endLine?: number | string | null }> {
     return {
       name: READ_TOOL,
       description:
@@ -128,8 +136,9 @@ export class LocalTools extends Service {
         type: 'object',
         properties: {
           path: { type: 'string', minLength: 1, maxLength: 1024 },
-          startLine: { type: 'integer', minimum: 1 },
-          endLine: { type: 'integer', minimum: 1 },
+          // Lenient on purpose: small models fill optional fields with null, 0, "" or "2" (D-085). Those mean "not given" or a number; anything else is refused with a clear message.
+          startLine: { type: ['integer', 'string', 'null'], description: 'Optional. First line to read (1 or more). Leave out to start at the top.' },
+          endLine: { type: ['integer', 'string', 'null'], description: 'Optional. Last line to read (1 or more). Leave out to read to the end.' },
         },
         required: ['path'],
         additionalProperties: false,
@@ -141,11 +150,12 @@ export class LocalTools extends Service {
         const text = await this.readText(abs, input.path)
         const lines = text.split('\n')
         const total = text.endsWith('\n') ? lines.length - 1 : lines.length
-        const start = input.startLine ?? 1
-        const end = Math.min(input.endLine ?? total, total)
+        const given = { start: lineArg(input.startLine, 'startLine'), end: lineArg(input.endLine, 'endLine') }
+        const start = given.start ?? 1
+        const end = Math.min(given.end ?? total, total)
         if (start > end && !(total === 0 && start === 1)) throw new Error(`startLine ${start} is past the end of the file (${total} lines)`)
         let body = lines.slice(start - 1, end).join('\n')
-        const ranged = input.startLine !== undefined || input.endLine !== undefined
+        const ranged = given.start !== undefined || given.end !== undefined
         let note = ''
         if (body.length > this.maxReadChars) {
           body = body.slice(0, this.maxReadChars)
@@ -169,8 +179,8 @@ export class LocalTools extends Service {
         type: 'object',
         properties: {
           path: { type: 'string', minLength: 1, maxLength: 1024 },
-          old_string: { type: 'string', minLength: 1, maxLength: MAX_EDIT_STRING },
-          new_string: { type: 'string', maxLength: MAX_EDIT_STRING },
+          old_string: { type: 'string', minLength: 1, maxLength: MAX_EDIT_STRING, description: 'The exact existing text to replace, copied from the file with its spaces and line breaks. Never empty. To make a new file use write_file instead.' },
+          new_string: { type: 'string', maxLength: MAX_EDIT_STRING, description: 'The text to put in its place (empty to delete old_string).' },
           confidence: confidenceProperty,
         },
         required: ['path', 'old_string', 'new_string'],
@@ -212,7 +222,7 @@ export class LocalTools extends Service {
         type: 'object',
         properties: {
           path: { type: 'string', minLength: 1, maxLength: 1024 },
-          content: { type: 'string', maxLength: MAX_WRITE_CHARS },
+          content: { type: 'string', maxLength: MAX_WRITE_CHARS, description: 'The whole text of the new file.' },
           confidence: confidenceProperty,
         },
         required: ['path', 'content'],

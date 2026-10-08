@@ -97,6 +97,22 @@ describe('read_file', () => {
     expect(part.content).toBe('a.txt lines 2-3 of 3:\ntwo\nthree')
     expect((await call('read_file', { path: 'a.txt', startLine: 9 })).content).toMatch(/past the end/)
   })
+  it('treats the junk small models put in optional fields as "not given" (D-085), and refuses real nonsense clearly', async () => {
+    const { root, call } = await boot()
+    put(root, 'a.txt', 'one\ntwo\nthree\n')
+    for (const extra of [{ startLine: null }, { startLine: 0 }, { startLine: '' }, { endLine: null, startLine: null }, { endLine: 0 }, { startLine: '0', endLine: '' }]) {
+      const r = await call('read_file', { path: 'a.txt', ...extra })
+      expect(r.ok, JSON.stringify(extra)).toBe(true)
+      expect(r.content, JSON.stringify(extra)).toBe('a.txt (3 lines):\none\ntwo\nthree')
+    }
+    expect((await call('read_file', { path: 'a.txt', startLine: '2', endLine: '3' })).content).toBe('a.txt lines 2-3 of 3:\ntwo\nthree')
+    expect((await call('read_file', { path: 'a.txt', startLine: 2, endLine: null })).content).toBe('a.txt lines 2-3 of 3:\ntwo\nthree')
+    for (const bad of [{ startLine: -1 }, { startLine: 1.5 }, { startLine: 'abc' }, { endLine: '2x' }, { startLine: true }, { endLine: -3 }]) {
+      const r = await call('read_file', { path: 'a.txt', ...bad })
+      expect(r.ok, JSON.stringify(bad)).toBe(false)
+      expect(r.content, JSON.stringify(bad)).toMatch(/whole number of 1 or more|must be/)
+    }
+  })
   it('cuts long output and says so', async () => {
     const { root, call } = await boot({ maxReadChars: 100 })
     put(root, 'big.txt', 'x'.repeat(500))

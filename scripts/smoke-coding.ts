@@ -27,7 +27,7 @@ const MODELS = (process.env['HARNESS_CODING_MODELS'] ?? 'llama3.2:3b,qwen2.5-cod
 const TRIALS = Math.max(1, Number(process.env['HARNESS_TRIALS'] ?? 3) || 3)
 const TOOLS = ['read_file', 'edit_file', 'write_file']
 
-const MATH = 'export function add(a, b) {\n  return a - b\n}\n\nexport function multiply(a, b) {\n  return a * b\n}\n'
+const MATH = 'export const LIMIT = 4172\n\nexport function add(a, b) {\n  return a - b\n}\n\nexport function multiply(a, b) {\n  return a * b\n}\n'
 const load = async (root: string, rel: string) => import(pathToFileURL(join(root, rel)).href + `?t=${Date.now()}${Math.random()}`)
 const LAYOUT = 'The project has these files: package.json, src/math.js. Paths are relative to the project root.'
 
@@ -56,8 +56,9 @@ const TASKS: Task[] = [
   },
   {
     id: 'read',
-    prompt: `${LAYOUT} Read src/math.js and tell me what multiply(4, 5) returns. Answer with just the number.`,
-    check: async (root, text) => /\b20\b/.test(text) && readFileSync(join(root, 'src', 'math.js'), 'utf8') === MATH,
+    prompt: `${LAYOUT} Read src/math.js and tell me the value of the constant LIMIT. Answer with just the number.`,
+    // 4172 cannot be guessed: the answer is right only if the file was actually read (the first version asked for multiply(4,5), which is 20 without reading anything).
+    check: async (root, text) => /\b4172\b/.test(text) && readFileSync(join(root, 'src', 'math.js'), 'utf8') === MATH,
   },
 ]
 
@@ -71,7 +72,7 @@ function standIn(): LLMProvider {
     const t = turns(m)
     if (prompt.includes('has a bug')) return t === 0 ? call(m, 'read_file', { path: 'src/math.js' }) : t === 1 ? call(m, 'edit_file', { path: 'src/math.js', old_string: 'return a - b', new_string: 'return a + b', confidence: 0.9 }) : { text: 'fixed', stopReason: 'end_turn' }
     if (prompt.includes('Create a new file')) return t === 0 ? call(m, 'write_file', { path: 'src/greet.js', content: 'export function greet(name) {\n  return "Hello, " + name\n}\n', confidence: 0.9 }) : { text: 'created', stopReason: 'end_turn' }
-    return t === 0 ? call(m, 'read_file', { path: 'src/math.js' }) : { text: '20', stopReason: 'end_turn' }
+    return t === 0 ? call(m, 'read_file', { path: 'src/math.js' }) : { text: '4172', stopReason: 'end_turn' }
   }) as any)
 }
 
@@ -82,8 +83,10 @@ interface Trial {
   steps: number
   ms: number
   calls: Record<string, number>
-  failures: { tool: string; kind: string; msg: string }[]
+  failures: { tool: string; kind: string; msg: string; input: string }[]
   confidences: (number | null)[]
+  writes: { tool: string; conf: number | null; ok: boolean }[]
+  detail: string
   verdicts: Record<string, number>
   holdReasons: string[]
   flagged: number
@@ -97,18 +100,24 @@ function measure(events: SessionEvent[]) {
   const confidences: (number | null)[] = []
   const verdicts: Record<string, number> = {}
   const holdReasons: string[] = []
+  const writes: Trial['writes'] = []
+  let last: { name: string; input: any } | undefined
   for (const e of events) {
     const d = e.data as any
     if (e.type === 'tool.call') {
+      last = { name: d.name, input: d.input }
       calls[d.name] = (calls[d.name] ?? 0) + 1
       if (d.name === 'edit_file' || d.name === 'write_file') confidences.push(typeof d.input?.confidence === 'number' ? d.input.confidence : null)
-    } else if (e.type === 'tool.result' && d.ok === false) failures.push({ tool: d.name, kind: d.errorKind ?? '?', msg: String(d.content).replace(/\s+/g, ' ').slice(0, 160) })
+    } else if (e.type === 'tool.result') {
+      if (last && (last.name === 'edit_file' || last.name === 'write_file')) writes.push({ tool: last.name, conf: typeof last.input?.confidence === 'number' ? last.input.confidence : null, ok: d.ok === true })
+      if (d.ok === false) failures.push({ tool: d.name, kind: d.errorKind ?? '?', msg: String(d.content).replace(/\s+/g, ' ').slice(0, 160), input: JSON.stringify(last?.input ?? null).slice(0, 220) })
+    }
     else if (e.type === 'policy.decision') {
       verdicts[d.verdict] = (verdicts[d.verdict] ?? 0) + 1
       if (d.verdict === 'hold') holdReasons.push(String(d.reason).slice(0, 110))
     }
   }
-  return { calls, failures, confidences, verdicts, holdReasons, flagged: events.filter((e) => e.type === 'input.flagged').length }
+  return { calls, failures, confidences, writes, verdicts, holdReasons, flagged: events.filter((e) => e.type === 'input.flagged').length }
 }
 
 async function runTrial(provider: LLMProvider, task: Task, n: number): Promise<Trial> {
@@ -118,6 +127,7 @@ async function runTrial(provider: LLMProvider, task: Task, n: number): Promise<T
   writeFileSync(join(root, 'src', 'math.js'), MATH)
   const start = Date.now()
   const sid = `c${n}`
+  const snap = (rel: string) => (existsSync(join(root, rel)) ? JSON.stringify(readFileSync(join(root, rel), 'utf8').slice(0, 130)) : '(missing)')
   try {
     const ctx = await bootProfileCoding({
       projectId: 'smoke-coding',
@@ -149,7 +159,8 @@ async function runTrial(provider: LLMProvider, task: Task, n: number): Promise<T
     } catch {
       passed = false
     }
-    return { task: task.id, passed, outcome, steps, ms: Date.now() - start, ...m, lesson, ...(error ? { error } : {}) }
+    const detail = passed ? '' : task.id === 'create' ? `greet.js=${snap('src/greet.js')}` : task.id === 'fix' ? `math.js=${snap('src/math.js')}` : `answer=${JSON.stringify(finalText.slice(0, 100))} math.js ${readFileSync(join(root, 'src', 'math.js'), 'utf8') === MATH ? 'unchanged' : 'CHANGED'}`
+    return { task: task.id, passed, outcome, steps, ms: Date.now() - start, ...m, detail, lesson, ...(error ? { error } : {}) }
   } finally {
     rmSync(root, { recursive: true, force: true })
   }
@@ -202,6 +213,12 @@ async function main() {
     const fails = new Map<string, number>()
     for (const t of trials) for (const f of t.failures) fails.set(`${f.tool}/${f.kind}: ${f.msg}`, (fails.get(`${f.tool}/${f.kind}: ${f.msg}`) ?? 0) + 1)
     for (const [f, c] of [...fails].sort((a, b) => b[1] - a[1]).slice(0, 4)) console.log(`    x${c} ${f}`)
+    // The cause of each failure, not just its kind: what the model actually sent, and whether its self-reported confidence told us anything.
+    for (const t of trials) for (const f of t.failures.slice(0, 2)) console.log(`    [${t.task}] ${f.tool} sent ${f.input}`)
+    const w = trials.flatMap((t) => t.writes)
+    const wc = w.filter((x) => x.conf !== null)
+    console.log(`  write calls: ${w.filter((x) => x.ok).length}/${w.length} ran ok. With a confidence: ${wc.filter((x) => x.ok).length}/${wc.length} ok (mean ${wc.length ? (wc.reduce((s, x) => s + (x.conf ?? 0), 0) / wc.length).toFixed(2) : 'n/a'}); failed calls that still reported >= 0.9: ${wc.filter((x) => !x.ok && (x.conf ?? 0) >= 0.9).length}`)
+    for (const t of trials.filter((x) => !x.passed && x.detail)) console.log(`    [${t.task}] not correct: ${t.detail}`)
     for (const t of trials.filter((x) => x.error).slice(0, 2)) console.log(`    run error (${t.task}): ${t.error}`)
   }
   console.log('\nThese are counts from a few samples, not rates. "correct" is an objective check (the file is imported and called), not a judgement. Paste this whole output back; do not summarise it.')

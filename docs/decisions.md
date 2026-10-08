@@ -4,6 +4,27 @@
 > if a decision is reversed, log a new entry that supersedes it and reference
 > the old ID.
 
+## D-085 — Results of the first real-model run on `profile-coding`, and what changed — 2026-10-08
+**Run (owner, Windows, Ollama, 3 trials x 3 tasks per model, commit 51bd805):**
+| | llama3.2:3b | qwen2.5-coder:3b-instruct |
+|---|---|---|
+| fix (objective check) | 0/3 | 1/3 |
+| create | 0/3 | 2/3 |
+| read | 3/3 (INVALID check, see below) | 0/3 |
+| read_file calls / failed | 6 / 4 (all invalid_input) | 11 / 0 |
+| edit_file calls / failed | 0 / 0 | 7 / 5 (2 empty `old_string`, 3 "not found") |
+| write_file calls / failed | 2 / 1 (invalid: `confidence` not a number) | 7 / 4 (all "already exists": 3 on greet.js, 1 on math.js) |
+| confidence reported on write calls | 0 / 2 | 10 / 14, every value 0.9 or 1 |
+| gate decisions | allow 2, hold 1 | allow 11, allow-logged 8, hold 4 |
+| input-guard flags | 0 | 0 |
+All holds were "no valid self-reported confidence" (fail-closed working as designed) and were auto-approved in the temp project. No unsafe action occurred and none was possible to observe: the tasks were benign.
+**What the numbers support:** (1) A 3B model is a weak driver of the real tools: 3 correct in 12 fix/create trials across both models (fix 1/6, create 2/6); calls are often malformed or mis-targeted (empty `old_string`; `write_file` on a file that exists; an `old_string` that does not match the file). (2) The gate and the tools behaved: bad input was refused before anything ran; "already exists" and "not found" stopped writes with messages the model could act on; nothing outside the temp project was touched. (3) **Self-reported confidence did not separate good calls from bad ones for qwen:** 10 of its 14 write calls carried 0.9 or 1, yet 9 of the 14 failed, so at least 5 failed calls reported >= 0.9 (arithmetic from the counts; per-call pairing was not recorded in this run and now is). This agrees with the project's standing distrust of self-report (D-079): the path and size signals, not the number, carry the decision. llama never reported one, so every write it made was held. (4) The derived lessons were produced and are true statements about what happened (llama `read_file` x4 would reach the compaction threshold). (5) input-guard raised no flag on benign fixtures (0 false positives in this small sample).
+**What the numbers do NOT show:** why llama made no `edit_file` call in any fix trial (it hit `read_file` errors first and answered in about 2 steps, but the cause is not isolated); why qwen's `old_string` failed to match; why qwen scored 0/3 on `read`; and any rate (9 trials per model).
+**A flaw in my own script, found reading the results:** the `read` task asked for `multiply(4,5)`, which is 20 without reading anything, so llama's 3/3 means nothing (4 of its 6 reads had failed). The task now asks for a constant (`LIMIT = 4172`) that cannot be guessed, and requires the file to be unchanged.
+**Changes made now (harness-side only, no claim they improve the models):** (a) `read_file`'s optional `startLine`/`endLine` accept `null`, `0`, `""`, and numeric strings (small models fill optional fields with junk; all four llama `read_file` failures were this); real nonsense is still refused with a clear message (tested, 4 mutations caught). (b) Field descriptions on `edit_file` (`old_string` must be exact existing text, never empty; use `write_file` for new files) and `write_file`. (c) The script now records, per failure, the input the model actually sent; per write call its confidence next to whether it ran ok; and, when a task is wrong, the file or answer it ended with.
+**Next:** re-run the same command (see status) to get the causes; then decide fixes for what the new diagnostics show. Items 6 (which model plans) and 7 (hot-rule following, answer correctness at scale) are still unmeasured.
+**Affects:** `src/bundles/tools-local/index.ts`, `test/tools-local.test.ts` (+1), `scripts/smoke-coding.ts`.
+
 ## D-084 — First real-model run on `profile-coding`: what is measured and how (`scripts/smoke-coding.ts`) — 2026-10-08
 **Owner delegated the choices ("decide on your behalf"):** models = `llama3.2:3b` and `qwen2.5-coder:3b-instruct` (the two used in every earlier real run, so results compare; qwen runs with `textToolCalls` on, per D-067); 3 trials x 3 tasks per model (counts, not rates).
 **Design:** each trial boots the REAL `bootProfileCoding` on a fresh temp project (`package.json`, `src/math.js` with `add` written as `a - b`), offers `read_file`, `edit_file`, `write_file`, and runs `ctx.memory.runTurn`. Tasks and objective checks (no model judging a model): FIX the bug (the edited file is imported and `add(2,3)==5`, `add(10,5)==15`, `multiply(4,5)==20`); CREATE `src/greet.js` (imported, `greet('Sam')=='Hello, Sam'`); READ (answer contains 20 and the file is untouched). Reported per model: correct per task, outcome, steps, time; per tool calls / schema rejections / run failures; whether `confidence` was reported on write calls and its values; gate decisions; hold reasons; input-guard flags (expected 0); the derived lesson; the most common failure messages.

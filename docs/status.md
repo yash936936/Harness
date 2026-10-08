@@ -2,6 +2,11 @@
 
 > Updated every run. Newest entry at top.
 
+## 2026-10-08 (night) — item 5 first results recorded (D-085)
+Real-model run: llama3.2:3b fix 0/3, create 0/3; qwen2.5-coder:3b fix 1/3, create 2/3; 3B models are weak tool drivers; confidence did not discriminate (qwen: >= 5 of 9 failed writes reported >= 0.9); gate and tools behaved; 0 input-guard flags. `read` task was invalid (guessable answer), fixed. `read_file` now tolerates junk optional fields. Linux 771 passed / 98 skipped. Pushed before this step: 51bd805.
+**Owner to run (Git Bash):** apply the zip, `npm install`, `npm run typecheck`, `npm test` (expect 862 passed / 7 skipped, 42 files), then re-run the model script and paste the whole output.
+**Next:** act on the new diagnostics; then items 6 and 7; then 4.5 router, 5.1, 5.2, Phase 6.
+
 ## 2026-10-08 (evening) — item 5 prepared: real-model run on `profile-coding` (D-084)
 Windows run of D-083: 861 passed / 7 skipped, 42 files, pushed as 60d4b5d. `scripts/smoke-coding.ts` is ready (self-tested with a stand-in and a do-nothing negative control; not yet run against a model). Models chosen by me: llama3.2:3b and qwen2.5-coder:3b-instruct.
 **Owner to run (Git Bash), then paste the whole output:** `HARNESS_CODING_MODELS=llama3.2:3b,qwen2.5-coder:3b-instruct HARNESS_TRIALS=3 npx tsx scripts/smoke-coding.ts` (needs Ollama serving; takes a while on CPU).
