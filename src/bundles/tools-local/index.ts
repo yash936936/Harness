@@ -5,7 +5,13 @@ import { dirname, join } from 'node:path'
 import { randomBytes } from 'node:crypto'
 import '../tool-registry/index.js'
 import '../subprocess/index.js'
-import { confidenceProperty } from '../policy-gates/index.js'
+import { confidenceProperty as strictConfidence } from '../policy-gates/index.js'
+
+/**
+ * The schema accepts a stray string or null for `confidence` so the call REACHES the gate instead of being rejected before any decision (D-086: llama3.2:3b sends
+ * "1"). The gate trusts only a real number from 0 to 1; anything else is a hold, so this is a fail-closed relaxation, not a trust one. A number out of range is still rejected.
+ */
+const confidenceProperty = { ...strictConfidence, type: ['number', 'string', 'null'] } as const
 import type { ToolDefinition } from '../tool-registry/types.js'
 import { COMMAND_TOOL } from './risk.js'
 import { confine, isGitInternal, isSecretPath, PathRefused, relNorm } from './paths.js'
@@ -28,12 +34,26 @@ export const WRITE_TOOL = 'write_file'
 const MAX_EDIT_STRING = 20_000
 const MAX_WRITE_CHARS = 100_000
 
-/** null, "", 0 and undefined mean "not given"; a whole number of 1 or more (or a string of digits) is a line; anything else is refused. */
+/** null, "", 0, undefined and the words "null"/"none" mean "not given"; a whole number of 1 or more (or a string of digits) is a line; anything else is refused. */
 function lineArg(v: unknown, name: string): number | undefined {
   if (v === undefined || v === null || v === '' || v === 0 || v === '0') return undefined
+  if (typeof v === 'string' && /^\s*(null|none|nil|undefined|n\/a)\s*$/i.test(v)) return undefined // llama3.2:3b sends the STRING "null" (D-086)
   const n = typeof v === 'string' && /^\s*\d+\s*$/.test(v) ? Number(v) : v
   if (typeof n === 'number' && Number.isInteger(n) && n >= 1) return n
   throw new Error(`${name} must be a whole number of 1 or more, or left out`)
+}
+
+/** Places in `text` where `needle` appears if runs of whitespace are treated as equal (and leading/trailing whitespace of the needle ignored). */
+function flexMatches(text: string, needle: string): { index: number; length: number }[] {
+  const tokens = needle.trim().split(/\s+/).filter(Boolean)
+  if (tokens.length === 0) return []
+  const re = new RegExp(tokens.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s+'), 'g')
+  const out: { index: number; length: number }[] = []
+  for (const m of text.matchAll(re)) {
+    out.push({ index: m.index!, length: m[0].length })
+    if (out.length > 5) break
+  }
+  return out
 }
 
 function posInt(name: string, v: number): void {
@@ -179,7 +199,7 @@ export class LocalTools extends Service {
         type: 'object',
         properties: {
           path: { type: 'string', minLength: 1, maxLength: 1024 },
-          old_string: { type: 'string', minLength: 1, maxLength: MAX_EDIT_STRING, description: 'The exact existing text to replace, copied from the file with its spaces and line breaks. Never empty. To make a new file use write_file instead.' },
+          old_string: { type: 'string', maxLength: MAX_EDIT_STRING, description: 'The existing text to replace, copied from the file including its line breaks and indentation. Not empty, unless the file itself is empty. To replace everything, give the whole current text. To make a new file use write_file.' },
           new_string: { type: 'string', maxLength: MAX_EDIT_STRING, description: 'The text to put in its place (empty to delete old_string).' },
           confidence: confidenceProperty,
         },
@@ -196,17 +216,36 @@ export class LocalTools extends Service {
         const fit = (s: string) => s.replace(/\r\n/g, '\n').replace(/\n/g, eol)
         const oldS = fit(input.old_string)
         const newS = fit(input.new_string)
-        const first = text.indexOf(oldS)
-        if (first === -1) {
-          const hint = text.includes(oldS.trim()) ? ' The text exists but the whitespace or indentation around it differs: read the file again and copy it exactly.' : ' Read the file again and copy the text exactly.'
-          throw new Error(`old_string was not found in "${input.path}".${hint}`)
+        if (oldS === '') {
+          // The one empty-old_string case that is unambiguous: filling a file that is empty (otherwise an empty file could never be edited, D-086).
+          if (text !== '') throw new Error(`old_string is empty but "${input.path}" is not empty. To replace all of it, give its whole current text as old_string.`)
+          await this.writeAtomic(abs, newS)
+          return `Edited ${input.path}: it was empty; wrote ${newS.length} characters.`
         }
-        if (text.indexOf(oldS, first + oldS.length) !== -1) {
+        let at = text.indexOf(oldS)
+        let len = oldS.length
+        let replacement = newS
+        let note = ''
+        if (at === -1) {
+          // Models collapse or re-indent multi-line text. If the text is there apart from whitespace, and only once, the intent is unambiguous.
+          const flex = flexMatches(text, oldS)
+          if (flex.length === 1) {
+            at = flex[0]!.index
+            len = flex[0]!.length
+            replacement = newS.trim()
+            note = ' (matched ignoring differences in spaces and line breaks)'
+          } else if (flex.length > 1) {
+            throw new Error(`old_string matches ${flex.length} places in "${input.path}" once spaces and line breaks are ignored; include more surrounding text to make it unique.`)
+          } else {
+            const hint = text.includes(oldS.trim()) ? ' The text exists but the whitespace or indentation around it differs: read the file again and copy it exactly.' : ' Read the file again and copy the text exactly.'
+            throw new Error(`old_string was not found in "${input.path}".${hint}`)
+          }
+        } else if (text.indexOf(oldS, at + oldS.length) !== -1) {
           const n = text.split(oldS).length - 1
           throw new Error(`old_string appears ${n} times in "${input.path}"; it must appear exactly once. Include more surrounding lines to make it unique.`)
         }
-        await this.writeAtomic(abs, text.slice(0, first) + newS + text.slice(first + oldS.length))
-        return `Edited ${input.path}: replaced ${oldS.length} characters with ${newS.length}.`
+        await this.writeAtomic(abs, text.slice(0, at) + replacement + text.slice(at + len))
+        return `Edited ${input.path}: replaced ${len} characters with ${replacement.length}${note}.`
       },
     }
   }

@@ -2,6 +2,11 @@
 
 > Updated every run. Newest entry at top.
 
+## 2026-10-09 — second real-model run analysed; four harness fixes (D-086)
+Run at 5189bd6 (Windows 862 passed / 7 skipped, pushed). Causes found: llama sends the string "null" for optional line numbers and then edits blind; qwen collapses multi-line text and can dead-end on an empty file; self-reported confidence did not discriminate (qwen 1/7 ok when it reported one). Fixed: "null" strings, lenient confidence reaching the gate (still held), whitespace-insensitive unique edit match, empty-file fill. Linux 782 passed / 98 skipped.
+**Owner to run (Git Bash):** apply the zip, `npm install`, `npm run typecheck`, `npm test` (expect 873 passed / 7 skipped, 42 files), then re-run the model script and paste the whole output; commit and push.
+**Next:** if llama's reads now succeed and qwen's edits match, record the new numbers (D-087); then items 6 and 7; then 4.5 router, 5.1, 5.2, Phase 6.
+
 ## 2026-10-08 (night) — item 5 first results recorded (D-085)
 Real-model run: llama3.2:3b fix 0/3, create 0/3; qwen2.5-coder:3b fix 1/3, create 2/3; 3B models are weak tool drivers; confidence did not discriminate (qwen: >= 5 of 9 failed writes reported >= 0.9); gate and tools behaved; 0 input-guard flags. `read` task was invalid (guessable answer), fixed. `read_file` now tolerates junk optional fields. Linux 771 passed / 98 skipped. Pushed before this step: 51bd805.
 **Owner to run (Git Bash):** apply the zip, `npm install`, `npm run typecheck`, `npm test` (expect 862 passed / 7 skipped, 42 files), then re-run the model script and paste the whole output.

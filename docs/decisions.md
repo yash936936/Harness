@@ -4,6 +4,27 @@
 > if a decision is reversed, log a new entry that supersedes it and reference
 > the old ID.
 
+## D-086 — Second real-model run: causes found, four harness-side fixes — 2026-10-09
+**Run (owner, Windows, 3 trials x 3 tasks per model, commit 5189bd6, after D-085's fixes and diagnostics):** Windows suite 862 passed / 7 skipped.
+| | llama3.2:3b | qwen2.5-coder:3b-instruct |
+|---|---|---|
+| fix | 0/3 | 2/3 |
+| create | 3/3 | 2/3 |
+| read (now a real test: `LIMIT = 4172`) | 0/3 | 3/3 |
+| read_file calls / failed | 11 / 7 | 8 / 0 |
+| edit_file calls / failed | 2 / 2 | 11 / 8 (2 empty `old_string`, 6 "not found") |
+| write_file calls / failed | 3 / 0 | 9 / 6 (all "already exists") |
+| confidence on write calls | 1 / 5 (value 1) | 7 / 20 (all 1); of those 7, **1 ran ok, 6 failed** |
+| gate | allow 11, hold 3, allow-logged 1 | allow 8, hold 13, allow-logged 5 |
+**Causes now visible (from the inputs the models actually sent):**
+1. **llama `read_file` (6 of 7 failures):** sends the STRING `"null"` for `endLine`/`startLine` (e.g. `{"startLine":"1","endLine":"null"}`). With reads failing, it then EDITED without ever having seen the file (`old_string:"return a + b"`, the fixed text, and an invented `(function add(a, b) {...})(`), and answered `read` with invented values ("2", "0", "the LIMIT constant is not defined ... 0"). Its `create` worked 3/3 once nothing blocked it. It also sent `confidence:"1"` (a string), which the schema rejected before the gate saw it.
+2. **qwen `edit_file` "not found":** it re-types multi-line code as one line (`export function add(a, b) { return a - b }`) so the text is not found, though the same words are in the file.
+3. **qwen dead end:** a create trial ended with `src/greet.js` EMPTY. From there `write_file` says "already exists" and `edit_file` refuses an empty `old_string` and cannot match an empty file, so the model cannot fix its own mistake with any tool. (That the empty file came from an empty `write_file` is inferred, not logged; this run did not record successful write contents. It does now.)
+4. **Confidence is anti-informative on this evidence:** qwen's calls that reported 1 ran ok 1/7; the 13 without a confidence ran ok 5/13. A self-reported number from a 3B model carries no signal here (agrees with D-079). A consequence worth knowing: with these models almost every write is HELD (13 of 26 gate decisions for qwen), i.e. a person is asked for nearly every write; the fail-closed default is working as designed but would be approval-heavy in real use.
+**Fixes (harness-side):** (a) `read_file` treats the words `null`/`none`/`nil`/`undefined`/`n/a` (any case) as "not given". (b) The schemas accept a string or `null` for `confidence` so the call reaches the gate and is held ("no valid self-reported confidence") instead of being rejected before any decision; the gate still trusts only a real number 0..1; a number out of range is still rejected (fail-closed relaxation, tested through the real gate). (c) `edit_file`: if `old_string` is not found exactly, a whitespace-insensitive match is used when it matches exactly ONE place (replacement trimmed at both ends so no stray blank lines; the result says it matched ignoring whitespace); two or more places is refused; words must still match and spaces must be present where the old text has them (`foo bar` does not match `foobar`); regex characters are literal; CRLF kept. (d) An empty `old_string` is accepted only when the file is empty (fills it); for a non-empty file it is refused with the instruction to give the whole text. 11 new tests; 7 mutations on the new code, 6 caught first time, the 7th (`\s+` vs `\s*`) led to a new test.
+**Not claimed:** that these fixes raise the models' scores (the next run shows that); anything about rates (9 trials per model); that qwen's empty file came from an empty write (inferred). **Open concern for the owner:** the flexible match makes `edit_file` more forgiving than "exactly once"; the gate still sees only the path and the size, not which text was matched. I judged one unambiguous whitespace-insensitive match to be the same edit the model meant; say if you want it off by default.
+**Affects:** `src/bundles/tools-local/index.ts`, `test/tools-local.test.ts` (52 tests), `scripts/smoke-coding.ts`.
+
 ## D-085 — Results of the first real-model run on `profile-coding`, and what changed — 2026-10-08
 **Run (owner, Windows, Ollama, 3 trials x 3 tasks per model, commit 51bd805):**
 | | llama3.2:3b | qwen2.5-coder:3b-instruct |

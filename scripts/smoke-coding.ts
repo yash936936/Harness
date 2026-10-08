@@ -87,6 +87,7 @@ interface Trial {
   confidences: (number | null)[]
   writes: { tool: string; conf: number | null; ok: boolean }[]
   detail: string
+  okWrites: string[]
   verdicts: Record<string, number>
   holdReasons: string[]
   flagged: number
@@ -101,6 +102,7 @@ function measure(events: SessionEvent[]) {
   const verdicts: Record<string, number> = {}
   const holdReasons: string[] = []
   const writes: Trial['writes'] = []
+  const okWrites: string[] = []
   let last: { name: string; input: any } | undefined
   for (const e of events) {
     const d = e.data as any
@@ -109,6 +111,7 @@ function measure(events: SessionEvent[]) {
       calls[d.name] = (calls[d.name] ?? 0) + 1
       if (d.name === 'edit_file' || d.name === 'write_file') confidences.push(typeof d.input?.confidence === 'number' ? d.input.confidence : null)
     } else if (e.type === 'tool.result') {
+      if (d.ok === true && last && (last.name === 'edit_file' || last.name === 'write_file')) okWrites.push(`${last.name} ${last.input?.path} (${String(last.input?.content ?? last.input?.new_string ?? '').length} chars)`)
       if (last && (last.name === 'edit_file' || last.name === 'write_file')) writes.push({ tool: last.name, conf: typeof last.input?.confidence === 'number' ? last.input.confidence : null, ok: d.ok === true })
       if (d.ok === false) failures.push({ tool: d.name, kind: d.errorKind ?? '?', msg: String(d.content).replace(/\s+/g, ' ').slice(0, 160), input: JSON.stringify(last?.input ?? null).slice(0, 220) })
     }
@@ -117,7 +120,7 @@ function measure(events: SessionEvent[]) {
       if (d.verdict === 'hold') holdReasons.push(String(d.reason).slice(0, 110))
     }
   }
-  return { calls, failures, confidences, writes, verdicts, holdReasons, flagged: events.filter((e) => e.type === 'input.flagged').length }
+  return { calls, failures, confidences, writes, okWrites, verdicts, holdReasons, flagged: events.filter((e) => e.type === 'input.flagged').length }
 }
 
 async function runTrial(provider: LLMProvider, task: Task, n: number): Promise<Trial> {
@@ -218,7 +221,7 @@ async function main() {
     const w = trials.flatMap((t) => t.writes)
     const wc = w.filter((x) => x.conf !== null)
     console.log(`  write calls: ${w.filter((x) => x.ok).length}/${w.length} ran ok. With a confidence: ${wc.filter((x) => x.ok).length}/${wc.length} ok (mean ${wc.length ? (wc.reduce((s, x) => s + (x.conf ?? 0), 0) / wc.length).toFixed(2) : 'n/a'}); failed calls that still reported >= 0.9: ${wc.filter((x) => !x.ok && (x.conf ?? 0) >= 0.9).length}`)
-    for (const t of trials.filter((x) => !x.passed && x.detail)) console.log(`    [${t.task}] not correct: ${t.detail}`)
+    for (const t of trials.filter((x) => !x.passed && x.detail)) console.log(`    [${t.task}] not correct: ${t.detail}   writes that ran: ${t.okWrites.join('; ') || 'none'}`)
     for (const t of trials.filter((x) => x.error).slice(0, 2)) console.log(`    run error (${t.task}): ${t.error}`)
   }
   console.log('\nThese are counts from a few samples, not rates. "correct" is an objective check (the file is imported and called), not a judgement. Paste this whole output back; do not summarise it.')
