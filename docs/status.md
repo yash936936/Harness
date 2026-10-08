@@ -2,6 +2,11 @@
 
 > Updated every run. Newest entry at top.
 
+## 2026-10-08 (evening) — item 5 prepared: real-model run on `profile-coding` (D-084)
+Windows run of D-083: 861 passed / 7 skipped, 42 files, pushed as 60d4b5d. `scripts/smoke-coding.ts` is ready (self-tested with a stand-in and a do-nothing negative control; not yet run against a model). Models chosen by me: llama3.2:3b and qwen2.5-coder:3b-instruct.
+**Owner to run (Git Bash), then paste the whole output:** `HARNESS_CODING_MODELS=llama3.2:3b,qwen2.5-coder:3b-instruct HARNESS_TRIALS=3 npx tsx scripts/smoke-coding.ts` (needs Ollama serving; takes a while on CPU).
+**Next:** record the numbers (D-085), fix what they show (invalid `edit_file` input, no `confidence`, wrong results), then items 6 and 7 from the same run, then 4.5 router, 5.1, 5.2, Phase 6.
+
 ## 2026-10-08 (later) — open items 2, 3, 4 closed in code (D-083, DBG-054)
 Done: stale known-gaps line corrected (`profile-coding` wires memory, subagents, skills-when-named); `input-guard` fences and flags every tool result (heuristic, not prevention); lessons are now derived by template from harness facts and promoted through existing compaction. Linux 770 passed / 98 skipped.
 **Owner to run (Git Bash):** extract the new zip over the repo, `npm install`, `npm run typecheck`, `npm test` (expect 861 passed / 7 skipped, 42 files), commit, push.
