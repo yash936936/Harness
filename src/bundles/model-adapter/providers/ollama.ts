@@ -162,6 +162,42 @@ const MAX_RECOVERED_CALLS = 8
 const isPlainObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
 
 /**
+ * Split text that is ONLY a run of top-level JSON objects (one per line as JSON Lines, or back to back) into the object texts. Brace counting
+ * respects strings and escapes, so braces inside arguments (code!) do not confuse it. Anything between objects other than whitespace, or an
+ * unbalanced object, gives undefined (all-or-nothing, D-088: qwen2.5-coder:7b wrote its read_file and edit_file calls as two lines of JSON).
+ */
+function splitJsonObjects(t: string): string[] | undefined {
+  const out: string[] = []
+  let i = 0
+  while (i < t.length) {
+    while (i < t.length && /\s/.test(t[i]!)) i++
+    if (i >= t.length) break
+    if (t[i] !== '{') return undefined
+    let depth = 0
+    let inStr = false
+    let esc = false
+    let j = i
+    for (; j < t.length; j++) {
+      const c = t[j]!
+      if (inStr) {
+        if (esc) esc = false
+        else if (c === '\\') esc = true
+        else if (c === '"') inStr = false
+        continue
+      }
+      if (c === '"') inStr = true
+      else if (c === '{') depth++
+      else if (c === '}' && --depth === 0) break
+    }
+    if (depth !== 0 || j >= t.length) return undefined
+    out.push(t.slice(i, j + 1))
+    if (out.length > MAX_RECOVERED_CALLS) return undefined
+    i = j + 1
+  }
+  return out.length ? out : undefined
+}
+
+/**
  * Strict recovery of tool calls written as text (see `OllamaConfig.textToolCalls`). ALL-OR-NOTHING: the whole reply
  * must be one or more calls and nothing else (no prose before or after), each naming a tool in `toolNames`, with
  * `arguments` (or `parameters`) an object or a JSON string of one (absent means no arguments). Returns undefined when
@@ -179,8 +215,11 @@ export function recoverTextToolCalls(text: string, toolNames: ReadonlySet<string
     const m = /^```(?:json)?[ \t]*\n?([\s\S]*?)\n?```$/.exec(t)
     if (!m) return undefined
     payloads = [m[1]!]
-  } else if (t.startsWith('{')) payloads = [t]
-  else return undefined
+  } else if (t.startsWith('{')) {
+    const objs = splitJsonObjects(t)
+    if (!objs) return undefined
+    payloads = objs
+  } else return undefined
   if (payloads.length === 0 || payloads.length > MAX_RECOVERED_CALLS) return undefined
 
   const out: { name: string; input: Record<string, unknown> }[] = []

@@ -2,6 +2,12 @@
 
 > Updated every run. Newest entry at top.
 
+## 2026-10-09 (night) — 7B run recorded; JSON Lines tool-call recovery (D-088)
+qwen2.5-coder:7b-instruct: 8/9 correct, 0 failed tool calls, ~33 min for 9 trials. Its one miss exposed a gap in text tool-call recovery (two JSON calls on separate lines); fixed, tested, mutation-checked. Linux 788 passed / 98 skipped. f1bd604 pushed earlier (D-087).
+**Owner to run (Git Bash):** apply the zip, `npm install`, `npm run typecheck`, `npm test` (expect 879 passed / 7 skipped, 42 files), commit, push.
+**Open decision for you:** approval volume (D-088). My recommendation: keep fail-closed, no change now; later add session-scoped approval in the app's approver.
+**Next:** item 6 (which model plans) using the orchestrator path on the 3B and 7B models, then item 7, then 4.5 router, 5.1, 5.2, Phase 6.
+
 ## 2026-10-09 (later) — third real-model run recorded (D-087)
 b997460 pushed (873 passed / 7 skipped on Windows). llama reads work now (0 failures, `read` 3/3 valid). Remaining failures are model content (invented `old_string`, double-escaped output, no edit attempted); correctness is within run-to-run noise (qwen fix 1/3, 2/3, 0/3 across runs). Stopped adding tool leniency on purpose.
 **Next measurement (my pick, you can veto):** same script on a 7B-class coder, then more trials on whichever model is better. Commands in the reply. Then item 6 (orchestrator path), 7, then 4.5 router, 5.1, 5.2, Phase 6.

@@ -82,7 +82,63 @@ describe('textToolCalls: recoverTextToolCalls (strict, all-or-nothing)', () => {
   })
 })
 
+describe('textToolCalls: several bare JSON objects (JSON Lines), D-088', () => {
+  const ok = (t: string) => recoverTextToolCalls(t, NAMES)
+  const A = '{"name": "lookup_port", "arguments": {"service": "a"}}'
+  const B = '{"name": "run_tests", "arguments": {"module": "b"}}'
+  // The shape qwen2.5-coder:7b-instruct produced on the owner's machine (2026-10-09): two calls, one per line, code with braces and \n inside the strings.
+  const OBSERVED_7B = '{"name": "lookup_port", "arguments": {"service": "src/math.js"}}\n{"name": "run_tests", "arguments": {"module": "function add(a, b) {\\n  return a - b\\n}"}}'
+
+  it('recovers two or more objects on separate lines, back to back, or CRLF separated', () => {
+    expect(ok(A + '\n' + B)?.map((c) => c.name)).toEqual(['lookup_port', 'run_tests'])
+    expect(ok(A + B)?.map((c) => c.name)).toEqual(['lookup_port', 'run_tests'])
+    expect(ok(A + '\r\n\r\n' + B + '\n')?.map((c) => c.name)).toEqual(['lookup_port', 'run_tests'])
+    expect(ok(A + '\n' + A + '\n' + B)).toHaveLength(3)
+  })
+  it('the observed 7B reply: braces and escaped newlines inside the argument strings do not confuse it', () => {
+    const r = ok(OBSERVED_7B)!
+    expect(r).toHaveLength(2)
+    expect(r[1]!.input).toEqual({ module: 'function add(a, b) {\n  return a - b\n}' })
+  })
+  it('braces and quotes inside strings are not structure', () => {
+    const tricky = '{"name": "lookup_port", "arguments": {"service": "}{ \\" } {"}}\n' + B
+    const r = ok(tricky)!
+    expect(r).toHaveLength(2)
+    expect(r[0]!.input).toEqual({ service: '}{ " } {' })
+  })
+  it('a lone brace inside a string does not end or extend an object', () => {
+    for (const lone of ['}', '{', '}}', '{{']) {
+      const r = ok('{"name": "lookup_port", "arguments": {"service": ' + JSON.stringify(lone) + '}}\n' + B)
+      expect(r?.map((c) => c.name), lone).toEqual(['lookup_port', 'run_tests'])
+      expect(r![0]!.input).toEqual({ service: lone })
+    }
+  })
+  it('still all-or-nothing: prose between or around, an unknown tool, an array, a broken object, or too many', () => {
+    const none = (t: string) => expect(ok(t), t).toBeUndefined()
+    none(A + '\nand then I will run the tests\n' + B)
+    none(A + '\n' + B + '\nDone!')
+    none('Sure:\n' + A + '\n' + B)
+    none(A + ',\n' + B)
+    none(A + '\n{"name": "ghost", "arguments": {}}')
+    none(A + '\n[' + B + ']')
+    none(A + '\n{"name": "run_tests", "arguments": {"module": "b"}')
+    none(A + '\n{"name": "run_tests", "arguments": {"module": "b"}}}')
+    none(A + '\n{"name": "run_tests", "arguments": 5}')
+    expect(ok(Array.from({ length: 8 }, () => A).join('\n'))).toHaveLength(8)
+    none(Array.from({ length: 9 }, () => A).join('\n'))
+  })
+})
+
 describe('textToolCalls: in the Ollama provider', () => {
+  it('JSON Lines in one reply become real tool calls, in order, with unique ids (D-088)', async () => {
+    const p = new OllamaProvider({ model: 'm', textToolCalls: true, fetch: queued({ content: '{"name": "lookup_port", "arguments": {"service": "a"}}\n{"name": "run_tests", "arguments": {"module": "b"}}' }) })
+    const r = await call(p)
+    expect(r.toolCalls.map((c) => c.name)).toEqual(['lookup_port', 'run_tests'])
+    expect(new Set(r.toolCalls.map((c) => c.id)).size).toBe(2)
+    expect(r.text).toBe('')
+    expect(r.stopReason).toBe('tool_use')
+    expect(r.recoveredToolCalls).toBe(2)
+  })
   it('is OFF by default: the same reply stays a plain text answer (the failure the owner saw)', async () => {
     const r = await call(new OllamaProvider({ model: 'm', fetch: queued({ content: OBSERVED_RAW }) }))
     expect(r.toolCalls).toEqual([])
