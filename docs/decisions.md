@@ -4,6 +4,26 @@
 > if a decision is reversed, log a new entry that supersedes it and reference
 > the old ID.
 
+## D-087 — Third real-model run: mechanical blockers gone, the rest is model capability — 2026-10-09
+**Run (owner, Windows, commit b997460; suite 873 passed / 7 skipped):** same command, 3 trials x 3 tasks per model, after D-086's fixes.
+| | llama3.2:3b | qwen2.5-coder:3b |
+|---|---|---|
+| fix | 0/3 | 0/3 |
+| create | 2/3 | 2/3 |
+| read | 3/3 | 3/3 |
+| read_file calls / failed | 6 / **0** | 6 / 0 |
+| edit_file calls / failed | 1 / 1 (not found) | 3 / 3 (empty `old_string` on a non-empty file) |
+| write_file calls / failed | 4 / 1 ("already exists") | 3 / 1 ("already exists") |
+| confidence on write calls | 1 / 5 (the string "1") | 0 / 6 |
+| gate | allow 6, hold 4, allow-logged 1 | allow 6, hold 6 |
+**Confirmed fixed:** llama's `read_file` failures went from 7 to 0, and its `read` task (a value that cannot be guessed) is 3/3, so its reads genuinely work now. input-guard flags 0 again.
+**What is left is the models' content, not the tools:** (1) llama READS the file correctly and then ignores it: its one edit used an `old_string` it had invented (`return a*b;` and `return "";`, neither in the file) and carried literal backslash-n sequences; its other fix attempts were a `write_file` on the existing `src/math.js` with a rewritten file containing functions that do not exist in the fixture (`square`, `cube`). (2) llama's one failed create wrote a file full of literal `\n`, `\t` and `\{` text (double-escaped output), not valid JS. (3) qwen made NO edit call in any of its 3 fix trials this time (it made 7 and 11 in the earlier runs), and its `edit_file` calls were all the empty-`old_string`-on-a-non-empty-file pattern, which the harness now refuses with a clear message.
+**Run-to-run variance is as large as any effect we are measuring:** qwen `fix` over three runs with changing harness code: 1/3, 2/3, 0/3; llama `create`: 0/3, 3/3, 2/3. With 3 trials per cell, NONE of the changes since D-085 can be shown to have raised or lowered correctness. What can be shown is mechanical: the reads that failed now succeed; the "already exists" and "not found" refusals fire correctly; nothing unsafe happened.
+**Deliberately NOT done:** auto-unescaping literal `\n` in content. A legitimate single-line source file can contain `"\n"`, so a heuristic would silently corrupt valid code; this is a model failure to report, not to paper over. No further tool leniency either: remaining failures are fabricated or ignored content, which no schema relaxation fixes, and every added leniency widens what a gated write may mean.
+**Conclusion for the project (a judgement, not a measurement):** the harness (tools, gates, input layer, lessons) works as designed, and 3B models are not reliable at even three tiny coding tasks. Next measurements that can change the plan: (a) a larger model on the same script (a 7B-class coder) to see whether capability, not tooling, is the limit; (b) more trials (10+) for any model we intend to compare; (c) the orchestrator path, where a plan splits work into steps small enough for a small model (item 6).
+**Script change:** a wrong fix/create now also prints the model's final text, to show whether it made no edit and just talked.
+**Affects:** `scripts/smoke-coding.ts` (diagnostic only).
+
 ## D-086 — Second real-model run: causes found, four harness-side fixes — 2026-10-09
 **Run (owner, Windows, 3 trials x 3 tasks per model, commit 5189bd6, after D-085's fixes and diagnostics):** Windows suite 862 passed / 7 skipped.
 | | llama3.2:3b | qwen2.5-coder:3b-instruct |

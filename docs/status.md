@@ -2,6 +2,10 @@
 
 > Updated every run. Newest entry at top.
 
+## 2026-10-09 (later) — third real-model run recorded (D-087)
+b997460 pushed (873 passed / 7 skipped on Windows). llama reads work now (0 failures, `read` 3/3 valid). Remaining failures are model content (invented `old_string`, double-escaped output, no edit attempted); correctness is within run-to-run noise (qwen fix 1/3, 2/3, 0/3 across runs). Stopped adding tool leniency on purpose.
+**Next measurement (my pick, you can veto):** same script on a 7B-class coder, then more trials on whichever model is better. Commands in the reply. Then item 6 (orchestrator path), 7, then 4.5 router, 5.1, 5.2, Phase 6.
+
 ## 2026-10-09 — second real-model run analysed; four harness fixes (D-086)
 Run at 5189bd6 (Windows 862 passed / 7 skipped, pushed). Causes found: llama sends the string "null" for optional line numbers and then edits blind; qwen collapses multi-line text and can dead-end on an empty file; self-reported confidence did not discriminate (qwen 1/7 ok when it reported one). Fixed: "null" strings, lenient confidence reaching the gate (still held), whitespace-insensitive unique edit match, empty-file fill. Linux 782 passed / 98 skipped.
 **Owner to run (Git Bash):** apply the zip, `npm install`, `npm run typecheck`, `npm test` (expect 873 passed / 7 skipped, 42 files), then re-run the model script and paste the whole output; commit and push.

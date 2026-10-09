@@ -162,7 +162,8 @@ async function runTrial(provider: LLMProvider, task: Task, n: number): Promise<T
     } catch {
       passed = false
     }
-    const detail = passed ? '' : task.id === 'create' ? `greet.js=${snap('src/greet.js')}` : task.id === 'fix' ? `math.js=${snap('src/math.js')}` : `answer=${JSON.stringify(finalText.slice(0, 100))} math.js ${readFileSync(join(root, 'src', 'math.js'), 'utf8') === MATH ? 'unchanged' : 'CHANGED'}`
+    const said = `final=${JSON.stringify(finalText.slice(0, 160))}`
+    const detail = passed ? '' : task.id === 'create' ? `greet.js=${snap('src/greet.js')} ${said}` : task.id === 'fix' ? `math.js=${snap('src/math.js')} ${said}` : `answer=${JSON.stringify(finalText.slice(0, 100))} math.js ${readFileSync(join(root, 'src', 'math.js'), 'utf8') === MATH ? 'unchanged' : 'CHANGED'}`
     return { task: task.id, passed, outcome, steps, ms: Date.now() - start, ...m, detail, lesson, ...(error ? { error } : {}) }
   } finally {
     rmSync(root, { recursive: true, force: true })
