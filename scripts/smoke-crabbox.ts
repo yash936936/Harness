@@ -3,7 +3,8 @@
  *   npx tsx scripts/smoke-crabbox.ts
  *   HARNESS_CRABBOX_PROVIDER=local-container HARNESS_CRABBOX_IMAGE=node:22-bookworm HARNESS_CRABBOX_VERSION=<pin> npx tsx scripts/smoke-crabbox.ts
  * Measures (D-024): the lease -> run -> release cost, whether the lease is confirmed released, and what a failing command does.
- * On Windows crabbox also needs rsync; if `doctor` fails, that is the finding, paste it.
+ * Run it from inside a git repository (crabbox syncs the working repo): the Harness repo root is one. On Windows set HARNESS_CRABBOX_RUNTIME=docker
+ * (the official Windows guide's own smoke does). On Windows crabbox also needs rsync; if `doctor` fails, that is the finding, paste it.
  */
 import { Context } from 'cordis'
 import { EgressPolicy } from '../src/bundles/egress/index.js'
@@ -17,7 +18,7 @@ await ctx.plugin(EgressPolicy, { projectId: 'smoke-crabbox', allowedHosts: proce
 if (provider !== 'local-container') await ctx.egress.grantConsent() // a remote provider needs consent; this smoke run is you consenting
 await ctx.plugin(Subprocess, { timeoutMs: 600_000 })
 await ctx.plugin(Sandbox)
-ctx.sandbox.register(new CrabboxProvider(ctx.subprocess, { provider, image: process.env['HARNESS_CRABBOX_IMAGE'], expectedVersion: process.env['HARNESS_CRABBOX_VERSION'], host: process.env['HARNESS_CRABBOX_HOST'] }))
+ctx.sandbox.register(new CrabboxProvider(ctx.subprocess, { provider, image: process.env['HARNESS_CRABBOX_IMAGE'], runtime: process.env['HARNESS_CRABBOX_RUNTIME'], expectedVersion: process.env['HARNESS_CRABBOX_VERSION'], host: process.env['HARNESS_CRABBOX_HOST'] }))
 
 let failed = 0
 const check = (label: string, ok: boolean, extra = '') => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}${extra ? '  ' + extra : ''}`); if (!ok) failed++ }

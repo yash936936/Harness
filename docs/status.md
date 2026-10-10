@@ -2,12 +2,23 @@
 
 > Updated every run. Newest entry at top.
 
+## 2026-10-10 (owner run) — what the pasted output shows
+Verified on Windows: the sandbox build (896 passed / 7 skipped, 43 files) and the `smoke-orchestrate.ts` self-tests. NOT verified: 5.1 (crabbox is not installed: ENOENT) and everything needing a real model or Needle. See DBG-058. Phase 5 and 4.5 remain built-not-closed.
+**Router build verified on Windows (915 passed / 7 skipped, 44 files).** **Next for the owner:** install Crabbox (on Windows, there is no brew: run `scripts/install-crabbox-windows.ps1` (the official installer, verbatim) in PowerShell, then `HARNESS_CRABBOX_RUNTIME=docker npx tsx scripts/smoke-crabbox.ts` from the repo root; it needs native Git, the OpenSSH client, curl, and rsync from WSL2 Ubuntu (preferred) or MSYS2, plus Docker, which is running; Crabbox v0.42.1 or newer) and rerun `smoke-crabbox.ts`; run item 6 (D-089).
+
+## 2026-10-10 (latest) — 4.5 router built (D-091, DBG-057)
+4.5 is **built, not closed**: no real Needle has been run, so no class has earned ownership (criterion 2). `router.owned` is empty by default, so behaviour is unchanged. The router is not yet consulted by the orchestrator or agent loop.
+**Owner to run:** `npx tsx scripts/eval-router.ts` (rules vs the worker; needs Ollama). With a Needle wrapper you supply (stdio JSON contract in `src/bundles/router/backends.ts`): `HARNESS_ROUTER_CMD="..." HARNESS_ROUTER_FILES="path/to/needle2.cact" npx tsx scripts/eval-router.ts`. A class goes into `router.owned` only on an `OWNS` line for a Needle row.
+**Test counts to expect on your machine:** 879 passed / 7 skipped before; 36 new tests (17 sandbox, 19 router) -> 915 passed / 7 skipped, 44 files.
+**Needs your decision:** (a) who supplies the Needle wrapper (I did not write one: the Cactus runtime's interface is unverified); (b) whether the router should be wired into the orchestrator next.
+**Next:** run item 6 (D-089), record numbers as D-092, then Phase 6.
+
 ## 2026-10-10 (later) — 5.1 and 5.2 built (D-090, DBG-056)
 Phase 5 is **built but not verified end to end**: 5.1 and 5.2 pass against fakes only. It should not be called closed until `scripts/smoke-crabbox.ts` passes on a machine with crabbox + Docker (5.1) and `scripts/smoke-cubesandbox.ts` passes on an x86_64 Linux KVM host (5.2; D-024 had deferred this to Phase 8).
 **Owner to run, paste output whole:** `npx tsx scripts/smoke-crabbox.ts` (needs `crabbox` on PATH, Docker running; on Windows also rsync, and a failing `doctor` is itself the D-024 finding). The cube script needs a KVM host and `npm i e2b`.
-**Test counts to expect on your machine:** previous 879 passed / 7 skipped; with 17 new tests, 896 passed / 7 skipped, 43 files.
+**Test counts to expect on your machine:** previous 879 passed / 7 skipped; with 17 new tests, see the latest entry above.
 **Not done:** `run_command` still runs on the host and is still `real-fs-write` (D-080); routing it through `ctx.sandbox` is a decision for you.
-**Next:** run item 6 (D-089), record numbers as D-091, then 4.5 router, Phase 6.
+**Next:** run item 6 (D-089), record numbers as D-092, then Phase 6.
 
 ## 2026-10-10 — item 6 measurement prepared (D-089, DBG-055)
 Built `scripts/smoke-orchestrate.ts` (no `src/` change). Item 6 (which model plans) is NOT closed: nothing has been run against a real model yet.

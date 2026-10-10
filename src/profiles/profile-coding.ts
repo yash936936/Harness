@@ -18,6 +18,8 @@ import { Embeddings, type EmbeddingsConfig } from '../bundles/embeddings/index.j
 import { LanceVectorStore, type VectorStoreConfig } from '../bundles/vectorstore-lancedb/index.js'
 import { Skills, type SkillsConfig } from '../bundles/skills/index.js'
 import { Orchestrator, type OrchestratorConfig } from '../bundles/orchestrator/index.js'
+import { CommandBackend, Router, WorkerBackend, type CommandBackendConfig, type DecisionClass } from '../bundles/router/index.js'
+import { NEEDLE_PIN } from '../bundles/model-store/index.js'
 import { Sandbox } from '../bundles/sandbox/index.js'
 import { CrabboxProvider, type CrabboxConfig } from '../bundles/sandbox-crabbox/index.js'
 import { CubeSandboxProvider, type CubeSandboxConfig } from '../bundles/sandbox-cubesandbox/index.js'
@@ -61,6 +63,12 @@ export interface ProfileCodingConfig {
    * Remote providers (cubesandbox, any non-local crabbox provider) still need egress consent and an allowlisted host to run.
    * `default` names the provider used when a request names none.
    */
+  /**
+   * The router (4.5). Absent = `ctx.router` exists and owns nothing: every decision goes to the worker (then rules). A class goes in
+   * `owned` only after it beat the worker on the frozen suite (`scripts/eval-router.ts`). Needle files missing = skipped silently.
+   * `needle.expectedSha256` defaults to the pinned Needle digest.
+   */
+  router?: { needle?: CommandBackendConfig; owned?: DecisionClass[]; backendTimeoutMs?: number }
   sandbox?: { crabbox?: CrabboxConfig; cubesandbox?: CubeSandboxConfig; default?: 'crabbox' | 'cubesandbox' }
   retrieval?: {
     grep?: Omit<RetrievalGrepConfig, 'root'>
@@ -74,7 +82,7 @@ export interface ProfileCodingConfig {
   orchestrator?: OrchestratorConfig
 }
 
-const ALLOWED_KEYS = new Set(['projectId', 'projectRoot', 'sessionLog', 'egress', 'modelAdapter', 'toolRegistry', 'subprocess', 'agentLoop', 'policy', 'inputGuard', 'localTools', 'memory', 'skills', 'retrieval', 'orchestrator', 'sandbox'])
+const ALLOWED_KEYS = new Set(['projectId', 'projectRoot', 'sessionLog', 'egress', 'modelAdapter', 'toolRegistry', 'subprocess', 'agentLoop', 'policy', 'inputGuard', 'localTools', 'memory', 'skills', 'retrieval', 'orchestrator', 'sandbox', 'router'])
 const GATE_WORDS = /(polic|gate|guardrail|approval|confidence|deny)/i
 
 /** Refuse, at boot and by name, anything that tries to switch the gates off or weaken them below the floor. */
@@ -170,6 +178,13 @@ export async function bootProfileCoding(config: ProfileCodingConfig): Promise<Co
     await ctx.plugin(ToolRegistry, config.toolRegistry)
     await ctx.plugin(Subprocess, config.subprocess)
     await ctx.plugin(Sandbox)
+    await ctx.plugin(Router, {
+      worker: new WorkerBackend({ complete: (r) => ctx.llm.complete(r as any) }),
+      needle: config.router?.needle ? new CommandBackend({ expectedSha256: NEEDLE_PIN.sha256, ...config.router.needle }) : undefined,
+      owned: config.router?.owned,
+      onDecision: async (sid, d) => { await ctx.log.append(sid, 'router.decision', { class: d.class, choice: d.choice, source: d.source, requestSaved: d.requestSaved, latencyMs: d.latencyMs, skipped: d.skipped }, 'router') },
+      backendTimeoutMs: config.router?.backendTimeoutMs,
+    })
     if (config.sandbox?.crabbox) ctx.sandbox.register(new CrabboxProvider(ctx.subprocess, config.sandbox.crabbox), { default: config.sandbox.default === 'crabbox' })
     if (config.sandbox?.cubesandbox) ctx.sandbox.register(new CubeSandboxProvider(config.sandbox.cubesandbox), { default: config.sandbox.default === 'cubesandbox' })
     await ctx.plugin(AgentLoop, config.agentLoop)

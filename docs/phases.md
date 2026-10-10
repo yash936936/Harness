@@ -741,7 +741,7 @@ playbook, and read-only or allowlisted tool calls (D-026).
   the harness starting normally.
 - Requests saved per task are recorded.
 **Testing:** frozen router suite per decision class; delete-Needle boot test.
-**Status:** Not started
+**Status:** BUILT, NOT CLOSED (2026-10-10, D-091, DBG-057). Criteria 1 and 3 are met in code: the router binding is pinned to the registered needle2 record (and weights are sha256-checked against the pin before use), the chain is Needle -> rules -> worker, and a Needle-files-deleted boot test passes. Criterion 4 (requests saved) is recorded per decision and in the session log. **Criterion 2 is NOT met and cannot be from here:** no real Needle has been run, so no class has been shown to match or beat the worker on the frozen suite. Until `scripts/eval-router.ts` prints OWNS for a class with a real Needle, `router.owned` stays empty and every decision stays with the worker. Rules-only baseline on the frozen suite: agent 11/15, playbook 9/15, tool 10/15 correct, 0 / 0 / 1 wrong, the rest abstained.
 
 ---
 

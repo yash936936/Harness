@@ -191,7 +191,7 @@ and size.
   doesn't construct a `ModelStore` yet - `doctor`'s `models` field stays
   absent when the wizard calls it).
 
-### router (`bundle-router`, Phase 4.5, not built)
+### router (`bundle-router`, Phase 4.5, built, not closed: D-091)
 - **Responsibility:** `ctx.router`, backed by Needle. Owns choosing the
   sub-agent, the playbook, and read-only or allowlisted tool calls (D-026).
   Fallback chain: Needle, rules, worker. Never blocks startup.
@@ -447,7 +447,7 @@ src/
 │   ├── app-core/          (index.ts, budgets.ts, credentials.ts, consent-copy.ts,
 │   │                        provider-connection.ts, doctor.ts — 1B.2 done)
 │   ├── model-store/       (types.ts, index.ts — 1B.3 done)
-│   ├── router/            (planned, 4.5)
+│   ├── router/
 │   ├── tool-registry/
 │   ├── subprocess/        (types.ts, index.ts)
 │   ├── agent-loop/        (types.ts, index.ts)

@@ -87,7 +87,10 @@ describe('runWizard', () => {
     expect(r.report.egress.allowedHosts).toEqual([])
     expect(r.report.credentials.active).toBe('unresolved') // a bare fake, not Auto/Keychain/File
     expect(r.report.requestsLeftToday).toBeUndefined() // budget was declined
-    expect(r.report.models).toEqual([{ bindingName: 'worker', resolvedId: 'qwen2.5-coder:3b-instruct', usedPin: true, unavailable: false }])
+    expect(r.report.models).toEqual([
+      { bindingName: 'worker', resolvedId: 'qwen2.5-coder:3b-instruct', usedPin: true, unavailable: false },
+      { bindingName: 'router', resolvedId: 'needle2', usedPin: true, unavailable: false }, // bound in 4.5 (D-050 said no binding until the router)
+    ])
 
     expect(io.lines.some((l) => l.includes('Local provider'))).toBe(true)
     expect(io.lines.some((l) => l.startsWith('--- doctor ---'))).toBe(true)

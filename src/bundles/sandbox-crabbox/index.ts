@@ -10,6 +10,8 @@ export interface CrabboxConfig {
   binArgs?: string[]
   /** For a non-local provider: the host the lease is reached at (checked against the egress allowlist). Default: the provider name. */
   host?: string
+  /** local-container runtime (`--local-container-runtime`): `docker` or `podman`. Omitted = crabbox decides. Windows guide's own smoke passes `docker`. */
+  runtime?: string
   /** Image for local-container (`--local-container-image`). */
   image?: string
   /** Pin (D-024: crabbox is pre-1.0). If set, `doctor` fails unless `crabbox --version` contains this string. */
@@ -78,6 +80,7 @@ export class CrabboxProvider implements SandboxProvider {
     const start = Date.now()
     const warm = ['warmup', '--provider', this.provider, '--slug', slug]
     if (this.cfg.image && this.destination === 'local') warm.push('--local-container-image', this.cfg.image)
+    if (this.cfg.runtime && this.destination === 'local') warm.push('--local-container-runtime', this.cfg.runtime)
     let leaseTried = false
     let rel: { released: boolean; note?: string } = { released: false, note: 'release not attempted' }
     let run: Awaited<ReturnType<CrabboxProvider['cb']>> | undefined

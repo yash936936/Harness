@@ -43,6 +43,13 @@ describe('5.1 crabbox provider (fake CLI)', () => {
     expect(s.read().leases).toEqual([])
     expect(s.read().calls.map((c) => c[0])).toEqual(['warmup', 'run', 'stop', 'list'])
   })
+  it('passes the container runtime on warmup, only for a local provider', async () => {
+    const s = state(); const ctx = await boot()
+    ctx.sandbox.register(crab(ctx, s.file, { runtime: 'docker' }))
+    await ctx.sandbox.run({ command: ['true'] })
+    const warm = s.read().calls.find((c) => c[0] === 'warmup')!
+    expect(warm).toContain('--local-container-runtime'); expect(warm[warm.indexOf('--local-container-runtime') + 1]).toBe('docker')
+  })
   it('a failing command is a normal result and the lease is still released', async () => {
     const s = state({ failRun: true }); const ctx = await boot()
     ctx.sandbox.register(crab(ctx, s.file))

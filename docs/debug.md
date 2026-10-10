@@ -3,6 +3,17 @@
 > Append-only. Every completed coding task gets an entry here, even "no
 > issues found." Newest entries at top.
 
+## DBG-058 — owner's Windows run of the sandbox build (D-090) — 2026-10-10
+**Result (owner, Git Bash on Windows, pasted whole):** `npm run typecheck` clean; `npm test` 43 files, 896 passed / 7 skipped (exactly the predicted count), including `sandbox.test.ts` (17) in 11 s. Commit 97dfb4e pushed. `smoke-orchestrate.ts` self-tests: stand-in 3/3 on both paths, do-nothing control 0/3 on both (the checks can fail), both models pulled (`qwen2.5-coder:3b-instruct`, `qwen2.5-coder:7b-instruct`; `llama3.2:3b` also present).
+**`smoke-crabbox.ts`:** `FAIL doctor crabbox not runnable: spawn crabbox ENOENT`, three times. The `crabbox` executable is not installed or not on PATH. This is NOT the Windows-rsync or Docker finding D-024 asked for; it says nothing about either. 5.1 stays unverified.
+**Not yet run by the owner:** the real-model `smoke-orchestrate.ts` (item 6), `smoke-cubesandbox.ts` (needs KVM), `eval-router.ts`. **Second run, router build applied (owner, Windows):** 44 files, 915 passed / 7 skipped (exactly the predicted count), `router.test.ts` (19) and `sandbox.test.ts` (17) green. `smoke-crabbox.ts` again `ENOENT`. Docker Desktop engine was running at the time (screenshot), so Docker is not the blocker; the `crabbox` executable is.
+
+## DBG-057 — router bundle (D-091) — 2026-10-10
+**Tested:** `test/router.test.ts` (19): frozen-suite hash and label validity; rules backend; default owns nothing and Needle is not asked; owned class goes to Needle and records a saved request; fall-through on throw, hang (timeout), abstain and an invented id; rules before worker when Needle is absent; tool class offers only allowed candidates; no eligible candidate calls nothing; `onDecision` hook and a throwing hook; CommandBackend round-trip, invalid output, hang killed, missing files, sha mismatch/match; ownership verdict thresholds; profile boots with Needle files missing; `ctx.router` exists with no config; binding pinned to the Needle record. Full suite 824 passed / 98 skipped (environmental).
+**Mutation-checked:** 5 mutations, all caught.
+**Found while building:** (1) `static inject = { optional: ['log'] }` silently left `ctx.router` undefined, and reading `ctx.log` without declaring it throws; replaced with an `onDecision` hook the profile wires to the log. (2) A synchronous throw in the hook escaped a `.catch`; now try/catch. (3) My first test expected the wrong id from the fake (it received the unfiltered candidate list); the test was wrong, not the code. (4) The wizard test pinned the exact model list; updating it is the intended consequence of binding the router (D-050).
+**Not tested:** any real Needle or Cactus runtime; Windows; the router inside a live orchestrator run (not wired).
+
 ## DBG-056 — sandbox seam, crabbox and cubesandbox providers (D-090) — 2026-10-10
 **Tested:** `test/sandbox.test.ts` (17): lease/run/release order; failing command still released; broker unreachable (error, stop still attempted, no lease left); release not confirmed reports `released:false`; missing binary; version pin; remote needs consent and allowlisted host with nothing run before the check; cube create/run/kill, quoting, slow-boot flag, failed kill, unreachable server; provider routing; profile wiring; doctor rows. Full suite 805 passed / 98 skipped (environmental).
 **Mutation-checked:** 5 mutations (release always true, no cleanup after failed warmup, consent check off, no kill, allowlist off): all caught.

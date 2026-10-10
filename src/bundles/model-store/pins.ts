@@ -52,3 +52,10 @@ export const NEEDLE_PIN: ModelRecord = {
   license: 'Apache-2.0',
   notes: 'needle2.cact weights file, 45M generation (D-049). No binding yet: the router is Phase 4.5. Never load checkpoints/needle2.pkl.',
 }
+
+/** The router's model binding (4.5): pinned to Needle, no fallback model (the fallback chain is rules then worker, not another model). */
+export const ROUTER_BINDING: Binding = {
+  name: 'router',
+  pinnedModelId: NEEDLE_PIN.id,
+  fallbackIds: [],
+}

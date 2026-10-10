@@ -91,3 +91,4 @@ Still open from earlier phases: labelled retrieval benchmark (Phase 6), Tauri si
 any commercial release (D-049).
 2026-10-10 (D-089): `scripts/smoke-orchestrate.ts` built for open item 6 (which model plans) and 7a/7b; it has NOT been run on a real model. Run it, then record results before choosing a planner.
 2026-10-10 (D-090): 5.1 and 5.2 built, verified only against fakes. Real-world checks: `scripts/smoke-crabbox.ts`, `scripts/smoke-cubesandbox.ts`. Phase 5 is not closed until they pass.
+2026-10-10 (D-091): router built (`ctx.router`, owns nothing by default). 4.5 is not closed until a real Needle wins a class on `scripts/eval-router.ts`.
