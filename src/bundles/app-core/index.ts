@@ -9,6 +9,7 @@ import {
 } from './credentials.js'
 import { buildConsentScreenData, type ConsentScreenData } from './consent-copy.js'
 import { testProviderConnection, type ProviderConnectionResult, type TestConnectionOptions } from './provider-connection.js'
+import type { SandboxStatus } from '../sandbox/types.js'
 import { buildDoctorReport, type DoctorReport, type EgressStatusSource, type ModelStoreSource } from './doctor.js'
 import type { LLMProvider } from '../model-adapter/types.js'
 
@@ -93,8 +94,8 @@ export class AppCore extends Service {
    * wire a `ModelStore` in yet either, and `doctor` reports nothing about
    * models rather than guessing when none is given.
    */
-  doctor(egress: EgressStatusSource, models?: ModelStoreSource, installed?: Array<{ name: string; digest?: string }>): Promise<DoctorReport> {
-    return buildDoctorReport(this.budgets, this.credentials, egress, models, installed)
+  doctor(egress: EgressStatusSource, models?: ModelStoreSource, installed?: Array<{ name: string; digest?: string }>, sandboxes?: SandboxStatus[]): Promise<DoctorReport> {
+    return buildDoctorReport(this.budgets, this.credentials, egress, models, installed, sandboxes)
   }
 }
 

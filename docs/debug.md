@@ -3,6 +3,17 @@
 > Append-only. Every completed coding task gets an entry here, even "no
 > issues found." Newest entries at top.
 
+## DBG-056 — sandbox seam, crabbox and cubesandbox providers (D-090) — 2026-10-10
+**Tested:** `test/sandbox.test.ts` (17): lease/run/release order; failing command still released; broker unreachable (error, stop still attempted, no lease left); release not confirmed reports `released:false`; missing binary; version pin; remote needs consent and allowlisted host with nothing run before the check; cube create/run/kill, quoting, slow-boot flag, failed kill, unreachable server; provider routing; profile wiring; doctor rows. Full suite 805 passed / 98 skipped (environmental).
+**Mutation-checked:** 5 mutations (release always true, no cleanup after failed warmup, consent check off, no kill, allowlist off): all caught.
+**Found by review:** my first draft used `var` inside `finally` to carry the release result out (a type-check pass hid a possible undefined read); restructured to a `let` initialised to "release not attempted" so an unexpected path reports `released:false` instead of crashing.
+**Not tested:** any real crabbox, CubeSandbox or `e2b`; Windows; Docker.
+
+## DBG-055 — smoke-orchestrate script (D-089) — 2026-10-10
+**Tested:** `tsc --noEmit` clean; stand-in run (orchestrated and single-agent) 3/3 correct; `HARNESS_STANDIN=noop` 0/3 on both (negative control: plan rejected / nothing done).
+**Found and fixed:** the single-agent "run completed" counter compared against `end_turn`, but the loop's stop reason is `done`, so it always read 0/N. Fixed and re-run.
+**Not tested:** any real model; Windows.
+
 ## DBG-054 — input-guard and derived lessons (D-083) — 2026-10-08
 **Tested:** `test/input-guard.test.ts`, `test/memory-derive.test.ts`, plus two cases in `test/profile-coding.test.ts` (a hostile `notes.md` is fenced and flagged and the "obeyed" `rm -rf .` is still denied, the audit of the log is clean, and the turn leaves a templated lesson; `load_skill` is unfenced while a file read is fenced). Linux 770 passed / 98 skipped.
 **Mutation-checked:** 19 mutations (fence, flag logging, nonce, header, skip list, scan cap, strict patterns, range filter, priority, caller-wins, defaults, profile wiring): all caught.

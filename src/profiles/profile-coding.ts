@@ -18,6 +18,9 @@ import { Embeddings, type EmbeddingsConfig } from '../bundles/embeddings/index.j
 import { LanceVectorStore, type VectorStoreConfig } from '../bundles/vectorstore-lancedb/index.js'
 import { Skills, type SkillsConfig } from '../bundles/skills/index.js'
 import { Orchestrator, type OrchestratorConfig } from '../bundles/orchestrator/index.js'
+import { Sandbox } from '../bundles/sandbox/index.js'
+import { CrabboxProvider, type CrabboxConfig } from '../bundles/sandbox-crabbox/index.js'
+import { CubeSandboxProvider, type CubeSandboxConfig } from '../bundles/sandbox-cubesandbox/index.js'
 import { LocalTools, commandRisk, COMMAND_TOOL, type LocalToolsConfig } from '../bundles/tools-local/index.js'
 
 /** Raised when the profile refuses to boot, or boots and then finds its guardrails are not enforcing. */
@@ -53,6 +56,12 @@ export interface ProfileCodingConfig {
   memory?: MemoryConfig
   /** Skills are never auto-discovered (D-0xx): without `dirs` the skills bundle is not loaded. */
   skills?: SkillsConfig
+  /**
+   * Isolated execution providers (5.1, 5.2). Absent = no sandbox provider registered (`ctx.sandbox` still exists, empty).
+   * Remote providers (cubesandbox, any non-local crabbox provider) still need egress consent and an allowlisted host to run.
+   * `default` names the provider used when a request names none.
+   */
+  sandbox?: { crabbox?: CrabboxConfig; cubesandbox?: CubeSandboxConfig; default?: 'crabbox' | 'cubesandbox' }
   retrieval?: {
     grep?: Omit<RetrievalGrepConfig, 'root'>
     treesitter?: RetrievalTreesitterConfig
@@ -65,7 +74,7 @@ export interface ProfileCodingConfig {
   orchestrator?: OrchestratorConfig
 }
 
-const ALLOWED_KEYS = new Set(['projectId', 'projectRoot', 'sessionLog', 'egress', 'modelAdapter', 'toolRegistry', 'subprocess', 'agentLoop', 'policy', 'inputGuard', 'localTools', 'memory', 'skills', 'retrieval', 'orchestrator'])
+const ALLOWED_KEYS = new Set(['projectId', 'projectRoot', 'sessionLog', 'egress', 'modelAdapter', 'toolRegistry', 'subprocess', 'agentLoop', 'policy', 'inputGuard', 'localTools', 'memory', 'skills', 'retrieval', 'orchestrator', 'sandbox'])
 const GATE_WORDS = /(polic|gate|guardrail|approval|confidence|deny)/i
 
 /** Refuse, at boot and by name, anything that tries to switch the gates off or weaken them below the floor. */
@@ -160,6 +169,9 @@ export async function bootProfileCoding(config: ProfileCodingConfig): Promise<Co
     await ctx.plugin(LLMService, config.modelAdapter)
     await ctx.plugin(ToolRegistry, config.toolRegistry)
     await ctx.plugin(Subprocess, config.subprocess)
+    await ctx.plugin(Sandbox)
+    if (config.sandbox?.crabbox) ctx.sandbox.register(new CrabboxProvider(ctx.subprocess, config.sandbox.crabbox), { default: config.sandbox.default === 'crabbox' })
+    if (config.sandbox?.cubesandbox) ctx.sandbox.register(new CubeSandboxProvider(config.sandbox.cubesandbox), { default: config.sandbox.default === 'cubesandbox' })
     await ctx.plugin(AgentLoop, config.agentLoop)
     await ctx.plugin(Memory, { deriveLessons: true, ...config.memory })
     await ctx.plugin(SubagentScope)

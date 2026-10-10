@@ -218,6 +218,11 @@ and size.
   Phase 5/1.5); `policy-gates` (Phase 5) will decide which shell-out tool
   calls count as `sandbox-write` vs `real-fs-write`.
 
+### sandbox (`bundle-sandbox`)
+- **Responsibility:** `ctx.sandbox` seam: provider registry, and the rule that a remote provider needs egress consent plus an allowlisted host before it runs (D-090).
+- **Location:** `src/bundles/sandbox/`
+- **Depends on:** `bundle-egress`.
+
 ### sandbox-crabbox (`bundle-sandbox-crabbox`)
 - **Responsibility:** `ctx.sandbox` provider `crabbox` — remote or container
   execution through the Crabbox CLI. Modes used here (D-024): direct provider
@@ -446,6 +451,7 @@ src/
 │   ├── tool-registry/
 │   ├── subprocess/        (types.ts, index.ts)
 │   ├── agent-loop/        (types.ts, index.ts)
+│   ├── sandbox/
 │   ├── sandbox-crabbox/
 │   ├── sandbox-cubesandbox/
 │   ├── browser/

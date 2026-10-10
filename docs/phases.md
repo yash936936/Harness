@@ -762,7 +762,7 @@ destination: it must show in consent and `doctor`.)*
 - Integration test: lease → run `echo` → assert output → assert lease
   shows as released afterward (check broker state or equivalent).
 - Failure-mode test: broker unreachable → clear error, no hung lease.
-**Status:** Not started
+**Status:** BUILT, NOT VERIFIED AGAINST A REAL CRABBOX (2026-10-10, D-090, DBG-056). The lease -> run -> stop -> confirm-released flow and both failure modes pass against a fake CLI (15 provider tests, 5 mutations caught). The integration test the spec asks for is `scripts/smoke-crabbox.ts` and has NOT been run. The local-container memory cost and the Windows rsync requirement (D-024) are still unmeasured.
 
 ### 5.2 — sandbox-cubesandbox bundle
 **Goal:** `ctx.sandbox` provider `cubesandbox` — fast VM-isolated
@@ -778,7 +778,7 @@ execution.
   provider's claimed budget; flag if it's meaningfully worse.
 - Security test: attempt to read a host-only path from inside the
   sandbox, assert it fails.
-**Status:** Deferred to Phase 8 (D-024): needs a Linux host with KVM.
+**Status:** BUILT AHEAD OF SCHEDULE, NOT VERIFIED (2026-10-10, D-090, DBG-056). D-024 deferred this to Phase 8 because CubeSandbox needs an x86_64 Linux KVM host; the code exists now but the boot-time and isolation criteria CANNOT be checked without that host (`scripts/smoke-cubesandbox.ts`). The default `e2b` client wiring is untested. Lifecycle, kill-in-finally, consent and allowlist gating pass against a fake client.
 
 ### 5.3 — policy-gates: read-only and sandbox-scoped-write rules
 **Goal:** First two rows of the policy table enforced.

@@ -14,9 +14,8 @@ starts as a single agent with a session log and grows into a governed,
 multi-agent, multi-user harness without rearchitecting. Model access is
 provider-agnostic: local Ollama or any OpenAI-compatible cloud endpoint
 (OpenRouter first), with consent required before anything leaves the machine.
-Status: Phase 1 in progress; session-log, model-adapter (with the rate
-limiter and consent gate) and tool-registry are built and tested. Next is
-1.4 (subprocess). See `docs/status.md`.
+
+Current phase and next steps: see `docs/status.md` (the live record).
 
 ## Folder structure
 ```
@@ -90,3 +89,5 @@ Known gaps: `input-guard` (D-083) fences and flags tool results and `deriveLesso
 tests are plumbing tests only; reproduce a suspected bug with a test before fixing; no assistant attribution on git commits.
 Still open from earlier phases: labelled retrieval benchmark (Phase 6), Tauri sidecar measurement and 1B.4, Qwen research-license replacement before
 any commercial release (D-049).
+2026-10-10 (D-089): `scripts/smoke-orchestrate.ts` built for open item 6 (which model plans) and 7a/7b; it has NOT been run on a real model. Run it, then record results before choosing a planner.
+2026-10-10 (D-090): 5.1 and 5.2 built, verified only against fakes. Real-world checks: `scripts/smoke-crabbox.ts`, `scripts/smoke-cubesandbox.ts`. Phase 5 is not closed until they pass.

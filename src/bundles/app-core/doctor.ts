@@ -1,4 +1,5 @@
 import type { EgressStatus } from '../egress/types.js'
+import type { SandboxStatus } from '../sandbox/types.js'
 import type { InstalledCheck, ModelAvailability } from '../model-store/types.js'
 import type { BudgetStatus, Budgets } from './budgets.js'
 import { describeCredentialStore, type CredentialStore } from './credentials.js'
@@ -26,6 +27,8 @@ export interface DoctorReport {
   models?: ModelAvailability[]
   /** Present only when the caller supplied what the host reports as installed (D-043) - absent for providers with no such listing. */
   installed?: InstalledCheck[]
+  /** Present only when sandbox providers are passed in (5.1/5.2). A `remote` row is a second data destination (D-024): it only runs with egress consent and an allowlisted host. */
+  sandboxes?: SandboxStatus[]
 }
 
 /**
@@ -48,6 +51,7 @@ export async function buildDoctorReport(
   egress: EgressStatusSource,
   models?: ModelStoreSource,
   installed?: Array<{ name: string; digest?: string }>,
+  sandboxes?: SandboxStatus[],
 ): Promise<DoctorReport> {
   return {
     budgets: budgets.status(),
@@ -56,5 +60,6 @@ export async function buildDoctorReport(
     egress: await egress.status(),
     ...(models ? { models: models.resolveAll() } : {}),
     ...(models && installed && models.checkInstalled ? { installed: models.checkInstalled(installed) } : {}),
+    ...(sandboxes ? { sandboxes } : {}),
   }
 }

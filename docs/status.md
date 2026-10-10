@@ -2,6 +2,20 @@
 
 > Updated every run. Newest entry at top.
 
+## 2026-10-10 (later) — 5.1 and 5.2 built (D-090, DBG-056)
+Phase 5 is **built but not verified end to end**: 5.1 and 5.2 pass against fakes only. It should not be called closed until `scripts/smoke-crabbox.ts` passes on a machine with crabbox + Docker (5.1) and `scripts/smoke-cubesandbox.ts` passes on an x86_64 Linux KVM host (5.2; D-024 had deferred this to Phase 8).
+**Owner to run, paste output whole:** `npx tsx scripts/smoke-crabbox.ts` (needs `crabbox` on PATH, Docker running; on Windows also rsync, and a failing `doctor` is itself the D-024 finding). The cube script needs a KVM host and `npm i e2b`.
+**Test counts to expect on your machine:** previous 879 passed / 7 skipped; with 17 new tests, 896 passed / 7 skipped, 43 files.
+**Not done:** `run_command` still runs on the host and is still `real-fs-write` (D-080); routing it through `ctx.sandbox` is a decision for you.
+**Next:** run item 6 (D-089), record numbers as D-091, then 4.5 router, Phase 6.
+
+## 2026-10-10 — item 6 measurement prepared (D-089, DBG-055)
+Built `scripts/smoke-orchestrate.ts` (no `src/` change). Item 6 (which model plans) is NOT closed: nothing has been run against a real model yet.
+**Owner to run (Git Bash), then paste each output whole:** (1) `HARNESS_TRIALS=3 npx tsx scripts/smoke-orchestrate.ts` (3B alone, 7B alone, 7B plans / 3B works, single 7B; slow on CPU), (2) the same with `HARNESS_ON_FAILURE=continue HARNESS_RETRIES=1` to exercise D-074 on real failures. Then `npm test` is unchanged (expect 879 passed / 7 skipped, 42 files).
+**Open-item register:** 6 open (run above) | 7a open (run 2 above) | 7b partly closed (single-agent measured, orchestrated not) | 7c open (hot rule: run `smoke-real-model.ts` on the 7B) | 8 Phase 6 | 9 Tauri / 1B.4 not started | 10 Qwen license (D-049) open, blocker for commercial release. Owner decision still pending: approval volume (D-088).
+**Next:** record the numbers (D-091), decide who plans, then 4.5 router, 5.1, 5.2, Phase 6.
+
+
 ## 2026-10-09 (night) — 7B run recorded; JSON Lines tool-call recovery (D-088)
 qwen2.5-coder:7b-instruct: 8/9 correct, 0 failed tool calls, ~33 min for 9 trials. Its one miss exposed a gap in text tool-call recovery (two JSON calls on separate lines); fixed, tested, mutation-checked. Linux 788 passed / 98 skipped. f1bd604 pushed earlier (D-087).
 **Owner to run (Git Bash):** apply the zip, `npm install`, `npm run typecheck`, `npm test` (expect 879 passed / 7 skipped, 42 files), commit, push.
