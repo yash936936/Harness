@@ -11,6 +11,32 @@ declare module 'cordis' {
 }
 
 const DEFAULT_MAX_OUTPUT = 1_000_000
+const DEFAULT_KILL_GRACE_MS = 2000
+const WINDOWS = process.platform === 'win32'
+
+/**
+ * Every live child's pid. On POSIX a child is started as the leader of its own process group so the
+ * whole tree can be signalled at once (BUG-02); a group is not killed when this process exits, so any
+ * still running at exit are killed here rather than left behind modifying files.
+ */
+const live = new Set<number>()
+process.once('exit', () => {
+  for (const pid of live) signalTree(pid, 'SIGKILL')
+})
+
+/** Signal a child and all its descendants. Best effort: the tree may already be gone. */
+function signalTree(pid: number, signal: NodeJS.Signals): void {
+  try {
+    if (WINDOWS) {
+      // `taskkill /T` walks the tree; /F because Windows has no graceful signal for a console child.
+      spawn('taskkill', ['/pid', String(pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' }).on('error', () => {})
+    } else {
+      process.kill(-pid, signal) // negative pid = the whole process group
+    }
+  } catch {
+    /* ESRCH: already exited */
+  }
+}
 
 /**
  * `ctx.subprocess` — local command execution for v1 (`docs/architecture.md`
@@ -65,7 +91,16 @@ export class Subprocess extends Service {
 
     const maxOutput = opts.maxOutputBytes ?? this.defaultMaxOutput
     const timeoutMs = opts.timeoutMs ?? this.defaultTimeoutMs
+    const killGraceMs = opts.killGraceMs ?? DEFAULT_KILL_GRACE_MS
     const start = Date.now()
+
+    // BUG-01: a task that was already cancelled must not launch anything at all.
+    if (opts.signal?.aborted) {
+      return {
+        command, args, cwd, exitCode: null, signal: null, stdout: '', stderr: '',
+        stdoutTruncated: false, stderrTruncated: false, timedOut: false, aborted: true, durationMs: 0,
+      }
+    }
 
     return new Promise<RunResult>((resolve) => {
       // Declared BEFORE the spawn: a synchronous spawn failure calls finish(), which reads these (a use-before-declaration bug, found on Windows, D-082).
@@ -81,7 +116,7 @@ export class Subprocess extends Service {
 
       let child: ChildProcess
       try {
-        child = spawn(command, args, { cwd, env, shell: false, windowsHide: true })
+        child = spawn(command, args, { cwd, env, shell: false, windowsHide: true, detached: !WINDOWS })
       } catch (e: any) {
         // Some invalid inputs (e.g. a command containing a NUL byte) throw synchronously
         // instead of emitting 'error'. Treat the same as a spawn failure either way.
@@ -110,23 +145,49 @@ export class Subprocess extends Service {
         stderrTruncated = r.truncated
       })
 
-      let timer: NodeJS.Timeout | undefined
+      const pid = child.pid
+      if (pid !== undefined) live.add(pid)
+      const timers: NodeJS.Timeout[] = []
+
+      /** SIGTERM the tree now, SIGKILL it after the grace period, and give up waiting shortly after that. */
+      const terminate = () => {
+        if (pid === undefined) return
+        signalTree(pid, 'SIGTERM')
+        timers.push(setTimeout(() => signalTree(pid, 'SIGKILL'), killGraceMs))
+        // If a descendant still holds our pipes open, 'close' never fires; do not hang the caller on it.
+        timers.push(
+          setTimeout(() => {
+            if (settled) return
+            settled = true
+            cleanup()
+            resolve(finish({ exitCode: child.exitCode, signal: child.signalCode }))
+          }, killGraceMs + 1000),
+        )
+      }
+
       if (timeoutMs > 0) {
-        timer = setTimeout(() => {
-          timedOut = true
-          child.kill('SIGTERM')
-        }, timeoutMs)
+        timers.push(
+          setTimeout(() => {
+            timedOut = true
+            terminate()
+          }, timeoutMs),
+        )
       }
 
       const onAbort = () => {
         aborted = true
-        child.kill('SIGTERM')
+        terminate()
       }
       opts.signal?.addEventListener('abort', onAbort, { once: true })
 
       const cleanup = () => {
-        if (timer) clearTimeout(timer)
+        for (const t of timers) clearTimeout(t)
         opts.signal?.removeEventListener('abort', onAbort)
+        if (pid !== undefined) {
+          live.delete(pid)
+          // The process we started is finished; nothing it left running may outlive the call.
+          if (timedOut || aborted || !WINDOWS) signalTree(pid, 'SIGKILL')
+        }
       }
 
       function finish(partial: Partial<RunResult>): RunResult {

@@ -221,3 +221,72 @@ describe('subprocess: working directory', () => {
     expect(realpathSync(res.stdout)).toBe(realpathSync(other))
   })
 })
+
+import { existsSync, mkdtempSync, rmSync } from 'node:fs'
+import { join } from 'node:path'
+
+const alive = (pid: number) => {
+  try { process.kill(pid, 0); return true } catch { return false }
+}
+async function gone(pid: number, ms = 3000) {
+  const end = Date.now() + ms
+  while (Date.now() < end) { if (!alive(pid)) return true; await new Promise((r) => setTimeout(r, 50)) }
+  return false
+}
+const SPAWN_CHILD = (childSrc: string, parentExtra = '') =>
+  `const {spawn}=require('child_process');${parentExtra}const c=spawn(process.execPath,['-e',${JSON.stringify(childSrc)}],{stdio:'ignore'});console.log(c.pid);setInterval(()=>{},1000)`
+const IDLE = 'setInterval(()=>{},1000)'
+const IGNORE_TERM = `process.on('SIGTERM',()=>{});setInterval(()=>{},1000)`
+
+describe('BUG-01: an already-aborted run never starts', () => {
+  it('returns aborted without spawning anything', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sp-'))
+    const marker = join(dir, 'ran')
+    try {
+      const ctx = await boot()
+      const ac = new AbortController(); ac.abort()
+      const r = await ctx.subprocess.run(NODE, ['-e', `require('fs').writeFileSync(${JSON.stringify(marker)},'x')`], { signal: ac.signal })
+      expect(r).toMatchObject({ aborted: true, exitCode: null })
+      expect(r.spawnError).toBeUndefined()
+      await new Promise((r) => setTimeout(r, 300))
+      expect(existsSync(marker)).toBe(false)
+    } finally { rmSync(dir, { recursive: true, force: true }) }
+  })
+})
+
+describe('BUG-02: timeout and abort end the whole process tree', () => {
+  it('a timeout kills the grandchild too', async () => {
+    const ctx = await boot()
+    const r = await ctx.subprocess.run(NODE, ['-e', SPAWN_CHILD(IDLE)], { timeoutMs: 600, killGraceMs: 300 })
+    expect(r.timedOut).toBe(true)
+    const childPid = Number(r.stdout.trim())
+    expect(childPid).toBeGreaterThan(0)
+    expect(await gone(childPid)).toBe(true)
+  })
+
+  it('an abort kills the grandchild too', async () => {
+    const ctx = await boot()
+    const ac = new AbortController()
+    setTimeout(() => ac.abort(), 600)
+    const r = await ctx.subprocess.run(NODE, ['-e', SPAWN_CHILD(IDLE)], { signal: ac.signal, killGraceMs: 300 })
+    expect(r.aborted).toBe(true)
+    expect(await gone(Number(r.stdout.trim()))).toBe(true)
+  })
+
+  it('processes that ignore SIGTERM are SIGKILLed after the grace period (and the call still returns)', async () => {
+    const ctx = await boot()
+    const t0 = Date.now()
+    const r = await ctx.subprocess.run(NODE, ['-e', SPAWN_CHILD(IGNORE_TERM, `process.on('SIGTERM',()=>{});`)], { timeoutMs: 500, killGraceMs: 300 })
+    expect(r.timedOut).toBe(true)
+    expect(Date.now() - t0).toBeLessThan(5000)
+    expect(await gone(Number(r.stdout.trim()))).toBe(true)
+  })
+
+  it('a descendant left running after a normal exit is cleaned up, not leaked', async () => {
+    const ctx = await boot()
+    const src = `const {spawn}=require('child_process');const c=spawn(process.execPath,['-e',${JSON.stringify(IDLE)}],{stdio:'ignore'});console.log(c.pid);process.exit(0)`
+    const r = await ctx.subprocess.run(NODE, ['-e', src])
+    expect(r.exitCode).toBe(0)
+    if (process.platform !== 'win32') expect(await gone(Number(r.stdout.trim()))).toBe(true)
+  })
+})

@@ -29,6 +29,11 @@ export interface RunOptions {
   timeoutMs?: number
   signal?: AbortSignal
   maxOutputBytes?: number
+  /**
+   * How long a process tree gets after SIGTERM before it is SIGKILLed (timeout or abort), in ms.
+   * Default 2000. A process that ignores SIGTERM must not be able to outlive its timeout.
+   */
+  killGraceMs?: number
 }
 
 export interface RunResult {
