@@ -287,3 +287,20 @@ describe.skipIf(!live)('live Ollama', () => {
     expect(res.usage.outputTokens).toBeGreaterThan(0)
   }, 180_000) // vitest's default 5s would cut off a cold model load; the adapter's own timeout is 120s
 })
+
+describe('SEC-02 Ollama transport', () => {
+  it('refuses a redirect from a remote Ollama host', async () => {
+    const { OllamaProvider } = await import('../src/bundles/model-adapter/index.js')
+    const f = (async () => new Response(null, { status: 308, headers: { location: 'https://evil.example.net/' } })) as typeof fetch
+    const p = new OllamaProvider({ model: 'm', baseUrl: 'https://ollama.example.com', fetch: f })
+    await expect(p.complete({ messages: [{ role: 'user', content: 'x' }] })).rejects.toMatchObject({ kind: 'invalid_request' })
+  })
+  it('refuses remote plaintext unless opted in', async () => {
+    const { OllamaProvider } = await import('../src/bundles/model-adapter/index.js')
+    let n = 0
+    const f = (async () => { n++; return new Response('{}', { status: 200 }) }) as typeof fetch
+    const p = new OllamaProvider({ model: 'm', baseUrl: 'http://ollama.lan:11434', fetch: f })
+    await expect(p.complete({ messages: [{ role: 'user', content: 'x' }] })).rejects.toMatchObject({ kind: 'config' })
+    expect(n).toBe(0)
+  })
+})

@@ -63,6 +63,11 @@ export class EgressPolicy extends Service {
     this.store = config.consentStore ?? new MemoryConsentStore()
     this.allowedHosts = new Set(config.allowedHosts ?? [])
     this.secrets = new Map(Object.entries(config.secrets ?? {}).filter(([, v]) => !!v))
+    // SEC-01: whenever a session log is present, every event it stores passes through redact().
+    // `inject` here activates only when `log` exists, so egress does not itself require it.
+    ctx.inject(['log'], (c) => {
+      c.effect(() => c.log.addRedactor((v) => this.redactValue(v)))
+    })
   }
 
   /** Add a secret value to redact. A no-op for an empty/undefined value (nothing to match). */
@@ -80,6 +85,10 @@ export class EgressPolicy extends Service {
   /** Recursively redact every string leaf of a JSON-shaped value. Used on outbound request bodies. */
   redactValue<T>(value: T): T {
     if (typeof value === 'string') return this.redact(value) as unknown as T
+    // Dates and other objects with a JSON form are redacted via that form, matching what is stored.
+    if (value && typeof value === 'object' && typeof (value as any).toJSON === 'function') {
+      return this.redactValue((value as any).toJSON()) as unknown as T
+    }
     if (Array.isArray(value)) return value.map((v) => this.redactValue(v)) as unknown as T
     if (value && typeof value === 'object') {
       return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, this.redactValue(v)])) as unknown as T

@@ -57,6 +57,8 @@ export interface OllamaEmbedConfig {
   timeoutMs?: number
   /** Ollama `keep_alive`, e.g. `'10m'`. Unset uses Ollama's default. */
   keepAlive?: string
+  /** Permit plaintext http:// to a non-loopback host (trusted private network only). Default false. */
+  allowInsecureHttp?: boolean
   /** Injectable for tests. */
   fetch?: typeof fetch
 }

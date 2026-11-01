@@ -1,4 +1,5 @@
 import { resolveBaseUrl } from '../../model-adapter/providers/ollama.js'
+import { NO_REDIRECT, insecureTransportProblem, isRedirect, redirectMessage } from '../../egress/transport.js'
 import { EmbeddingProviderError, EmbeddingsConfigError, type EgressInfo, type EmbeddingProvider, type OllamaEmbedConfig } from '../types.js'
 
 const NAME = 'ollama'
@@ -15,6 +16,7 @@ export class OllamaEmbeddingProvider implements EmbeddingProvider {
   private readonly timeoutMs: number
   private readonly keepAlive: string | undefined
   private readonly doFetch: typeof fetch
+  private readonly allowInsecureHttp: boolean
 
   constructor(config: OllamaEmbedConfig) {
     if (!config?.model) throw new EmbeddingsConfigError('ollama embeddings: `model` is required in config (e.g. an installed embedding model tag)')
@@ -25,6 +27,7 @@ export class OllamaEmbeddingProvider implements EmbeddingProvider {
     this.timeoutMs = config.timeoutMs ?? 120_000
     this.keepAlive = config.keepAlive
     this.doFetch = config.fetch ?? fetch
+    this.allowInsecureHttp = config.allowInsecureHttp === true
   }
 
   async embed(texts: readonly string[], outer?: AbortSignal): Promise<ReadonlyArray<ArrayLike<number>>> {
@@ -37,6 +40,9 @@ export class OllamaEmbeddingProvider implements EmbeddingProvider {
       return new EmbeddingProviderError('network', `${NAME}: cannot reach ${this.baseUrl} (${code}). Is Ollama running? Start it with \`ollama serve\`.`)
     }
 
+    const insecure = insecureTransportProblem(NAME, this.baseUrl, this.egress.remote, this.allowInsecureHttp)
+    if (insecure) throw new EmbeddingsConfigError(insecure)
+
     const body: Record<string, unknown> = { model: this.model, input: texts, truncate: true }
     if (this.keepAlive) body['keep_alive'] = this.keepAlive
 
@@ -48,9 +54,12 @@ export class OllamaEmbeddingProvider implements EmbeddingProvider {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body),
         signal,
+        ...NO_REDIRECT,
       })
+      if (isRedirect(res)) throw new EmbeddingProviderError('server', redirectMessage(NAME, res), res.status)
       raw = await res.text()
     } catch (e: any) {
+      if (e instanceof EmbeddingProviderError) throw e
       throw fail(e)
     }
 

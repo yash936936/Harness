@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { RateLimiter } from '../rate-limiter.js'
+import { NO_REDIRECT, insecureTransportProblem, isRedirect, redirectMessage } from '../../egress/transport.js'
 import {
   LLMError,
   type ContentBlock,
@@ -24,6 +25,8 @@ export interface OpenAICompatibleConfig {
   timeoutMs?: number
   /** Shared request limiter. Strongly recommended for free tiers (D-023). */
   limiter?: RateLimiter
+  /** Permit a plaintext http:// endpoint on a non-loopback host (trusted private network only). Default false. */
+  allowInsecureHttp?: boolean
   /** Injectable for tests. */
   fetch?: typeof fetch
 }
@@ -39,6 +42,7 @@ export class OpenAICompatibleProvider implements LLMProvider {
   private readonly timeoutMs: number
   private readonly limiter?: RateLimiter
   private readonly doFetch: typeof fetch
+  private readonly allowInsecureHttp: boolean
 
   constructor(config: OpenAICompatibleConfig) {
     this.name = config.name ?? 'openai-compatible'
@@ -63,6 +67,13 @@ export class OpenAICompatibleProvider implements LLMProvider {
     this.timeoutMs = config.timeoutMs ?? 120_000
     if (config.limiter) this.limiter = config.limiter
     this.doFetch = config.fetch ?? fetch
+    this.allowInsecureHttp = config.allowInsecureHttp === true
+  }
+
+  /** SEC-02: checked on every outbound request, after the consent and allowlist gates in `LLMService`. */
+  private assertTransport(): void {
+    const problem = insecureTransportProblem(this.name, this.baseUrl, this.egress.remote, this.allowInsecureHttp)
+    if (problem) throw new LLMError('config', problem, this.name)
   }
 
   async complete(req: ProviderRequest, outer?: AbortSignal) {
@@ -72,15 +83,17 @@ export class OpenAICompatibleProvider implements LLMProvider {
 
   /** `GET /models` - model IDs the host currently knows about. Throws on failure; callers treat listing as best-effort. */
   async listModels(signal?: AbortSignal): Promise<string[]> {
+    this.assertTransport()
     const headers: Record<string, string> = {}
     if (this.apiKey) headers['authorization'] = `Bearer ${this.apiKey}`
     let res: Response
     try {
-      res = await this.doFetch(`${this.baseUrl}/models`, { headers, signal })
+      res = await this.doFetch(`${this.baseUrl}/models`, { headers, signal, ...NO_REDIRECT })
     } catch (e: any) {
       const code = e?.cause?.code ?? e?.message ?? 'unknown'
       throw new LLMError('network', this.scrub(`${this.name}: cannot reach ${this.egress.host} (${code})`), this.name)
     }
+    if (isRedirect(res)) throw new LLMError('invalid_request', this.scrub(redirectMessage(this.name, res)), this.name, res.status)
     if (!res.ok) throw this.httpError(res.status, errorDetail(undefined, await res.text().catch(() => '')), res.headers.get('retry-after'))
     const json: any = await res.json().catch(() => undefined)
     const list = Array.isArray(json?.data) ? json.data : []
@@ -88,6 +101,7 @@ export class OpenAICompatibleProvider implements LLMProvider {
   }
 
   private async send(req: ProviderRequest, outer?: AbortSignal) {
+    this.assertTransport()
     const model = req.model ?? this.model
     const body: Record<string, unknown> = { model, stream: false, messages: toWireMessages(req) }
     if (req.maxTokens !== undefined) body['max_tokens'] = req.maxTokens
@@ -112,6 +126,7 @@ export class OpenAICompatibleProvider implements LLMProvider {
         headers,
         body: JSON.stringify(body),
         signal,
+        ...NO_REDIRECT,
       })
     } catch (e: any) {
       if (timeout.aborted) throw new LLMError('timeout', `${this.name}: no response within ${this.timeoutMs}ms`, this.name)
@@ -119,6 +134,8 @@ export class OpenAICompatibleProvider implements LLMProvider {
       const code = e?.cause?.code ?? e?.message ?? 'unknown'
       throw new LLMError('network', this.scrub(`${this.name}: cannot reach ${this.egress.host} (${code})`), this.name)
     }
+
+    if (isRedirect(res)) throw new LLMError('invalid_request', this.scrub(redirectMessage(this.name, res)), this.name, res.status)
 
     const raw = await res.text()
     let json: any

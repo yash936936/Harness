@@ -102,3 +102,42 @@ describe('bundle-session-log', () => {
     expect((read2[0]!.data as any).v).toBe(1)
   })
 })
+
+import { EgressPolicy } from '../src/bundles/egress/index.js'
+import { ToolRegistry } from '../src/bundles/tool-registry/index.js'
+
+describe('SEC-01 session-log redaction', () => {
+  it('no seeded secret survives anywhere in the persisted log (tool.call, tool.result, approval.pending, custom)', async () => {
+    const SECRET = 'sk-live-SEEDED-9f8e7d6c5b4a'
+    const dir = await mkdtemp(join(tmpdir(), 'slog-sec-'))
+    const ctx = new Context()
+    await ctx.plugin(SessionLog, { path: dir })
+    await ctx.plugin(EgressPolicy, { projectId: 'p', secrets: { api: SECRET } })
+    await ctx.plugin(ToolRegistry)
+    ctx.tools.register({
+      name: 'leaky',
+      description: 'echoes its input',
+      actionClass: 'read-only',
+      inputSchema: { type: 'object', properties: { text: { type: 'string' } } },
+      execute: async (i: any) => `read: ${i.text}`,
+    } as any)
+    const s = ctx.log.create('sec1')
+    await ctx.tools.call('leaky', { text: `key=${SECRET}` }, { sessionId: s })
+    await ctx.log.append(s, 'approval.pending', { input: { token: SECRET }, nested: [[SECRET]] })
+    await ctx.log.append(s, 'custom', { when: new Date(), s: SECRET })
+    const raw = await readFile(join(dir, 'sec1.jsonl'), 'utf8')
+    expect(raw).not.toContain(SECRET)
+    expect(raw).toContain('[redacted:api]')
+    const events = await ctx.log.read(s)
+    expect(events.map((e) => e.type)).toEqual(['tool.call', 'tool.result', 'approval.pending', 'custom'])
+  })
+
+  it('secrets registered after boot are honoured', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SessionLog, { memory: true })
+    await ctx.plugin(EgressPolicy, { projectId: 'p' })
+    ctx.egress.registerSecret('late', 'LATE-SECRET-123')
+    await ctx.log.append('s', 't', { x: 'a LATE-SECRET-123 b' })
+    expect(JSON.stringify(await ctx.log.read('s'))).not.toContain('LATE-SECRET-123')
+  })
+})

@@ -14,11 +14,13 @@ import { confidenceProperty as strictConfidence } from '../policy-gates/index.js
 const confidenceProperty = { ...strictConfidence, type: ['number', 'string', 'null'] } as const
 import type { ToolDefinition } from '../tool-registry/types.js'
 import { COMMAND_TOOL } from './risk.js'
+import { GIT_READ_SUBCOMMANDS, hardenGit, repoFilterDrivers, type HardenedGit } from './git-harden.js'
 import { confine, isGitInternal, isSecretPath, PathRefused, relNorm } from './paths.js'
 import { LocalToolsConfigError, type LocalToolsConfig } from './types.js'
 
 export * from './types.js'
 export { commandRisk, COMMAND_TOOL } from './risk.js'
+export { hardenGit, repoFilterDrivers, GIT_READ_SUBCOMMANDS } from './git-harden.js'
 export { confine, isInside } from './paths.js'
 
 declare module 'cordis' {
@@ -280,6 +282,23 @@ export class LocalTools extends Service {
     }
   }
 
+  /** Hardened argv/env when `command` is a bare read-only `git` invocation, else undefined (left as given). */
+  private async hardenedGit(command: string, args: string[], cwd: string): Promise<HardenedGit | undefined> {
+    if (command.trim().toLowerCase().replace(/\.(exe|cmd|bat|com)$/, '') !== 'git') return undefined
+    if (!args.every((a) => typeof a === 'string') || !GIT_READ_SUBCOMMANDS.has(args[0] ?? '')) return undefined
+    // Read the repository's own filter drivers (reading config executes nothing).
+    const probe = async (extra: string[]) =>
+      this.ctx.subprocess.run('git', ['config', ...extra, '--list', '-z'], { cwd, envAllowlist: this.envAllow, timeoutMs: 10_000, maxOutputBytes: 1_000_000 })
+    let drivers: string[] = []
+    const scoped = await probe(['--show-scope'])
+    if (scoped.exitCode === 0 && !scoped.spawnError) drivers = repoFilterDrivers(scoped.stdout, true)
+    else {
+      const plain = await probe([])
+      if (plain.exitCode === 0 && !plain.spawnError) drivers = repoFilterDrivers(plain.stdout, false)
+    }
+    return hardenGit(args, drivers)
+  }
+
   private commandTool(): ToolDefinition<{ command: string; args?: string[]; workdir?: string; timeoutSeconds?: number }> {
     return {
       name: COMMAND_TOOL,
@@ -310,9 +329,12 @@ export class LocalTools extends Service {
           cwd = abs
         }
         const seconds = Math.min(input.timeoutSeconds ?? this.cmdTimeout, this.cmdTimeoutMax)
-        const r = await this.ctx.subprocess.run(input.command, input.args ?? [], {
+        // SEC-04: a read-only git subcommand still runs whatever helpers the repository's config names.
+        const hardened = await this.hardenedGit(input.command, input.args ?? [], cwd)
+        const r = await this.ctx.subprocess.run(input.command, hardened?.args ?? input.args ?? [], {
           cwd,
-          envAllowlist: this.envAllow,
+          envAllowlist: hardened ? [...this.envAllow, ...Object.keys(hardened.env)] : this.envAllow,
+          ...(hardened ? { env: hardened.env } : {}),
           timeoutMs: seconds * 1000,
           maxOutputBytes: this.cmdOutput,
         })

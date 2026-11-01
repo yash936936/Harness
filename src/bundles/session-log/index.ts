@@ -31,10 +31,21 @@ export class SessionLog extends Service {
   private seqs = new Map<string, number>()
   /** Serialises appends per session so seq order equals file order. */
   private queues = new Map<string, Promise<unknown>>()
+  private redactors = new Set<<T>(value: T) => T>()
 
   constructor(ctx: Context, config: SessionLogConfig = {}) {
     super(ctx, 'log')
     this.store = config.path && !config.memory ? new JsonlStore(config.path) : new MemoryStore()
+  }
+
+  /**
+   * Register a payload redactor applied to every event before it is stored (SEC-01). Called by
+   * `ctx.egress` when both services exist, so this foundation bundle still depends on nothing.
+   * Returns a disposer.
+   */
+  addRedactor(fn: <T>(value: T) => T): () => void {
+    this.redactors.add(fn)
+    return () => void this.redactors.delete(fn)
   }
 
   /** Start a new session and return its id. */
@@ -47,6 +58,9 @@ export class SessionLog extends Service {
     assertValidSessionId(sessionId)
     return this.enqueue(sessionId, async () => {
       const last = await this.lastSeq(sessionId)
+      // SEC-01: the one place every event passes through, so redaction here covers tool.call,
+      // tool.result, approval.pending, model.* and anything a later bundle adds.
+      if (data !== undefined && data !== null) for (const r of this.redactors) data = r(data)
       const event: SessionEvent = {
         seq: last + 1,
         ts: new Date().toISOString(),

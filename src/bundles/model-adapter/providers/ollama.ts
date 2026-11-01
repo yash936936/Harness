@@ -8,6 +8,7 @@ import {
   type ProviderRequest,
   type StopReason,
 } from '../types.js'
+import { NO_REDIRECT, insecureTransportProblem, isRedirect, redirectMessage } from '../../egress/transport.js'
 
 export interface OllamaConfig {
   /** Required, e.g. an installed model tag. No default: model choice is configuration. */
@@ -24,6 +25,8 @@ export interface OllamaConfig {
    * it changes what counts as a tool call, so it is opt-in per model (D-067).
    */
   textToolCalls?: boolean
+  /** Permit plaintext http:// to a non-loopback host (trusted private network only). Default false. */
+  allowInsecureHttp?: boolean
   /** Injectable for tests. */
   fetch?: typeof fetch
 }
@@ -43,6 +46,7 @@ export class OllamaProvider implements LLMProvider {
   private readonly timeoutMs: number
   private readonly doFetch: typeof fetch
   private readonly textToolCalls: boolean
+  private readonly allowInsecureHttp: boolean
 
   constructor(config: OllamaConfig) {
     if (!config.model) throw new LLMError('config', 'ollama: `model` is required in config', NAME)
@@ -53,17 +57,26 @@ export class OllamaProvider implements LLMProvider {
     this.timeoutMs = config.timeoutMs ?? 120_000
     this.doFetch = config.fetch ?? fetch
     this.textToolCalls = config.textToolCalls === true
+    this.allowInsecureHttp = config.allowInsecureHttp === true
+  }
+
+  /** SEC-02: remote plaintext is refused unless opted in; checked per request, after the consent/allowlist gates. */
+  private assertTransport(): void {
+    const problem = insecureTransportProblem(NAME, this.baseUrl, this.egress.remote, this.allowInsecureHttp)
+    if (problem) throw new LLMError('config', problem, NAME)
   }
 
   /** `GET /api/tags` - installed models with the digest Ollama reports for each. Throws on failure; callers treat listing as best-effort. */
   async listInstalledModels(signal?: AbortSignal): Promise<Array<{ name: string; digest?: string }>> {
+    this.assertTransport()
     let res: Response
     try {
-      res = await this.doFetch(`${this.baseUrl}/api/tags`, { signal })
+      res = await this.doFetch(`${this.baseUrl}/api/tags`, { signal, ...NO_REDIRECT })
     } catch (e: any) {
       const code = e?.cause?.code ?? e?.message ?? 'unknown'
       throw new LLMError('network', `ollama: cannot reach ${this.baseUrl} (${code})`, NAME)
     }
+    if (isRedirect(res)) throw new LLMError('invalid_request', redirectMessage(NAME, res), NAME, res.status)
     if (!res.ok) throw new LLMError('server', `ollama: could not list models (HTTP ${res.status})`, NAME, res.status)
     const json: any = await res.json().catch(() => undefined)
     const models = Array.isArray(json?.models) ? json.models : []
@@ -99,6 +112,7 @@ export class OllamaProvider implements LLMProvider {
     const timeout = AbortSignal.timeout(this.timeoutMs)
     const signal = outer ? AbortSignal.any([outer, timeout]) : timeout
 
+    this.assertTransport()
     let res: Response
     try {
       res = await this.doFetch(`${this.baseUrl}/api/chat`, {
@@ -106,6 +120,7 @@ export class OllamaProvider implements LLMProvider {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body),
         signal,
+        ...NO_REDIRECT,
       })
     } catch (e: any) {
       if (timeout.aborted) throw new LLMError('timeout', `ollama: no response within ${this.timeoutMs}ms (large model still loading?)`, NAME)
@@ -113,6 +128,8 @@ export class OllamaProvider implements LLMProvider {
       const code = e?.cause?.code ?? e?.message ?? 'unknown'
       throw new LLMError('network', `ollama: cannot reach ${this.baseUrl} (${code}). Is Ollama running? Start it with \`ollama serve\`.`, NAME)
     }
+
+    if (isRedirect(res)) throw new LLMError('invalid_request', redirectMessage(NAME, res), NAME, res.status)
 
     const raw = await res.text()
     let json: any

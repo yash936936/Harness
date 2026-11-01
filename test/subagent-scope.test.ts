@@ -149,3 +149,53 @@ describe('subagent-scope: enforcement (security)', () => {
     expect(ran).toEqual(['edit'])
   })
 })
+
+describe('SEC-03 closing a parent revokes the whole descendant tree', () => {
+  it('three levels: grandchild loses tool access, run access and listing; each close is logged', async () => {
+    const { ctx, ran } = await boot()
+    const p = await ctx.subagents.spawn({ id: 'p', sessionId: 's', tools: ['search', 'read'] })
+    const c = await ctx.subagents.spawn({ id: 'c', sessionId: 's', tools: ['search', 'read'], parent: 'p' })
+    const g = await ctx.subagents.spawn({ id: 'g', sessionId: 's', tools: ['search'], parent: 'c' })
+    // alive before: the grandchild can use its grant
+    expect(await ctx.tools.call('search', {}, { sessionId: 's', actor: 'subagent:g' })).toMatchObject({ ok: true })
+
+    await p.close()
+
+    expect(g.closed).toBe(true)
+    expect(c.closed).toBe(true)
+    const after = await ctx.tools.call('search', {}, { sessionId: 's', actor: 'subagent:g' })
+    expect(after).toMatchObject({ ok: false, errorKind: 'denied' })
+    expect(ran).toEqual(['search']) // only the pre-close call ever ran
+    await expect(g.run('go')).rejects.toThrow(/closed/)
+    expect(ctx.subagents.list()).toEqual([])
+    const closes = (await ctx.log.read('s')).filter((e) => e.type === 'subagent.close').map((e: any) => e.data.id)
+    expect(closes).toEqual(['g', 'c', 'p']) // deepest first, every one recorded
+  })
+
+  it('a deep chain (5 levels) closes from the middle: only that node and below', async () => {
+    const { ctx } = await boot()
+    let parent: string | undefined
+    const agents = []
+    for (const id of ['a', 'b', 'c', 'd', 'e']) {
+      agents.push(await ctx.subagents.spawn({ id, sessionId: 's', tools: ['search'], ...(parent ? { parent } : {}) }))
+      parent = id
+    }
+    await agents[2]!.close()
+    expect(agents.map((a) => a.closed)).toEqual([false, false, true, true, true])
+  })
+
+  it('a child cannot be spawned under a closed grandparent chain', async () => {
+    const { ctx } = await boot()
+    const p = await ctx.subagents.spawn({ id: 'p', sessionId: 's', tools: ['search'] })
+    await ctx.subagents.spawn({ id: 'c', sessionId: 's', tools: ['search'], parent: 'p' })
+    await p.close()
+    await expect(ctx.subagents.spawn({ id: 'x', sessionId: 's', tools: ['search'], parent: 'c' })).rejects.toThrow(ScopeError)
+  })
+
+  it('closing twice is harmless and logs once', async () => {
+    const { ctx } = await boot()
+    const p = await ctx.subagents.spawn({ id: 'p', sessionId: 's', tools: ['search'] })
+    await p.close(); await p.close()
+    expect((await ctx.log.read('s')).filter((e) => e.type === 'subagent.close')).toHaveLength(1)
+  })
+})

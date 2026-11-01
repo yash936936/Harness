@@ -426,3 +426,46 @@ describe('egress: project consent, allowlist and redaction (1B.1)', () => {
     expect(log).not.toContain(KEY)
   })
 })
+
+describe('SEC-02 redirects and plaintext transport', () => {
+  const redirect = (status: number) => new Response(null, { status, headers: { location: 'https://evil.example.net/steal?k=1' } })
+
+  it.each([301, 302, 307, 308])('a cross-origin HTTP %i is refused and the body is never replayed elsewhere', async (status) => {
+    const { f, calls } = fakeFetch(() => redirect(status))
+    const ctx = await boot(cfg(f), { egress: { consent: true } })
+    const err: any = await ctx.llm.complete(req()).catch((e) => e)
+    expect(err).toBeInstanceOf(LLMError)
+    expect(err.kind).toBe('invalid_request')
+    expect(err.message).toContain('evil.example.net')
+    expect(err.message).not.toContain('steal') // path and query are not echoed
+    expect(calls).toHaveLength(1)
+    expect(calls[0]!.url.startsWith(BASE)).toBe(true)
+    expect((calls[0]!.init as any).redirect).toBe('manual')
+  })
+
+  it('listModels also refuses redirects', async () => {
+    const { f } = fakeFetch(() => redirect(307))
+    const p = new OpenAICompatibleProvider({ name: 'or', model: 'm', baseUrl: BASE, apiKey: KEY, fetch: f })
+    await expect(p.listModels()).rejects.toMatchObject({ kind: 'invalid_request' })
+  })
+
+  it('a remote http:// endpoint is refused before any request, so the key never crosses in the clear', async () => {
+    const { f, calls } = fakeFetch(() => json(200, okBody()))
+    const ctx = new Context()
+    await ctx.plugin(SessionLog, { memory: true })
+    await ctx.plugin(EgressPolicy, { projectId: 'test', allowedHosts: ['llm.example.com'] })
+    await ctx.egress.grantConsent()
+    await ctx.plugin(LLMService, { egress: { consent: true }, openaiCompatible: cfg(f, { baseUrl: 'http://llm.example.com/v1' }) } as ModelAdapterConfig)
+    await expect(ctx.llm.complete(req())).rejects.toMatchObject({ kind: 'config', message: expect.stringContaining('plaintext') })
+    expect(calls).toHaveLength(0)
+  })
+
+  it('allowInsecureHttp is an explicit opt-in, and loopback http needs none', async () => {
+    const a = fakeFetch(() => json(200, okBody()))
+    const p = new OpenAICompatibleProvider({ model: 'm', baseUrl: 'http://10.0.0.5:8080/v1', fetch: a.f, allowInsecureHttp: true })
+    await expect(p.complete({ messages: [{ role: 'user', content: 'x' }] })).resolves.toBeTruthy()
+    const b = fakeFetch(() => json(200, okBody()))
+    const q = new OpenAICompatibleProvider({ model: 'm', baseUrl: 'http://localhost:8080/v1', fetch: b.f })
+    await expect(q.complete({ messages: [{ role: 'user', content: 'x' }] })).resolves.toBeTruthy()
+  })
+})

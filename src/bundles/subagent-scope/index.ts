@@ -22,6 +22,7 @@ interface Scope {
   actor: string
   tools: ReadonlySet<string>
   parent?: string
+  sessionId: string
   closed: boolean
 }
 
@@ -65,6 +66,36 @@ export class SubagentScope extends Service {
     if (!scope.tools.has(ev.tool.name)) throw new ToolDeniedError(`tool "${ev.tool.name}" is outside the grant of sub-agent "${scope.id}"`)
   }
 
+  /**
+   * A scope is live only if it and EVERY ancestor are open (SEC-03). `close()` revokes the whole
+   * subtree, but the guard checks the chain too, so a grandchild can never outlive its parent even
+   * if some future code path marks a scope closed without walking its descendants.
+   */
+  private alive(scope: Scope): boolean {
+    for (let s: Scope | undefined = scope; s; s = s.parent !== undefined ? this.scopes.get(s.parent) : undefined) {
+      if (s.closed) return false
+      if (s.parent !== undefined && !this.scopes.has(s.parent)) return false
+    }
+    return true
+  }
+
+  /** Close `scope` and all descendants, deepest first, logging each close. Idempotent. */
+  private async closeTree(scope: Scope): Promise<void> {
+    // Mark the whole subtree closed synchronously first, so no call can slip through between awaits.
+    const order: Scope[] = []
+    const visit = (s: Scope) => {
+      for (const c of this.scopes.values()) if (c.parent === s.id && c !== s) visit(c)
+      order.push(s)
+    }
+    visit(scope)
+    for (const s of order) {
+      if (s.closed) continue
+      s.closed = true
+      this.mem?.access.revoke(s.actor)
+    }
+    for (const s of order) await this.ctx.log.append(s.sessionId, 'subagent.close', { id: s.id, ...(s.id !== scope.id ? { cause: `ancestor ${scope.id} closed` } : {}) }, 'subagent-scope')
+  }
+
   async spawn(spec: SubagentSpec): Promise<SubAgent> {
     if (!ID_RE.test(spec.id)) throw new ScopeError(`invalid sub-agent id ${JSON.stringify(spec.id)} (use 1-64 of A-Z a-z 0-9 _ -)`)
     if (this.scopes.has(spec.id)) throw new ScopeError(`sub-agent "${spec.id}" already exists`)
@@ -74,12 +105,12 @@ export class SubagentScope extends Service {
     }
     if (spec.parent !== undefined) {
       const p = this.scopes.get(spec.parent)
-      if (!p || p.closed) throw new ScopeError(`sub-agent "${spec.id}": parent "${spec.parent}" is not a live sub-agent`)
+      if (!p || !this.alive(p)) throw new ScopeError(`sub-agent "${spec.id}": parent "${spec.parent}" is not a live sub-agent`)
       for (const t of grant) {
         if (!p.tools.has(t)) throw new ScopeError(`sub-agent "${spec.id}": tool "${t}" is not in parent "${spec.parent}"'s grant (a child cannot widen it)`)
       }
     }
-    const scope: Scope = { id: spec.id, actor: PREFIX + spec.id, tools: new Set(grant), ...(spec.parent !== undefined ? { parent: spec.parent } : {}), closed: false }
+    const scope: Scope = { id: spec.id, actor: PREFIX + spec.id, tools: new Set(grant), ...(spec.parent !== undefined ? { parent: spec.parent } : {}), sessionId: spec.sessionId, closed: false }
     // Log first: a spawn that cannot be recorded must not exist.
     await this.ctx.log.append(spec.sessionId, 'subagent.spawn', { id: spec.id, tools: grant, parent: spec.parent ?? null }, 'subagent-scope')
     this.scopes.set(spec.id, scope)
@@ -88,7 +119,7 @@ export class SubagentScope extends Service {
   }
 
   list(): { id: string; tools: string[]; parent?: string }[] {
-    return [...this.scopes.values()].filter((s) => !s.closed).map((s) => ({ id: s.id, tools: [...s.tools], ...(s.parent !== undefined ? { parent: s.parent } : {}) }))
+    return [...this.scopes.values()].filter((s) => this.alive(s)).map((s) => ({ id: s.id, tools: [...s.tools], ...(s.parent !== undefined ? { parent: s.parent } : {}) }))
   }
 
   private handle(scope: Scope, spec: SubagentSpec): SubAgent {
@@ -99,7 +130,7 @@ export class SubagentScope extends Service {
       tools: [...scope.tools],
       ...(scope.parent !== undefined ? { parent: scope.parent } : {}),
       get closed() {
-        return scope.closed
+        return !self.alive(scope)
       },
       get memory() {
         return self.mem?.view(scope.actor)
@@ -126,16 +157,8 @@ export class SubagentScope extends Service {
       },
       async close() {
         if (scope.closed) return
-        scope.closed = true
-        self.mem?.access.revoke(scope.actor)
-        // Children die with the parent: a grant cannot outlive the grant it was cut from.
-        for (const s of self.scopes.values()) {
-          if (s.parent === scope.id && !s.closed) {
-            s.closed = true
-            self.mem?.access.revoke(s.actor)
-          }
-        }
-        await self.ctx.log.append(spec.sessionId, 'subagent.close', { id: scope.id }, 'subagent-scope')
+        // Descendants die with the parent at every depth: a grant cannot outlive the grant it was cut from (SEC-03).
+        await self.closeTree(scope)
       },
     }
   }

@@ -250,3 +250,15 @@ describe('subagent-scope and memory', () => {
     expect(() => ctx.memory.access.grant(A, { hot: 'maybe' as any })).toThrow(/invalid hot grant/)
   })
 })
+
+describe('SEC-03: memory grants die with the whole subtree', () => {
+  it('a grandchild loses its memory grant when the grandparent closes', async () => {
+    const { ctx } = await boot()
+    const p = await ctx.subagents.spawn({ id: 'p', sessionId: 's', tools: ['search'] })
+    await ctx.subagents.spawn({ id: 'c', sessionId: 's', tools: ['search'], parent: 'p' })
+    await ctx.subagents.spawn({ id: 'g', sessionId: 's', tools: ['search'], parent: 'c' })
+    expect(ctx.memory.access.get('subagent:g')).toBeTruthy()
+    await p.close()
+    for (const id of ['p', 'c', 'g']) expect(ctx.memory.access.get(`subagent:${id}`)).toBeUndefined()
+  })
+})
