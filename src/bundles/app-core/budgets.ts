@@ -55,6 +55,22 @@ export interface SpendResult {
   newlySoftBreached: Array<{ metric: BudgetMetric; scope: BudgetScope }>
 }
 
+/**
+ * BUG-10: the persisted day counters exist to stop spending, so a state file that is present but cannot be
+ * trusted must stop the harness rather than quietly grant a fresh day. A MISSING file is a normal first run
+ * and is not an error; an unreadable, non-JSON or malformed file is. The message names the path so the owner
+ * can inspect or delete it deliberately.
+ */
+export class BudgetStateError extends Error {
+  override name = 'BudgetStateError'
+  constructor(public statePath: string, reason: string) {
+    super(`budget: the saved usage file ${statePath} cannot be trusted (${reason}). Refusing to start so spending is not silently reset; inspect it, or delete it to start the day from zero on purpose.`)
+  }
+}
+
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/
+const validCount = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n) && n >= 0
+
 interface DayState {
   day: string
   requests: number
@@ -96,13 +112,26 @@ export class Budgets {
 
   private loadDay(): DayState {
     const today = todayUTC(this.now())
-    if (this.config.statePath) {
+    const path = this.config.statePath
+    if (path) {
+      let text: string
       try {
-        const raw = JSON.parse(readFileSync(this.config.statePath, 'utf8')) as DayState
-        if (raw.day === today) return raw
-      } catch {
-        // No file yet, or unreadable/corrupt - start fresh rather than crash.
+        text = readFileSync(path, 'utf8')
+      } catch (e: any) {
+        if (e?.code === 'ENOENT') return { day: today, requests: 0, tokens: 0 } // first run: nothing saved yet
+        throw new BudgetStateError(path, `unreadable: ${e?.code ?? e?.message ?? e}`)
       }
+      let raw: any
+      try {
+        raw = JSON.parse(text)
+      } catch {
+        throw new BudgetStateError(path, 'not valid JSON')
+      }
+      if (!raw || typeof raw !== 'object' || typeof raw.day !== 'string' || !DAY_RE.test(raw.day) || !validCount(raw.requests) || !validCount(raw.tokens)) {
+        throw new BudgetStateError(path, 'unexpected contents: day must be YYYY-MM-DD and requests/tokens must be non-negative numbers')
+      }
+      // Valid file from an earlier day: the day has genuinely rolled over, so counters restart.
+      if (raw.day === today) return { day: raw.day, requests: raw.requests, tokens: raw.tokens }
     }
     return { day: today, requests: 0, tokens: 0 }
   }

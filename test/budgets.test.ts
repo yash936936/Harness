@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { BudgetExceededError, Budgets } from '../src/bundles/app-core/budgets.js'
+import { BudgetExceededError, BudgetStateError, Budgets } from '../src/bundles/app-core/budgets.js'
 
 function clock(start = Date.UTC(2026, 8, 24, 12, 0, 0)) {
   let t = start
@@ -162,10 +162,41 @@ describe('budgets: persistence (day counter survives restart, mirrors RateLimite
     expect(b2.status().requests.day.used).toBe(0)
   })
 
-  it('a corrupt state file is treated as no prior state, not a crash', () => {
+  it('BUG-10: an unreadable-as-JSON state file fails closed instead of granting a fresh day', () => {
     const statePath = join(dir, 'budgets.json')
     mkdirSync(dir, { recursive: true })
     writeFileSync(statePath, '{not valid json')
+    expect(() => new Budgets({ statePath })).toThrow(BudgetStateError)
+    expect(() => new Budgets({ statePath })).toThrow(/budgets\.json/)
+  })
+
+  it.each([
+    ['wrong types', { day: '2026-01-01', requests: 'lots', tokens: 1 }],
+    ['negative count', { day: '2026-01-01', requests: -5, tokens: 1 }],
+    ['NaN-like', { day: '2026-01-01', requests: null, tokens: 1 }],
+    ['bad day', { day: 'yesterday', requests: 1, tokens: 1 }],
+    ['missing fields', { day: '2026-01-01' }],
+    ['not an object', [1, 2, 3]],
+  ])('BUG-10: malformed contents (%s) are refused, even for a different day', (_n, body) => {
+    const statePath = join(dir, 'budgets.json')
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(statePath, JSON.stringify(body))
+    expect(() => new Budgets({ statePath, now: () => Date.parse('2026-06-01T00:00:00Z') })).toThrow(BudgetStateError)
+  })
+
+  it('BUG-10: a missing file is a normal first run, and a valid file from an earlier day simply rolls over', () => {
+    const statePath = join(dir, 'budgets.json')
     expect(() => new Budgets({ statePath })).not.toThrow()
+    writeFileSync(statePath, JSON.stringify({ day: '2020-01-01', requests: 99, tokens: 99 }))
+    const b = new Budgets({ statePath, requests: { day: { hard: 100 } }, now: () => Date.parse('2026-06-01T00:00:00Z') })
+    expect(b.requestsLeftToday()).toBe(100)
+  })
+
+  it('BUG-10: valid same-day counters are loaded exactly', () => {
+    const statePath = join(dir, 'budgets.json')
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(statePath, JSON.stringify({ day: '2026-06-01', requests: 40, tokens: 5 }))
+    const b = new Budgets({ statePath, requests: { day: { hard: 100 } }, now: () => Date.parse('2026-06-01T12:00:00Z') })
+    expect(b.requestsLeftToday()).toBe(60)
   })
 })
