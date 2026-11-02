@@ -1,4 +1,4 @@
-import { existsSync, realpathSync } from 'node:fs'
+import { existsSync, realpathSync, statSync } from 'node:fs'
 import { dirname, isAbsolute, join, relative, resolve, sep, basename } from 'node:path'
 
 /** True if `target` is `root` or lies under it. Both must already be real, absolute paths. */
@@ -57,4 +57,36 @@ const SECRET_RE = /(^|\/)(\.env[^/]*|[^/]*\.env|[^/]*\.pem|[^/]*\.key|[^/]*\.p12
 /** Likely-secret files, mirroring what retrieval already refuses to show the model. */
 export function isSecretPath(rel: string): boolean {
   return SECRET_RE.test(rel)
+}
+
+/** Identity of a directory at one moment: its real path plus device and inode. */
+export interface DirIdentity {
+  real: string
+  dev: number | bigint
+  ino: number | bigint
+}
+
+export function dirIdentity(dir: string): DirIdentity {
+  const real = realpathSync(dir)
+  const st = statSync(real)
+  return { real, dev: st.dev, ino: st.ino }
+}
+
+/**
+ * BUG-05: `confine()` validates a path at one instant; a concurrent process can swap a directory for a
+ * symlink before the write lands. Capture `dirIdentity` right after validating, then call this just
+ * before the file operation: it refuses if the directory is no longer the same directory, or is no
+ * longer inside the root. This narrows the window to the few instructions between this check and the
+ * syscall; closing it completely needs openat/O_NOFOLLOW on a directory handle, which Node does not expose.
+ */
+export function assertSameDir(realRoot: string, dir: string, id: DirIdentity): void {
+  let now: DirIdentity
+  try {
+    now = dirIdentity(dir)
+  } catch {
+    throw new PathRefused('the target directory changed while the operation was running; refusing')
+  }
+  if (now.real !== id.real || now.dev !== id.dev || now.ino !== id.ino || !isInside(realRoot, now.real)) {
+    throw new PathRefused('the target directory changed while the operation was running; refusing')
+  }
 }

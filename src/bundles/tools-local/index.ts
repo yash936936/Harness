@@ -1,6 +1,6 @@
 import { Context, Service } from 'cordis'
 import { existsSync, realpathSync, statSync } from 'node:fs'
-import { mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises'
+import { link, mkdir, open, rename, unlink, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { randomBytes } from 'node:crypto'
 import '../tool-registry/index.js'
@@ -15,7 +15,8 @@ const confidenceProperty = { ...strictConfidence, type: ['number', 'string', 'nu
 import type { ToolDefinition } from '../tool-registry/types.js'
 import { COMMAND_TOOL } from './risk.js'
 import { GIT_READ_SUBCOMMANDS, hardenGit, repoFilterDrivers, type HardenedGit } from './git-harden.js'
-import { confine, isGitInternal, isSecretPath, PathRefused, relNorm } from './paths.js'
+import { FileTooLarge, readBounded } from './bounded-read.js'
+import { assertSameDir, confine, dirIdentity, isGitInternal, isSecretPath, PathRefused, relNorm } from './paths.js'
 import { LocalToolsConfigError, type LocalToolsConfig } from './types.js'
 
 export * from './types.js'
@@ -77,6 +78,8 @@ function posInt(name: string, v: number): void {
  * inside the root, `.git` internals are never written, secrets are not read, and a command runs with no shell
  * and only the env names allowlisted. The model's `confidence` field is accepted in the schema and ignored here.
  */
+class ExistsError extends Error {}
+
 export class LocalTools extends Service {
   static inject = ['tools', 'subprocess']
 
@@ -122,25 +125,66 @@ export class LocalTools extends Service {
   }
 
   private async readText(abs: string, p: string): Promise<string> {
-    let st
+    let fh
     try {
-      st = statSync(abs)
+      fh = await open(abs, 'r')
     } catch {
       throw new Error(`"${p}" does not exist`)
     }
-    if (!st.isFile()) throw new Error(`"${p}" is not a file`)
-    if (st.size > this.maxFileBytes) throw new Error(`"${p}" is ${st.size} bytes, over the ${this.maxFileBytes}-byte limit`)
-    const buf = await readFile(abs)
-    if (buf.includes(0)) throw new Error(`"${p}" looks like a binary file`)
-    return buf.toString('utf8')
+    try {
+      const st = await fh.stat()
+      if (!st.isFile()) throw new Error(`"${p}" is not a file`)
+      if (st.size > this.maxFileBytes) throw new Error(`"${p}" is ${st.size} bytes, over the ${this.maxFileBytes}-byte limit`)
+      // BUG-05: the handle we hold must still be the file the path names inside the root, not a symlink swapped in after confine().
+      const again = confine(this.realRoot, p)
+      const now = statSync(again)
+      if (st.ino !== 0 && (now.ino !== st.ino || now.dev !== st.dev)) throw new Error(`"${p}" changed while it was being read; refusing`)
+      let buf: Buffer
+      try {
+        buf = await readBounded(fh, this.maxFileBytes) // BUG-04: limit enforced while reading, not only before
+      } catch (e) {
+        if (e instanceof FileTooLarge) throw new Error(`"${p}" grew past the ${this.maxFileBytes}-byte limit while it was being read`)
+        throw e
+      }
+      if (buf.includes(0)) throw new Error(`"${p}" looks like a binary file`)
+      return buf.toString('utf8')
+    } finally {
+      await fh.close()
+    }
   }
 
-  /** Write via a temp file in the same directory, then rename: a crash never leaves a half-written target. */
-  private async writeAtomic(abs: string, text: string): Promise<void> {
-    const tmp = join(dirname(abs), `.${randomBytes(6).toString('hex')}.harness-tmp`)
+  /**
+   * Write via a temp file in the same directory, then move it into place: a crash never leaves a half-written target.
+   * `create: true` (write_file) moves it with `link()`, which fails with EEXIST instead of replacing, so two
+   * concurrent creators cannot both succeed (BUG-03). `create: false` (edit_file) renames over the existing file.
+   */
+  private async writeAtomic(abs: string, text: string, opts: { create?: boolean } = {}): Promise<void> {
+    const dir = dirname(abs)
+    const id = dirIdentity(dir)
+    const tmp = join(dir, `.${randomBytes(6).toString('hex')}.harness-tmp`)
     try {
-      await writeFile(tmp, text, 'utf8')
-      await rename(tmp, abs)
+      await writeFile(tmp, text, { encoding: 'utf8', flag: 'wx' })
+      assertSameDir(this.realRoot, dir, id) // BUG-05
+      if (opts.create) {
+        try {
+          await link(tmp, abs)
+        } catch (e: any) {
+          if (e?.code === 'EEXIST') throw new ExistsError()
+          if (e?.code === 'EPERM' || e?.code === 'ENOTSUP' || e?.code === 'EXDEV' || e?.code === 'ENOSYS') {
+            // Filesystem without hard links: fall back to an exclusive create (not crash-atomic, still never replaces).
+            try {
+              const fh = await open(abs, 'wx')
+              try { await fh.writeFile(text, 'utf8') } finally { await fh.close() }
+            } catch (e2: any) {
+              if (e2?.code === 'EEXIST') throw new ExistsError()
+              throw e2
+            }
+          } else throw e
+        }
+        await unlink(tmp).catch(() => {})
+      } else {
+        await rename(tmp, abs)
+      }
     } catch (e) {
       await unlink(tmp).catch(() => {})
       throw e
@@ -272,11 +316,17 @@ export class LocalTools extends Service {
       execute: async (input) => {
         const { abs, rel } = this.path(input.path)
         if (isGitInternal(rel)) throw new Error(`"${input.path}" is inside .git and cannot be written through this tool`)
+        // Early, friendly refusal; the real guarantee is the no-replace create below (BUG-03).
         if (existsSync(abs)) throw new Error(`"${input.path}" already exists; use edit_file to change it`)
         await mkdir(dirname(abs), { recursive: true })
         // Re-check after mkdir: confine() ran before the folders existed.
         confine(this.realRoot, input.path)
-        await this.writeAtomic(abs, input.content)
+        try {
+          await this.writeAtomic(abs, input.content, { create: true })
+        } catch (e) {
+          if (e instanceof ExistsError) throw new Error(`"${input.path}" already exists; use edit_file to change it`)
+          throw e
+        }
         return `Created ${input.path} (${input.content.length} characters).`
       },
     }
