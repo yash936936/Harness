@@ -117,6 +117,8 @@ export interface ClassResult {
   avgLatencyMs: number
   /** Worker requests spent across all cases. */
   requests: number
+  /** Every case that was not answered correctly: what was asked, what was right, what came back (null = abstained, 'error' = threw). */
+  misses?: Array<{ task: string; expected: string; got: string | null }>
 }
 
 /** Runs one backend over one class of the frozen suite. Abstaining or erroring counts as wrong. */
@@ -125,18 +127,21 @@ export async function evaluateClass(backend: RouterBackend, cls: DecisionClass, 
   const offered = cls === 'tool' ? candidates.filter((x) => x.allowed === true) : candidates
   const ids = new Set(offered.map((x) => x.id))
   let correct = 0, abstained = 0, errors = 0, ms = 0
+  const misses: NonNullable<ClassResult['misses']> = []
   for (const k of cases) {
     const t = Date.now()
     try {
       const a = await backend.decide(cls, { task: k.task, candidates: offered })
-      if (a === null || a === undefined) abstained++
+      if (a === null || a === undefined) { abstained++; misses.push({ task: k.task, expected: k.expect, got: null }) }
       else if (ids.has(a) && a === k.expect) correct++
+      else misses.push({ task: k.task, expected: k.expect, got: a })
     } catch {
       errors++
+      misses.push({ task: k.task, expected: k.expect, got: 'error' })
     }
     ms += Date.now() - t
   }
-  return { class: cls, backend: backend.name, cases: cases.length, correct, abstained, errors, avgLatencyMs: Math.round((ms / cases.length) * 10) / 10, requests: (backend.requestCost ?? 0) * cases.length }
+  return { class: cls, backend: backend.name, cases: cases.length, correct, abstained, errors, avgLatencyMs: Math.round((ms / cases.length) * 10) / 10, requests: (backend.requestCost ?? 0) * cases.length, misses }
 }
 
 export interface Verdict {

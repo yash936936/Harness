@@ -2,6 +2,11 @@
 
 > Updated every run. Newest entry at top.
 
+## 2026-10-11 — Crabbox installed; first real router numbers (D-092, D-093, DBG-059)
+Verified on Windows: 916 passed / 7 skipped (44 files); Crabbox 0.73.0 installed; WSL rsync/ssh at Linux paths. NOT verified: 5.1 lease/run/release (provider doctor fails, reason hidden by my bug, now fixed), Needle, 7B routing, items 6 and 7.
+**Owner to run next (Git Bash, repo root):** (1) `crabbox doctor --provider local-container --local-container-runtime docker` and paste ALL of it; (2) after applying this zip, `HARNESS_CRABBOX_RUNTIME=docker npx tsx scripts/smoke-crabbox.ts` (now prints the failing checks); (3) item 6: `HARNESS_TRIALS=3 npx tsx scripts/smoke-orchestrate.ts`; (4) optional: `HARNESS_ROUTER_WORKER=qwen2.5-coder:7b-instruct npx tsx scripts/eval-router.ts`.
+**Decision for the owner:** whether to enable `router.owned: ['agent']` without Needle (rules then worker). I recommend not yet (D-092).
+
 ## 2026-10-10 (owner run) — what the pasted output shows
 Verified on Windows: the sandbox build (896 passed / 7 skipped, 43 files) and the `smoke-orchestrate.ts` self-tests. NOT verified: 5.1 (crabbox is not installed: ENOENT) and everything needing a real model or Needle. See DBG-058. Phase 5 and 4.5 remain built-not-closed.
 **Router build verified on Windows (915 passed / 7 skipped, 44 files).** **Next for the owner:** install Crabbox (on Windows, there is no brew: run `scripts/install-crabbox-windows.ps1` (the official installer, verbatim) in PowerShell, then `HARNESS_CRABBOX_RUNTIME=docker npx tsx scripts/smoke-crabbox.ts` from the repo root; it needs native Git, the OpenSSH client, curl, and rsync from WSL2 Ubuntu (preferred) or MSYS2, plus Docker, which is running; Crabbox v0.42.1 or newer) and rerun `smoke-crabbox.ts`; run item 6 (D-089).

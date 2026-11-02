@@ -8,7 +8,10 @@ const save = () => writeFileSync(stateFile, JSON.stringify(st))
 const sub = args[0]
 const flag = (n) => args[args.indexOf(n) + 1]
 if (sub === '--version') { console.log('crabbox 0.0.0-fake'); save() }
-else if (sub === 'doctor') { console.log('ok'); save() }
+else if (sub === 'doctor') {
+  if (st.failDoctor) { console.log('FAIL rsync not found on PATH'); console.error('doctor found problems'); save(); process.exit(1) }
+  console.log('ok'); save()
+}
 else if (sub === 'warmup') {
   if (st.failWarmup) { console.error('broker unreachable'); save(); process.exit(1) }
   st.leases.push(flag('--slug')); console.log('leased ' + flag('--slug')); save()

@@ -71,8 +71,12 @@ export class CrabboxProvider implements SandboxProvider {
     if (this.cfg.expectedVersion && !version.includes(this.cfg.expectedVersion)) {
       return { ok: false, detail: `crabbox version "${version}" does not match the pin "${this.cfg.expectedVersion}"` }
     }
-    const d = await this.cb(['doctor', '--provider', this.provider], this.controlTimeout)
-    return { ok: d.exitCode === 0, detail: `${version}; provider ${this.provider}; ${d.exitCode === 0 ? 'doctor ok' : (d.stderr || d.stdout).trim().slice(0, 200)}` }
+    const dargs = ['doctor', '--provider', this.provider]
+    if (this.cfg.runtime && this.destination === 'local') dargs.push('--local-container-runtime', this.cfg.runtime)
+    const d = await this.cb(dargs, this.controlTimeout)
+    // Crabbox prints the failing checks on stdout and only a summary on stderr: keep BOTH, or the real reason is hidden.
+    const out = [d.stdout.trim(), d.stderr.trim()].filter(Boolean).join('\n').slice(0, 1500)
+    return { ok: d.exitCode === 0, detail: `${version}; provider ${this.provider}; ${d.exitCode === 0 ? 'doctor ok' : 'doctor failed:\n' + out}` }
   }
 
   async run(req: SandboxRunRequest): Promise<SandboxRunResult> {

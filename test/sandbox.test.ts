@@ -85,6 +85,14 @@ describe('5.1 crabbox provider (fake CLI)', () => {
     expect(bad.ok).toBe(false)
     expect(bad.detail).toMatch(/pin/)
   })
+  it('a failing doctor reports the failing checks from stdout, not only the stderr summary, and passes the runtime', async () => {
+    const s = state({ failDoctor: true }); const ctx = await boot()
+    const d = await crab(ctx, s.file, { runtime: 'docker' }).doctor()
+    expect(d.ok).toBe(false)
+    expect(d.detail).toMatch(/rsync not found on PATH/); expect(d.detail).toMatch(/doctor found problems/)
+    const call = s.read().calls.find((c) => c[0] === 'doctor')!
+    expect(call[call.indexOf('--local-container-runtime') + 1]).toBe('docker')
+  })
   it('local-container is a local destination; other providers are remote and need consent + an allowlisted host', async () => {
     const s = state(); const ctx = await boot()
     expect(crab(ctx, s.file).destination).toBe('local')

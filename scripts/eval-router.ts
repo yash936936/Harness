@@ -33,7 +33,9 @@ try {
   console.log(STAND_IN ? '(STAND-IN: self-test of this script, NOT a measurement)' : `worker: ${model}   suite sha256: ${suiteSha256().slice(0, 12)}…  ${SUITE.agent.cases.length} cases per class (labels by one author; counts, not rates)`)
   for (const cls of DECISION_CLASSES) {
     const w = await evaluateClass(worker, cls)
+    const showMisses = (who: string, m: typeof w.misses) => { for (const x of m ?? []) console.log(`          miss ${who}: "${x.task.slice(0, 60)}" expected ${x.expected}, got ${x.got ?? 'ABSTAINED'}`) }
     console.log(`\n[${cls}]  worker  ${w.correct}/${w.cases} correct, ${w.abstained} abstained, ${w.errors} errors, ${w.avgLatencyMs} ms avg, ${w.requests} requests`)
+    showMisses('worker', w.misses)
     for (const b of backends) {
       if (b.available) {
         const a = await b.available()
@@ -42,6 +44,7 @@ try {
       const r = await evaluateClass(b, cls)
       const v = verdict(r, w)
       console.log(`        ${b.name.padEnd(7)} ${r.correct}/${r.cases} correct, ${r.abstained} abstained, ${r.errors} errors, ${r.avgLatencyMs} ms avg, ${r.requests} requests   -> ${v.owns ? 'OWNS' : 'worker keeps it'} (${v.reason})`)
+      showMisses(b.name, r.misses)
     }
   }
   console.log('\n"rules" is the always-available fallback; only a Needle row marked OWNS justifies adding that class to router.owned. Not measured here: real traffic, longer tasks, other phrasings.')

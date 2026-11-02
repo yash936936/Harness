@@ -3,6 +3,12 @@
 > Append-only. Every completed coding task gets an entry here, even "no
 > issues found." Newest entries at top.
 
+## DBG-059 — owner's run: Crabbox 0.73.0 doctor failure and the first real router numbers — 2026-10-11
+**Tests (owner, Windows):** 44 files, 916 passed / 7 skipped (18 sandbox, 19 router); typecheck clean.
+**Crabbox:** installed (0.73.0), `crabbox doctor` ok for git and ssh-key; `smoke-crabbox.ts` failed in `doctor` with only "doctor found problems". Root cause of the missing detail: my provider discarded stdout. Fixed with a test; mutation (stderr-only) fails that test. The underlying failing check is still unseen.
+**Router:** see D-092 for the numbers and their limits.
+**Process note:** two Windows pitfalls hit on the way (brew does not exist; PATH entries in Git Bash must be Unix-style). A commit message "Record real crabbox run on Windows" preceded any real run; it records nothing.
+
 ## DBG-058 — owner's Windows run of the sandbox build (D-090) — 2026-10-10
 **Result (owner, Git Bash on Windows, pasted whole):** `npm run typecheck` clean; `npm test` 43 files, 896 passed / 7 skipped (exactly the predicted count), including `sandbox.test.ts` (17) in 11 s. Commit 97dfb4e pushed. `smoke-orchestrate.ts` self-tests: stand-in 3/3 on both paths, do-nothing control 0/3 on both (the checks can fail), both models pulled (`qwen2.5-coder:3b-instruct`, `qwen2.5-coder:7b-instruct`; `llama3.2:3b` also present).
 **`smoke-crabbox.ts`:** `FAIL doctor crabbox not runnable: spawn crabbox ENOENT`, three times. The `crabbox` executable is not installed or not on PATH. This is NOT the Windows-rsync or Docker finding D-024 asked for; it says nothing about either. 5.1 stays unverified.
