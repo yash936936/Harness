@@ -4,6 +4,7 @@ import { EgressPolicy, type EgressConfig } from '../bundles/egress/index.js'
 import { LLMService, type ModelAdapterConfig } from '../bundles/model-adapter/index.js'
 import { ToolRegistry, type ToolRegistryConfig } from '../bundles/tool-registry/index.js'
 import { Subprocess, type SubprocessConfig } from '../bundles/subprocess/index.js'
+import { ProfileError, missingFrom } from './errors.js'
 import { AgentLoop, type AgentLoopConfig } from '../bundles/agent-loop/index.js'
 
 export interface ProfileMinimalConfig {
@@ -47,13 +48,27 @@ export interface ProfileMinimalConfig {
  * any profile, `profile-minimal` included, so there is no code path here
  * that skips it.
  */
+export const MINIMAL_REQUIRED_SERVICES = ['log', 'egress', 'llm', 'tools', 'subprocess', 'agentLoop'] as const
+
+export function missingMinimalServices(ctx: Context): string[] {
+  return missingFrom(ctx, MINIMAL_REQUIRED_SERVICES)
+}
+
 export async function bootProfileMinimal(config: ProfileMinimalConfig): Promise<Context> {
   const ctx = new Context()
-  await ctx.plugin(SessionLog, config.sessionLog)
-  await ctx.plugin(EgressPolicy, { ...config.egress, projectId: config.projectId })
-  await ctx.plugin(LLMService, config.modelAdapter)
-  await ctx.plugin(ToolRegistry, config.toolRegistry)
-  await ctx.plugin(Subprocess, config.subprocess)
-  await ctx.plugin(AgentLoop, config.agentLoop)
-  return ctx
+  try {
+    await ctx.plugin(SessionLog, config.sessionLog)
+    await ctx.plugin(EgressPolicy, { ...config.egress, projectId: config.projectId })
+    await ctx.plugin(LLMService, config.modelAdapter)
+    await ctx.plugin(ToolRegistry, config.toolRegistry)
+    await ctx.plugin(Subprocess, config.subprocess)
+    await ctx.plugin(AgentLoop, config.agentLoop)
+    // ARCH-04: a plugin that fails to start does not throw; never hand back a half-booted profile.
+    const missing = missingMinimalServices(ctx)
+    if (missing.length) throw new ProfileError(`profile-minimal: did not boot, these services failed to start: ${missing.join(', ')}`)
+    return ctx
+  } catch (e) {
+    await (ctx as unknown as { stop?: () => Promise<void> }).stop?.().catch(() => {})
+    throw e
+  }
 }

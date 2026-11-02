@@ -25,10 +25,8 @@ import { CrabboxProvider, type CrabboxConfig } from '../bundles/sandbox-crabbox/
 import { CubeSandboxProvider, type CubeSandboxConfig } from '../bundles/sandbox-cubesandbox/index.js'
 import { LocalTools, commandRisk, COMMAND_TOOL, type LocalToolsConfig } from '../bundles/tools-local/index.js'
 
-/** Raised when the profile refuses to boot, or boots and then finds its guardrails are not enforcing. */
-export class ProfileError extends Error {
-  override name = 'ProfileError'
-}
+import { ProfileError, missingFrom } from './errors.js'
+export { ProfileError }
 
 /** The lowest `confidenceThreshold` the profile accepts. At 0 every real-fs-write with any signal would be auto-approved, which is the gate switched off by another name. */
 export const MIN_CONFIDENCE_THRESHOLD = 0.5
@@ -153,9 +151,18 @@ export async function verifyGates(ctx: Context): Promise<void> {
 }
 
 /** Services this profile must end up with. A plugin whose dependency is absent is never started and does not throw, so boot checks for them by name. */
-export function missingServices(ctx: Context, withSkills: boolean): string[] {
-  const live = ctx as unknown as Record<string, unknown>
-  return ['log', 'egress', 'llm', 'tools', 'subprocess', 'agentLoop', 'memory', 'subagents', 'policy', 'inputGuard', 'retrievalGrep', 'retrievalRank', 'retrievalTools', 'localTools', 'orchestrator', ...(withSkills ? ['skills'] : [])].filter((k) => !live[k])
+export const CODING_REQUIRED_SERVICES = [
+  'log', 'egress', 'llm', 'tools', 'subprocess', 'sandbox', 'router', 'agentLoop', 'memory', 'subagents', 'policy', 'inputGuard',
+  'retrievalGrep', 'retrievalParse', 'retrievalRank', 'retrievalTools', 'localTools', 'orchestrator',
+] as const
+
+/**
+ * The manifest for this profile (ARCH-04, BUG-11): every service the profile loads, including `retrievalParse` (the
+ * structural stage; `retrievalRank` depends on it but a failed parser must be named, not inferred) and the optional ones
+ * that were configured, `skills` and `embeddings`/`vectorstore`.
+ */
+export function missingServices(ctx: Context, withSkills: boolean, withEmbeddings = false): string[] {
+  return missingFrom(ctx, [...CODING_REQUIRED_SERVICES, ...(withSkills ? ['skills'] : []), ...(withEmbeddings ? ['embeddings', 'vectorstore'] : [])])
 }
 
 /**
@@ -208,7 +215,7 @@ export async function bootProfileCoding(config: ProfileCodingConfig): Promise<Co
     await ctx.plugin(Orchestrator, config.orchestrator)
 
     // Cordis does not throw when a plugin's constructor fails (it logs and carries on), so check the services are really there.
-    const missing = missingServices(ctx, !!config.skills)
+    const missing = missingServices(ctx, !!config.skills, !!(config.retrieval?.embeddings && config.retrieval?.vectorStore))
     if (missing.length) throw new ProfileError(`profile-coding: did not boot, these services failed to start: ${missing.join(', ')}`)
     await verifyGates(ctx)
     return ctx

@@ -79,3 +79,16 @@ describe('profile-minimal: end-to-end wiring (1.6)', () => {
     expect(events.some((e) => e.type === 'model.request')).toBe(false)
   })
 })
+
+describe('ARCH-04: profile-minimal verifies its services', () => {
+  it('lists what is missing from a bare context', async () => {
+    const { missingMinimalServices } = await import('../src/profiles/profile-minimal.js')
+    const { Context } = await import('cordis')
+    expect(missingMinimalServices(new Context())).toEqual(['log', 'egress', 'llm', 'tools', 'subprocess', 'agentLoop'])
+  })
+  it('a healthy boot has none missing', async () => {
+    const { missingMinimalServices } = await import('../src/profiles/profile-minimal.js')
+    const ctx = await bootProfileMinimal({ projectId: 'test', sessionLog: { memory: true } })
+    expect(missingMinimalServices(ctx)).toEqual([])
+  })
+})

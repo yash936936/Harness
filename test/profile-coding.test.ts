@@ -389,3 +389,24 @@ describe('all five action classes in one session (5.6)', () => {
     expect(read(root, 'src/a.ts')).toBe('const a = 9\n')
   })
 })
+
+describe('ARCH-04 / BUG-11: a service that fails to start is named at boot', () => {
+  it('a parser that fails to construct fails the whole boot (never a half-built profile)', async () => {
+    await expect(bootProfileCoding(cfg(project(), { retrieval: { treesitter: { languages: ['cobol' as any] } } }))).rejects.toThrow(/unsupported language|retrievalParse/)
+  })
+  it('the SILENT case: a plugin whose dependency is absent never starts and never throws, so the manifest must catch it', async () => {
+    const { RetrievalRank } = await import('../src/bundles/retrieval-rank/index.js')
+    const ctx = new Context()
+    await ctx.plugin(RetrievalRank, {}) // needs retrievalGrep + retrievalParse; neither exists
+    expect((ctx as any).retrievalRank).toBeUndefined()
+    expect(missingServices(ctx, false)).toEqual(expect.arrayContaining(['retrievalParse', 'retrievalRank']))
+  })
+  it('the manifest includes retrievalParse, router and sandbox', async () => {
+    const { CODING_REQUIRED_SERVICES } = await import('../src/profiles/profile-coding.js')
+    expect(CODING_REQUIRED_SERVICES).toEqual(expect.arrayContaining(['retrievalParse', 'router', 'sandbox']))
+    expect(missingServices(new Context(), false)).toEqual(expect.arrayContaining(['retrievalParse', 'router', 'sandbox']))
+  })
+  it('configured embeddings + vector store are required too', () => {
+    expect(missingServices(new Context(), false, true)).toEqual(expect.arrayContaining(['embeddings', 'vectorstore']))
+  })
+})
