@@ -25,6 +25,7 @@ import { CrabboxProvider, type CrabboxConfig } from '../bundles/sandbox-crabbox/
 import { CubeSandboxProvider, type CubeSandboxConfig } from '../bundles/sandbox-cubesandbox/index.js'
 import { LocalTools, commandRisk, COMMAND_TOOL, type LocalToolsConfig } from '../bundles/tools-local/index.js'
 
+import { EvalRunner, type EvalConfig } from '../bundles/eval-runner/index.js'
 import { ProfileError, missingFrom } from './errors.js'
 export { ProfileError }
 
@@ -78,6 +79,8 @@ export interface ProfileCodingConfig {
     tools?: RetrievalToolsConfig
   }
   orchestrator?: OrchestratorConfig
+  /** Eval runner (Phase 6): scorer set and pass threshold. Defaults score a run from its session log alone. */
+  eval?: EvalConfig
 }
 
 const ALLOWED_KEYS = new Set(['projectId', 'projectRoot', 'sessionLog', 'egress', 'modelAdapter', 'toolRegistry', 'subprocess', 'agentLoop', 'policy', 'inputGuard', 'localTools', 'memory', 'skills', 'retrieval', 'orchestrator', 'sandbox', 'router'])
@@ -153,7 +156,7 @@ export async function verifyGates(ctx: Context): Promise<void> {
 /** Services this profile must end up with. A plugin whose dependency is absent is never started and does not throw, so boot checks for them by name. */
 export const CODING_REQUIRED_SERVICES = [
   'log', 'egress', 'llm', 'tools', 'subprocess', 'sandbox', 'router', 'agentLoop', 'memory', 'subagents', 'policy', 'inputGuard',
-  'retrievalGrep', 'retrievalParse', 'retrievalRank', 'retrievalTools', 'localTools', 'orchestrator',
+  'retrievalGrep', 'retrievalParse', 'retrievalRank', 'retrievalTools', 'localTools', 'orchestrator', 'eval',
 ] as const
 
 /**
@@ -213,6 +216,7 @@ export async function bootProfileCoding(config: ProfileCodingConfig): Promise<Co
     await ctx.plugin(LocalTools, { ...config.localTools, root })
     if (config.skills) await ctx.plugin(Skills, config.skills)
     await ctx.plugin(Orchestrator, config.orchestrator)
+    await ctx.plugin(EvalRunner, config.eval) // 6.1: scores a run from its session log; reads nothing live
 
     // Cordis does not throw when a plugin's constructor fails (it logs and carries on), so check the services are really there.
     const missing = missingServices(ctx, !!config.skills, !!(config.retrieval?.embeddings && config.retrieval?.vectorStore))

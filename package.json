@@ -12,7 +12,9 @@
     "test:watch": "vitest",
     "wizard": "tsx src/cli/index.ts",
     "harness": "tsx src/cli/index.ts",
-    "pin": "tsx scripts/pin-from-file.ts"
+    "pin": "tsx scripts/pin-from-file.ts",
+    "check": "tsc --noEmit && vitest run",
+    "eval": "tsx scripts/eval-calibrate.ts"
   },
   "dependencies": {
     "@lancedb/lancedb": "0.30.0",
