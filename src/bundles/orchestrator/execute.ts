@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import type { Context } from 'cordis'
 import { AgentLoopError } from '../agent-loop/index.js'
 import { LLMError } from '../model-adapter/index.js'
@@ -62,6 +63,18 @@ function subtaskPrompt(plan: Plan, st: Subtask, done: Map<string, string>, max: 
  * Sequential on purpose: dependencies point only backwards, so plan order is a valid order, and a weak model (D-070)
  * gains nothing from a concurrency bug.
  */
+/**
+ * BUG-08: the sub-agent validator allows at most 64 characters, but `<runId>-<subtaskId>` can exceed that even
+ * when both parts are individually valid (e.g. a configured maxIdChars of 64). Use the readable form when it
+ * fits, otherwise a short stable digest of the subtask id; the original id is always in the logged
+ * `subtask.started` event alongside the agent id, so the mapping is never lost.
+ */
+export function boundedAgentId(runId: string, subtaskId: string): string {
+  const plain = `${runId}-${subtaskId}`
+  if (plain.length <= 64) return plain
+  return `${runId}-h${createHash('sha256').update(subtaskId).digest('hex').slice(0, 16)}`
+}
+
 export async function executePlan(deps: ExecutorDeps, plan: Plan, opts: ExecuteOptions): Promise<ExecutionResult> {
   const { ctx } = deps
   const subagents = (ctx.root as Context & { subagents?: Context['subagents'] }).subagents
@@ -96,6 +109,7 @@ export async function executePlan(deps: ExecutorDeps, plan: Plan, opts: ExecuteO
   await log('execute.started', { plan: valid, onFailure, retries, allowedTools: [...ceiling] })
 
   const results = new Map<string, SubtaskResult>()
+  const auditMissing: string[] = []
   const done = new Map<string, string>()
   let aborted = false
   let stopped = false
@@ -140,7 +154,7 @@ export async function executePlan(deps: ExecutorDeps, plan: Plan, opts: ExecuteO
         continue
       }
 
-      const agentId = `${runId}-${st.id}`
+      const agentId = boundedAgentId(runId, st.id)
       let agent: SubAgent | undefined
       let attempts = 0
       let reason = ''
@@ -215,13 +229,14 @@ export async function executePlan(deps: ExecutorDeps, plan: Plan, opts: ExecuteO
     for (const st of valid.subtasks) {
       if (!results.has(st.id)) {
         results.set(st.id, { id: st.id, goal: st.goal, status: 'not-run', attempts: 0 })
-        await log('subtask.not-run', { id: st.id }).catch(() => {})
+        // Recorded, not swallowed: a closing event that cannot be written makes the audit incomplete (BUG-06).
+        await log('subtask.not-run', { id: st.id }).catch(() => void auditMissing.push(`subtask.not-run:${st.id}`))
       }
     }
     const list = valid.subtasks.map((s) => results.get(s.id)!)
     const counts = { completed: 0, failed: 0, blocked: 0, 'not-run': 0 }
     for (const r of list) counts[r.status]++
-    await log('execute.finished', { status: counts.completed === list.length ? 'completed' : 'failed', aborted, counts }).catch(() => {})
+    await log('execute.finished', { status: counts.completed === list.length ? 'completed' : 'failed', aborted, counts }).catch(() => void auditMissing.push('execute.finished'))
   }
 
   const subtasks = valid.subtasks.map((s) => results.get(s.id)!)
@@ -231,5 +246,6 @@ export async function executePlan(deps: ExecutorDeps, plan: Plan, opts: ExecuteO
     aborted,
     subtasks,
     outputs: Object.fromEntries(subtasks.filter((s) => s.status === 'completed').map((s) => [s.id, s.text!])),
+    audit: { complete: auditMissing.length === 0, missing: auditMissing },
   }
 }

@@ -107,6 +107,13 @@ export interface ExecutionResult {
   subtasks: SubtaskResult[]
   /** The answers of the completed subtasks, by id. */
   outputs: Record<string, string>
+  /**
+   * BUG-06: whether the audit trail for this run is complete. `complete: false` means one or more
+   * closing events (`subtask.not-run`, `execute.finished`) could NOT be written, so the session log does
+   * not fully describe this run; `missing` names them. A result must never imply a full audit when the
+   * log write failed.
+   */
+  audit: { complete: boolean; missing: string[] }
 }
 
 /** Misuse (empty task, unregistered tool offered). Never a model outcome. */

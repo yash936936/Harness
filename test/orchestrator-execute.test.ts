@@ -288,3 +288,57 @@ describe('executor: cancellation and infrastructure failure', () => {
     expect(ctx.subagents.list()).toEqual([]) // the sub-agent was still closed
   })
 })
+
+describe('BUG-06: a missing closing audit event is reported, never hidden', () => {
+  it('a fully logged run says so', async () => {
+    const { ctx } = await boot()
+    const r = await ctx.orchestrator.execute(chain, opts())
+    expect(r.audit).toEqual({ complete: true, missing: [] })
+  })
+
+  it('if execute.finished cannot be written the result says the audit is incomplete', async () => {
+    const { ctx } = await boot()
+    const log: any = ctx.log
+    const orig = log.append.bind(log)
+    log.append = async (sid: string, type: string, ...rest: any[]) => {
+      if (type === 'execute.finished') throw new Error('disk full')
+      return orig(sid, type, ...rest)
+    }
+    const r = await ctx.orchestrator.execute(chain, opts())
+    expect(r.status).toBe('completed') // the work happened...
+    expect(r.audit).toEqual({ complete: false, missing: ['execute.finished'] }) // ...but the record is not whole
+  })
+
+  it('a log failure mid-run still throws (it is not turned into a quiet result), and the cleanup path does not mask it', async () => {
+    const { ctx } = await boot()
+    const log: any = ctx.log
+    const orig = log.append.bind(log)
+    log.append = async (sid: string, type: string, ...rest: any[]) => {
+      if (type === 'subtask.started') throw new Error('disk full')
+      if (type === 'subtask.not-run' || type === 'execute.finished') throw new Error('disk still full')
+      return orig(sid, type, ...rest)
+    }
+    await expect(ctx.orchestrator.execute(chain, opts())).rejects.toThrow(/disk full/)
+  })
+})
+
+describe('BUG-08: long but valid ids do not break spawning', () => {
+  it('a 20-char runId with a 50-char subtask id runs, and the log still ties subtask id to agent', async () => {
+    const { ctx } = await boot({}, { cfg: { maxIdChars: 64 } })
+    const longId = 'a'.repeat(50)
+    const runId = 'r'.repeat(20)
+    const plan: Plan = { task: 'T', subtasks: [sub(longId, 'go', ['search'])] }
+    const r = await ctx.orchestrator.execute(plan, opts({ runId }))
+    expect(statuses(r)).toEqual([`${longId}:completed`])
+    const started: any = (await ctx.log.read('s')).find((e) => e.type === 'subtask.started')
+    expect(started.data.id).toBe(longId)
+    expect(String(started.data.agent).length).toBeLessThanOrEqual('subagent:'.length + 64)
+  })
+  it('short ids keep the readable run-subtask form', async () => {
+    const { boundedAgentId } = await import('../src/bundles/orchestrator/execute.js')
+    expect(boundedAgentId('r1', 's1')).toBe('r1-s1')
+    const long = boundedAgentId('r'.repeat(20), 'x'.repeat(60))
+    expect(long.length).toBeLessThanOrEqual(64)
+    expect(long).not.toBe(boundedAgentId('r'.repeat(20), 'y'.repeat(60)))
+  })
+})
