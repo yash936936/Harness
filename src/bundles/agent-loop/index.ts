@@ -195,6 +195,8 @@ export class AgentLoop extends Service {
           return { res, retries }
         } catch (e) {
           lastErr = e
+          // The budget is shared by every provider: trying the next one would only spend another refusal.
+          if (e instanceof LLMError && e.kind === 'budget') throw e
           if (!(e instanceof LLMError) || !e.retryable || attempt >= this.retry.maxAttempts) break
           const delay = e.retryAfterMs ?? Math.min(this.retry.maxDelayMs, this.retry.baseDelayMs * this.retry.factor ** attempt)
           attempt++

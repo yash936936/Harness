@@ -192,7 +192,7 @@ export async function executePlan(deps: ExecutorDeps, plan: Plan, opts: ExecuteO
             reason = err instanceof Error ? err.message : String(err)
             // A config mistake (bad grant, unregistered tool, unknown provider, bad credentials) fails the same way every
             // time, so retrying only burns requests: never retried.
-            if (err instanceof ScopeError || err instanceof AgentLoopError || (err instanceof LLMError && (err.kind === 'config' || err.kind === 'auth'))) retryable = false
+            if (err instanceof ScopeError || err instanceof AgentLoopError || (err instanceof LLMError && (err.kind === 'config' || err.kind === 'auth' || err.kind === 'budget'))) retryable = false
           }
           if (ok) break
           if (opts.signal?.aborted || !retryable || attempts > retries) break

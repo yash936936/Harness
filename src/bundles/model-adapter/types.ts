@@ -99,6 +99,8 @@ export type LLMErrorKind =
   | 'payment'
   /** A remote provider was called without egress consent (D-022). Nothing was sent. */
   | 'consent'
+  /** The harness's own budget (requests/tokens per task, session or day) is spent. Nothing was sent. Not retryable, and no other provider will help. */
+  | 'budget'
   | 'invalid_request'
   | 'server'
   | 'network'

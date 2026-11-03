@@ -47,6 +47,18 @@ export class BudgetExceededError extends Error {
   }
 }
 
+/**
+ * Capacity held for a call that is in flight (ARCH-03). `spend()` after the fact cannot stop a request that is
+ * itself too big; a reservation is checked against the hard limits BEFORE the call and counted against every
+ * other caller until it is settled or released, so concurrent sub-agents cannot each see "enough left".
+ */
+export interface Reservation {
+  readonly metric: BudgetMetric
+  readonly amount: number
+  /** True once released or settled; both are then no-ops. */
+  done: boolean
+}
+
 export interface SpendResult {
   metric: BudgetMetric
   amount: number
@@ -103,6 +115,8 @@ export class Budgets {
   private task = { requests: 0, tokens: 0 }
   private session = { requests: 0, tokens: 0 }
   private day: DayState
+  /** Capacity currently held by in-flight reservations (not yet spent). */
+  private reserved: Record<BudgetMetric, number> = { requests: 0, tokens: 0 }
 
   constructor(config: BudgetsConfig = {}) {
     this.config = config
@@ -190,10 +204,46 @@ export class Budgets {
   }
 
   /**
-   * Records `amount` of `metric` against task, session and day at once.
-   * Throws `BudgetExceededError` (nothing recorded, any scope) if doing so
-   * would put task, session, or day - checked in that order - over its
-   * hard limit.
+   * Hold `amount` of `metric` for an in-flight call. Throws `BudgetExceededError` (nothing held) if spent + held + `amount`
+   * would pass any hard limit. Synchronous on purpose: two concurrent callers cannot both pass the check against the same
+   * remaining capacity. Pair every successful `reserve` with exactly one `release` (the call is not made / failed) or a
+   * `record` followed by `release` (it was made).
+   */
+  reserve(metric: BudgetMetric, amount: number): Reservation {
+    if (!(amount >= 0)) throw new RangeError('budget: reserve amount must not be negative')
+    this.rollDayIfNeeded()
+    for (const scope of SCOPES) {
+      const limit = this.limitFor(metric, scope)
+      if (limit?.hard === undefined) continue
+      if (this.usedFor(metric, scope) + this.reserved[metric] + amount > limit.hard) {
+        throw new BudgetExceededError(metric, scope, this.status())
+      }
+    }
+    this.reserved[metric] += amount
+    return { metric, amount, done: false }
+  }
+
+  /** Give a reservation back. Idempotent. */
+  release(r: Reservation): void {
+    if (r.done) return
+    r.done = true
+    this.reserved[r.metric] = Math.max(0, this.reserved[r.metric] - r.amount)
+  }
+
+  /**
+   * Book what was ACTUALLY spent. Unlike `spend()` this never refuses: the tokens or request are already gone, and hiding
+   * an overshoot would let the next check pass. The overshoot shows up in `status()` and blocks the next `reserve`.
+   */
+  record(metric: BudgetMetric, amount: number): SpendResult {
+    if (!(amount >= 0)) throw new RangeError('budget: record amount must not be negative')
+    this.rollDayIfNeeded()
+    return this.book(metric, amount)
+  }
+
+  /**
+   * Record `amount` of `metric`. If that would put any scope over its hard limit, nothing is recorded and
+   * `BudgetExceededError` is thrown. (Does not count capacity held by reservations; callers that gate in-flight work
+   * use `reserve` + `record`.)
    */
   spend(metric: BudgetMetric, amount: number): SpendResult {
     if (amount < 0) throw new RangeError('budget: spend amount must not be negative')
@@ -206,7 +256,10 @@ export class Budgets {
         throw new BudgetExceededError(metric, scope, this.status())
       }
     }
+    return this.book(metric, amount)
+  }
 
+  private book(metric: BudgetMetric, amount: number): SpendResult {
     const before = SCOPES.map((scope) => ({ scope, was: this.usedFor(metric, scope) }))
     this.task[metric] += amount
     this.session[metric] += amount

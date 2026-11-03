@@ -4,6 +4,9 @@ import '../egress/index.js'
 import { EgressError } from '../egress/index.js'
 import { OllamaProvider, type OllamaConfig } from './providers/ollama.js'
 import { OpenAICompatibleProvider, type OpenAICompatibleConfig } from './providers/openai-compatible.js'
+import { Budgets, BudgetExceededError, type BudgetsConfig } from '../app-core/budgets.js'
+import { BudgetGate, type CallReservation } from './budget-gate.js'
+import { RateLimiter, type RateLimiterConfig } from './rate-limiter.js'
 import { LLMError, type CompletionRequest, type CompletionResponse, type LLMProvider } from './types.js'
 
 export * from './types.js'
@@ -11,8 +14,22 @@ export { OllamaProvider, recoverTextToolCalls, resolveBaseUrl, type OllamaConfig
 export { OpenAICompatibleProvider, type OpenAICompatibleConfig } from './providers/openai-compatible.js'
 export { MockProvider } from './providers/mock.js'
 export { RateLimiter, type RateLimiterConfig } from './rate-limiter.js'
+export { BudgetGate, CallReservation, estimateRequestTokens, DEFAULT_OUTPUT_TOKEN_RESERVE } from './budget-gate.js'
 
 export interface ModelAdapterConfig {
+  /**
+   * Request and token budgets enforced for EVERY model call through `ctx.llm` (ARCH-03): capacity is reserved before the
+   * call (a call that cannot fit is refused, logged as `budget.blocked`, and never sent) and trued up with the provider's
+   * reported usage afterwards. Omit for no limits.
+   */
+  budgets?: BudgetsConfig
+  /** Output tokens reserved for a call that sets no `maxTokens`. Default 1024. */
+  reserveOutputTokens?: number
+  /**
+   * One request limiter shared by every provider and every sub-agent (ARCH-03). Do not ALSO give a provider its own
+   * `limiter`, or each call waits on both.
+   */
+  rateLimit?: RateLimiterConfig
   /** Name of the provider used when a request doesn't name one. */
   default?: string
   /** Built-in Ollama provider; registered as `ollama` when present. */
@@ -50,11 +67,15 @@ export class LLMService extends Service {
   private providers = new Map<string, LLMProvider>()
   private defaultName?: string
   private readonly egressConsent: boolean
+  private gate?: BudgetGate
+  private readonly limiter?: RateLimiter
 
   constructor(ctx: Context, config: ModelAdapterConfig = {}) {
     super(ctx, 'llm')
     this.defaultName = config.default
     this.egressConsent = config.egress?.consent === true
+    if (config.budgets) this.gate = new BudgetGate(new Budgets(config.budgets), config.reserveOutputTokens)
+    if (config.rateLimit) this.limiter = new RateLimiter(config.rateLimit)
     if (config.ollama) {
       this.providers.set('ollama', new OllamaProvider(config.ollama))
       this.defaultName ??= 'ollama'
@@ -74,6 +95,20 @@ export class LLMService extends Service {
     return () => {
       if (this.providers.get(name) === provider) this.providers.delete(name)
       if (this.defaultName === name) this.defaultName = undefined
+    }
+  }
+
+  /** The budget gate every call passes through, if any (ARCH-03). Read `status()` from it; `resetTask()` between tasks. */
+  get budget(): BudgetGate | undefined {
+    return this.gate
+  }
+
+  /** Attach a gate built elsewhere (e.g. one that shares its `Budgets` with the CLI). Returns a disposer. */
+  useBudget(gate: BudgetGate): () => void {
+    if (this.gate) throw new LLMError('config', 'a budget gate is already attached to ctx.llm', '(none)')
+    this.gate = gate
+    return () => {
+      if (this.gate === gate) this.gate = undefined
     }
   }
 
@@ -120,13 +155,38 @@ export class LLMService extends Service {
     // secret riding along in message content or tool output must not reach either place.
     const redacted = this.ctx.egress.redactValue(rest)
 
+    // ARCH-03: hold budget BEFORE anything is logged as sent or leaves the process. A call that cannot fit is refused here.
+    let reservation: CallReservation | undefined
+    if (this.gate) {
+      try {
+        reservation = this.gate.reserve(redacted)
+      } catch (e) {
+        if (!(e instanceof BudgetExceededError)) throw e
+        await log.append(sessionId, 'budget.blocked', { provider: name, metric: e.metric, scope: e.scope, status: e.status }, actor)
+        throw new LLMError('budget', e.message, name)
+      }
+    }
+    const book = async (usage: { inputTokens: number; outputTokens: number } | undefined, failed: boolean) => {
+      if (!reservation) return
+      const spent = failed ? reservation.fail() : reservation.settle(usage)
+      const soft = spent.flatMap((r) => r.newlySoftBreached)
+      if (soft.length) await log.append(sessionId, 'budget.warning', { provider: name, softBreached: soft }, actor).catch(() => {})
+    }
+
     // Log first; fail closed. Remote calls also record where the data goes and how much.
     const egressLog = egress ? { egress: { host: egress.host, remote: egress.remote, bytes: Buffer.byteLength(JSON.stringify(redacted)) } } : {}
-    await log.append(sessionId, 'model.request', { provider: name, ...redacted, ...egressLog }, actor)
+    try {
+      await log.append(sessionId, 'model.request', { provider: name, ...redacted, ...egressLog }, actor)
+    } catch (e) {
+      // Not sent, so not spent: give the hold back and let the log failure stop the call as before.
+      if (reservation) await book(undefined, true).catch(() => {})
+      throw e
+    }
 
     try {
-      const res = await provider.complete(redacted)
+      const res = await (this.limiter ? this.limiter.run(() => provider.complete(redacted)) : provider.complete(redacted))
       const out: CompletionResponse = { provider: name, ...res }
+      await book(out.usage, false)
       await log.append(
         sessionId,
         'model.response',
@@ -136,6 +196,7 @@ export class LLMService extends Service {
       return out
     } catch (e: any) {
       const err = e instanceof LLMError ? e : new LLMError('unknown', `${name}: ${e?.message ?? String(e)}`, name)
+      await book(undefined, true) // no-op if the response was already booked and it was the log write after it that failed
       await log.append(sessionId, 'model.error', { provider: name, kind: err.kind, status: err.status, message: err.message }, actor)
       throw err
     }

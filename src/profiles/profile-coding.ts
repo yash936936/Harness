@@ -3,6 +3,7 @@ import { isAbsolute } from 'node:path'
 import { SessionLog, type SessionLogConfig } from '../bundles/session-log/index.js'
 import { EgressPolicy, type EgressConfig } from '../bundles/egress/index.js'
 import { LLMService, type ModelAdapterConfig } from '../bundles/model-adapter/index.js'
+import type { BudgetsConfig } from '../bundles/app-core/budgets.js'
 import { ToolRegistry, type ToolRegistryConfig } from '../bundles/tool-registry/index.js'
 import { Subprocess, type SubprocessConfig } from '../bundles/subprocess/index.js'
 import { AgentLoop, type AgentLoopConfig } from '../bundles/agent-loop/index.js'
@@ -30,6 +31,16 @@ import { ProfileError, missingFrom } from './errors.js'
 export { ProfileError }
 
 /** The lowest `confidenceThreshold` the profile accepts. At 0 every real-fs-write with any signal would be auto-approved, which is the gate switched off by another name. */
+/**
+ * ARCH-03: a runaway guard applied when `modelAdapter.budgets` is not set, so a multi-agent run is never unmetered by omission.
+ * Session scope (this process) because `task` only resets when a caller says so. Generous on purpose: a normal run uses a small
+ * fraction; the point is that a loop or a fan-out bug stops. Pass `modelAdapter: { budgets: {} }` for none, or your own limits.
+ */
+export const DEFAULT_CODING_BUDGETS: BudgetsConfig = {
+  requests: { session: { soft: 400, hard: 600 } },
+  tokens: { session: { soft: 1_500_000, hard: 2_500_000 } },
+}
+
 export const MIN_CONFIDENCE_THRESHOLD = 0.5
 /** The self-test runs under this session id, so it never lands in a real task's log. */
 export const SELFTEST_SESSION = 'profile-coding-selftest'
@@ -83,7 +94,7 @@ export interface ProfileCodingConfig {
   eval?: EvalConfig
 }
 
-const ALLOWED_KEYS = new Set(['projectId', 'projectRoot', 'sessionLog', 'egress', 'modelAdapter', 'toolRegistry', 'subprocess', 'agentLoop', 'policy', 'inputGuard', 'localTools', 'memory', 'skills', 'retrieval', 'orchestrator', 'sandbox', 'router'])
+const ALLOWED_KEYS = new Set(['projectId', 'projectRoot', 'sessionLog', 'egress', 'modelAdapter', 'toolRegistry', 'subprocess', 'agentLoop', 'policy', 'inputGuard', 'localTools', 'memory', 'skills', 'retrieval', 'orchestrator', 'sandbox', 'router', 'eval'])
 const GATE_WORDS = /(polic|gate|guardrail|approval|confidence|deny)/i
 
 /** Refuse, at boot and by name, anything that tries to switch the gates off or weaken them below the floor. */
@@ -184,7 +195,7 @@ export async function bootProfileCoding(config: ProfileCodingConfig): Promise<Co
   try {
     await ctx.plugin(SessionLog, config.sessionLog)
     await ctx.plugin(EgressPolicy, { ...config.egress, projectId: config.projectId })
-    await ctx.plugin(LLMService, config.modelAdapter)
+    await ctx.plugin(LLMService, { ...config.modelAdapter, budgets: config.modelAdapter?.budgets ?? DEFAULT_CODING_BUDGETS })
     await ctx.plugin(ToolRegistry, config.toolRegistry)
     await ctx.plugin(Subprocess, config.subprocess)
     await ctx.plugin(Sandbox)
