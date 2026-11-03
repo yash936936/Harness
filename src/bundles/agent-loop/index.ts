@@ -10,6 +10,7 @@ import {
   type RunResult,
   type RunTaskOptions,
   type SystemSectionProvider,
+  type ToolRouter,
 } from './types.js'
 
 export * from './types.js'
@@ -71,6 +72,7 @@ export class AgentLoop extends Service {
   private readonly retry: Required<RetryConfig>
   private readonly sleep: (ms: number, signal?: AbortSignal) => Promise<void>
   private readonly sections: { name: string; order: number; provider: SystemSectionProvider }[] = []
+  private router?: ToolRouter
 
   constructor(ctx: Context, config: AgentLoopConfig = {}) {
     super(ctx, 'agentLoop')
@@ -104,6 +106,45 @@ export class AgentLoop extends Service {
     }
   }
 
+  /**
+   * ARCH-02: attach the router. Returns a disposer. With no router, or a router that owns nothing and is not shadowing,
+   * the loop behaves exactly as before and makes no router call at all (so no extra request).
+   */
+  useRouter(router: ToolRouter): () => void {
+    this.router = router
+    return () => {
+      if (this.router === router) this.router = undefined
+    }
+  }
+
+  /**
+   * The router's one decision point (ARCH-02), first model call of a run only. Among the READ-ONLY tools offered (the router is never
+   * shown a tool that writes, runs commands or spends), an owning router may narrow them to its pick; the model still sees every
+   * other tool unchanged, so the router can only narrow, never widen, and the policy gates still run on whatever the model calls.
+   * Not owning: if shadowing, record Needle's pick for comparison and change nothing.
+   */
+  private async routeFirstStep(opts: RunTaskOptions, toolSpecs: ToolSpec[]): Promise<{ tools: ToolSpec[]; shadowChoice?: string | null }> {
+    const r = this.router
+    if (!r) return { tools: toolSpecs }
+    const classOf = new Map(this.ctx.tools.list().map((t) => [t.name, t.actionClass]))
+    const readOnly = toolSpecs.filter((t) => classOf.get(t.name) === 'read-only')
+    if (readOnly.length < 2) return { tools: toolSpecs } // nothing to choose between
+    const req = { task: opts.prompt, sessionId: opts.sessionId, candidates: readOnly.map((t) => ({ id: t.name, description: t.description, allowed: true })) }
+    const actor = opts.actor ?? 'agent-loop'
+    if (r.owns('tool')) {
+      const d = await r.decide('tool', req)
+      if (!d.choice) return { tools: toolSpecs } // abstained or failed: the model chooses, as without a router
+      await this.ctx.log.append(opts.sessionId, 'router.applied', { class: 'tool', choice: d.choice, source: d.source, offered: readOnly.map((t) => t.name) }, actor)
+      return { tools: toolSpecs.filter((t) => classOf.get(t.name) !== 'read-only' || t.name === d.choice) }
+    }
+    if (r.shadowTool) {
+      const d = await r.shadow('tool', req)
+      await this.ctx.log.append(opts.sessionId, 'router.shadow', { class: 'tool', needle: d.choice, latencyMs: d.latencyMs, skipped: d.skipped.map((x) => x.why), offered: readOnly.map((t) => t.name) }, actor)
+      return { tools: toolSpecs, shadowChoice: d.choice }
+    }
+    return { tools: toolSpecs }
+  }
+
   private async buildSystem(base: string | undefined, sessionId: string, prompt: string, actor?: string): Promise<string | undefined> {
     const parts: string[] = base ? [base] : []
     const ordered = this.sections.map((s, i) => ({ s, i })).sort((a, b) => a.s.order - b.s.order || a.i - b.i)
@@ -135,18 +176,25 @@ export class AgentLoop extends Service {
     let retries = 0
     let reflected = false
     let requestedReflection = false
+    let routed: { tools: ToolSpec[]; shadowChoice?: string | null } = { tools: toolSpecs }
 
     while (steps < maxSteps) {
       opts.signal?.throwIfAborted()
+      if (steps === 0) routed = await this.routeFirstStep(opts, toolSpecs)
+      const stepTools = steps === 0 ? routed.tools : toolSpecs
 
       const { res, retries: r } = await this.callModel(
-        { sessionId: opts.sessionId, ...(opts.actor ? { actor: opts.actor } : {}), messages, ...(system ? { system } : {}), ...(toolSpecs.length ? { tools: toolSpecs } : {}), ...(model ? { model } : {}), ...(opts.jsonSchema ? { jsonSchema: opts.jsonSchema } : {}) },
+        { sessionId: opts.sessionId, ...(opts.actor ? { actor: opts.actor } : {}), messages, ...(system ? { system } : {}), ...(stepTools.length ? { tools: stepTools } : {}), ...(model ? { model } : {}), ...(opts.jsonSchema ? { jsonSchema: opts.jsonSchema } : {}) },
         providerChain,
         opts.signal,
       )
       retries += r
       steps++
       messages.push({ role: 'assistant', content: res.content })
+      if (steps === 1 && routed.shadowChoice !== undefined) {
+        const picked = res.toolCalls[0]?.name ?? null
+        await this.ctx.log.append(opts.sessionId, 'router.shadow.result', { needle: routed.shadowChoice, worker: picked, agreed: routed.shadowChoice !== null && picked === routed.shadowChoice }, opts.actor ?? 'agent-loop')
+      }
 
       if (res.toolCalls.length === 0) {
         if (reflectionOn && !requestedReflection) {

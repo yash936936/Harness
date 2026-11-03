@@ -1,5 +1,6 @@
 import { Context, Service } from 'cordis'
 import { RulesBackend } from './backends.js'
+import type { ToolRouter } from '../agent-loop/types.js'
 import { DECISION_CLASSES, type DecisionClass, type RouteDecision, type RouteRequest, type RouterBackend, type RouterStats, type Source } from './types.js'
 
 export * from './types.js'
@@ -26,6 +27,8 @@ export interface RouterConfig {
   backendTimeoutMs?: number
   /** Called after every decision that has a sessionId; the profile uses it to write `router.decision` into the session log. A throw is swallowed. */
   onDecision?: (sessionId: string, d: RouteDecision) => void | Promise<void>
+  /** Record what Needle WOULD pick for the first tool of each run next to what the worker did, without acting on it (`router.shadow` events). Default false. */
+  shadowTool?: boolean
   /** Max tools offered for the `tool` class (D-026: top five). Default 5. */
   maxToolCandidates?: number
 }
@@ -54,6 +57,14 @@ export class Router extends Service {
     this.owned = new Set(config.owned ?? [])
     this.timeoutMs = config.backendTimeoutMs ?? 5000
     this.maxTools = config.maxToolCandidates ?? 5
+    // ARCH-02: hand the agent loop this router whenever both exist, in either boot order. Neither requires the other.
+    ctx.inject(['agentLoop'], (c) => {
+      c.effect(() => c.agentLoop.useRouter(this as unknown as ToolRouter))
+    })
+  }
+
+  get shadowTool(): boolean {
+    return this.config.shadowTool === true
   }
 
   owns(cls: DecisionClass): boolean {
@@ -65,7 +76,8 @@ export class Router extends Service {
     return c.filter((b): b is RouterBackend => !!b)
   }
 
-  async decide(cls: DecisionClass, req: RouteRequest): Promise<RouteDecision> {
+  /** The decision in `decide`'s chain order, without recording it. Shared by `decide` and `shadow`. */
+  private async resolve(cls: DecisionClass, req: RouteRequest, chain: RouterBackend[]): Promise<RouteDecision> {
     const start = Date.now()
     let candidates = req.candidates
     if (cls === 'tool') candidates = candidates.filter((c) => c.allowed === true).slice(0, this.maxTools)
@@ -75,7 +87,7 @@ export class Router extends Service {
     let source: Source = 'none'
     let workerRequests = 0
     if (candidates.length > 0) {
-      for (const b of this.chain(cls)) {
+      for (const b of chain) {
         if (b.available) {
           let a: { ok: boolean; why?: string }
           try { a = await b.available() } catch (e: any) { a = { ok: false, why: String(e?.message ?? e).slice(0, 80) } }
@@ -106,11 +118,25 @@ export class Router extends Service {
       // a worker request would have been spent for this decision and was not
       requestSaved: choice !== null && (source === 'needle' || source === 'rules') && workerRequests === 0 && !!this.config.worker,
     }
+    return d
+  }
+
+  async decide(cls: DecisionClass, req: RouteRequest): Promise<RouteDecision> {
+    const d = await this.resolve(cls, req, this.chain(cls))
     this.rows.push(d)
     if (req.sessionId && this.config.onDecision) {
       try { await this.config.onDecision(req.sessionId, d) } catch { /* a logging hook must never break routing */ }
     }
     return d
+  }
+
+  /**
+   * ARCH-02 measurement: ask ONLY Needle (never the worker, never rules) what it would pick, and record nothing in the stats.
+   * Costs no worker request, changes no decision, and lets Needle's picks be compared with the worker's on real runs before a class
+   * is ever owned. `choice: null` when Needle is absent, unavailable, abstains, fails or answers an id that was not offered.
+   */
+  async shadow(cls: DecisionClass, req: RouteRequest): Promise<RouteDecision> {
+    return this.resolve(cls, req, this.config.needle ? [this.config.needle] : [])
   }
 
   /** Requests saved per task is recorded here and in the session log (`router.decision`). */

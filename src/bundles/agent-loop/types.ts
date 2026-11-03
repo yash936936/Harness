@@ -80,3 +80,16 @@ export interface SystemSectionContext {
 
 /** Returns the section's text, or undefined/'' to contribute nothing to this run. */
 export type SystemSectionProvider = (c: SystemSectionContext) => string | undefined | Promise<string | undefined>
+
+/**
+ * What the agent loop needs from the router (ARCH-02). Structural, so the loop does not import the router bundle and
+ * `profile-minimal` runs without one. The loop consults the router at exactly one point: the FIRST model call of a run,
+ * and only among read-only tools.
+ */
+export interface ToolRouter {
+  owns(cls: 'tool'): boolean
+  /** Opt-in measurement: ask Needle what it would pick without acting on it. */
+  readonly shadowTool: boolean
+  decide(cls: 'tool', req: { task: string; candidates: Array<{ id: string; description: string; allowed: boolean }>; sessionId: string }): Promise<{ choice: string | null; source: string }>
+  shadow(cls: 'tool', req: { task: string; candidates: Array<{ id: string; description: string; allowed: boolean }>; sessionId: string }): Promise<{ choice: string | null; latencyMs: number; skipped: Array<{ why: string }> }>
+}
