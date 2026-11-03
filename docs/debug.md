@@ -3,6 +3,12 @@
 > Append-only. Every completed coding task gets an entry here, even "no
 > issues found." Newest entries at top.
 
+## DBG-060 — security, execution, audit and Phase 6 work (D-094..D-098) — 2026-11-02
+**Tested (Linux sandbox, not the owner's machine):** typecheck clean; full suite 800+ passed / 98 skipped before Phase 6, plus 19 eval tests after. New tests per fix: seeded-secret search of the persisted log; cross-origin 301/302/307/308 and remote plaintext; 3-level and 5-level sub-agent close incl. memory grants; hostile git repo (fsmonitor, clean filter, external diff, textconv, included config) with an unhardened control; pre-aborted spawn, grandchild kill on timeout and abort, SIGTERM-ignoring tree; 25 concurrent `write_file` creators; byte limit on a source that never ends; directory swapped for a symlink; incomplete-audit reporting; long agent ids; profile manifests; fail-closed budget state; eval determinism and 9 labelled real-stack scenarios.
+**Mutation-checked:** SEC-01 (redactor removed: both tests fail), BUG-03 (old code: 25 of 25 writers succeeded). Others not mutation-checked individually.
+**Found while building:** my first SEC-04 hardening silently did nothing because `git config --list -z --show-scope` separates scope by NUL, not tab (the hostile-repo test caught it); a test of mine wrongly assumed Cordis swallows constructor errors; two of my own tests had wrong setup (consent, `toMatchObject` on undefined); calibration exposed two scorer gaps (see D-098).
+**Not tested:** Windows (process-tree kill, `link()` fallback, CI matrix), any real model, any real sandbox. The four tree tests take about 2s each here; the grandchild was observed to linger ~1.4s after SIGKILL, probably a zombie awaiting the container's init (unconfirmed).
+
 ## DBG-059 — owner's run: Crabbox 0.73.0 doctor failure and the first real router numbers — 2026-10-11
 **Tests (owner, Windows):** 44 files, 916 passed / 7 skipped (18 sandbox, 19 router); typecheck clean.
 **Crabbox:** installed (0.73.0), `crabbox doctor` ok for git and ssh-key; `smoke-crabbox.ts` failed in `doctor` with only "doctor found problems". Root cause of the missing detail: my provider discarded stdout. Fixed with a test; mutation (stderr-only) fails that test. The underlying failing check is still unseen.

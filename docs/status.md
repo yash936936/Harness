@@ -2,6 +2,12 @@
 
 > Updated every run. Newest entry at top.
 
+## 2026-11-02 — audit fixes and Phase 6 built (D-094..D-098, DBG-060)
+**Done:** SEC-01..04, BUG-01..06, BUG-08, BUG-10, BUG-11, ARCH-04, ENG-02 (CI workflow, ubuntu + windows, untested until pushed), Phase 6.1/6.2 with 6.4 partially (scripted-model, see D-098).
+**Not done from the audit:** BUG-07 and BUG-09 (cross-process log and memory locking), BUG-12 (semantic memory in the coding profile), ARCH-01 (sandbox wiring: owner decision, see below), ARCH-02 (router not consulted), ARCH-03 (budgets not enforced at the model-call boundary), ENG-01/03/04/05/07/08.
+**Owner decisions needed:** (1) ARCH-01: `run_command` still runs on the host; crabbox is not installed (DBG-058) so routing through it now would leave runs unable to execute. (2) Licence (ENG-04). (3) Label 20+ real runs with `scripts/eval-calibrate.ts` to close 6.2/6.4.
+**Next up:** run the suite on Windows; then ARCH-03, ARCH-02, BUG-12, BUG-07/09.
+
 ## 2026-10-11 — Crabbox installed; first real router numbers (D-092, D-093, DBG-059)
 Verified on Windows: 916 passed / 7 skipped (44 files); Crabbox 0.73.0 installed; WSL rsync/ssh at Linux paths. NOT verified: 5.1 lease/run/release (provider doctor fails, reason hidden by my bug, now fixed), Needle, 7B routing, items 6 and 7.
 **Owner to run next (Git Bash, repo root):** (1) `crabbox doctor --provider local-container --local-container-runtime docker` and paste ALL of it; (2) after applying this zip, `HARNESS_CRABBOX_RUNTIME=docker npx tsx scripts/smoke-crabbox.ts` (now prints the failing checks); (3) item 6: `HARNESS_TRIALS=3 npx tsx scripts/smoke-orchestrate.ts`; (4) optional: `HARNESS_ROUTER_WORKER=qwen2.5-coder:7b-instruct npx tsx scripts/eval-router.ts`.

@@ -864,7 +864,7 @@ enforcement.
   function, assert expected result.
 - Determinism test: run the same log through the same scorer twice,
   assert identical output.
-**Status:** Not started
+**Status:** BUILT 2026-11-02 (D-098). `ctx.eval`, pure `scoreEvents`; determinism and copied-log tests pass. Linux only so far.
 
 ### 6.2 — Scoring functions + thresholds
 **Goal:** At least one real scoring function per task type this project
@@ -877,7 +877,7 @@ cares about (e.g. "did the code change compile/pass tests").
 - Calibration test: run the scorer against a hand-labeled set of known
   good/bad runs, assert it agrees with the labels above an acceptable
   error rate.
-**Status:** Not started
+**Status:** BUILT, NOT CLOSED (D-098). Scorers exist and agree 9/9 with labels, but those runs use a scripted model and author-assigned labels, not real fixtures. Close it with `npm run eval -- <logDir> labels.json` on 20+ labelled real runs.
 
 ### 6.3 — eval-langfuse bundle
 **Goal:** `ctx.eval.export` — optional export to Langfuse.
@@ -902,7 +902,7 @@ ClickHouse, Redis and S3, and Langfuse Cloud sends traces off the machine.
 **Testing:**
 - End-to-end test: run a real task through the full stack, score it,
   manually verify the score matches a human judgment of the run's quality.
-**Status:** Not started
+**Status:** PARTIAL (D-098). A real `profile-coding` session (scripted model) is scored end to end; the human-judgment check on a real-model run is still owed.
 
 ---
 
