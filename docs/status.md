@@ -2,6 +2,11 @@
 
 > Updated every run. Newest entry at top.
 
+## 2026-11-02 — ARCH-03 done (D-099, DBG-061)
+**Done:** budgets and a shared rate limiter are enforced at `ctx.llm.complete` for every agent; `profile-coding` meters by default.
+**Still open from the audit:** ARCH-02 (router not consulted), BUG-12 (semantic memory in the coding profile), BUG-07/09 (cross-process log and memory locking), ENG-03/05/07, ARCH-01 (owner decision), ENG-04 licence, ENG-08 Qwen blocker.
+**Next up:** ARCH-02, then BUG-12, then BUG-07/09. Close Phase 6.2/6.4 by labelling real runs (`npm run eval`).
+
 ## 2026-11-02 — audit fixes and Phase 6 built (D-094..D-098, DBG-060)
 **Done:** SEC-01..04, BUG-01..06, BUG-08, BUG-10, BUG-11, ARCH-04, ENG-02 (CI workflow, ubuntu + windows, untested until pushed), Phase 6.1/6.2 with 6.4 partially (scripted-model, see D-098).
 **Not done from the audit:** BUG-07 and BUG-09 (cross-process log and memory locking), BUG-12 (semantic memory in the coding profile), ARCH-01 (sandbox wiring: owner decision, see below), ARCH-02 (router not consulted), ARCH-03 (budgets not enforced at the model-call boundary), ENG-01/03/04/05/07/08.

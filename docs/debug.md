@@ -3,6 +3,11 @@
 > Append-only. Every completed coding task gets an entry here, even "no
 > issues found." Newest entries at top.
 
+## DBG-061 — ARCH-03 budget gate at the model-call boundary (D-099) — 2026-11-02
+**Tested (Linux sandbox):** typecheck clean; full suite 918 passed / 98 skipped. 18 new tests: reserve/release/record semantics; pre-call refusal with nothing logged as sent; default output reservation; true-up to reported usage; over-estimate usage booked in full; concurrent calls against a limit of 3; failed call accounting; one soft warning; no-budget behaviour; agent-loop chain stops on budget; shared concurrency limit; profile default, override and opt-out.
+**Found while building:** one test of mine had wrong arithmetic (a fresh reservation near the limit is correctly refused); the profile's `ALLOWED_KEYS` rejected the `eval` option I added for Phase 6.
+**Not tested:** Windows (run the suite there), any real provider's usage reporting, a long real run against the default limits.
+
 ## DBG-060 — security, execution, audit and Phase 6 work (D-094..D-098) — 2026-11-02
 **Tested (Linux sandbox, not the owner's machine):** typecheck clean; full suite 800+ passed / 98 skipped before Phase 6, plus 19 eval tests after. New tests per fix: seeded-secret search of the persisted log; cross-origin 301/302/307/308 and remote plaintext; 3-level and 5-level sub-agent close incl. memory grants; hostile git repo (fsmonitor, clean filter, external diff, textconv, included config) with an unhardened control; pre-aborted spawn, grandchild kill on timeout and abort, SIGTERM-ignoring tree; 25 concurrent `write_file` creators; byte limit on a source that never ends; directory swapped for a symlink; incomplete-audit reporting; long agent ids; profile manifests; fail-closed budget state; eval determinism and 9 labelled real-stack scenarios.
 **Mutation-checked:** SEC-01 (redactor removed: both tests fail), BUG-03 (old code: 25 of 25 writers succeeded). Others not mutation-checked individually.
