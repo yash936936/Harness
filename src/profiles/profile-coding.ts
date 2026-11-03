@@ -10,7 +10,7 @@ import { AgentLoop, type AgentLoopConfig } from '../bundles/agent-loop/index.js'
 import { SubagentScope } from '../bundles/subagent-scope/index.js'
 import { PolicyGates, CONFIDENCE_FIELD, type PolicyConfig } from '../bundles/policy-gates/index.js'
 import { InputGuard, type InputGuardConfig } from '../bundles/input-guard/index.js'
-import { Memory, type MemoryConfig } from '../bundles/memory/index.js'
+import { Memory, MemorySemantic, type MemoryConfig, type SemanticConfig } from '../bundles/memory/index.js'
 import { RetrievalGrep, type RetrievalGrepConfig } from '../bundles/retrieval-grep/index.js'
 import { RetrievalTreesitter, type RetrievalTreesitterConfig } from '../bundles/retrieval-treesitter/index.js'
 import { RetrievalRank, type RetrievalRankConfig } from '../bundles/retrieval-rank/index.js'
@@ -93,11 +93,18 @@ export interface ProfileCodingConfig {
     tools?: RetrievalToolsConfig
   }
   orchestrator?: OrchestratorConfig
+  /**
+   * Semantic memory (3.3, BUG-12): facts searched by meaning, `ctx.memorySemantic`. Needs `retrieval.embeddings` AND `retrieval.vectorStore`;
+   * without them it is simply not loaded and the profile runs exactly as before (episodic and hot tiers need neither). Facts are stored under
+   * `memory.path` when that is set, otherwise in-process. NOTE: nothing in the agent loop reads it yet; it is a service for callers and
+   * for a later tool, not something the model currently queries by itself.
+   */
+  semanticMemory?: SemanticConfig
   /** Eval runner (Phase 6): scorer set and pass threshold. Defaults score a run from its session log alone. */
   eval?: EvalConfig
 }
 
-const ALLOWED_KEYS = new Set(['projectId', 'projectRoot', 'sessionLog', 'egress', 'modelAdapter', 'toolRegistry', 'subprocess', 'agentLoop', 'policy', 'inputGuard', 'localTools', 'memory', 'skills', 'retrieval', 'orchestrator', 'sandbox', 'router', 'eval'])
+const ALLOWED_KEYS = new Set(['projectId', 'projectRoot', 'sessionLog', 'egress', 'modelAdapter', 'toolRegistry', 'subprocess', 'agentLoop', 'policy', 'inputGuard', 'localTools', 'memory', 'skills', 'retrieval', 'orchestrator', 'sandbox', 'router', 'eval', 'semanticMemory'])
 const GATE_WORDS = /(polic|gate|guardrail|approval|confidence|deny)/i
 
 /** Refuse, at boot and by name, anything that tries to switch the gates off or weaken them below the floor. */
@@ -179,7 +186,7 @@ export const CODING_REQUIRED_SERVICES = [
  * that were configured, `skills` and `embeddings`/`vectorstore`.
  */
 export function missingServices(ctx: Context, withSkills: boolean, withEmbeddings = false): string[] {
-  return missingFrom(ctx, [...CODING_REQUIRED_SERVICES, ...(withSkills ? ['skills'] : []), ...(withEmbeddings ? ['embeddings', 'vectorstore'] : [])])
+  return missingFrom(ctx, [...CODING_REQUIRED_SERVICES, ...(withSkills ? ['skills'] : []), ...(withEmbeddings ? ['embeddings', 'vectorstore', 'memorySemantic'] : [])])
 }
 
 /**
@@ -225,6 +232,9 @@ export async function bootProfileCoding(config: ProfileCodingConfig): Promise<Co
     if (r.embeddings && r.vectorStore) {
       await ctx.plugin(Embeddings, r.embeddings)
       await ctx.plugin(LanceVectorStore, r.vectorStore)
+      // BUG-12: the fourth memory tier, loaded only where its two dependencies exist.
+      const sem = config.semanticMemory ?? {}
+      await ctx.plugin(MemorySemantic, { ...(config.memory?.path ? { path: config.memory.path } : {}), ...sem })
     }
     await ctx.plugin(RetrievalRank, { ...r.rank, root })
     await ctx.plugin(RetrievalTools, r.tools)

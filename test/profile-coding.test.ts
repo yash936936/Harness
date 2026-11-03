@@ -410,3 +410,25 @@ describe('ARCH-04 / BUG-11: a service that fails to start is named at boot', () 
     expect(missingServices(new Context(), false, true)).toEqual(expect.arrayContaining(['embeddings', 'vectorstore']))
   })
 })
+
+describe('BUG-12: semantic memory joins the coding profile when its dependencies are configured', () => {
+  const mkRoot = () => { const d = realpathSync(mkdtempSync(join(tmpdir(), 'sem-'))); mkdirSync(join(d, 'src')); return d }
+  it('without embeddings + vector store it is simply not loaded, and the profile boots as before', async () => {
+    const ctx = await bootProfileCoding({ projectId: 'p', projectRoot: mkRoot(), sessionLog: { memory: true } })
+    expect((ctx as any).memorySemantic).toBeUndefined()
+    expect(missingServices(ctx, false)).toEqual([])
+  })
+  it('with both configured it is loaded, counted in the manifest, and an unreachable embedder degrades to "saved, not indexed"', async () => {
+    const root = mkRoot()
+    const ctx = await bootProfileCoding({
+      projectId: 'p', projectRoot: root, sessionLog: { memory: true },
+      memory: { path: join(root, '.mem') },
+      retrieval: { embeddings: { ollama: { model: 'nomic-embed-text', baseUrl: 'http://127.0.0.1:9' } as any }, vectorStore: { path: join(root, '.vec') } },
+    })
+    expect(ctx.memorySemantic).toBeDefined()
+    expect(missingServices(ctx, false, true)).toEqual([])
+    const r = await ctx.memorySemantic.add({ text: 'Sessions are stored as JSONL files', why: 'Not obvious from the code layout' })
+    expect(r.created).toBe(true)
+    expect(r.indexed).toBe(false) // nothing listening on port 9: the fact is kept, search is just not available yet
+  }, 30_000)
+})
