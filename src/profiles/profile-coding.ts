@@ -76,6 +76,9 @@ export interface ProfileCodingConfig {
   /**
    * The router (4.5). Absent = `ctx.router` exists and owns nothing: every decision goes to the worker (then rules). A class goes in
    * `owned` only after it beat the worker on the frozen suite (`scripts/eval-router.ts`). Needle files missing = skipped silently.
+   * NOTE (ARCH-02): the harness's own flows consult the router at ONE point, the `tool` class on the first model call of a run. `agent` and
+   * `playbook` have no such point yet (sub-agents are planner-assigned scoped realms; skills are loaded by the model through a tool), so owning
+   * them only affects callers that call `ctx.router.decide` directly. `shadowTool: true` records Needle's tool pick next to the worker's.
    * `needle.expectedSha256` defaults to the pinned Needle digest.
    */
   router?: { needle?: CommandBackendConfig; owned?: DecisionClass[]; backendTimeoutMs?: number; shadowTool?: boolean }
@@ -108,12 +111,6 @@ function validate(config: unknown): asserts config is ProfileCodingConfig {
   }
   if (typeof c['projectId'] !== 'string' || !c['projectId'].trim()) throw new ProfileError('profile-coding: projectId is required')
   if (typeof c['projectRoot'] !== 'string' || !isAbsolute(c['projectRoot'])) throw new ProfileError('profile-coding: projectRoot is required and must be an absolute path')
-  // ARCH-02: only the `tool` class has a decision point in the harness today. `agent` (sub-agents are scoped realms the planner
-  // assigns; there are no named agent types to pick between) and `playbook` (skills are loaded by the model through a tool) have none,
-  // so owning them would silently do nothing while looking enabled. Refuse rather than mislead.
-  const owned = (c['router'] as { owned?: unknown } | undefined)?.owned
-  const notWired = (Array.isArray(owned) ? owned : []).filter((x) => x !== 'tool')
-  if (notWired.length) throw new ProfileError(`profile-coding: router.owned lists ${notWired.join(', ')}, which have no decision point in the harness yet; only "tool" is wired (first model call of a run, read-only tools)`)
   if ('policy' in c) {
     const p = c['policy']
     if (p === false || p === null || (typeof p !== 'object' && p !== undefined)) throw new ProfileError('profile-coding: the policy gates cannot be disabled in this profile')

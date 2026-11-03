@@ -7,7 +7,7 @@ import { LLMService, MockProvider } from '../src/bundles/model-adapter/index.js'
 import { ToolRegistry } from '../src/bundles/tool-registry/index.js'
 import { AgentLoop } from '../src/bundles/agent-loop/index.js'
 import { Router, type RouterBackend } from '../src/bundles/router/index.js'
-import { bootProfileCoding, ProfileError } from '../src/profiles/profile-coding.js'
+import { bootProfileCoding } from '../src/profiles/profile-coding.js'
 
 const needle = (answer: string | null | 'throw'): RouterBackend & { calls: number } => {
   const b: any = { name: 'needle', requestCost: 0, calls: 0, async decide() { b.calls++; if (answer === 'throw') throw new Error('needle broke'); return answer } }
@@ -127,12 +127,13 @@ describe('shadow mode: measure Needle against the worker without acting on it', 
   })
 })
 
-describe('profile-coding refuses to pretend', () => {
+describe('profile-coding accepts the ownership config', () => {
   const base = { projectId: 'b', projectRoot: process.cwd(), sessionLog: { memory: true } } as any
-  it.each([['agent'], ['playbook']])('owning "%s" is refused: it has no decision point', async (cls) => {
-    await expect(bootProfileCoding({ ...base, router: { owned: [cls] } })).rejects.toThrow(/no decision point/)
+  it('owning agent/playbook is allowed (direct callers of ctx.router.decide use it); the harness itself only consults "tool"', async () => {
+    const ctx = await bootProfileCoding({ ...base, router: { owned: ['agent', 'playbook', 'tool'] } })
+    expect(ctx.router.owns('agent') && ctx.router.owns('tool')).toBe(true)
   })
-  it('owning "tool" and shadowing are accepted', async () => {
-    await expect(bootProfileCoding({ ...base, router: { owned: ['tool'], shadowTool: true } })).resolves.toBeTruthy()
+  it('shadowTool is accepted', async () => {
+    await expect(bootProfileCoding({ ...base, router: { shadowTool: true } })).resolves.toBeTruthy()
   })
 })
