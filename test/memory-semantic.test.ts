@@ -273,3 +273,16 @@ describe('semantic tier (3.3): the index is derived and recoverable', () => {
     expect(await readFile(join(dir, 'mem', 'semantic.json'), 'utf8')).toBe('{ nope')
   })
 })
+
+
+describe('BUG-12 agent-facing semantic retrieval', () => {
+  it('rejects an ungranted scoped actor and returns bounded source-attributed hits', async () => {
+    const { ctx } = await boot({ withMemory: true })
+    await ctx.memorySemantic.add({ text: STORAGE, why: WHY, id: 'sourced', source: 'docs/decisions.md#D-027' })
+    await expect(ctx.memory.querySemantic('subagent:ungranted', 'storage')).rejects.toThrow(/no live memory grant/)
+    const result = await ctx.memory.querySemantic(undefined, 'storage', { k: 5, maxChars: 400 })
+    expect(result.hits).toHaveLength(1)
+    expect(result.hits[0]!.text).toContain('source=docs/decisions.md#D-027')
+    expect(result.chars).toBeLessThanOrEqual(400)
+  })
+})
