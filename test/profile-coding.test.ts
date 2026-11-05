@@ -437,7 +437,6 @@ describe('BUG-12: semantic memory joins the coding profile when its dependencies
 describe('BUG-12 model-facing retrieval tool', () => {
   it('registers only when semantic dependencies are configured and returns a fenced source-attributed response', async () => {
     const root = project()
-    const provider = new (await import('../src/bundles/embeddings/index.js')).HashingEmbeddingProvider({ dimensions: 64 })
     const ctx = await bootProfileCoding(cfg(root, {
       retrieval: {
         embeddings: {},
