@@ -4,6 +4,7 @@ import { parseArgs } from 'node:util'
 import { basename } from 'node:path'
 import { runTask } from './run.js'
 import { runWizard } from './wizard.js'
+import { runCodeTask, type CodeProvider } from './code.js'
 
 async function main(): Promise<number> {
   const io = new TerminalIO()
@@ -33,6 +34,29 @@ async function main(): Promise<number> {
       }
       const r = await runTask(io, { prompt, projectId: values.project!, kind: values.provider, model: values.model, baseUrl: values['base-url'], name: values.name, dailyLimit })
       return r.ok ? 0 : 1
+    }
+    if (process.argv[2] === 'code') {
+      const { values, positionals } = parseArgs({
+        args: process.argv.slice(3), allowPositionals: true,
+        options: {
+          provider: { type: 'string', default: 'ollama' },
+          model: { type: 'string' },
+          'base-url': { type: 'string' },
+          project: { type: 'string', default: basename(process.cwd()) },
+          sandbox: { type: 'string', default: 'auto' },
+        },
+      })
+      const task = positionals.join(' ')
+      if (!values.model || !task || (values.provider !== 'ollama' && values.provider !== 'openrouter') || (values.sandbox !== 'auto' && values.sandbox !== 'none')) {
+        io.print('usage: npm run harness -- code --model <tag-or-id> [--provider ollama|openrouter] [--base-url URL] [--project ID] [--sandbox auto|none] "<task>"')
+        return 2
+      }
+      const result = await runCodeTask(io, {
+        task, projectId: values.project!, provider: values.provider as CodeProvider, model: values.model,
+        ...(values['base-url'] ? { baseUrl: values['base-url'] } : {}),
+        sandbox: values.sandbox as 'auto' | 'none',
+      })
+      return result.ok ? 0 : 1
     }
     const result = await runWizard(io)
     return result.aborted ? 1 : 0
