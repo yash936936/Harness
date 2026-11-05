@@ -26,7 +26,7 @@
 | 1B.4 remaining implementation | PARTIAL | The terminal setup wizard exists, but is setup-only and does not start a harness task. Desktop shell screens and core/sidecar integration remain unbuilt. |
 
 ### Validation
-GitHub Actions CI was triggered for the latest branch head; check its run before merge. Connector inspection is not a substitute for running the test suite. The external acceptance gates above cannot be closed from this environment because no target Windows/Docker host, real Needle runtime, real sessions, live provider credential, or 8 GB benchmark machine was available.
+The initial CI run on this branch failed in `npm run typecheck` because the semantic tool integration test referenced a removed test-local embedding provider. That declaration was restored and duplicated assertions were removed in the next commits. A fresh CI run is pending for the latest head; do not merge until both OS jobs pass. Connector inspection is not a substitute for running the test suite. The external acceptance gates above cannot be closed from this environment because no target Windows/Docker host, real Needle runtime, real sessions, live provider credential, or 8 GB benchmark machine was available.
 # Status — Coding Harness
 
 > Updated every run. Newest entry at top.
