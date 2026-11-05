@@ -5,7 +5,7 @@ export function isScopedActor(actor: string | undefined): actor is string {
   return typeof actor === 'string' && actor.startsWith(SCOPED_ACTOR_PREFIX)
 }
 
-/** What a sub-agent may see of memory. Its OWN episodes and its OWN scoped hot rules are always visible to it; nothing else is, unless listed here. */
+/** What a sub-agent may see of memory. Its OWN episodes and its OWN scoped hot rules are visible by default; global hot rules and semantic facts require explicit capabilities. */
 export interface MemoryGrant {
   /** `global`: also sees the owner-curated global hot rules (default). `none`: sees only rules scoped to it. */
   hot: 'global' | 'none'
