@@ -3,6 +3,11 @@
 > Append-only. Every completed coding task gets an entry here, even "no
 > issues found." Newest entries at top.
 
+## DBG-062 — ARCH-02, BUG-12, BUG-07/09, ENG items (D-100..D-103) — 2026-11-03
+**Tested (Linux sandbox):** lint and typecheck clean; full suite 945 passed + new cordis-pin tests, 98 skipped. New: 14 router wiring tests (unowned = zero calls, owned narrows read-only only, abstain/throw fall back, first step only, either boot order, shadow agreement and disagreement, absent Needle); semantic memory loaded/not loaded/degraded; 11 multi-process tests with real child processes.
+**Found while building:** my first ARCH-02 profile check refused owning unwired classes and broke your 4.5 test (committed before I read the full result; fixed in the next commit); my first placement of that check was also inside the wrong `if`; the first multi-process control did not disable the lock (prototype methods); a worker fixture needed an egress service.
+**Not tested:** Windows (run `npm run check`), more than 4 concurrent processes, a network filesystem, a real Needle.
+
 ## DBG-061 — ARCH-03 budget gate at the model-call boundary (D-099) — 2026-11-02
 **Tested (Linux sandbox):** typecheck clean; full suite 918 passed / 98 skipped. 18 new tests: reserve/release/record semantics; pre-call refusal with nothing logged as sent; default output reservation; true-up to reported usage; over-estimate usage booked in full; concurrent calls against a limit of 3; failed call accounting; one soft warning; no-budget behaviour; agent-loop chain stops on budget; shared concurrency limit; profile default, override and opt-out.
 **Found while building:** one test of mine had wrong arithmetic (a fresh reservation near the limit is correctly refused); the profile's `ALLOWED_KEYS` rejected the `eval` option I added for Phase 6.

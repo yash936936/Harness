@@ -2,6 +2,11 @@
 
 > Updated every run. Newest entry at top.
 
+## 2026-11-03 — audit list complete except owner decisions (D-100..D-103, DBG-062)
+**Done since last entry:** ARCH-02, BUG-12, BUG-07, BUG-09, ENG-03, ENG-05, ENG-07.
+**Still open:** your decisions: ARCH-01 (route `run_command` through the sandbox; Crabbox still failing its doctor, D-093), ENG-04 licence, ENG-08 Qwen. Real-data work: label 20+ real agent runs for 6.2/6.4; run `router.shadowTool` on real tasks to collect Needle-vs-worker agreement (needs a real Needle).
+**Known weak spot, unfixed:** a crash mid-write can leave a torn last line in a session log that a later append then buries mid-file (D-102).
+
 ## 2026-11-02 — ARCH-03 done (D-099, DBG-061)
 **Done:** budgets and a shared rate limiter are enforced at `ctx.llm.complete` for every agent; `profile-coding` meters by default.
 **Still open from the audit:** ARCH-02 (router not consulted), BUG-12 (semantic memory in the coding profile), BUG-07/09 (cross-process log and memory locking), ENG-03/05/07, ARCH-01 (owner decision), ENG-04 licence, ENG-08 Qwen blocker.
