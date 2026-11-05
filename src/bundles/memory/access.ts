@@ -43,4 +43,8 @@ export class MemoryAccess {
   canQuerySemantic(actor: string): boolean {
     return this.semanticActors.has(actor) && this.grants.has(actor)
   }
+
+  revokeSemantic(actor: string): void {
+    this.semanticActors.delete(actor)
+  }
 }
