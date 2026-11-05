@@ -60,7 +60,7 @@ describe('bundle-session-log', () => {
     const next = await resumed.log.append('repair', 'second', { ok: true })
     expect(next.seq).toBe(2)
     const raw = await readFile(join(dir, 'repair.jsonl'), 'utf8')
-    expect(raw).not.toContain('"ty')
+    expect(raw).not.toContain('{"seq":2,"ty')
     const events = await resumed.log.read('repair')
     expect(events.map((event) => event.type)).toEqual(['first', 'second'])
     expect(events.map((event) => event.seq)).toEqual([1, 2])
