@@ -1,3 +1,10 @@
+## DBG-063 — Consolidated audit code updates — 2026-11-05
+
+**Changed:** repaired a torn final JSONL record under the per-session append lock before sequence allocation; added restart/append regression. Added bounded semantic-memory query through `ctx.memory.querySemantic`, explicit `semantic: true` sub-agent capability (default false), a conditional `search_semantic_memory` read-only tool in `profile-coding`, provenance requirement, and shared input-guard fencing. Added a 180-entry package-lock license-metadata inventory.
+
+**Review findings addressed:** semantic facts are global project knowledge, so an ordinary live memory grant must not automatically disclose them to sub-agents. Semantic permission is now separate from hot-memory permission. Manual double fencing was avoided so the common post-execute input guard owns the untrusted-result boundary. The JSONL truncation offset is computed from the exact retained prefix.
+
+**Not verified here:** no local TypeScript/Vitest process was available through the GitHub repository interface. CI triggered for the branch; result pending at the time of this entry. No real model, sandbox, Windows lock stress, live provider, or Tauri run was available. Refer to the newest `docs/status.md` for all open external gates.
 # Debug log — Coding Harness
 
 > Append-only. Every completed coding task gets an entry here, even "no
