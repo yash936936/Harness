@@ -1,5 +1,5 @@
 /** BUG-07: several PROCESSES appending to one session keep sequence numbers unique and gapless. BUG-09 uses the same lock. */
-import { spawn } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -37,6 +37,24 @@ describe('BUG-07: concurrent processes on one session log', () => {
     expect(seqs).toEqual(Array.from({ length: 160 }, (_, i) => i + 1))
     expect(existsSync(join(dir, 's.jsonl.lock'))).toBe(false) // nothing left behind
   }, 60_000)
+
+  it('repairs a torn append left by a process that exits mid-record before appending again', async () => {
+    const dir = tmp()
+    const crashed = spawnSync(process.execPath, ['--import', 'tsx', WORKER, dir, 'crash', '1', 'crasher', 'crash-tail'], {
+      encoding: 'utf8',
+      timeout: 15_000,
+    })
+    expect(crashed.status).toBe(23)
+
+    const store = new JsonlStore(dir)
+    await store.withLock('crash', async () => {
+      const seq = await store.lastSeq('crash')
+      expect(seq).toBe(1)
+      await store.append({ seq: seq + 1, ts: 'recovered', sessionId: 'crash', type: 'after-restart', data: null })
+    })
+    const events = await store.read('crash')
+    expect(events.map((event) => [event.seq, event.type])).toEqual([[1, 'before-crash'], [2, 'after-restart']])
+  }, 20_000)
 
   it('lastSeq reads the tail correctly, including a very long final event and a torn last line', async () => {
     const dir = tmp()
