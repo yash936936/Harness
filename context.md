@@ -1,95 +1,35 @@
-# Context — Coding Harness
+# Context: Coding Harness
 
-> Entry point. Read this file first, every session, before touching code or
-> any other doc. If you (the agent) jumped straight into another file, stop
-> and come back here.
+> Read this file first. The current execution state lives in `docs/status.md`; design history lives in `docs/decisions.md`.
 
-## What this project is
-A multi-agent orchestration harness for coding tasks, built on Cordis (a
-TypeScript plugin kernel for composable services/events). Every capability —
-model access, tools, retrieval, memory, sandboxing, the browser — is a Cordis
-bundle registered on a shared `ctx`. Profiles (`minimal` → `coding` →
-`research` → `full`) compose bundles into runnable stacks, so the system
-starts as a single agent with a session log and grows into a governed,
-multi-agent, multi-user harness without rearchitecting. Model access is
-provider-agnostic: local Ollama or any OpenAI-compatible cloud endpoint
-(OpenRouter first), with consent required before anything leaves the machine.
+## Project
 
-Current phase and next steps: see `docs/status.md` (the live record).
+A TypeScript multi-agent coding harness built on Cordis. Bundles provide model access, tools, retrieval, memory, sandbox providers, routing, policy gates and evaluation. Profiles compose them. The repository is `yash936936/Harness`; default branch is `main`.
 
-## Folder structure
-```
-coding-harness/
-├── context.md          ← you are here
-├── docs/                the files below
-│   ├── prd.md            product requirements — what & why
-│   ├── trd.md            technical requirements — how, constraints
-│   ├── architecture.md   full system/file structure — the map
-│   ├── phases.md         build order, phase by phase
-│   ├── decisions.md      append-only log of decisions made
-│   ├── debug.md          append-only log of bugs found & fixed
-│   ├── code_logic.md     non-obvious logic/algorithms explained
-│   ├── appflow.md        user-facing flow through the app
-│   ├── workflow.md       dev workflow across Claude/editor/coding agent
-│   ├── readme.md         public-facing readme, updated as phases complete
-│   └── status.md         current phase, last debug, last decisions — log every run
-├── src/                  actual code (bundles under src/bundles/)
-└── test/                 vitest tests, one file per bundle
-```
+## Current state (2026-11-05)
 
-Root folder on disk: `D:\Users\yash\downloads\Harness` (Git Bash:
-`/d/Users/yash/downloads/Harness`). Repository: `yash936936/Harness`, `main`.
+The latest audit work is recorded in `docs/status.md` and decisions D-100 onward. Do not rely on the older phase narrative below; read the newest status entry and the relevant decision before changing behavior.
 
-## Where to look, by task
-| I need to...                          | Read this first          |
-|----------------------------------------|---------------------------|
-| Understand the product                 | `docs/prd.md`             |
-| Understand technical constraints       | `docs/trd.md`              |
-| Understand the file/system layout      | `docs/architecture.md`    |
-| Know what to build next                | `docs/phases.md` + `docs/status.md` |
-| Understand a tricky piece of logic     | `docs/code_logic.md`      |
-| Understand how a user moves through it | `docs/appflow.md`         |
-| Know the dev process/tooling loop      | `docs/workflow.md`        |
-| See past decisions before changing something | `docs/decisions.md` |
-| See what broke before and how it was fixed | `docs/debug.md`       |
-| Know current state before starting work | `docs/status.md`         |
+**Code present:** policy-gated local tools; optional Crabbox/CubeSandbox providers behind `ctx.sandbox`; router and shadow-decision hooks; semantic memory storage and optional loading in `profile-coding`; cross-process file locks; evaluation runner and calibration script; default coding-profile model-call budgets.
 
-## Logging rules (every agent must follow these)
-- Finished a coding task → append to `docs/debug.md` (what you tested, what
-  broke, what you fixed) even if nothing broke ("no issues found").
-- Made a design/implementation decision → append to `docs/decisions.md` with
-  an ID (`D-00N`), what was decided, and why (alternatives considered if any).
-- End of every work session/run → update `docs/status.md`: current phase,
-  what changed, what's next.
-- Completed a phase → update `docs/readme.md` to reflect current real
-  capabilities (not aspirational ones) and mark the phase done in
-  `docs/phases.md`.
+**Not equivalent to verified completion:** fake-provider tests do not prove a live sandbox works; scripted-model tests do not prove model quality; a router's existence does not prove Needle wins; semantic tier startup does not establish that every agent retrieves useful facts; a passing typecheck does not establish platform runtime behavior.
 
-## Roles: who writes the code
-- **Current mode: Claude-only.** Claude writes and checks the implementation
-  code, and also does the review: run it, compare it with
-  `docs/architecture.md` and `docs/phases.md`, look for bugs. "Wrote it" is
-  not "done".
-- **opencode is suspended**, not removed. It re-enters only when the owner
-  says so explicitly ("switching to opencode for X"). Do not assume a switch
-  and do not ask after every task.
-- Every session, including a new chat resuming this project: read this file,
-  then `docs/status.md`, then check `docs/decisions.md` before proposing
-  anything that could contradict a logged decision. `docs/workflow.md` has
-  the working loop.
+## Required reading
 
-## Next task
-Phases 1-3 done. Phase 4 STARTED: 4.3 `subagent-scope` built (tools verified on Windows; memory scoping built 4.3b, D-073, pending the owner's Windows run); 4.1 planner and 4.2 executor built (D-071, D-075); real-model run: 6/9 and 7/9 valid unconstrained, so structured output was added (D-072), effect unmeasured (`scripts/smoke-plan.ts`). Real-model run 2 (D-070) satisfied the
-"some model calls tools" gate but NOT "uses memory/skills": hot rule no effect and load_skill 1/3 on both 3B models (n=3). Treat workers as weak.
-Phases 4.1-4.4 are CLOSED (D-077): Windows-verified, and real-model validity/completion measured (planner 30/30 valid after repair, 29/30 first try with the schema; first executor run 0 failures in 30 subtasks). Not measured: answer correctness, real failures through D-074. Phase 5.3-5.5 policy gates BUILT (D-079): deny-list, always-hold external effects, confidence-scored writes with approvals. Real tools BUILT (D-080, `tools-local`: read_file/edit_file/write_file/run_command; commandRisk signal must be passed to the gate). `profile-coding` BUILT and Windows-verified (5.6, D-081, D-082): refuses to boot with gates off; `verifyGates` self-test; all five classes tested in one run. Next: a first real-model run on it, then 5.1/router/Phase 6. Windows `npm` via run_command is unverified and likely fails. Owner still owes: the smoke-plan comparison (D-072) and the first real run of `scripts/smoke-execute.ts`. Memory scoping is decided and built (D-073); the executor failure policy is decided (D-074: abort by default,
-retry and continue opt-in). Owner decision still pending: which model plans (see `docs/status.md`).
-D-068: `ToolContext.allowedTools` makes the registry refuse tools the caller was not offered; keep passing it from any new loop caller.
-Known gaps: `input-guard` (D-083) fences and flags tool results and `deriveLessons` writes templated lessons, but detection is heuristic and a real model has never been shown to respect a fence; compaction (D-064) and skills (D-065) remain poisoning surfaces in any profile that does not use `profile-coding` (it wires memory, input-guard, subagents, and skills when dirs are named); orchestrator dependency results are still only labelled, not fenced; a real model has never followed a hot rule. Rules learned: a bundle must declare every service it touches in
-`static inject`; LanceDB tests need `vi.setConfig({ testTimeout: 60_000, hookTimeout: 120_000 })`; owner's shell is Git Bash (`VAR=x cmd`); scripted-model
-tests are plumbing tests only; reproduce a suspected bug with a test before fixing; no assistant attribution on git commits.
-Still open from earlier phases: labelled retrieval benchmark (Phase 6), Tauri sidecar measurement and 1B.4, Qwen research-license replacement before
-any commercial release (D-049).
-2026-10-10 (D-089): `scripts/smoke-orchestrate.ts` built for open item 6 (which model plans) and 7a/7b; it has NOT been run on a real model. Run it, then record results before choosing a planner.
-2026-10-10 (D-090): 5.1 and 5.2 built, verified only against fakes. Real-world checks: `scripts/smoke-crabbox.ts`, `scripts/smoke-cubesandbox.ts`. Phase 5 is not closed until they pass.
-2026-10-10 (D-091): router built (`ctx.router`, owns nothing by default). 4.5 is not closed until a real Needle wins a class on `scripts/eval-router.ts`.
-2026-10-11 (D-092, D-093): first real router numbers recorded (worker 3B vs rules; no Needle). Crabbox 0.73.0 installed on Windows; 5.1 still unverified.
+1. `docs/status.md`: newest status entry and outstanding evidence gates.
+2. `docs/decisions.md`: relevant D-IDs before changing architecture or defaults.
+3. `docs/phases.md`: acceptance criteria and phase boundaries.
+4. `docs/debug.md`: historical findings. Append new findings; do not rewrite history.
+
+## Workflow rules
+
+- Keep policy gates fail-closed. Never weaken checks to make a test pass.
+- Do not route `run_command` to a sandbox until a configured provider passes doctor and a real lease/run/release smoke test on the target platform. Until then, it remains an explicitly acknowledged host-execution risk.
+- Keep `router.owned` empty for any decision class without measured Needle-vs-worker evidence on the frozen suite. Shadow results are measurement, not authorization.
+- Treat semantic memory as untrusted input. Retrieval must be bounded, source-attributed, scoped to the requesting actor, and passed through input-guard before becoming model-visible.
+- Never synthesize real-run labels, provider results, usage, or performance measurements.
+- Real external checks require the owner's configured services/credentials and machine. Record command, date, environment, result, and raw log path.
+
+## End-of-run
+
+Append technical findings to `docs/debug.md`, design decisions to `docs/decisions.md`, and update `docs/status.md`. Update the public-facing `docs/readme.md` only to describe capabilities actually verified.
