@@ -432,3 +432,28 @@ describe('BUG-12: semantic memory joins the coding profile when its dependencies
     expect(r.indexed).toBe(false) // nothing listening on port 9: the fact is kept, search is just not available yet
   }, 30_000)
 })
+
+
+describe('BUG-12 model-facing retrieval tool', () => {
+  it('registers only when semantic dependencies are configured and returns a fenced source-attributed response', async () => {
+    const root = project()
+    const { HashingEmbeddingProvider } = await import('../src/bundles/embeddings/index.js')
+    const provider = new HashingEmbeddingProvider({ dimensions: 64 })
+    const ctx = await bootProfileCoding(cfg(root, {
+      retrieval: {
+        embeddings: {},
+        vectorStore: { path: join(root, '.memory-vectors') },
+      },
+      semanticMemory: { path: join(root, '.memory') },
+    }))
+    ctx.embeddings.register(provider)
+    await ctx.embeddings.embed(['prime fingerprint'])
+    const added = await ctx.memorySemantic.add({ text: 'Persistence uses a local vector index', why: 'The storage decision is not inferable from API names.', source: 'docs/decisions.md#D-027' })
+    expect(added.indexed).toBe(true)
+    const tool = await ctx.tools.call('search_semantic_memory', { query: 'where is persistence stored' }, { sessionId: 'semantic-model' })
+    if (!tool.ok) throw new Error(tool.content)
+    expect(tool.ok).toBe(true)
+    expect(tool.content).toContain('<<<DATA')
+    expect(tool.content).toContain('docs/decisions.md#D-027')
+  })
+})

@@ -1,3 +1,32 @@
+## 2026-11-05 — consolidated audit closeout update (PR #1)
+
+### Repository-local changes in this branch
+- **ENG-04:** Apache-2.0 added for original repository work. `THIRD_PARTY_LICENSES.md` inventories all 180 package-lock entries. License metadata: MIT 159, Apache-2.0 14, BSD-3-Clause 2, ISC 2, Unlicense 1, 0BSD 1, undeclared 1. `json-bignum@0.0.3` requires verification and a release-specific bundle review remains before redistribution.
+- **ENG-08:** the logged allowlist decision is exact-model scoped. Qwen2.5-Coder-7B-Instruct only with verified immutable revision and artifact digest; Qwen2.5-Coder-3B-Instruct is excluded from commercial distribution absent separate written permission. No model weights are redistributed by this PR.
+- **Session log:** append repairs a malformed final tail under the per-session lock before calculating the next sequence; a restart/append test covers the repair path. Earlier corruption is still rejected.
+- **BUG-12:** `search_semantic_memory` is registered only when embeddings and vector store are configured. It is read-only, caps hit count and text, requires a non-empty source for model-visible facts, passes the requesting actor through an explicit semantic grant check, and uses the common input-guard post-execute fence. Sub-agent semantic access defaults off and requires `memory: { semantic: true }` in the sub-agent grant.
+- **ARCH-02:** router remains safely unowned by default. The new implementation does not pretend Needle has won; no real Needle comparison was available.
+- **File locking:** source retains fail-closed exclusive lock acquisition and token-checked release. Cross-platform stress and paused-holder evidence remain incomplete.
+
+### Acceptance checklist
+| Item | State | Closure evidence or remaining gate |
+|---|---|---|
+| ARCH-01 sandbox-only `run_command` | OPEN | Crabbox doctor and real lease/run/release must pass on target Windows/Docker before routing; host fallback has not been removed because that would break execution today. |
+| ENG-04 Apache-2.0 + notices | PARTIAL | Project license and 180-entry lockfile metadata inventory added. Verify `json-bignum@0.0.3` license and the exact packaged dependency set before redistribution. |
+| ENG-08 Qwen | DECIDED | Exact 7B Instruct allowlist only after immutable revision/hash verification; 3B excluded absent written commercial permission. |
+| Phase 6.2, 20 real labels | OPEN | Needs 20+ real model-driven sessions, independently labelled before inspecting scores; none fabricated. |
+| Phase 6.4 real-data evaluation | OPEN | Needs evaluation on that committed real-label dataset and human agreement record. |
+| ARCH-02 Needle shadow/evaluation | OPEN | Needs real Needle wrapper/runtime and frozen-suite + real-task shadow evidence. |
+| ARCH-02 router ownership | COMPLETE SAFE DEFAULT | `router.owned` stays empty for unmeasured classes. |
+| Session-log torn-write recovery | IMPLEMENTED, CI PENDING | Under-lock repair + restart/append regression committed; CI will validate TypeScript and test behavior. |
+| File-lock safety | PARTIAL | Advisory locks and multiprocess tests exist; paused-live-holder and target filesystem/platform stress still need actual Windows/Linux runs. |
+| BUG-12 semantic retrieval | IMPLEMENTED, CI PENDING | Agent tool is bounded, source-attributed, read-only, actor-granted, and fenced by input-guard; new tests cover grant enforcement and wired path. Real-model retrieval quality/poisoning acceptance still needs real-model evidence. |
+| OpenRouter live provider | OPEN | Requires owner key/model and consumes provider quota; no live request was made. |
+| Tauri sidecar decision | OPEN | Existing benchmark harness is present; real builds, install size, cold start and idle-memory-with-core measurements remain unavailable. Prior D-048 provisional Tauri choice is not evidence-complete and is superseded by this explicit hold. |
+| 1B.4 remaining implementation | PARTIAL | The terminal setup wizard exists, but is setup-only and does not start a harness task. Desktop shell screens and core/sidecar integration remain unbuilt. |
+
+### Validation
+The initial CI run on this branch failed in `npm run typecheck` because the semantic tool integration test referenced a removed test-local embedding provider. That declaration was restored and duplicated assertions were removed in the next commits. A fresh CI run is pending for the latest head; do not merge until both OS jobs pass. Connector inspection is not a substitute for running the test suite. The external acceptance gates above cannot be closed from this environment because no target Windows/Docker host, real Needle runtime, real sessions, live provider credential, or 8 GB benchmark machine was available.
 # Status — Coding Harness
 
 > Updated every run. Newest entry at top.
@@ -899,3 +928,58 @@ their own success criteria and tests — work one sub-phase at a time.
 
 ---
 **Next:** Return to [`context.md`](../context.md).
+
+
+## 2026-11-05 — Consolidated audit closeout (branch `work/audit-closeout-2026-11`)
+
+This entry distinguishes code present from acceptance evidence. No machine-specific or credential-dependent result is claimed by this repository edit.
+
+### Complete in the inspected source tree
+
+- **ENG-04 (project license text):** Apache License 2.0 is added as `LICENSE`. This licenses this repository's original work only; it does not relicense third-party dependencies or model weights. Third-party notices still require a dependency inventory before redistribution.
+- **BUG-07 / BUG-09:** cross-process lock integration is present in session and semantic-memory persistence. Lock correctness remains limited to the supported local-filesystem assumptions documented in the implementation.
+- **BUG-12 (service wiring):** `profile-coding` loads `MemorySemantic` only when both embeddings and vector-store configuration are present. This verifies service startup wiring, not a real-task retrieval quality claim.
+- **ARCH-02 (partial integration):** current profile wiring includes the router and optional shadow tool decision. No decision class is authorized for Needle ownership without a real Needle comparison.
+- **Phase 6 harness:** `scripts/eval-calibrate.ts` supports real JSONL logs and human labels. The repository currently contains too few real labels to claim Phase 6.2/6.4 complete.
+
+### Open acceptance gates (not marked complete)
+
+| ID | State | Evidence still required |
+|---|---|---|
+| ARCH-01 | OPEN | Crabbox doctor and real lease/run/release pass on the target Windows/Docker host, then route `run_command` through the provider with no host fallback. Keep host execution visibly classified as real-fs-write until then. |
+| ENG-04 | PARTIAL | `LICENSE` added. Complete third-party notices only after generating and reviewing the exact dependency/license inventory for the shipped distribution. |
+| ENG-08 Qwen license | DECIDED FOR ALLOWLIST, NOT GLOBAL | Exact Qwen2.5-Coder-7B-Instruct (Hugging Face repo `Qwen/Qwen2.5-Coder-7B-Instruct`) is tagged Apache-2.0; Qwen2.5-Coder-3B-Instruct (repo `Qwen/Qwen2.5-Coder-3B-Instruct`) is tagged `qwen-research`, whose agreement grants non-commercial rights only and says commercial users must request a license. Decision: allowlist only a specifically pinned 7B artifact for commercial distribution, subject to revision/hash verification; reject the 3B model for commercial distribution absent a separate written license. |
+| Phase 6.2 | OPEN | At least 20 actual model-driven runs, labeled independently before viewing scores, with both good and bad outcomes. Commit labels and session-log provenance. |
+| Phase 6.4 | OPEN | Run calibration on the committed real log set; record scorer version, threshold, agreement, disagreements, and reproducible command/output. |
+| ARCH-02 Needle evaluation | OPEN | Provide a real Needle executable/wrapper and pinned model files; run `scripts/eval-router.ts`, then run shadow comparisons over real tasks. Script stand-ins are not evidence. |
+| ARCH-02 ownership decision | SAFE DEFAULT | Leave `router.owned` empty for unmeasured classes. This is the evidence-based safe decision, not a claim Needle won. |
+| Session log torn-write recovery | OPEN | Current reader tolerates a torn final line, but does not repair/truncate it before the next append. Add crash/reopen/append regression and prove the repaired file has no corrupt middle line. |
+| File-lock safety | PARTIAL | Cross-process locking exists. Verify paused-live-owner behavior and multi-process stress on Windows and Linux; a filesystem lock's stale-lock policy must not be treated as proven by unit tests alone. |
+| BUG-12 semantic retrieval | PARTIAL | Service is loaded when dependencies exist. Still require a model-facing, actor-scoped retrieval tool/section, bounded result count/tokens, provenance, input-guard fencing, and poisoning tests. Do not expose raw facts directly to a model. |
+| OpenRouter live provider | OPEN | Perform one opt-in request with an owner-supplied key/model; preserve redacted request metadata and successful response log. No live credentials used in this run. |
+| Tauri / 1B.4 | OPEN | Build the real sidecar and app on target Windows machine; record installer size, cold-start time, idle memory and sidecar lifecycle before choosing Tauri. |
+| 1B.4 remaining implementation | OPEN | Terminal wizard is still the AppCore client gap. Define and pass its acceptance criteria; do not claim complete from standalone AppCore tests. |
+
+### Commands for the remaining local acceptance work
+
+```sh
+# target Windows machine, with Docker and Crabbox configured
+crabbox doctor --provider local-container --local-container-runtime docker
+HARNESS_CRABBOX_RUNTIME=docker npx tsx scripts/smoke-crabbox.ts
+
+# real Needle wrapper plus real worker; do not set HARNESS_STANDIN
+HARNESS_ROUTER_CMD="..." HARNESS_ROUTER_FILES="..." npx tsx scripts/eval-router.ts
+
+# real run labels: use the actual SessionLog directory from the profile runs
+npx tsx scripts/eval-calibrate.ts <logDir> labels.json
+
+# OpenRouter: explicit owner credential and exact model id; consumes API quota
+HARNESS_LIVE_OPENROUTER=1 OPENROUTER_API_KEY=... OPENROUTER_MODEL=... npx vitest run test/openai-compatible.test.ts
+
+# after a >=20-run independently labelled dataset is committed
+npm run eval -- <logDir> labels.json
+```
+
+### Validation performed in this repository edit
+
+GitHub source inspection only. No TypeScript compiler, Vitest, Windows, Docker, Crabbox, Ollama/Needle, OpenRouter, or Tauri process was available through the repository connector. Do not interpret this PR's documentation update as a passing test run.

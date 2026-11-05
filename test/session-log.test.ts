@@ -48,6 +48,25 @@ describe('bundle-session-log', () => {
     await expect(c.log.read('t')).rejects.toThrow(/Corrupt/)
   })
 
+
+
+  it('repairs a torn final record before appending after restart', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'slog-repair-'))
+    const first = await boot({ path: dir })
+    await first.log.append('repair', 'first', { ok: true })
+    await appendFile(join(dir, 'repair.jsonl'), '{"seq":2,"ty')
+
+    const resumed = await boot({ path: dir })
+    const next = await resumed.log.append('repair', 'second', { ok: true })
+    expect(next.seq).toBe(2)
+    const raw = await readFile(join(dir, 'repair.jsonl'), 'utf8')
+    expect(raw).not.toContain('{"seq":2,"ty')
+    expect(raw.split('\n').filter(Boolean).every((line) => { try { JSON.parse(line); return true } catch { return false } })).toBe(true)
+    const events = await resumed.log.read('repair')
+    expect(events.map((event) => event.type)).toEqual(['first', 'second'])
+    expect(events.map((event) => event.seq)).toEqual([1, 2])
+  })
+
   it('forks without modifying the original', async () => {
     const ctx = await boot({ memory: true })
     for (const t of ['a', 'b', 'c']) await ctx.log.append('orig', t)

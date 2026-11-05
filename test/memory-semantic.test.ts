@@ -80,6 +80,7 @@ async function boot(o: { provider?: EmbeddingProvider; dbPath?: string; sem?: Se
     await ctx.plugin(Memory, {})
   }
   await ctx.plugin(MemorySemantic, o.sem ?? {})
+  if (o.withMemory) ctx.memory.setSemanticService(ctx.memorySemantic)
   return { ctx, provider }
 }
 
@@ -271,5 +272,26 @@ describe('semantic tier (3.3): the index is derived and recoverable', () => {
     const c = await boot(opts)
     await expect(c.ctx.memorySemantic.add({ text: 'new', why: WHY })).rejects.toThrow(/unreadable/)
     expect(await readFile(join(dir, 'mem', 'semantic.json'), 'utf8')).toBe('{ nope')
+  })
+})
+
+
+describe('BUG-12 agent-facing semantic retrieval', () => {
+  it('rejects an ungranted scoped actor and returns bounded source-attributed hits', async () => {
+    const { ctx } = await boot({ withMemory: true })
+    await ctx.memorySemantic.add({ text: STORAGE, why: WHY, id: 'sourced', source: 'docs/decisions.md#D-027' })
+    await expect(ctx.memory.querySemantic('subagent:ungranted', 'storage')).rejects.toThrow(/no live memory grant/)
+    ctx.memory.access.grant('subagent:denied', { hot: 'global' })
+    await expect(ctx.memory.querySemantic('subagent:denied', 'storage')).rejects.toThrow(/no semantic-memory grant/)
+    ctx.memory.access.grant('subagent:permitted', { hot: 'none' })
+    ctx.memory.access.grantSemantic('subagent:permitted')
+    expect((await ctx.memory.querySemantic('subagent:permitted', 'storage', { k: 5, maxChars: 400 })).hits).toHaveLength(1)
+    ctx.memory.access.revokeSemantic('subagent:permitted')
+    await expect(ctx.memory.querySemantic('subagent:permitted', 'storage')).rejects.toThrow(/no semantic-memory grant/)
+    ctx.memory.access.grantSemantic('subagent:permitted')
+    const result = await ctx.memory.querySemantic(undefined, 'storage', { k: 5, maxChars: 400 })
+    expect(result.hits).toHaveLength(1)
+    expect(result.hits[0]!.text).toContain('source=docs/decisions.md#D-027')
+    expect(result.chars).toBeLessThanOrEqual(400)
   })
 })

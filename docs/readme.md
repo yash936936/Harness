@@ -136,3 +136,8 @@ See `docs/architecture.md` for full details and the dependency register.
 
 ---
 **Next:** Return to [`context.md`](../context.md).
+
+
+## Audit acceptance status (2026-11-05)
+
+The repository includes sandbox-provider adapters, router hooks, semantic-memory storage, cross-process file locking, and a real-log calibration script. These are implementation capabilities, not proof of live provider operation or real-model quality. The current outstanding checks are documented in `docs/status.md`: target-host Crabbox doctor and lease smoke, at least 20 independently labelled real agent runs, real Needle-versus-worker comparison and shadow traffic, torn-tail repair before append, lock stress on supported filesystems, a real-model retrieval quality/poisoning evidence, one live OpenRouter call, and Tauri/1B.4 measurements. A bounded agent-facing semantic-memory tool is now implemented and covered by tests, subject to CI. Do not describe those gates as complete until their raw evidence is recorded.

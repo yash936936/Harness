@@ -5,7 +5,7 @@ export function isScopedActor(actor: string | undefined): actor is string {
   return typeof actor === 'string' && actor.startsWith(SCOPED_ACTOR_PREFIX)
 }
 
-/** What a sub-agent may see of memory. Its OWN episodes and its OWN scoped hot rules are always visible to it; nothing else is, unless listed here. */
+/** What a sub-agent may see of memory. Its OWN episodes and its OWN scoped hot rules are visible by default; global hot rules and semantic facts require explicit capabilities. */
 export interface MemoryGrant {
   /** `global`: also sees the owner-curated global hot rules (default). `none`: sees only rules scoped to it. */
   hot: 'global' | 'none'
@@ -17,6 +17,7 @@ export interface MemoryGrant {
  */
 export class MemoryAccess {
   private grants = new Map<string, MemoryGrant>()
+  private semanticActors = new Set<string>()
 
   grant(actor: string, grant: MemoryGrant = { hot: 'global' }): void {
     if (!isScopedActor(actor)) throw new Error(`memory access: "${actor}" is not a sub-agent actor (expected "${SCOPED_ACTOR_PREFIX}<id>")`)
@@ -26,10 +27,24 @@ export class MemoryAccess {
 
   revoke(actor: string): void {
     this.grants.delete(actor)
+    this.semanticActors.delete(actor)
   }
 
   get(actor: string): MemoryGrant | undefined {
     const g = this.grants.get(actor)
     return g ? { ...g } : undefined
+  }
+
+  grantSemantic(actor: string): void {
+    if (!isScopedActor(actor) || !this.grants.has(actor)) throw new Error(`memory access: cannot grant semantic access to inactive actor "${actor}"`)
+    this.semanticActors.add(actor)
+  }
+
+  canQuerySemantic(actor: string): boolean {
+    return this.semanticActors.has(actor) && this.grants.has(actor)
+  }
+
+  revokeSemantic(actor: string): void {
+    this.semanticActors.delete(actor)
   }
 }

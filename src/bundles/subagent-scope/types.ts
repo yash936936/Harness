@@ -12,7 +12,7 @@ export interface SubagentSpec {
   parent?: string
   system?: string
   maxSteps?: number
-  /** Memory this agent may see (D-073). Default `{ hot: 'global' }`: its own episodes and scoped rules, plus global hot rules. Ignored when the memory bundle is not loaded. */
+  /** Memory this agent may see (D-073). Default `{ hot: 'global' }`: its own episodes and scoped rules, plus global hot rules. Semantic facts require the separate explicit `semantic: true` grant. Ignored when the memory bundle is not loaded. */
   memory?: MemoryGrant
 }
 

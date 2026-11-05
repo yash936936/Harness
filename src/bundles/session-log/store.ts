@@ -1,4 +1,4 @@
-import { appendFile, mkdir, open, readFile, readdir } from 'node:fs/promises'
+import { appendFile, mkdir, open, readFile, readdir, truncate } from 'node:fs/promises'
 import { withFileLock } from '../../util/filelock.js'
 import { join } from 'node:path'
 import type { SessionEvent, SessionStore } from './types.js'
@@ -44,10 +44,12 @@ export class JsonlStore implements SessionStore {
   }
 
   /**
-   * The last sequence number actually in the file, found by reading from the END (a long log is not re-read on every append). A torn final
-   * line (a crash mid-write) is skipped, exactly as `read` tolerates it.
+   * Find the last valid sequence. When the final record is torn, truncate only
+   * that incomplete tail while the caller holds withLock(), before any later
+   * append can bury it in the middle of the file.
    */
   async lastSeq(sessionId: string): Promise<number> {
+    await this.repairTornTail(sessionId)
     let fh
     try {
       fh = await open(this.file(sessionId), 'r')
@@ -63,7 +65,6 @@ export class JsonlStore implements SessionStore {
         const buf = Buffer.alloc(len)
         await fh.read(buf, 0, len, size - len)
         const lines = buf.toString('utf8').split('\n')
-        // when the window does not start at the file start, the first line may be cut: ignore it
         const complete = len < size ? lines.slice(1) : lines
         for (let i = complete.length - 1; i >= 0; i--) {
           const line = complete[i]!.trim()
@@ -72,14 +73,41 @@ export class JsonlStore implements SessionStore {
             const seq = JSON.parse(line).seq
             if (typeof seq === 'number') return seq
           } catch {
-            /* torn tail line: look further back */
+            /* malformed final record is repaired before this scan */
           }
         }
         if (len >= size) return 0
-        window *= 4 // no complete line in this window (a very long event): widen
+        window *= 4
       }
     } finally {
       await fh.close()
+    }
+  }
+
+  /** Repair a malformed final non-empty line; corruption before it is never discarded. */
+  private async repairTornTail(sessionId: string): Promise<void> {
+    let text: string
+    try {
+      text = await readFile(this.file(sessionId), 'utf8')
+    } catch (e: any) {
+      if (e?.code === 'ENOENT') return
+      throw e
+    }
+    const lines = text.split('\n')
+    let end = text.length
+    for (let i = lines.length - 1; i >= 0; i--) {
+      if (!lines[i]!.trim()) continue
+      try {
+        JSON.parse(lines[i]!)
+        return
+      } catch {
+        const isFinal = lines.slice(i + 1).every((line) => !line.trim())
+        if (!isFinal) throw new Error(`Corrupt session log ${sessionId}: line ${i + 1} is not valid JSON`)
+        // Keep the newline after the last complete record, removing the bad tail.
+        end = lines.slice(0, i).join('\n').length + (i > 0 ? 1 : 0)
+        await truncate(this.file(sessionId), end)
+        return
+      }
     }
   }
 
@@ -104,7 +132,6 @@ export class JsonlStore implements SessionStore {
       try {
         events.push(JSON.parse(line))
       } catch {
-        // A torn final line (crash mid-write) is tolerated; corruption elsewhere is not.
         const isLast = lines.slice(i + 1).every((l) => !l.trim())
         if (isLast) break
         throw new Error(`Corrupt session log ${sessionId}: line ${i + 1} is not valid JSON`)
