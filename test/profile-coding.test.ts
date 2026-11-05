@@ -437,7 +437,8 @@ describe('BUG-12: semantic memory joins the coding profile when its dependencies
 describe('BUG-12 model-facing retrieval tool', () => {
   it('registers only when semantic dependencies are configured and returns a fenced source-attributed response', async () => {
     const root = project()
-    const provider = new (await import('../src/bundles/embeddings/index.js')).HashingEmbeddingProvider({ dimensions: 64 })
+    const { HashingEmbeddingProvider } = await import('../src/bundles/embeddings/index.js')
+    const provider = new HashingEmbeddingProvider({ dimensions: 64 })
     const ctx = await bootProfileCoding(cfg(root, {
       retrieval: {
         embeddings: {},
@@ -446,9 +447,10 @@ describe('BUG-12 model-facing retrieval tool', () => {
       semanticMemory: { path: join(root, '.memory') },
     }))
     ctx.embeddings.register(provider)
+    await ctx.embeddings.embed(['prime fingerprint'])
     await ctx.memorySemantic.add({ text: 'Persistence uses a local vector index', why: 'The storage decision is not inferable from API names.', source: 'docs/decisions.md#D-027' })
     const tool = await ctx.tools.call('search_semantic_memory', { query: 'where is persistence stored' }, { sessionId: 'semantic-model' })
-    expect(tool.ok).toBe(true)
+    expect(tool.ok, tool.content).toBe(true)
     expect(tool.content).toContain('<<<DATA')
     expect(tool.content).toContain('docs/decisions.md#D-027')
   })
