@@ -11,16 +11,16 @@ describe('real-run calibration input validation', () => {
     expect(result.classCounts).toEqual({ good: 1, bad: 1 })
   })
 
-  it('rejects stale labels instead of counting them toward calibration', () => {
+  it('reports stale labels without counting them toward calibration', () => {
     const result = validateHumanRunLabels(
       { realGood: 'good', staleBad: 'bad' },
       ['realGood'],
     )
     expect(result.unknownIds).toEqual(['staleBad'])
-    expect(result.classCounts).toEqual({ good: 1, bad: 1 })
+    expect(result.classCounts).toEqual({ good: 1, bad: 0 })
   })
 
-  it('rejects malformed maps and labels', () => {
+  it('rejects malformed maps, blank IDs, and invalid labels', () => {
     expect(() => validateHumanRunLabels([], ['s1'])).toThrow(/must be an object/)
     expect(() => validateHumanRunLabels({ s1: 'maybe' }, ['s1'])).toThrow(/must be "good" or "bad"/)
     expect(() => validateHumanRunLabels({ ' ': 'good' }, [' '])).toThrow(/session ID/)
