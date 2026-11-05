@@ -18,6 +18,12 @@ export interface CrabboxConfig {
   expectedVersion?: string
   /** Max time for each crabbox control call (warmup, stop, list). Default 300000. */
   controlTimeoutMs?: number
+  /**
+   * Directory the crabbox CLI is started in. `crabbox run` syncs the CURRENT checkout into the box (docs/commands/run.md), so this
+   * decides which tree the sandbox sees. `profile-coding` sets it to the project root; without it the subprocess default (the
+   * harness process's own cwd) is used, which may be a different project or the harness repo itself.
+   */
+  cwd?: string
   /** Extra env var NAMES copied from the process env to the crabbox process (PATH, HOME, DOCKER_HOST... are already included). */
   envAllowlist?: string[]
 }
@@ -47,6 +53,7 @@ export class CrabboxProvider implements SandboxProvider {
   private readonly binArgs: string[]
   private readonly controlTimeout: number
   private readonly envNames: string[]
+  private readonly cwd?: string
 
   constructor(private readonly subprocess: Subprocess, private readonly cfg: CrabboxConfig = {}) {
     this.provider = cfg.provider ?? 'local-container'
@@ -54,6 +61,7 @@ export class CrabboxProvider implements SandboxProvider {
     this.binArgs = cfg.binArgs ?? []
     this.controlTimeout = cfg.controlTimeoutMs ?? 300_000
     this.envNames = [...BASE_ENV, ...(cfg.envAllowlist ?? [])]
+    this.cwd = cfg.cwd
     this.destination = LOCAL.has(this.provider) ? 'local' : 'remote'
     if (this.destination === 'remote') this.host = cfg.host ?? this.provider
   }
@@ -61,7 +69,7 @@ export class CrabboxProvider implements SandboxProvider {
   private cb(args: string[], timeoutMs: number, signal?: AbortSignal) {
     const env: Record<string, string> = {}
     for (const n of this.envNames) if (process.env[n] !== undefined) env[n] = process.env[n]!
-    return this.subprocess.run(this.bin, [...this.binArgs, ...args], { envAllowlist: this.envNames, env, timeoutMs, signal })
+    return this.subprocess.run(this.bin, [...this.binArgs, ...args], { envAllowlist: this.envNames, env, timeoutMs, signal, ...(this.cwd ? { cwd: this.cwd } : {}) })
   }
 
   async doctor(): Promise<SandboxDoctor> {
@@ -88,21 +96,30 @@ export class CrabboxProvider implements SandboxProvider {
     let leaseTried = false
     let rel: { released: boolean; note?: string } = { released: false, note: 'release not attempted' }
     let run: Awaited<ReturnType<CrabboxProvider['cb']>> | undefined
+    // Crabbox normalizes a requested slug and may add a suffix (docs/commands/warmup.md), so the id used for run/stop is read back
+    // from warmup's own output when it says one, and release is confirmed against EVERY name the lease might be listed under.
+    let leaseId = slug
+    const names = new Set<string>([slug])
     try {
       leaseTried = true
       const w = await this.cb(warm, this.controlTimeout, req.signal)
       if (w.spawnError || w.exitCode !== 0) {
         throw new SandboxError('unreachable', `crabbox: could not lease a box (${w.spawnError ?? (w.stderr || w.stdout).trim().slice(0, 300)})`)
       }
-      run = await this.cb(['run', '--provider', this.provider, '--id', slug, '--', ...req.command], req.timeoutMs ?? 0, req.signal)
+      const said = (w.stdout + '\n' + w.stderr).match(/slug=(\S+)/)?.[1]
+      const cbx = (w.stdout + '\n' + w.stderr).match(/\bcbx_[0-9a-f]{12}\b/)?.[0]
+      if (said) names.add(said)
+      if (cbx) names.add(cbx)
+      leaseId = said ?? slug
+      run = await this.cb(['run', '--provider', this.provider, '--id', leaseId, '--', ...req.command], req.timeoutMs ?? 0, req.signal)
     } finally {
       if (leaseTried) {
-        rel = await this.release(slug)
+        rel = await this.release(leaseId, names)
       }
     }
     return {
       provider: this.name,
-      leaseId: slug,
+      leaseId,
       exitCode: run!.exitCode,
       ...(run!.spawnError ? { spawnError: run!.spawnError } : {}),
       stdout: run!.stdout,
@@ -114,14 +131,24 @@ export class CrabboxProvider implements SandboxProvider {
     }
   }
 
-  /** Stop, then confirm via `list`. Retried once. Never throws: a failed release is reported, not hidden. */
-  private async release(slug: string): Promise<{ released: boolean; note?: string }> {
+  /**
+   * Stop, then confirm via `list`. Retried once. Never throws: a failed release is reported, not hidden.
+   * Released means BOTH that `stop` exited 0 AND that `list` no longer shows the lease under any name it could have. Trusting `list`
+   * alone would report a leak as released whenever `list` prints a different identifier than the one we looked for.
+   */
+  private async release(id: string, names: Set<string>): Promise<{ released: boolean; note?: string }> {
     let note = ''
     for (let attempt = 0; attempt < 2; attempt++) {
-      const s = await this.cb(['stop', '--provider', this.provider, slug], this.controlTimeout)
+      const s = await this.cb(['stop', '--provider', this.provider, id], this.controlTimeout)
       const l = await this.cb(['list', '--provider', this.provider], this.controlTimeout)
-      if (l.exitCode === 0 && !l.stdout.includes(slug)) return { released: true }
-      note = l.exitCode !== 0 ? `could not confirm release: list failed (${(l.stderr || l.spawnError || '').trim().slice(0, 120)})` : `lease ${slug} still listed after stop (stop exit ${s.exitCode})`
+      const stillListed = [...names].some((n) => l.stdout.includes(n))
+      if (s.exitCode === 0 && !s.spawnError && l.exitCode === 0 && !stillListed) return { released: true }
+      note =
+        l.exitCode !== 0
+          ? `could not confirm release: list failed (${(l.stderr || l.spawnError || '').trim().slice(0, 120)})`
+          : stillListed
+            ? `lease ${id} still listed after stop (stop exit ${s.exitCode})`
+            : `stop failed (exit ${s.exitCode}${s.spawnError ? ', ' + s.spawnError : ''}): ${(s.stderr || s.stdout).trim().slice(0, 120)}`
     }
     return { released: false, note }
   }

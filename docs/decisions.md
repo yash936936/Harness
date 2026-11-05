@@ -1,3 +1,23 @@
+## D-106 — Independent code review: sandbox, lock and deny-list findings — 2026-11-06
+
+**Why this entry exists:** a full local run was green (955 passed / 98 skipped) while Docker and crabbox had never been started. That is expected and was not stated plainly enough: every sandbox test drives `test/fixtures/fake-crabbox.mjs` or a fake E2B client, so a green suite proves the wrapper's logic against a fake, not against crabbox or Docker. Upstream (openclaw/crabbox docs) was read to compare the wrapper with the real CLI.
+
+**Defects found and fixed (each has a test that fails on the old code):**
+1. `CrabboxProvider` never set the directory crabbox starts in. `crabbox run` syncs the CURRENT directory into the box, so the sandbox saw whatever directory the harness happened to be launched from, not the project. Added `cwd`; `profile-coding` now sets it to `projectRoot`.
+2. `release()` ignored `stop`'s exit code and treated "`list` output does not contain my slug" as "released". With a real crabbox, `list` can print a different identifier, so a failed stop could be reported as released. Release now requires stop exit 0 AND absence under every name the lease may carry.
+3. The harness assumed the slug it requested is the lease id. Crabbox normalizes slugs and may add a suffix. The id for `run`/`stop` is now read from warmup's own `slug=` output (falling back to the requested slug), and the `cbx_` id is also checked on `list`.
+4. `filelock`: a lock file left EMPTY by a crash between create and write was never judged by age (the code returned early, contradicting its comment), so it blocked every caller until deleted by hand. Now broken once older than `staleMs`; a young empty lock is still waited for.
+5. Deny-list gaps: remote branch deletion (`git push --delete`, `:branch`), `dd of=/dev/…`, `mkfs*`, `shred`, `wipefs`, pipe-to-shell (`curl … | sh`), and `/proc/*/environ`. Added. `git reset --hard` and `git clean` are deliberately NOT denied: they are local and recoverable, and `commandRisk` already holds them for approval.
+
+**Not fixed, stated plainly (open):**
+- `npm run harness -- run` makes ONE bare model call. It has no agent loop, tools, policy gates or sandbox. `profile-coding` is reached only by scripts and tests. The "governed run" is not yet reachable from the user-facing command.
+- `CrabboxProvider` is still unverified against a real crabbox and Docker. Added `test/sandbox-real.test.ts` (opt-in, `npm run test:real-sandbox`) to do that on a machine with Docker; until it has been run and its output recorded, Phase 5.1 stays open.
+- CubeSandbox is untested against a real host (x86_64 Linux + KVM).
+- `app/desktop/` contains only the Electron/Tauri benchmark hello-worlds; there is no desktop UI.
+- Not reviewed in this pass: model-adapter, memory, retrieval, orchestrator, eval-runner.
+
+**Affects:** Phase 5.1 evidence, `docs/status.md`, `docs/readme.md`. D-0xx entries that described the sandbox as verified should be read as "verified against a fake".
+
 ## D-105 — Third-party and model license source verification — 2026-11-06
 
 **Verified from upstream sources:** json-bignum@0.0.3 has no npm license metadata, but its upstream repository https://github.com/datalanche/json-bignum explicitly identifies an MIT license and contains a LICENSE file. Keep its MIT notice in third-party distributions. This resolves the metadata ambiguity, not the release-artifact inventory: determine whether it is included in the actual packaged output before shipping.

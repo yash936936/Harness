@@ -18,7 +18,8 @@
     "lint": "tsc --noEmit --noUnusedLocals --noUnusedParameters",
     "smoke:openrouter": "tsx scripts/smoke-openrouter.ts",
     "license:inventory": "tsx scripts/license-inventory.ts",
-    "verify:model-artifact": "tsx scripts/verify-model-artifact.ts"
+    "verify:model-artifact": "tsx scripts/verify-model-artifact.ts",
+    "test:real-sandbox": "node scripts/real-sandbox.mjs"
   },
   "dependencies": {
     "@lancedb/lancedb": "0.30.0",

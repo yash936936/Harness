@@ -1,3 +1,10 @@
+## DBG-066 — Review findings: crabbox cwd/release/slug, empty file lock, deny-list gaps — 2026-11-06
+
+**Tested:** full suite before changes (955 passed / 98 skipped, typecheck clean) and after (977 passed / 100 skipped, `npm run lint` clean). The new `test/audit-review-2026-11.test.ts` was run against the OLD source first: the crabbox slug, blind-list release and cwd tests, the new deny-list cases, and the empty-lock test all FAILED there, then pass on the fix.
+**Found:** see D-106 (items 1-5).
+**Fixed:** `src/bundles/sandbox-crabbox/index.ts`, `src/profiles/profile-coding.ts` (cwd), `src/util/filelock.ts`, `src/bundles/policy-gates/denylist.ts`. Added `test/fixtures/fake-crabbox-real-shaped.mjs` (shaped from upstream docs), `test/sandbox-real.test.ts` (opt-in), `scripts/real-sandbox.mjs`.
+**Not tested:** any real crabbox or Docker run. This change does not close Phase 5.1.
+
 ## DBG-065 — Command-risk policy and sandbox-only LocalTools consistency — 2026-11-06
 
 **Source reviewed:** the owner's `dc42330619907739a565dd81a43b5e4fa44eeb04` archive, the current worktree patch, and the 48-failure Vitest log.

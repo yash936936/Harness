@@ -49,9 +49,15 @@ async function tryBreakStale(lockPath: string, staleMs: number): Promise<boolean
   let body: { pid?: number } = {}
   try {
     before = await stat(lockPath)
+  } catch {
+    return true // vanished between our attempts: just retry
+  }
+  try {
     body = JSON.parse(await readFile(lockPath, 'utf8'))
   } catch {
-    return before === undefined // vanished between our attempts: just retry; unreadable but present: judge by age below
+    // Present but empty or half-written: its owner is either mid-write (young: keep waiting) or died between creating and writing it
+    // (old: it must be breakable, or one crash wedges the lock for good). Judged by age below, with no pid to check.
+    body = {}
   }
   const dead = typeof body.pid === 'number' && !pidAlive(body.pid)
   const old = Date.now() - before.mtimeMs > staleMs
