@@ -1,7 +1,7 @@
 export type HumanRunLabel = 'good' | 'bad'
 export type HumanRunLabels = Record<string, HumanRunLabel>
 
-export function validateHumanRunLabels(value: unknown, availableIds: readonly string[]): {
+export function validateHumanRunLabels(value: unknown, availableIds: readonly string[] = []): {
   labels: HumanRunLabels
   unknownIds: string[]
   classCounts: { good: number; bad: number }
@@ -11,14 +11,18 @@ export function validateHumanRunLabels(value: unknown, availableIds: readonly st
   }
   const labels = value as Record<string, unknown>
   for (const [id, label] of Object.entries(labels)) {
-    if (!id.trim() || (label !== 'good' && label !== 'bad')) {
+    if (!id.trim()) throw new Error('label session ID must not be blank')
+    if (label !== 'good' && label !== 'bad') {
       throw new Error(`label for ${JSON.stringify(id)} must be "good" or "bad", got ${JSON.stringify(label)}`)
     }
   }
   const available = new Set(availableIds)
   const unknownIds = Object.keys(labels).filter((id) => !available.has(id))
+  const matchedLabels = Object.entries(labels)
+    .filter(([id]) => available.has(id))
+    .map(([, label]) => label as HumanRunLabel)
   const classCounts = { good: 0, bad: 0 }
-  for (const label of Object.values(labels) as HumanRunLabel[]) classCounts[label]++
+  for (const label of matchedLabels) classCounts[label]++
   return { labels: labels as HumanRunLabels, unknownIds, classCounts }
 }
 
