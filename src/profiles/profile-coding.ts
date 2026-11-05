@@ -215,7 +215,7 @@ export async function bootProfileCoding(config: ProfileCodingConfig): Promise<Co
       onDecision: async (sid, d) => { await ctx.log.append(sid, 'router.decision', { class: d.class, choice: d.choice, source: d.source, requestSaved: d.requestSaved, latencyMs: d.latencyMs, skipped: d.skipped }, 'router') },
       backendTimeoutMs: config.router?.backendTimeoutMs,
     })
-    if (config.sandbox?.crabbox) ctx.sandbox.register(new CrabboxProvider(ctx.subprocess, config.sandbox.crabbox), { default: config.sandbox.default === 'crabbox' })
+    if (config.sandbox?.crabbox) ctx.sandbox.register(new CrabboxProvider(ctx.subprocess, { cwd: root, ...config.sandbox.crabbox }), { default: config.sandbox.default === 'crabbox' })
     if (config.sandbox?.cubesandbox) ctx.sandbox.register(new CubeSandboxProvider(config.sandbox.cubesandbox), { default: config.sandbox.default === 'cubesandbox' })
     await ctx.plugin(AgentLoop, config.agentLoop)
     await ctx.plugin(Memory, { deriveLessons: true, ...config.memory })

@@ -1,3 +1,9 @@
+## 2026-11-06 — independent code review (D-106, DBG-066)
+
+- Reviewed the repo against upstream crabbox docs. Fixed five defects (crabbox working directory, release confirmation, slug normalization, empty-lock wedge, deny-list gaps); tests added and shown to fail on the old code.
+- A green `npm test` does not mean Docker ran: sandbox tests use fakes. Run `npm run test:real-sandbox` on a Docker machine and record the output before calling 5.1 closed.
+- Open and not hidden: `harness run` is a single bare model call (no tools, gates or sandbox); no desktop UI exists beyond the benchmark apps.
+
 ## 2026-11-06 — remaining closeout work in progress
 
 - Added a child-process crash fixture and regression test that exits after writing a partial JSONL record, then verifies the next locked append repairs the tail and preserves valid sequence order. This is a process-interruption simulation, not proof against power loss or storage-controller failure.

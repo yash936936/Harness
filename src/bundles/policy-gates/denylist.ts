@@ -134,6 +134,50 @@ const gitForcePush: DenyRule = {
   },
 }
 
+const gitRemoteDelete: DenyRule = {
+  id: 'git-remote-delete',
+  description: 'git push --delete / -d, or an empty-source refspec (:branch): deletes a remote branch, which cannot be undone from here',
+  matches(strings) {
+    for (const n of norms(strings)) for (const toks of segments(n)) {
+      const g = toks.findIndex((t) => cmdName(t) === 'git')
+      if (g < 0) continue
+      const p = toks.indexOf('push', g + 1)
+      if (p < 0) continue
+      const bad = toks.slice(p + 1).find((t) => t === '--delete' || t === '-d' || (t.startsWith(':') && t.length > 1))
+      if (bad) return `"git push ... ${bad}"`
+    }
+    return undefined
+  },
+}
+
+const diskDestroy: DenyRule = {
+  id: 'disk-destroy',
+  description: 'dd/cat/redirect writing to a block device, mkfs*, wipefs, shred, format, diskpart clean',
+  matches(strings) {
+    for (const n of norms(strings)) {
+      const m = /\bof=\/dev\/(sd|hd|vd|nvme|mmcblk|disk|loop)\S*|>\s*\/dev\/(sd|hd|vd|nvme|mmcblk|disk)\S*/.exec(n)
+      if (m) return `"${m[0].slice(0, 60)}"`
+      for (const toks of segments(n)) for (const t of toks) {
+        const c = cmdName(t)
+        if (c === 'wipefs' || c === 'shred' || c === 'diskpart' || c === 'mkfs' || /^mkfs\.[a-z0-9]+$/.test(c)) return `"${c}"`
+      }
+    }
+    return undefined
+  },
+}
+
+const pipeToShell: DenyRule = {
+  id: 'pipe-to-shell',
+  description: 'curl/wget output piped straight into a shell or interpreter (runs unreviewed remote code)',
+  matches(strings) {
+    for (const n of norms(strings)) {
+      const m = /\b(curl|wget|iwr|invoke-webrequest)\b[^|;&]*\|\s*(sudo\s+)?(sh|bash|zsh|dash|python3?|node|perl|ruby|iex|invoke-expression|powershell|pwsh)\b/.exec(n)
+      if (m) return `"${m[0].slice(0, 60)}"`
+    }
+    return undefined
+  },
+}
+
 const CREDENTIAL_PATTERNS: [RegExp, string][] = [
   [/(^|\/)\.aws\/(credentials|config)\b/, 'AWS credentials file'],
   [/(^|\/)\.ssh\//, 'SSH directory'],
@@ -153,6 +197,7 @@ const CREDENTIAL_PATTERNS: [RegExp, string][] = [
   [/(^|\/)\.azure\//, 'Azure credentials directory'],
   [/(^|\/)\.config\/gh\/hosts\.ya?ml\b/, 'GitHub CLI token'],
   [/^\/etc\/shadow\b|\s\/etc\/shadow\b/, '/etc/shadow'],
+  [/(^|\/)proc\/(self|\d+)\/environ\b/, 'process environment (holds secrets)'],
 ]
 const credentialPaths: DenyRule = {
   id: 'credential-path',
@@ -169,4 +214,4 @@ const credentialPaths: DenyRule = {
   },
 }
 
-export const BUILTIN_DENY_RULES: readonly DenyRule[] = [rmRecursiveForce, windowsRecursiveDelete, findDelete, codeRecursiveDelete, gitForcePush, credentialPaths]
+export const BUILTIN_DENY_RULES: readonly DenyRule[] = [rmRecursiveForce, windowsRecursiveDelete, findDelete, codeRecursiveDelete, gitForcePush, gitRemoteDelete, diskDestroy, pipeToShell, credentialPaths]
