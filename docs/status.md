@@ -1,3 +1,9 @@
+## 2026-11-06 — remaining closeout work in progress
+
+- Added a child-process crash fixture and regression test that exits after writing a partial JSONL record, then verifies the next locked append repairs the tail and preserves valid sequence order. This is a process-interruption simulation, not proof against power loss or storage-controller failure.
+- Corrected the root README's stale statement that no project license had been chosen. Apache-2.0 applies to original repository work only; third-party packages and model weights remain separately licensed.
+- External acceptance gates remain open until real evidence is captured: Crabbox/CubeSandbox execution, independently labelled real model runs, Needle comparisons, live OpenRouter call, and Tauri measurements.
+
 ## 2026-11-05 — consolidated audit closeout update (PR #1)
 
 ### Repository-local changes in this branch
