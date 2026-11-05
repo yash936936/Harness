@@ -1,0 +1,76 @@
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, describe, expect, it } from 'vitest'
+import { bootProfileCoding } from '../src/profiles/profile-coding.js'
+import { MockProvider } from '../src/bundles/model-adapter/index.js'
+
+const roots: string[] = []
+afterEach(() => { for (const d of roots.splice(0)) rmSync(d, { recursive: true, force: true }) })
+function makeProject() {
+  const root = mkdtempSync(join(tmpdir(), 'harness-code-')); roots.push(root)
+  mkdirSync(join(root, 'src')); writeFileSync(join(root, 'README.md'), 'prototype')
+  return root
+}
+const reply = (v: unknown) => ({ text: typeof v === 'string' ? v : JSON.stringify(v) })
+const plan = reply({ subtasks: [{ id: 'readme', goal: 'Read README.md', tools: ['read_file'], dependsOn: [] }] })
+
+describe('governed profile code path', () => {
+  it('runs planner and sub-agent against a scripted provider, recording the session', async () => {
+    const root = makeProject()
+    const ctx = await bootProfileCoding({
+      projectId: 'scripted', projectRoot: root, sessionLog: { path: join(root, '.harness', 'sessions') },
+      modelAdapter: { ollama: { model: 'scripted' } }, orchestrator: { maxRepairs: 0 },
+    })
+    const mock = new MockProvider([plan, reply('README contains prototype.')])
+    ctx.llm.register('scripted', mock, { default: true })
+    const sid = ctx.log.create()
+    const tools = ctx.tools.list().map(t => t.name).filter(n => n !== 'run_command')
+    await ctx.log.append(sid, 'code.started', { root, tools }, 'test')
+    const p = await ctx.orchestrator.plan({ sessionId: sid, task: 'Read README.md', tools, provider: 'scripted' })
+    const result = await ctx.orchestrator.execute(p.plan, { sessionId: sid, allowedTools: tools, provider: 'scripted' })
+    const events = await ctx.log.read(sid)
+    expect(result.status).toBe('completed')
+    expect(events.map(e => e.type)).toContain('plan.created')
+    expect(events.map(e => e.type)).toContain('execute.finished')
+    expect(events.map(e => e.type)).toContain('tool.call')
+    expect(events.map(e => e.type)).not.toContain('approval.pending')
+    expect(tools).not.toContain('run_command')
+    await ctx.stop()
+  })
+
+  it('holds and logs a file-write approval before touching disk', async () => {
+    const root = makeProject()
+    let approvalCalled = false
+    const ctx = await bootProfileCoding({
+      projectId: 'approval', projectRoot: root, sessionLog: { memory: true },
+      modelAdapter: { ollama: { model: 'scripted' } },
+      policy: { approver: async () => { approvalCalled = true; return { approve: true, by: 'terminal-test' } } },
+    })
+    const sid = ctx.log.create()
+    await ctx.tools.call('write_file', { path: 'approved.txt', content: 'approved', confidence: 0 }, { sessionId: sid })
+    const events = await ctx.log.read(sid)
+    expect(approvalCalled).toBe(true)
+    expect(events.map(e => e.type)).toContain('approval.pending')
+    expect(events.map(e => e.type)).toContain('approval.resolved')
+    expect(readFileSync(join(root, 'approved.txt'), 'utf8')).toBe('approved')
+    await ctx.stop()
+  })
+
+  it('refuses OpenRouter before any request when the environment key is missing', async () => {
+    const prior = process.env.OPENROUTER_API_KEY
+    delete process.env.OPENROUTER_API_KEY
+    try {
+      const { runCodeTask } = await import('../src/cli/code.js')
+      const output: string[] = []
+      const io = { print: (line: string) => output.push(line), ask: async () => '', confirm: async () => false }
+      const result = await runCodeTask(io, {
+        task: 'inspect', projectRoot: makeProject(), provider: 'openrouter', model: 'demo/model:free', dockerAvailable: false,
+      })
+      expect(result.ok).toBe(false)
+      expect(output.join('\n')).toContain('BLOCKED-KEY')
+    } finally {
+      if (prior !== undefined) process.env.OPENROUTER_API_KEY = prior
+    }
+  })
+})
