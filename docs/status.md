@@ -899,3 +899,58 @@ their own success criteria and tests — work one sub-phase at a time.
 
 ---
 **Next:** Return to [`context.md`](../context.md).
+
+
+## 2026-11-05 — Consolidated audit closeout (branch `work/audit-closeout-2026-11`)
+
+This entry distinguishes code present from acceptance evidence. No machine-specific or credential-dependent result is claimed by this repository edit.
+
+### Complete in the inspected source tree
+
+- **ENG-04 (project license text):** Apache License 2.0 is added as `LICENSE`. This licenses this repository's original work only; it does not relicense third-party dependencies or model weights. Third-party notices still require a dependency inventory before redistribution.
+- **BUG-07 / BUG-09:** cross-process lock integration is present in session and semantic-memory persistence. Lock correctness remains limited to the supported local-filesystem assumptions documented in the implementation.
+- **BUG-12 (service wiring):** `profile-coding` loads `MemorySemantic` only when both embeddings and vector-store configuration are present. This verifies service startup wiring, not a real-task retrieval quality claim.
+- **ARCH-02 (partial integration):** current profile wiring includes the router and optional shadow tool decision. No decision class is authorized for Needle ownership without a real Needle comparison.
+- **Phase 6 harness:** `scripts/eval-calibrate.ts` supports real JSONL logs and human labels. The repository currently contains too few real labels to claim Phase 6.2/6.4 complete.
+
+### Open acceptance gates (not marked complete)
+
+| ID | State | Evidence still required |
+|---|---|---|
+| ARCH-01 | OPEN | Crabbox doctor and real lease/run/release pass on the target Windows/Docker host, then route `run_command` through the provider with no host fallback. Keep host execution visibly classified as real-fs-write until then. |
+| ENG-04 | PARTIAL | `LICENSE` added. Complete third-party notices only after generating and reviewing the exact dependency/license inventory for the shipped distribution. |
+| ENG-08 Qwen license | DECIDED FOR ALLOWLIST, NOT GLOBAL | Exact Qwen2.5-Coder 7B Instruct is Apache-2.0 per the Qwen model-family license table and its Hugging Face model card. Qwen2.5-Coder 3B/3B-Instruct is Qwen Research, not Apache-2.0. Pin the exact artifact/revision and license file before shipping weights; do not infer a family's license from a different size. |
+| Phase 6.2 | OPEN | At least 20 actual model-driven runs, labeled independently before viewing scores, with both good and bad outcomes. Commit labels and session-log provenance. |
+| Phase 6.4 | OPEN | Run calibration on the committed real log set; record scorer version, threshold, agreement, disagreements, and reproducible command/output. |
+| ARCH-02 Needle evaluation | OPEN | Provide a real Needle executable/wrapper and pinned model files; run `scripts/eval-router.ts`, then run shadow comparisons over real tasks. Script stand-ins are not evidence. |
+| ARCH-02 ownership decision | SAFE DEFAULT | Leave `router.owned` empty for unmeasured classes. This is the evidence-based safe decision, not a claim Needle won. |
+| Session log torn-write recovery | OPEN | Current reader tolerates a torn final line, but does not repair/truncate it before the next append. Add crash/reopen/append regression and prove the repaired file has no corrupt middle line. |
+| File-lock safety | PARTIAL | Cross-process locking exists. Verify paused-live-owner behavior and multi-process stress on Windows and Linux; a filesystem lock's stale-lock policy must not be treated as proven by unit tests alone. |
+| BUG-12 semantic retrieval | PARTIAL | Service is loaded when dependencies exist. Still require a model-facing, actor-scoped retrieval tool/section, bounded result count/tokens, provenance, input-guard fencing, and poisoning tests. Do not expose raw facts directly to a model. |
+| OpenRouter live provider | OPEN | Perform one opt-in request with an owner-supplied key/model; preserve redacted request metadata and successful response log. No live credentials used in this run. |
+| Tauri / 1B.4 | OPEN | Build the real sidecar and app on target Windows machine; record installer size, cold-start time, idle memory and sidecar lifecycle before choosing Tauri. |
+| 1B.4 remaining implementation | OPEN | Terminal wizard is still the AppCore client gap. Define and pass its acceptance criteria; do not claim complete from standalone AppCore tests. |
+
+### Commands for the remaining local acceptance work
+
+```sh
+# target Windows machine, with Docker and Crabbox configured
+crabbox doctor --provider local-container --local-container-runtime docker
+HARNESS_CRABBOX_RUNTIME=docker npx tsx scripts/smoke-crabbox.ts
+
+# real Needle wrapper plus real worker; do not set HARNESS_STANDIN
+HARNESS_ROUTER_CMD="..." HARNESS_ROUTER_FILES="..." npx tsx scripts/eval-router.ts
+
+# real run labels: use the actual SessionLog directory from the profile runs
+npx tsx scripts/eval-calibrate.ts <logDir> labels.json
+
+# OpenRouter: explicit owner credential and exact model id; consumes API quota
+HARNESS_LIVE_OPENROUTER=1 OPENROUTER_API_KEY=... OPENROUTER_MODEL=... npx vitest run test/openai-compatible.test.ts
+
+# after a >=20-run independently labelled dataset is committed
+npm run eval -- <logDir> labels.json
+```
+
+### Validation performed in this repository edit
+
+GitHub source inspection only. No TypeScript compiler, Vitest, Windows, Docker, Crabbox, Ollama/Needle, OpenRouter, or Tauri process was available through the repository connector. Do not interpret this PR's documentation update as a passing test run.
