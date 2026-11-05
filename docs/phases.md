@@ -1025,3 +1025,8 @@ not just concurrent bundles.
 
 ---
 **Next:** Return to [`context.md`](../context.md).
+
+
+## 2026-11-05 audit state
+
+The status of audit items is recorded in the newest `docs/status.md` entry. In particular, built code, fake-provider tests, scripted-model scenarios, and real external acceptance tests are separate evidence classes. Phases 6.2/6.4, live sandbox validation, real Needle evaluation, live OpenRouter, Tauri measurement, and the remaining 1B.4 wizard client are not complete until their stated acceptance evidence is committed.
