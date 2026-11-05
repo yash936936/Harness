@@ -205,6 +205,29 @@ export class Memory extends Service {
     }
   }
 
+  /** Search the semantic tier for this actor. Results are always revalidated against the actor grant. */
+  async querySemantic(actor: string | undefined, text: string, opts: { k?: number; minScore?: number; maxChars?: number } = {}) {
+    if (isScopedActor(actor) && !this.access.get(actor)) throw new MemoryError(`memory: "${actor}" has no live memory grant`)
+    if (!this.ctx.memorySemantic) throw new MemoryError('memory: semantic retrieval is not configured')
+    const k = Math.min(opts.k ?? 5, 8)
+    if (!Number.isInteger(k) || k < 1) throw new MemoryError('memory: semantic retrieval k must be between 1 and 8')
+    const maxChars = Math.min(opts.maxChars ?? 2400, 4000)
+    if (!Number.isInteger(maxChars) || maxChars < 1) throw new MemoryError('memory: semantic retrieval maxChars must be between 1 and 4000')
+    const result = await this.ctx.memorySemantic.query(text, { k, ...(opts.minScore !== undefined ? { minScore: opts.minScore } : {}) })
+    if (!result.ok) throw new MemoryError(`memory: semantic retrieval failed (${result.error.kind})`)
+    const hits = []
+    let used = 0
+    for (const hit of result.hits) {
+      const fact = hit.fact
+      if (!fact.source || !fact.source.trim()) continue
+      const body = `[semantic id=${fact.id} source=${fact.source} score=${hit.score.toFixed(3)}] ${fact.text} Why: ${fact.why}`
+      if (used + body.length > maxChars) continue
+      hits.push({ id: fact.id, source: fact.source, score: hit.score, text: body })
+      used += body.length
+    }
+    return { hits, stale: result.stale, chars: used }
+  }
+
   /**
    * Promote lessons that recur across episodes into the hot tier (3.4). Manual
    * entry point; `compaction.everyTurns` also calls it from `runTurn`.
