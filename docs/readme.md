@@ -7,8 +7,7 @@ stacks, from a single-agent smoke-test kernel up to a governed, multi-agent,
 multi-user system.
 
 ## Status
-Phases 1 and 2 are done, Phase 3 (memory and skills) is built, and Phase 4 has started (`subagent-scope` with tool and memory scoping, and the planner and the executor exist; see D-069, D-071, D-073, D-075). This file was
-behind the code for a while; the per-phase lists below are what exists and is tested. Phase 1 (the `profile-minimal` kernel):
+Phases 1-4 are closed (D-077). Phase 5 (sandbox, policy gates, `tools-local`, `profile-coding`) is built; the real sandbox smoke runs have not passed (DBG-058/059), so it is not closed. Phase 4.5 (router) is built and not closed: no class is owned until a real Needle beats the worker (D-091/D-092). Phase 6 (`ctx.eval`) is built; 6.2 and 6.4 are not closed because they need labelled real runs (D-098). Audit fixes D-094 to D-099 and later are in. The per-phase lists below were written as each phase landed and are not all updated; `docs/status.md` and `docs/phases.md` are the authority. Phase 1 (the `profile-minimal` kernel):
 
 - `ctx.log`: append-only session log with replay and fork (1.1).
 - `ctx.llm`: provider registry with Ollama (local), an OpenAI-compatible
@@ -84,8 +83,7 @@ compaction and skills both become text in the system prompt, so a poisoned lesso
 partial protections exist until the policy gates in Phase 5 (see `docs/decisions.md` D-064, D-065). No profile enables
 memory or skills yet, and no real chat model has driven the loop.
 
-Not built yet: the Phase 4 router, remote sandboxes (Phase 5.1/5.2), any real-model run of `profile-coding` (it is built and tested with scripted models, D-081), a real sandbox-write or external-side-effect tool, evals (Phase 6),
-the browser (Phase 7), multi-user scale (Phase 8). See `docs/phases.md` and `docs/status.md`.
+Not done: real-model runs of `profile-coding` at scale (it is tested with scripted models, D-081), a verified remote sandbox (5.1/5.2 pass only against fakes), a real sandbox-write or external-side-effect tool, labelled real-run calibration of the evals (Phase 6.2/6.4), the Langfuse export (6.3, deferred to Phase 8), the browser (Phase 7), multi-user scale (Phase 8). Concurrent processes sharing one data directory are now locked (the session log and the memory stores), but this is advisory, local-filesystem only, and tested here on Linux and Windows with a handful of processes. See `docs/phases.md` and `docs/status.md`.
 
 ## What data leaves your machine
 The harness collects no telemetry. What leaves depends on how you set it up:

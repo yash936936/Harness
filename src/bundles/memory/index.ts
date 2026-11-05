@@ -17,7 +17,7 @@ import {
   type RecordTurnInput,
   type ScopedMemory,
 } from './types.js'
-import { MemoryAccess, isScopedActor, type MemoryGrant } from './access.js'
+import { MemoryAccess, isScopedActor } from './access.js'
 
 export * from './types.js'
 export { JsonlEpisodeStore, MemoryEpisodeStore } from './store.js'

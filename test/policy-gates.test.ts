@@ -7,7 +7,7 @@ import { ToolRegistry, type ActionClass, type ToolCallEvent, type ToolDefinition
 import { LLMService, MockProvider } from '../src/bundles/model-adapter/index.js'
 import { AgentLoop } from '../src/bundles/agent-loop/index.js'
 import { SubagentScope } from '../src/bundles/subagent-scope/index.js'
-import { BUILTIN_DENY_RULES, PolicyError, PolicyGates, confidenceProperty, type ApprovalDecision, type PolicyConfig } from '../src/bundles/policy-gates/index.js'
+import { BUILTIN_DENY_RULES, PolicyError, PolicyGates, confidenceProperty, type PolicyConfig } from '../src/bundles/policy-gates/index.js'
 
 const ROOT = process.platform === 'win32' ? 'C:\\proj' : '/proj'
 const objSchema = { type: 'object' }

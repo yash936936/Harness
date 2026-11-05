@@ -1,4 +1,5 @@
-import { appendFile, mkdir, readFile, readdir } from 'node:fs/promises'
+import { appendFile, mkdir, open, readFile, readdir } from 'node:fs/promises'
+import { withFileLock } from '../../util/filelock.js'
 import { join } from 'node:path'
 import type { SessionEvent, SessionStore } from './types.js'
 
@@ -34,6 +35,52 @@ export class JsonlStore implements SessionStore {
   private file(id: string) {
     assertValidSessionId(id)
     return join(this.dir, `${id}.jsonl`)
+  }
+
+  /** Exclude other PROCESSES appending to this session (BUG-07). Held only for one read-tail + one append. */
+  async withLock<T>(sessionId: string, fn: () => Promise<T>): Promise<T> {
+    await mkdir(this.dir, { recursive: true })
+    return withFileLock(`${this.file(sessionId)}.lock`, fn)
+  }
+
+  /**
+   * The last sequence number actually in the file, found by reading from the END (a long log is not re-read on every append). A torn final
+   * line (a crash mid-write) is skipped, exactly as `read` tolerates it.
+   */
+  async lastSeq(sessionId: string): Promise<number> {
+    let fh
+    try {
+      fh = await open(this.file(sessionId), 'r')
+    } catch (e: any) {
+      if (e?.code === 'ENOENT') return 0
+      throw e
+    }
+    try {
+      const size = (await fh.stat()).size
+      let window = 64 * 1024
+      for (;;) {
+        const len = Math.min(window, size)
+        const buf = Buffer.alloc(len)
+        await fh.read(buf, 0, len, size - len)
+        const lines = buf.toString('utf8').split('\n')
+        // when the window does not start at the file start, the first line may be cut: ignore it
+        const complete = len < size ? lines.slice(1) : lines
+        for (let i = complete.length - 1; i >= 0; i--) {
+          const line = complete[i]!.trim()
+          if (!line) continue
+          try {
+            const seq = JSON.parse(line).seq
+            if (typeof seq === 'number') return seq
+          } catch {
+            /* torn tail line: look further back */
+          }
+        }
+        if (len >= size) return 0
+        window *= 4 // no complete line in this window (a very long event): widen
+      }
+    } finally {
+      await fh.close()
+    }
   }
 
   async append(event: SessionEvent) {

@@ -56,8 +56,10 @@ export class SessionLog extends Service {
 
   async append(sessionId: string, type: string, data: unknown = null, actor?: string): Promise<SessionEvent> {
     assertValidSessionId(sessionId)
-    return this.enqueue(sessionId, async () => {
-      const last = await this.lastSeq(sessionId)
+    const store = this.store
+    const job = async () => {
+      // A store shared between processes (BUG-07) is asked for the real last seq under its lock; the in-process cache is only trusted when it is not.
+      const last = store.lastSeq ? await store.lastSeq(sessionId) : await this.lastSeq(sessionId)
       // SEC-01: the one place every event passes through, so redaction here covers tool.call,
       // tool.result, approval.pending, model.* and anything a later bundle adds.
       if (data !== undefined && data !== null) for (const r of this.redactors) data = r(data)
@@ -74,7 +76,8 @@ export class SessionLog extends Service {
       await this.store.append(event)
       this.seqs.set(sessionId, event.seq)
       return event
-    })
+    }
+    return this.enqueue(sessionId, () => (store.withLock ? store.withLock(sessionId, job) : job()))
   }
 
   /** All events of a session, in order. */

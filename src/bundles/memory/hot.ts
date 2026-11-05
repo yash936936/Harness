@@ -1,4 +1,5 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { withFileLock } from '../../util/filelock.js'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import type { Context } from 'cordis'
@@ -122,7 +123,9 @@ export class HotTier {
   }
 
   private async load(): Promise<HotEntry[]> {
-    if (this.entries) return this.entries
+    // BUG-09: with a directory the file is shared with other processes, so it is re-read every time (it is small, capped by tokenCap);
+    // the cache is only trusted for the in-memory mode, which no other process can touch.
+    if (this.entries && !this.dir) return this.entries
     this.entries = []
     if (this.dir) {
       try {
@@ -141,7 +144,7 @@ export class HotTier {
 
   /** Serialised read-modify-write; the file is replaced atomically (temp file + rename). */
   private mutate(fn: (list: HotEntry[]) => void): Promise<void> {
-    const job = this.queue.then(async () => {
+    const work = async () => {
       const list = structuredClone(await this.load())
       fn(list)
       if (this.dir) {
@@ -151,6 +154,12 @@ export class HotTier {
         await rename(tmp, this.file)
       }
       this.entries = list
+    }
+    // Read-modify-write must be exclusive across PROCESSES too (BUG-09), or one process's update is silently overwritten by another's.
+    const job = this.queue.then(async () => {
+      if (!this.dir) return work()
+      await mkdir(this.dir, { recursive: true })
+      return withFileLock(`${this.file}.lock`, work)
     })
     this.queue = job.catch(() => {})
     return job

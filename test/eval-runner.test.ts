@@ -8,7 +8,7 @@
  * `scripts/eval-calibrate.ts` exists to label and score real ones.
  */
 import { Context } from 'cordis'
-import { mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync, copyFileSync, readdirSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, realpathSync, rmSync, writeFileSync, copyFileSync, readdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'

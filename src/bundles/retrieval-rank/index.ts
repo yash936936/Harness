@@ -1,7 +1,6 @@
 import { readFileSync, realpathSync, statSync } from 'node:fs'
 import { isAbsolute, relative, resolve, sep } from 'node:path'
 import { Context, Service } from 'cordis'
-import type { VectorCollection } from '../vectorstore-lancedb/types.js'
 import {
   chunkSource,
   looksBinary,

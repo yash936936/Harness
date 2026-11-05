@@ -1,4 +1,5 @@
 import { appendFile, mkdir, readFile } from 'node:fs/promises'
+import { withFileLock } from '../../util/filelock.js'
 import { join } from 'node:path'
 import type { Episode, EpisodeStore } from './types.js'
 
@@ -16,7 +17,6 @@ export class MemoryEpisodeStore implements EpisodeStore {
 
 /** One JSONL file, `<dir>/episodic.jsonl`. Append-only, like the session log. */
 export class JsonlEpisodeStore implements EpisodeStore {
-  private ids: Set<string> | undefined
   private queue: Promise<unknown> = Promise.resolve()
 
   constructor(private dir: string) {}
@@ -27,13 +27,15 @@ export class JsonlEpisodeStore implements EpisodeStore {
 
   async add(e: Episode): Promise<boolean> {
     // Serialised so two concurrent writes of the same turn cannot both pass the duplicate check.
+    // BUG-09: and across PROCESSES: under a file lock the ids are re-read from the file, so two processes cannot both add the same turn.
     const job = this.queue.then(async () => {
-      const ids = await this.loadIds()
-      if (ids.has(e.id)) return false
       await mkdir(this.dir, { recursive: true })
-      await appendFile(this.file, JSON.stringify(e) + '\n', 'utf8')
-      ids.add(e.id)
-      return true
+      return withFileLock(`${this.file}.lock`, async () => {
+        const ids = new Set((await this.all()).map((x) => x.id))
+        if (ids.has(e.id)) return false
+        await appendFile(this.file, JSON.stringify(e) + '\n', 'utf8')
+        return true
+      })
     })
     this.queue = job.catch(() => {})
     return job
@@ -60,10 +62,5 @@ export class JsonlEpisodeStore implements EpisodeStore {
       }
     }
     return out
-  }
-
-  private async loadIds(): Promise<Set<string>> {
-    if (!this.ids) this.ids = new Set((await this.all()).map((e) => e.id))
-    return this.ids
   }
 }

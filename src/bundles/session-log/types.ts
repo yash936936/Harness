@@ -28,4 +28,11 @@ export interface SessionStore {
   append(event: SessionEvent): Promise<void>
   read(sessionId: string): Promise<SessionEvent[]>
   list(): Promise<string[]>
+  /**
+   * Stores shared between processes provide both of these (BUG-07): `withLock` excludes other processes for the duration of `fn`, and
+   * `lastSeq` reads the real last sequence number from storage (never from a cache another process can invalidate). A store that
+   * lives in one process omits them.
+   */
+  withLock?<T>(sessionId: string, fn: () => Promise<T>): Promise<T>
+  lastSeq?(sessionId: string): Promise<number>
 }

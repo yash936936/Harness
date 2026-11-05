@@ -1,5 +1,6 @@
 import { Service, type Context } from 'cordis'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { withFileLock } from '../../util/filelock.js'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import type { VectorCollection } from '../vectorstore-lancedb/index.js'
@@ -198,7 +199,8 @@ export class MemorySemantic extends Service {
   }
 
   private async load(): Promise<SemanticFact[]> {
-    if (this.facts) return this.facts
+    // BUG-09: shared file, so re-read it every time in directory mode; only the in-memory mode may use the cache.
+    if (this.facts && !this.dir) return this.facts
     this.facts = []
     if (this.dir) {
       try {
@@ -217,7 +219,7 @@ export class MemorySemantic extends Service {
 
   /** Serialised read-modify-write; `fn` returns false when it changed nothing. Atomic file replace. */
   private mutate(fn: (list: SemanticFact[]) => boolean): Promise<void> {
-    const job = this.queue.then(async () => {
+    const work = async () => {
       const list = structuredClone(await this.load())
       if (!fn(list)) return
       if (this.dir) {
@@ -227,6 +229,11 @@ export class MemorySemantic extends Service {
         await rename(tmp, this.file)
       }
       this.facts = list
+    }
+    const job = this.queue.then(async () => {
+      if (!this.dir) return work()
+      await mkdir(this.dir, { recursive: true })
+      return withFileLock(`${this.file}.lock`, work)
     })
     this.queue = job.catch(() => {})
     return job
