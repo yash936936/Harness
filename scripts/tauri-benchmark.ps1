@@ -34,7 +34,7 @@ try {
       if ($markerValue -match '^\d+$') {
         $appReadyUnixMs = [int64]$markerValue
         $appReadyUtc = [DateTimeOffset]::FromUnixTimeMilliseconds($appReadyUnixMs)
-        $startupMs = [math]::Round(($appReadyUtc - [DateTimeOffset]::UtcNow.AddMilliseconds(-$processStart.ElapsedMilliseconds)).TotalMilliseconds, 1)
+        $startupMs = [math]::Round($processStart.Elapsed.TotalMilliseconds, 1)
         $proc.Refresh()
         $workingSetMiB = [math]::Round($proc.WorkingSet64 / 1MB, 1)
         break
