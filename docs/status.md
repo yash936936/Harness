@@ -1,3 +1,32 @@
+## 2026-11-05 — consolidated audit closeout update (PR #1)
+
+### Repository-local changes in this branch
+- **ENG-04:** Apache-2.0 added for original repository work. `THIRD_PARTY_LICENSES.md` inventories all 180 package-lock entries. License metadata: MIT 159, Apache-2.0 14, BSD-3-Clause 2, ISC 2, Unlicense 1, 0BSD 1, undeclared 1. `json-bignum@0.0.3` requires verification and a release-specific bundle review remains before redistribution.
+- **ENG-08:** the logged allowlist decision is exact-model scoped. Qwen2.5-Coder-7B-Instruct only with verified immutable revision and artifact digest; Qwen2.5-Coder-3B-Instruct is excluded from commercial distribution absent separate written permission. No model weights are redistributed by this PR.
+- **Session log:** append repairs a malformed final tail under the per-session lock before calculating the next sequence; a restart/append test covers the repair path. Earlier corruption is still rejected.
+- **BUG-12:** `search_semantic_memory` is registered only when embeddings and vector store are configured. It is read-only, caps hit count and text, requires a non-empty source for model-visible facts, passes the requesting actor through an explicit semantic grant check, and uses the common input-guard post-execute fence. Sub-agent semantic access defaults off and requires `memory: { semantic: true }` in the sub-agent grant.
+- **ARCH-02:** router remains safely unowned by default. The new implementation does not pretend Needle has won; no real Needle comparison was available.
+- **File locking:** source retains fail-closed exclusive lock acquisition and token-checked release. Cross-platform stress and paused-holder evidence remain incomplete.
+
+### Acceptance checklist
+| Item | State | Closure evidence or remaining gate |
+|---|---|---|
+| ARCH-01 sandbox-only `run_command` | OPEN | Crabbox doctor and real lease/run/release must pass on target Windows/Docker before routing; host fallback has not been removed because that would break execution today. |
+| ENG-04 Apache-2.0 + notices | PARTIAL | Project license and 180-entry lockfile metadata inventory added. Verify `json-bignum@0.0.3` license and the exact packaged dependency set before redistribution. |
+| ENG-08 Qwen | DECIDED | Exact 7B Instruct allowlist only after immutable revision/hash verification; 3B excluded absent written commercial permission. |
+| Phase 6.2, 20 real labels | OPEN | Needs 20+ real model-driven sessions, independently labelled before inspecting scores; none fabricated. |
+| Phase 6.4 real-data evaluation | OPEN | Needs evaluation on that committed real-label dataset and human agreement record. |
+| ARCH-02 Needle shadow/evaluation | OPEN | Needs real Needle wrapper/runtime and frozen-suite + real-task shadow evidence. |
+| ARCH-02 router ownership | COMPLETE SAFE DEFAULT | `router.owned` stays empty for unmeasured classes. |
+| Session-log torn-write recovery | IMPLEMENTED, CI PENDING | Under-lock repair + restart/append regression committed; CI will validate TypeScript and test behavior. |
+| File-lock safety | PARTIAL | Advisory locks and multiprocess tests exist; paused-live-holder and target filesystem/platform stress still need actual Windows/Linux runs. |
+| BUG-12 semantic retrieval | IMPLEMENTED, CI PENDING | Agent tool is bounded, source-attributed, read-only, actor-granted, and fenced by input-guard; new tests cover grant enforcement and wired path. Real-model retrieval quality/poisoning acceptance still needs real-model evidence. |
+| OpenRouter live provider | OPEN | Requires owner key/model and consumes provider quota; no live request was made. |
+| Tauri sidecar decision | OPEN | Existing benchmark harness is present; real builds, install size, cold start and idle-memory-with-core measurements remain unavailable. Prior D-048 provisional Tauri choice is not evidence-complete and is superseded by this explicit hold. |
+| 1B.4 remaining implementation | PARTIAL | The terminal setup wizard exists, but is setup-only and does not start a harness task. Desktop shell screens and core/sidecar integration remain unbuilt. |
+
+### Validation
+GitHub Actions CI was triggered for the latest branch head; check its run before merge. Connector inspection is not a substitute for running the test suite. The external acceptance gates above cannot be closed from this environment because no target Windows/Docker host, real Needle runtime, real sessions, live provider credential, or 8 GB benchmark machine was available.
 # Status — Coding Harness
 
 > Updated every run. Newest entry at top.
