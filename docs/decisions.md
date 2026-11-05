@@ -1,3 +1,13 @@
+## D-105 — Third-party and model license source verification — 2026-11-06
+
+**Verified from upstream sources:** json-bignum@0.0.3 has no npm license metadata, but its upstream repository https://github.com/datalanche/json-bignum explicitly identifies an MIT license and contains a LICENSE file. Keep its MIT notice in third-party distributions. This resolves the metadata ambiguity, not the release-artifact inventory: determine whether it is included in the actual packaged output before shipping.
+
+**Qwen decision evidence:** the exact Qwen/Qwen2.5-Coder-7B-Instruct model card identifies Apache-2.0, and the Qwen2.5-Coder release announcement identifies 7B as Apache-2.0 while identifying 3B as Qwen Research. Commercial use of the 7B artifact is permitted under Apache-2.0 subject to its terms and notices. Do not generalize this to other sizes or quantized/converted artifacts. Record the immutable Hugging Face revision and SHA-256 of the exact downloaded artifact before bundling or distributing weights; neither is claimed by this decision.
+
+**Sources checked 2026-11-06:** upstream datalanche/json-bignum repository LICENSE; npm package page (metadata says no license); Qwen Hugging Face model card; Qwen team's Qwen2.5-Coder release page.
+
+**Affects:** ENG-04 and ENG-08 evidence only; no third-party package or model weight is added by this change.
+
 ## D-104 — Audit closeout choices and acceptance boundaries — 2026-11-05
 
 **Decided:** Add Apache-2.0 for original repository contributions and inventory the exact root npm lockfile's package license metadata in `THIRD_PARTY_LICENSES.md`. This is an inventory, not a legal review; `json-bignum@0.0.3` has no license metadata and distribution scope still needs checking. For Qwen, the allowlist is limited to exact Qwen2.5-Coder-7B-Instruct after immutable revision and digest verification; Qwen2.5-Coder-3B-Instruct remains excluded from commercial distribution absent written permission.
