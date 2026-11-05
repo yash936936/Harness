@@ -18,6 +18,7 @@ import {
   type ScopedMemory,
 } from './types.js'
 import { MemoryAccess, isScopedActor } from './access.js'
+import type { MemorySemantic } from './semantic.js'
 
 export * from './types.js'
 export { JsonlEpisodeStore, MemoryEpisodeStore } from './store.js'
@@ -143,6 +144,7 @@ export class Memory extends Service {
   readonly hot: HotTier
   /** Live grants for sub-agent actors (D-073). `subagent-scope` writes it; nothing else should. */
   readonly access = new MemoryAccess()
+  private semanticService: MemorySemantic | undefined
   private readonly compaction: Compaction
   private readonly everyTurns: number | undefined
   private readonly deriveLessons: boolean
@@ -207,14 +209,18 @@ export class Memory extends Service {
     }
   }
 
+  /** Attach the optional semantic service after its dependencies have been loaded. */
+  setSemanticService(service: MemorySemantic): void {
+    this.semanticService = service
+  }
+
   /** Search the semantic tier for this actor. Results are always revalidated against the actor grant. */
   async querySemantic(actor: string | undefined, text: string, opts: { k?: number; minScore?: number; maxChars?: number } = {}) {
     if (isScopedActor(actor)) {
-      const grant = this.access.get(actor)
-      if (!grant) throw new MemoryError(`memory: "${actor}" has no live memory grant`)
+      if (!this.access.get(actor)) throw new MemoryError(`memory: "${actor}" has no live memory grant`)
       if (!this.access.canQuerySemantic(actor)) throw new MemoryError(`memory: "${actor}" has no semantic-memory grant`)
     }
-    const semantic = (this.ctx.root as Context & { memorySemantic?: Context['memorySemantic'] }).memorySemantic
+    const semantic = this.semanticService
     if (!semantic) throw new MemoryError('memory: semantic retrieval is not configured')
     const k = Math.min(opts.k ?? 5, 8)
     if (!Number.isInteger(k) || k < 1) throw new MemoryError('memory: semantic retrieval k must be between 1 and 8')
