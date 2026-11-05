@@ -10,7 +10,7 @@ A TypeScript multi-agent coding harness built on Cordis. Bundles provide model a
 
 The latest audit work is recorded in `docs/status.md` and decisions D-100 onward. Do not rely on the older phase narrative below; read the newest status entry and the relevant decision before changing behavior.
 
-**Code present:** policy-gated local tools; optional Crabbox/CubeSandbox providers behind `ctx.sandbox`; router and shadow-decision hooks; semantic memory storage and optional loading in `profile-coding`; cross-process file locks; evaluation runner and calibration script; default coding-profile model-call budgets.
+**Code present:** policy-gated local tools; optional Crabbox/CubeSandbox providers behind `ctx.sandbox`; router and shadow-decision hooks; actor-granted, bounded semantic-memory retrieval with provenance and input-guard fencing; cross-process file locks; session-log torn-tail repair; evaluation runner and calibration script; default coding-profile model-call budgets.
 
 **Not equivalent to verified completion:** fake-provider tests do not prove a live sandbox works; scripted-model tests do not prove model quality; a router's existence does not prove Needle wins; semantic tier startup does not establish that every agent retrieves useful facts; a passing typecheck does not establish platform runtime behavior.
 
