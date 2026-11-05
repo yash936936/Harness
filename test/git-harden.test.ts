@@ -8,6 +8,8 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { SessionLog } from '../src/bundles/session-log/index.js'
 import { ToolRegistry } from '../src/bundles/tool-registry/index.js'
 import { Subprocess } from '../src/bundles/subprocess/index.js'
+import { EgressPolicy } from '../src/bundles/egress/index.js'
+import { Sandbox } from '../src/bundles/sandbox/index.js'
 import { LocalTools, hardenGit, repoFilterDrivers } from '../src/bundles/tools-local/index.js'
 
 const dirs: string[] = []
@@ -41,7 +43,24 @@ async function boot(root: string) {
   await ctx.plugin(SessionLog, { memory: true })
   await ctx.plugin(ToolRegistry)
   await ctx.plugin(Subprocess)
-  await ctx.plugin(LocalTools, { root, envAllowlist: ['PATH'] })
+  await ctx.plugin(EgressPolicy, { projectId: 'git-harden-test' })
+  await ctx.plugin(Sandbox)
+  // Explicit test-only provider. Production LocalTools only calls ctx.sandbox.run().
+  ctx.sandbox.register({
+    name: 'git-harden-test-double',
+    destination: 'local',
+    doctor: async () => ({ ok: true, detail: 'test double only' }),
+    run: async (req) => {
+      const r = await ctx.subprocess.run(req.command[0]!, req.command.slice(1), {
+        cwd: root, envAllowlist: ['PATH'], timeoutMs: req.timeoutMs, maxOutputBytes: 100_000, signal: req.signal,
+      })
+      return {
+        provider: 'git-harden-test-double', leaseId: 'test-lease', exitCode: r.exitCode, ...(r.spawnError ? { spawnError: r.spawnError } : {}), stdout: r.stdout,
+        stderr: r.stderr, timedOut: r.timedOut, durationMs: r.durationMs, released: true,
+      }
+    },
+  }, { default: true })
+  await ctx.plugin(LocalTools, { root })
   return (args: string[]) => ctx.tools.call('run_command', { command: 'git', args }, { sessionId: 's' })
 }
 

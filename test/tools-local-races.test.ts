@@ -6,7 +6,8 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { SessionLog } from '../src/bundles/session-log/index.js'
 import { ToolRegistry } from '../src/bundles/tool-registry/index.js'
-import { Subprocess } from '../src/bundles/subprocess/index.js'
+import { EgressPolicy } from '../src/bundles/egress/index.js'
+import { Sandbox } from '../src/bundles/sandbox/index.js'
 import { LocalTools } from '../src/bundles/tools-local/index.js'
 import { FileTooLarge, readBounded } from '../src/bundles/tools-local/bounded-read.js'
 import { assertSameDir, dirIdentity, PathRefused } from '../src/bundles/tools-local/paths.js'
@@ -19,7 +20,8 @@ async function boot(root: string, extra: Record<string, unknown> = {}) {
   const ctx = new Context()
   await ctx.plugin(SessionLog, { memory: true })
   await ctx.plugin(ToolRegistry)
-  await ctx.plugin(Subprocess)
+  await ctx.plugin(EgressPolicy, { projectId: 'tools-local-races' })
+  await ctx.plugin(Sandbox)
   await ctx.plugin(LocalTools, { root, ...extra })
   return ctx
 }

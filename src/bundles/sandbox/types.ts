@@ -21,6 +21,8 @@ export interface SandboxRunResult {
   /** The lease / sandbox id this run used. */
   leaseId: string
   exitCode: number | null
+  /** Present when the provider could not start the requested process. */
+  spawnError?: string
   stdout: string
   stderr: string
   timedOut: boolean

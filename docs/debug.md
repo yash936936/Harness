@@ -1,3 +1,15 @@
+## DBG-065 — Command-risk policy and sandbox-only LocalTools consistency — 2026-11-06
+
+**Source reviewed:** the owner's `dc42330619907739a565dd81a43b5e4fa44eeb04` archive, the current worktree patch, and the 48-failure Vitest log.
+
+**Root cause:** `run_command` is registered as `sandbox-write`, while `PolicyGates.evaluate()` unconditionally allows that class. `commandRisk` is present in the coding profile but is only evaluated by the `real-fs-write` branch. `verifyGates()` therefore cannot observe the expected hold for `sh -c`; profile boot fails and causes most of the reported cross-suite failures.
+
+**Independent defects in the same failing run:** the local tool output cap is configured but unused; the untrusted-output banner differs from the test contract; the obsolete `LocalToolsConfig.envAllowlist` is not forwarded through `SandboxRunRequest`; and two LocalTools test fixtures omit the required `egress`/`sandbox` services. Git hardening also invokes `ctx.subprocess` to inspect repository config, creating a host-side process path inside an otherwise sandbox-only command tool.
+
+**Fix direction:** keep `run_command` in the `sandbox-write` action class, but score that named tool using the same independent-signal/minimum-confidence policy as real filesystem writes. Keep ordinary sandbox-write tools autonomous. Run Git config probes through `ctx.sandbox`, remove the LocalTools subprocess dependency and its obsolete environment option, enforce the configured per-stream UTF-8 output cap, and update test fixtures to supply explicit test-only sandbox providers where command execution is exercised.
+
+**Verification boundary:** no typecheck or Vitest run is claimed by this entry. Fake providers validate wiring only; ARCH-01 remains open until Crabbox doctor and a real lease/run/release pass on the target platform.
+
 ## DBG-064 — Interrupted-process session-log recovery regression — 2026-11-06
 
 **Added:** test/fixtures/append-worker.ts has a crash-tail mode. It writes one complete event, writes an incomplete JSONL record, then exits with code 23 to model process interruption. test/session-log-multiprocess.test.ts asserts that the child exited at the expected point, performs the next sequence allocation and append under the per-session lock, and verifies the log contains only the two complete ordered events.

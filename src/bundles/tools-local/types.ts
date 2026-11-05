@@ -11,8 +11,6 @@ export interface LocalToolsConfig {
   maxCommandTimeoutSeconds?: number
   /** Captured output cap per stream for `run_command`, in bytes. Default 100,000. */
   maxCommandOutputBytes?: number
-  /** Environment variable NAMES a command may see. Default `['PATH']` (without it nothing resolves on POSIX). Nothing else is inherited. */
-  envAllowlist?: string[]
   /** Let `read_file` open `.env*`, key and credential files. Default false. */
   allowSecretReads?: boolean
 }

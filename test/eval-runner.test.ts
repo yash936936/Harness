@@ -118,6 +118,34 @@ async function realRun(script: (m: Msg[]) => unknown, opts: { maxSteps?: number;
     projectId: 'eval', projectRoot: root, sessionLog: { memory: true }, agentLoop: { maxSteps: opts.maxSteps ?? 12 },
     policy: { approvalTimeoutMs: 2000, approver: () => ({ approve: opts.approve ?? true, by: 'test' }) },
   } as any)
+  // Test-only provider: production run_command has no host subprocess fallback.
+  // The real-stack calibration tests need an explicit execution backend so they can
+  // distinguish policy decisions from provider-unavailable failures.
+  ctx.sandbox.register({
+    name: 'eval-runner-test-double',
+    destination: 'local',
+    doctor: async () => ({ ok: true, detail: 'test double only' }),
+    run: async (req) => {
+      const r = await ctx.subprocess.run(req.command[0]!, req.command.slice(1), {
+        cwd: root,
+        envAllowlist: ['PATH'],
+        timeoutMs: req.timeoutMs,
+        maxOutputBytes: 100_000,
+        signal: req.signal,
+      })
+      return {
+        provider: 'eval-runner-test-double',
+        leaseId: 'test-lease',
+        exitCode: r.exitCode,
+        ...(r.spawnError ? { spawnError: r.spawnError } : {}),
+        stdout: r.stdout,
+        stderr: r.stderr,
+        timedOut: r.timedOut,
+        durationMs: r.durationMs,
+        released: true,
+      }
+    },
+  }, { default: true })
   ctx.llm.register('mock', new MockProvider(((req: { messages: Msg[] }) => script(req.messages)) as any), { default: true })
   await ctx.agentLoop.run({ sessionId: 'task', prompt: 'do the task', tools: ['read_file', 'edit_file', 'run_command'] }).catch(() => {})
   return { ctx, events: await ctx.log.read('task') }

@@ -12,11 +12,12 @@
  * Sessions without a label are reported but not counted. Nothing is sent anywhere; it only reads files.
  */
 import { Context } from 'cordis'
-import { readFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { SessionLog } from '../src/bundles/session-log/index.js'
 import { EvalRunner, commandPassed, defaultScorers } from '../src/bundles/eval-runner/index.js'
 
 const [dir, labelsFile, checkPattern] = process.argv.slice(2)
+const MIN_LABELS = 20
 if (!dir) {
   console.error('usage: npx tsx scripts/eval-calibrate.ts <logDir> [labels.json] [checkCommandRegex]')
   process.exit(2)
@@ -34,6 +35,7 @@ if (ids.length === 0) { console.error(`no sessions found in ${dir}`); process.ex
 
 let counted = 0
 let agree = 0
+const report: Array<{ sessionId: string; scorer: 'good' | 'bad'; label?: string; score: number; eventCount: number }> = []
 const disagreements: string[] = []
 for (const id of ids.sort()) {
   const r = await ctx.eval.score(id)
@@ -41,6 +43,7 @@ for (const id of ids.sort()) {
   const verdict = r.passed ? 'PASS' : 'FAIL'
   console.log(`\n${id}  ${verdict}  score ${r.score.toFixed(2)}  (${r.eventCount} events)${label ? `  your label: ${label}` : ''}`)
   for (const x of r.results) console.log(`  ${x.applicable ? (x.pass ? 'ok  ' : 'FAIL') : 'n/a '} ${x.name}${x.required ? '*' : ''}: ${x.detail}`)
+  report.push({ sessionId: id, scorer: r.passed ? 'good' : 'bad', ...(label ? { label } : {}), score: r.score, eventCount: r.eventCount })
   if (label) {
     counted++
     if (r.passed === (label === 'good')) agree++
@@ -50,8 +53,11 @@ for (const id of ids.sort()) {
 console.log('\n* = required scorer')
 if (counted) {
   const rate = agree / counted
+  const classes = new Set(Object.values(labels))
+  const calibrated = counted >= MIN_LABELS && classes.has('good') && classes.has('bad')
+  writeFileSync('calibration-report.json', JSON.stringify({ generatedAt: new Date().toISOString(), logDirectory: dir, labelsFile, checkPattern: checkPattern ?? null, minimumIndependentLabels: MIN_LABELS, labelledCount: counted, classCounts: { good: Object.values(labels).filter((x) => x === 'good').length, bad: Object.values(labels).filter((x) => x === 'bad').length }, agreement: { correct: agree, total: counted, rate }, sessions: report }, null, 2) + '\n')
+  console.log(`\nreport: calibration-report.json; minimum ${MIN_LABELS} labels with both classes: ${calibrated ? 'met' : 'NOT MET'}`)
   console.log(`\nagreement with your labels: ${agree}/${counted} (${Math.round(rate * 100)}%)`)
   for (const d of disagreements) console.log(`  DISAGREE ${d}`)
-  if (counted < 10) console.log(`  note: ${counted} labelled runs is too few to trust a percentage; aim for 20 or more, with both good and bad.`)
-  process.exit(rate >= 0.9 ? 0 : 1)
+  process.exit(calibrated && rate >= 0.9 ? 0 : 1)
 }
