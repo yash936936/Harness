@@ -9,6 +9,8 @@ export function isScopedActor(actor: string | undefined): actor is string {
 export interface MemoryGrant {
   /** `global`: also sees the owner-curated global hot rules (default). `none`: sees only rules scoped to it. */
   hot: 'global' | 'none'
+  /** Semantic project facts are denied unless this capability is explicitly granted. */
+  semantic?: boolean
 }
 
 /**
@@ -21,7 +23,8 @@ export class MemoryAccess {
   grant(actor: string, grant: MemoryGrant = { hot: 'global' }): void {
     if (!isScopedActor(actor)) throw new Error(`memory access: "${actor}" is not a sub-agent actor (expected "${SCOPED_ACTOR_PREFIX}<id>")`)
     if (grant.hot !== 'global' && grant.hot !== 'none') throw new Error(`memory access: invalid hot grant ${JSON.stringify(grant.hot)}`)
-    this.grants.set(actor, { hot: grant.hot })
+    if (grant.semantic !== undefined && typeof grant.semantic !== 'boolean') throw new Error('memory access: semantic grant must be a boolean')
+    this.grants.set(actor, { hot: grant.hot, semantic: grant.semantic ?? false })
   }
 
   revoke(actor: string): void {
