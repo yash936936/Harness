@@ -1,3 +1,12 @@
+## D-104 — Audit closeout choices and acceptance boundaries — 2026-11-05
+
+**Decided:** Add Apache-2.0 for original repository contributions and inventory the exact root npm lockfile's package license metadata in `THIRD_PARTY_LICENSES.md`. This is an inventory, not a legal review; `json-bignum@0.0.3` has no license metadata and distribution scope still needs checking. For Qwen, the allowlist is limited to exact Qwen2.5-Coder-7B-Instruct after immutable revision and digest verification; Qwen2.5-Coder-3B-Instruct remains excluded from commercial distribution absent written permission.
+
+**Implemented in this branch:** session JSONL append repairs only a malformed final tail while holding the per-session lock; semantic memory gets a read-only tool only when its vector dependencies are configured. The tool bounds k and output chars, drops source-less facts, carries actor identity through a separate semantic capability (default denied for sub-agents), and uses the shared input guard to fence output. `router.owned` remains empty. `run_command` remains classified `real-fs-write` and on the host until Crabbox doctor and lease/run/release are verified on the target host; routing without a working sandbox would make commands unusable or tempt an unsafe fallback.
+
+**Not claimed:** no real model run labels, real Needle comparisons, OpenRouter live calls, target-platform lock stress, Crabbox acceptance, Tauri sidecar metrics, or desktop-shell completion were produced in this environment. D-048's provisional Tauri preference is not a measurement-backed final choice; hold the choice pending repeatable benchmark results.
+
+**Affects:** `LICENSE`, `THIRD_PARTY_LICENSES.md`, session-log, semantic memory, profile-coding, status and phases docs.
 # Decisions — Coding Harness
 
 > Append-only log. Newest entries at top. Never edit or delete past entries —
