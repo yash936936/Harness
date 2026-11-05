@@ -104,7 +104,7 @@ export class JsonlStore implements SessionStore {
         const isFinal = lines.slice(i + 1).every((line) => !line.trim())
         if (!isFinal) throw new Error(`Corrupt session log ${sessionId}: line ${i + 1} is not valid JSON`)
         // Keep the newline after the last complete record, removing the bad tail.
-        end = lines.slice(0, i).reduce((n, line) => n + line.length + 1, 0)
+        end = lines.slice(0, i).join('\n').length + (i > 0 ? 1 : 0)
         await truncate(this.file(sessionId), end)
         return
       }
