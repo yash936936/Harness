@@ -233,6 +233,7 @@ export async function bootProfileCoding(config: ProfileCodingConfig): Promise<Co
       // BUG-12: the fourth memory tier, loaded only where its two dependencies exist.
       const sem = config.semanticMemory ?? {}
       await ctx.plugin(MemorySemantic, { ...(config.memory?.path ? { path: config.memory.path } : {}), ...sem })
+      ctx.memory.setSemanticService(ctx.memorySemantic)
     }
     if (r.embeddings && r.vectorStore) {
       ctx.tools.register({
