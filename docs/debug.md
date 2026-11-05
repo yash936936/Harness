@@ -1,3 +1,9 @@
+## DBG-064 — Interrupted-process session-log recovery regression — 2026-11-06
+
+**Added:** test/fixtures/append-worker.ts has a crash-tail mode. It writes one complete event, writes an incomplete JSONL record, then exits with code 23 to model process interruption. test/session-log-multiprocess.test.ts asserts that the child exited at the expected point, performs the next sequence allocation and append under the per-session lock, and verifies the log contains only the two complete ordered events.
+
+**Limits:** This deterministically simulates an interrupted final record; it is not a hardware power-loss test and does not establish durability semantics for every filesystem. Run the focused test and full suite on both CI platforms before marking it verified.
+
 ## DBG-063 — Consolidated audit code updates — 2026-11-05
 
 **Changed:** repaired a torn final JSONL record under the per-session append lock before sequence allocation; added restart/append regression. Added bounded semantic-memory query through `ctx.memory.querySemantic`, explicit `semantic: true` sub-agent capability (default false), a conditional `search_semantic_memory` read-only tool in `profile-coding`, provenance requirement, and shared input-guard fencing. Added a 180-entry package-lock license-metadata inventory.

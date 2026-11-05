@@ -3,8 +3,8 @@
 Generated from the committed root `package-lock.json` on 2026-11-05. This inventories npm lockfile metadata, not legal conclusions or the exact files included in a future distribution.
 
 - Runtime and development dependency tree: 180 package entries.
-- Metadata counts: MIT 159, Apache-2.0 14, BSD-3-Clause 2, ISC 2, Unlicense 1, 0BSD 1, undeclared 1.
-- Review required: `json-bignum@0.0.3` has no `license` field in the lockfile metadata. Verify its published license and whether it enters the shipped bundle.
+- Metadata counts: MIT 159, Apache-2.0 14, BSD-3-Clause 2, ISC 2, Unlicense 1, 0BSD 1, undeclared 1. The undeclared count is lockfile metadata only; json-bignum@0.0.3 upstream contains an MIT LICENSE file.
+- json-bignum@0.0.3: lockfile metadata omits license, but upstream datalanche/json-bignum identifies the project as MIT and contains LICENSE. Preserve that notice in third-party distributions. Whether it enters a shipped bundle still requires a release-artifact inventory.
 - Optional platform packages are included because they occur in the lockfile. A release-specific inventory should be generated from the actual packaged artifact.
 - The repository's `LICENSE` covers original repository work only. It does not grant rights to third-party packages or model weights.
 
@@ -128,7 +128,7 @@ Generated from the committed root `package-lock.json` on 2026-11-05. This invent
 | `flatbuffers` | 24.12.23 | Apache-2.0 |
 | `fsevents` | 2.3.3 | MIT |
 | `has-flag` | 4.0.0 | MIT |
-| `json-bignum` | 0.0.3 | UNDECLARED |
+| `json-bignum` | 0.0.3 | MIT (upstream LICENSE; lockfile field absent) |
 | `json-schema-traverse` | 1.0.0 | MIT |
 | `lodash.camelcase` | 4.3.0 | MIT |
 | `loupe` | 3.2.1 | MIT |

@@ -10,4 +10,4 @@ npm run check        # typecheck + tests
 npm run eval -- <logDir> [labels.json]   # score real session logs (Phase 6)
 ```
 
-Tests that need a local Ollama or a real sandbox skip themselves when it is absent. No licence has been chosen yet (see `docs/status.md`).
+Tests that need a local Ollama or a real sandbox skip themselves when it is absent. Original project code is licensed under Apache-2.0; third-party dependencies and model weights retain their own terms (see `LICENSE`, `THIRD_PARTY_LICENSES.md`, and `docs/status.md`).
