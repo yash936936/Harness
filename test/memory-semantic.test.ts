@@ -80,6 +80,7 @@ async function boot(o: { provider?: EmbeddingProvider; dbPath?: string; sem?: Se
     await ctx.plugin(Memory, {})
   }
   await ctx.plugin(MemorySemantic, o.sem ?? {})
+  if (o.withMemory) ctx.memory.setSemanticService(ctx.memorySemantic)
   return { ctx, provider }
 }
 
