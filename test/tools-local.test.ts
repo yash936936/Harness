@@ -1,4 +1,4 @@
-/** Real tools over the real filesystem and `ctx.subprocess` (temp directories, no mocks), plus the gate guarding them. */
+/** Real filesystem tools plus a test-only sandbox provider backed by the subprocess bundle. */
 import { Context } from 'cordis'
 import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
@@ -41,7 +41,7 @@ const hasGit = (() => {
   }
 })()
 
-async function boot(config: LocalToolsConfig = {}, policy?: PolicyConfig | false) {
+async function boot(config: LocalToolsConfig = {}, policy?: PolicyConfig | false, providerEnvAllowlist: string[] = ['PATH']) {
   const root = config.root ?? tmp()
   const ctx = new Context()
   await ctx.plugin(SessionLog, { memory: true })
@@ -50,7 +50,7 @@ async function boot(config: LocalToolsConfig = {}, policy?: PolicyConfig | false
   await ctx.plugin(EgressPolicy, { projectId: 'tools-local-test' })
   await ctx.plugin(Sandbox)
   // Explicit test double only. Production run_command never invokes ctx.subprocess directly.
-  ctx.sandbox.register({ name: 'test-double', destination: 'local', doctor: async () => ({ ok: true, detail: 'test double' }), run: async (req) => { const r = await ctx.subprocess.run(req.command[0]!, req.command.slice(1), { timeoutMs: req.timeoutMs, cwd: root, envAllowlist: ['PATH'], maxOutputBytes: 100_000, signal: req.signal }); return { provider: 'test-double', leaseId: 'test-lease', exitCode: r.exitCode, stdout: r.stdout, stderr: r.stderr, timedOut: r.timedOut, durationMs: r.durationMs, released: true } } })
+  ctx.sandbox.register({ name: 'test-double', destination: 'local', doctor: async () => ({ ok: true, detail: 'test double' }), run: async (req) => { const r = await ctx.subprocess.run(req.command[0]!, req.command.slice(1), { timeoutMs: req.timeoutMs, cwd: root, envAllowlist: providerEnvAllowlist, maxOutputBytes: 100_000, signal: req.signal }); return { provider: 'test-double', leaseId: 'test-lease', exitCode: r.exitCode, ...(r.spawnError ? { spawnError: r.spawnError } : {}), stdout: r.stdout, stderr: r.stderr, timedOut: r.timedOut, durationMs: r.durationMs, released: true } } })
   await ctx.plugin(LocalTools, { ...config, root })
   if (policy !== false && policy !== undefined) await ctx.plugin(PolicyGates, { projectRoot: root, approvalTimeoutMs: 400, ...policy })
   const call = (name: string, input: unknown) => ctx.tools.call(name, input, { sessionId: 's' })
@@ -372,7 +372,7 @@ describe('run_command', () => {
       const { call } = await boot()
       const r = await call(COMMAND_TOOL, node('console.log("S=" + (process.env.HARNESS_TL_SECRET ?? "unset"))'))
       expect(r.content).toContain('S=unset')
-      const open = await boot({ envAllowlist: ['PATH', 'HARNESS_TL_SECRET'] })
+      const open = await boot({}, undefined, ['PATH', 'HARNESS_TL_SECRET'])
       expect((await open.call(COMMAND_TOOL, node('console.log("S=" + process.env.HARNESS_TL_SECRET)'))).content).toContain('S=hunter2')
     } finally {
       delete process.env['HARNESS_TL_SECRET']
@@ -512,7 +512,7 @@ describe('the gate guarding the real tools (D-080)', () => {
     const b = await boot({}, { signals: [commandRisk] })
     execFileSync('git', ['init', '-q'], { cwd: b.root })
     put(b.root, 'a.txt', 'a')
-    const r = await b.call(COMMAND_TOOL, { command: 'git', args: ['status', '--short'], confidence: 0.9, workdir: '.' })
+    const r = await b.call(COMMAND_TOOL, { command: 'git', args: ['status', '--short'], confidence: 0.9 })
     expect(r.ok).toBe(true)
     expect(r.content).toContain('?? a.txt')
     expect((await b.events('approval.pending')).length).toBe(0)

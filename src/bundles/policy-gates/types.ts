@@ -17,7 +17,7 @@ export interface Decision {
   verdict: Verdict
   class: ActionClass
   reason: string
-  /** Combined confidence (real-fs-write only): the MINIMUM of the self-report and every independent signal. */
+  /** Combined confidence for real-fs-write and sandbox `run_command`: the MINIMUM of the self-report and every independent signal. */
   score?: number
   /** The model's own report, if it gave a valid one. */
   self?: number | null
@@ -54,7 +54,7 @@ export interface DenyRule {
 export interface PolicyConfig {
   /** Paths are judged relative to this. Default: `process.cwd()`. */
   projectRoot?: string
-  /** A real-fs-write is auto-allowed only if its combined score is at least this. Default 0.8. */
+  /** A real-fs-write or sandbox `run_command` is auto-allowed only if its combined score is at least this. Default 0.8. */
   confidenceThreshold?: number
   /** How long a hold waits before it is denied. Default 120000 ms. A hold nobody answers is a denial, never an allow. */
   approvalTimeoutMs?: number

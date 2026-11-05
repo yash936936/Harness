@@ -13,6 +13,8 @@ import { bootProfileCoding, missingServices, verifyGates, ProfileError, MIN_CONF
 import { SessionLog, type SessionEvent } from '../src/bundles/session-log/index.js'
 import { ToolRegistry } from '../src/bundles/tool-registry/index.js'
 import { Subprocess } from '../src/bundles/subprocess/index.js'
+import { EgressPolicy } from '../src/bundles/egress/index.js'
+import { Sandbox } from '../src/bundles/sandbox/index.js'
 import { PolicyGates, type ApprovalRequest, type Signal } from '../src/bundles/policy-gates/index.js'
 import { LocalTools, commandRisk } from '../src/bundles/tools-local/index.js'
 import { MockProvider } from '../src/bundles/model-adapter/index.js'
@@ -149,6 +151,8 @@ describe('verifyGates refuses a context whose gates are not enforcing', () => {
     await ctx.plugin(SessionLog, { memory: true })
     await ctx.plugin(ToolRegistry)
     await ctx.plugin(Subprocess)
+    await ctx.plugin(EgressPolicy, { projectId: 'profile-coding-selftest' })
+    await ctx.plugin(Sandbox)
     if (parts.local !== false) await ctx.plugin(LocalTools, { root })
     let fiber: any
     if (parts.policy !== false) fiber = ctx.plugin(PolicyGates, { projectRoot: root, ...(parts.policy ? { signals: parts.policy } : {}) })
@@ -214,8 +218,8 @@ const say = (t: string) => ({ text: t, stopReason: 'end_turn' as const }) as any
 const SCRIPT: { name: string; input: any; class: string; verdict: string; approved?: boolean; ran: boolean }[] = [
   { name: 'read_file', input: { path: 'README.md' }, class: 'read-only', verdict: 'allow', ran: true },
   { name: 'scratch', input: { note: 'try a thing in the sandbox' }, class: 'sandbox-write', verdict: 'allow-logged', ran: true },
-  { name: 'edit_file', input: { path: 'src/a.ts', old_string: 'a = 1', new_string: 'a = 2', confidence: 0.95 }, class: 'sandbox-write', verdict: 'allow-logged', ran: true },
-  { name: 'edit_file', input: { path: 'package.json', old_string: '"v":1', new_string: '"v":2', confidence: 1 }, class: 'sandbox-write', verdict: 'hold', approved: true, ran: true },
+  { name: 'edit_file', input: { path: 'src/a.ts', old_string: 'a = 1', new_string: 'a = 2', confidence: 0.95 }, class: 'real-fs-write', verdict: 'allow-logged', ran: true },
+  { name: 'edit_file', input: { path: 'package.json', old_string: '"v":1', new_string: '"v":2', confidence: 1 }, class: 'real-fs-write', verdict: 'hold', approved: true, ran: true },
   { name: 'notify', input: { message: 'deploy done' }, class: 'external-side-effect', verdict: 'hold', approved: true, ran: true },
   { name: 'run_command', input: { command: 'rm', args: ['-rf', '.'], confidence: 1 }, class: 'sandbox-write', verdict: 'deny', ran: false },
   { name: 'run_command', input: { command: 'node', args: ['--version'], confidence: 1 }, class: 'sandbox-write', verdict: 'allow-logged', ran: true },
@@ -282,6 +286,22 @@ async function runScript() {
       },
     }),
   )
+  // Test-only sandbox provider: it delegates to the subprocess bundle so the scripted integration test
+  // can exercise command policy without claiming that a real Crabbox/CubeSandbox provider was verified.
+  ctx.sandbox.register({
+    name: 'profile-test-double',
+    destination: 'local',
+    doctor: async () => ({ ok: true, detail: 'test double only' }),
+    run: async (req) => {
+      const r = await ctx.subprocess.run(req.command[0]!, req.command.slice(1), {
+        cwd: root, envAllowlist: ['PATH'], timeoutMs: req.timeoutMs, maxOutputBytes: 100_000, signal: req.signal,
+      })
+      return {
+        provider: 'profile-test-double', leaseId: 'test-lease', exitCode: r.exitCode, ...(r.spawnError ? { spawnError: r.spawnError } : {}), stdout: r.stdout,
+        stderr: r.stderr, timedOut: r.timedOut, durationMs: r.durationMs, released: true,
+      }
+    },
+  }, { default: true })
   const ran: string[] = []
   ctx.tools.register({ name: 'scratch', description: 'scratch work in a sandbox', actionClass: 'sandbox-write', inputSchema: { type: 'object', properties: { note: { type: 'string' } }, required: ['note'] }, execute: () => (ran.push('scratch'), 'ok') })
   ctx.tools.register({ name: 'notify', description: 'tell someone outside', actionClass: 'external-side-effect', inputSchema: { type: 'object', properties: { message: { type: 'string' } }, required: ['message'] }, execute: () => (ran.push('notify'), 'sent') })
@@ -455,5 +475,5 @@ describe('BUG-12 model-facing retrieval tool', () => {
     expect(tool.ok).toBe(true)
     expect(tool.content).toContain('<<<DATA')
     expect(tool.content).toContain('docs/decisions.md#D-027')
-  })
+  }, 30_000)
 })

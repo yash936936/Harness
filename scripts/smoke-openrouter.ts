@@ -18,7 +18,7 @@ await ctx.plugin(EgressPolicy, { projectId: 'openrouter-smoke', allowedHosts: ['
 await ctx.egress.grantConsent()
 await ctx.plugin(LLMService, { openaiCompatible: { name: 'openrouter-smoke', baseUrl: 'https://openrouter.ai/api/v1', apiKey: key, model, timeoutMs: 45_000 }, egress: { consent: true } })
 try {
-  const result = await ctx.llm.complete({ messages: [{ role: 'user', content: 'Reply with exactly: HARNESS_OPENROUTER_OK' }], maxTokens: 20, temperature: 0 })
+  const result = await ctx.llm.complete({ sessionId: 'openrouter-smoke', messages: [{ role: 'user', content: 'Reply with exactly: HARNESS_OPENROUTER_OK' }], maxTokens: 20, temperature: 0 })
   const safe = result.text.replace(/(?:sk-or-v1-)?[A-Za-z0-9_-]{32,}/g, '[redacted-token]')
   console.log(JSON.stringify({ ok: result.text.includes('HARNESS_OPENROUTER_OK'), model: result.model, text: safe.slice(0, 300) }, null, 2))
   if (!result.text.includes('HARNESS_OPENROUTER_OK')) process.exitCode = 1

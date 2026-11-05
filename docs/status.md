@@ -19,7 +19,7 @@
 ### Acceptance checklist
 | Item | State | Closure evidence or remaining gate |
 |---|---|---|
-| ARCH-01 sandbox-only `run_command` | OPEN | Crabbox doctor and real lease/run/release must pass on target Windows/Docker before routing; host fallback has not been removed because that would break execution today. |
+| ARCH-01 sandbox-only `run_command` | OPEN | `LocalTools` routes commands and Git-config probes through `ctx.sandbox` only; no provider is configured by default. Crabbox doctor and a real lease/run/release must pass on target Windows/Docker before sandbox execution can be marked verified. |
 | ENG-04 Apache-2.0 + notices | PARTIAL | Project license and 180-entry lockfile metadata inventory added. Verify `json-bignum@0.0.3` license and the exact packaged dependency set before redistribution. |
 | ENG-08 Qwen | DECIDED | Exact 7B Instruct allowlist only after immutable revision/hash verification; 3B excluded absent written commercial permission. |
 | Phase 6.2, 20 real labels | OPEN | Needs 20+ real model-driven sessions, independently labelled before inspecting scores; none fabricated. |

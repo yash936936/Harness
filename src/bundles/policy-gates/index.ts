@@ -30,7 +30,7 @@ interface Pending {
  *   deny-listed (any class)         -> blocked, no override
  *   external-side-effect            -> ALWAYS held for approval, whatever any score says
  *   real-fs-write                   -> allowed if combined confidence >= threshold, else held
- *   sandbox-write                   -> allowed, decision logged
+ *   sandbox-write                   -> allowed, decision logged, except `run_command`, which is risk-scored
  *   read-only                       -> allowed, no approval step (decision still logged)
  * Combined confidence = MIN(model's self-report, every independent signal). The self-report alone can never allow
  * a write: with no independent signal available, or no valid self-report, the write is held (D-078).
@@ -75,7 +75,11 @@ export class PolicyGates extends Service {
       case 'read-only':
         return { verdict: 'allow', class: cls, reason: 'read-only: no approval step' }
       case 'sandbox-write':
-        return { verdict: 'allow-logged', class: cls, reason: 'sandbox-scoped write: autonomous, logged' }
+        // `run_command` is sandbox-scoped, but the command itself still needs independent risk scoring.
+        // Other sandbox-write tools remain autonomous and logged.
+        return ev.tool.name === 'run_command'
+          ? this.scoreWrite(ev, 'sandbox command')
+          : { verdict: 'allow-logged', class: cls, reason: 'sandbox-scoped write: autonomous, logged' }
       case 'external-side-effect':
         return { verdict: 'hold', class: cls, reason: 'external side effect: always requires approval, whatever any confidence score says' }
       case 'real-fs-write':
@@ -83,7 +87,7 @@ export class PolicyGates extends Service {
     }
   }
 
-  private scoreWrite(ev: ToolCallEvent): Decision {
+  private scoreWrite(ev: ToolCallEvent, subject = 'real-fs-write'): Decision {
     const cls = ev.tool.actionClass
     const raw = (ev.input as Record<string, unknown> | null)?.[CONFIDENCE_FIELD]
     const self = typeof raw === 'number' && Number.isFinite(raw) && raw >= 0 && raw <= 1 ? raw : null
@@ -93,13 +97,13 @@ export class PolicyGates extends Service {
       if (r) signals.push(r)
     }
     const base = { class: cls, self, signals } as const
-    if (!signals.length) return { ...base, verdict: 'hold', reason: 'real-fs-write held: no independent signal is available for this call, and a self-reported confidence is never enough on its own' }
-    if (self === null) return { ...base, verdict: 'hold', reason: 'real-fs-write held: no valid self-reported confidence (a number from 0 to 1) in the call' }
+    if (!signals.length) return { ...base, verdict: 'hold', reason: `${subject} held: no independent signal is available for this call, and a self-reported confidence is never enough on its own` }
+    if (self === null) return { ...base, verdict: 'hold', reason: `${subject} held: no valid self-reported confidence (a number from 0 to 1) in the call` }
     const score = Math.min(self, ...signals.map((s) => s.score))
     const weakest = signals.reduce((a, b) => (b.score < a.score ? b : a))
-    if (score >= this.threshold) return { ...base, verdict: 'allow-logged', score, reason: `real-fs-write auto-approved: combined score ${score} >= ${this.threshold}` }
+    if (score >= this.threshold) return { ...base, verdict: 'allow-logged', score, reason: `${subject} auto-approved: combined score ${score} >= ${this.threshold}` }
     const why = score === self ? `the model's own confidence (${self})` : `${weakest.name} (${weakest.score}${weakest.note ? `: ${weakest.note}` : ''})`
-    return { ...base, verdict: 'hold', score, reason: `real-fs-write held: combined score ${score} < ${this.threshold}, limited by ${why}` }
+    return { ...base, verdict: 'hold', score, reason: `${subject} held: combined score ${score} < ${this.threshold}, limited by ${why}` }
   }
 
   private async gate(ev: ToolCallEvent): Promise<void> {

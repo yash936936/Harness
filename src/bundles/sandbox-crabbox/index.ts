@@ -104,6 +104,7 @@ export class CrabboxProvider implements SandboxProvider {
       provider: this.name,
       leaseId: slug,
       exitCode: run!.exitCode,
+      ...(run!.spawnError ? { spawnError: run!.spawnError } : {}),
       stdout: run!.stdout,
       stderr: run!.spawnError ? run!.spawnError : run!.stderr,
       timedOut: run!.timedOut,
