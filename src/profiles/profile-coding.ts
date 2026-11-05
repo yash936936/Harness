@@ -242,8 +242,8 @@ export async function bootProfileCoding(config: ProfileCodingConfig): Promise<Co
         inputSchema: { type: 'object', properties: { query: { type: 'string', minLength: 1, maxLength: 500 } }, required: ['query'], additionalProperties: false },
         execute: async (input: { query: string }, call: { actor?: string }) => {
           const result = await ctx.memory.querySemantic(call.actor, input.query, { k: 5, maxChars: 2400 })
-          const raw = result.hits.map((hit) => hit.text).join('\\n')
-          return ctx.inputGuard.fence(raw || 'No relevant semantic memory facts found.', 'search_semantic_memory')
+          const raw = result.hits.map((hit) => hit.text).join('\n')
+          return raw || 'No relevant semantic memory facts found.'
         },
       })
     }
