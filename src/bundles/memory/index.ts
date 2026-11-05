@@ -190,11 +190,9 @@ export class Memory extends Service {
    */
   view(actor: string): ScopedMemory {
     const check = () => {
-      if (isScopedActor(actor)) {
-      const grant = this.access.get(actor)
-      if (!grant) throw new MemoryError(`memory: "${actor}" has no live memory grant`)
-      if (!this.access.canQuerySemantic(actor)) throw new MemoryError(`memory: "${actor}" has no semantic-memory grant`)
-    }
+      if (isScopedActor(actor) && !this.access.get(actor)) {
+        throw new MemoryError(`memory: "${actor}" has no live memory grant`)
+      }
     }
     return {
       actor,
