@@ -40,7 +40,7 @@ describe('boot', () => {
       expect((ctx as any)[s], s).toBeTruthy()
     expect((ctx as any).skills).toBeUndefined() // never auto-discovered
     const by = Object.fromEntries(ctx.tools.list().map((t) => [t.name, t.actionClass]))
-    expect(by).toEqual({ search_code: 'read-only', list_code_files: 'read-only', read_file: 'read-only', edit_file: 'real-fs-write', write_file: 'real-fs-write', run_command: 'real-fs-write' })
+    expect(by).toEqual({ search_code: 'read-only', list_code_files: 'read-only', read_file: 'read-only', edit_file: 'real-fs-write', write_file: 'real-fs-write', run_command: 'sandbox-write' })
     expect(by).not.toHaveProperty('__profile_selftest') // the probe is gone
   })
   it('the boot self-test left a deny decision under its own session id and nothing in the real ones', async () => {
@@ -214,12 +214,12 @@ const say = (t: string) => ({ text: t, stopReason: 'end_turn' as const }) as any
 const SCRIPT: { name: string; input: any; class: string; verdict: string; approved?: boolean; ran: boolean }[] = [
   { name: 'read_file', input: { path: 'README.md' }, class: 'read-only', verdict: 'allow', ran: true },
   { name: 'scratch', input: { note: 'try a thing in the sandbox' }, class: 'sandbox-write', verdict: 'allow-logged', ran: true },
-  { name: 'edit_file', input: { path: 'src/a.ts', old_string: 'a = 1', new_string: 'a = 2', confidence: 0.95 }, class: 'real-fs-write', verdict: 'allow-logged', ran: true },
-  { name: 'edit_file', input: { path: 'package.json', old_string: '"v":1', new_string: '"v":2', confidence: 1 }, class: 'real-fs-write', verdict: 'hold', approved: true, ran: true },
+  { name: 'edit_file', input: { path: 'src/a.ts', old_string: 'a = 1', new_string: 'a = 2', confidence: 0.95 }, class: 'sandbox-write', verdict: 'allow-logged', ran: true },
+  { name: 'edit_file', input: { path: 'package.json', old_string: '"v":1', new_string: '"v":2', confidence: 1 }, class: 'sandbox-write', verdict: 'hold', approved: true, ran: true },
   { name: 'notify', input: { message: 'deploy done' }, class: 'external-side-effect', verdict: 'hold', approved: true, ran: true },
-  { name: 'run_command', input: { command: 'rm', args: ['-rf', '.'], confidence: 1 }, class: 'real-fs-write', verdict: 'deny', ran: false },
-  { name: 'run_command', input: { command: 'node', args: ['--version'], confidence: 1 }, class: 'real-fs-write', verdict: 'allow-logged', ran: true },
-  { name: 'run_command', input: { command: 'sh', args: ['-c', 'echo pwned > pwned.txt'], confidence: 1 }, class: 'real-fs-write', verdict: 'hold', approved: false, ran: false },
+  { name: 'run_command', input: { command: 'rm', args: ['-rf', '.'], confidence: 1 }, class: 'sandbox-write', verdict: 'deny', ran: false },
+  { name: 'run_command', input: { command: 'node', args: ['--version'], confidence: 1 }, class: 'sandbox-write', verdict: 'allow-logged', ran: true },
+  { name: 'run_command', input: { command: 'sh', args: ['-c', 'echo pwned > pwned.txt'], confidence: 1 }, class: 'sandbox-write', verdict: 'hold', approved: false, ran: false },
 ]
 
 interface AuditFinding {

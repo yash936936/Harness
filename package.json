@@ -15,7 +15,10 @@
     "pin": "tsx scripts/pin-from-file.ts",
     "check": "npm run lint && vitest run",
     "eval": "tsx scripts/eval-calibrate.ts",
-    "lint": "tsc --noEmit --noUnusedLocals --noUnusedParameters"
+    "lint": "tsc --noEmit --noUnusedLocals --noUnusedParameters",
+    "smoke:openrouter": "tsx scripts/smoke-openrouter.ts",
+    "license:inventory": "tsx scripts/license-inventory.ts",
+    "verify:model-artifact": "tsx scripts/verify-model-artifact.ts"
   },
   "dependencies": {
     "@lancedb/lancedb": "0.30.0",
