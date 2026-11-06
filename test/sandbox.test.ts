@@ -18,7 +18,7 @@ function state(extra: Record<string, unknown> = {}) {
   dirs.push(d)
   const file = join(d, 'state.json')
   writeFileSync(file, JSON.stringify({ leases: [], calls: [], ...extra }))
-  return { file, read: () => JSON.parse(readFileSync(file, 'utf8')) as { leases: string[]; calls: string[][] } }
+  return { file, read: () => JSON.parse(readFileSync(file, 'utf8')) as { leases: string[]; calls: string[][]; forwardedUserDirs?: Record<string, string> } }
 }
 
 async function boot(opts: { consent?: boolean; hosts?: string[] } = {}) {
