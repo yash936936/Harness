@@ -38,7 +38,7 @@ Scope: working prototype only. Statuses below distinguish committed code, CI, an
 ## Blocked or partial
 
 - **BLOCKED-HARDWARE:** real Crabbox/Docker lease, execution and release; real Needle runtime; Tauri installed-shell and sidecar measurements. Windows OS-suspended live-holder acceptance is now verified; broader target-filesystem/platform stress remains.
-- **BLOCKED-KEY:** one live OpenRouter request and one complete governed OpenRouter task because credentials were not available to this run.
+- **BLOCKED-KEY:** one live OpenRouter request and one complete governed OpenRouter task because credentials were not available to this run. Ollama full-task acceptance also remains unverified.
 - **BLOCKED-HUMAN:** at least 10 genuine model-driven sessions (20+ if already collected) and owner-only labels committed and hashed before scorer output, with both good/bad classes; no agreement percentage is required. Real-data evaluation depends on that dataset.
 - **Partial:** third-party distribution notice verification, immutable Qwen artifact pin/hash, router comparison/ownership, real-model semantic-memory quality, and the full desktop product.
 
