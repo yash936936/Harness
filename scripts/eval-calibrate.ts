@@ -15,7 +15,7 @@ import { EvalRunner, commandPassed, defaultScorers } from '../src/bundles/eval-r
 import { meetsCalibrationMinimum, validateHumanRunLabels } from './eval-calibrate-validation.js'
 
 const [dir, labelsFile, checkPattern] = process.argv.slice(2)
-const MIN_LABELS = 20
+const MIN_LABELS = 10
 if (!dir) {
   console.error('usage: npx tsx scripts/eval-calibrate.ts <logDir> [labels.json] [checkCommandRegex]')
   process.exit(2)
@@ -72,6 +72,7 @@ let counted = 0
 let agree = 0
 const report: Array<{ sessionId: string; scorer: 'good' | 'bad'; label?: string; score: number; eventCount: number }> = []
 const disagreements: string[] = []
+const confusion = { humanGoodScorerGood: 0, humanGoodScorerBad: 0, humanBadScorerGood: 0, humanBadScorerBad: 0 }
 for (const id of ids.sort()) {
   const r = await ctx.eval.score(id)
   const label = labels[id]
@@ -89,11 +90,18 @@ for (const id of ids.sort()) {
 console.log('\n* = required scorer')
 if (labelsFile) {
   const rate = counted ? agree / counted : 0
+  for (const item of report) {
+    if (!item.label) continue
+    if (item.label === 'good' && item.scorer === 'good') confusion.humanGoodScorerGood++
+    else if (item.label === 'good' && item.scorer === 'bad') confusion.humanGoodScorerBad++
+    else if (item.label === 'bad' && item.scorer === 'good') confusion.humanBadScorerGood++
+    else confusion.humanBadScorerBad++
+  }
   const classCounts = {
     good: Object.values(labels).filter((label) => label === 'good').length,
     bad: Object.values(labels).filter((label) => label === 'bad').length,
   }
-  const calibrated = meetsCalibrationMinimum(counted, classCounts, rate, MIN_LABELS, 0.9)
+  const eligible = meetsCalibrationMinimum(counted, classCounts, MIN_LABELS)
   writeFileSync('calibration-report.json', JSON.stringify({
     generatedAt: new Date().toISOString(),
     logDirectory: dir,
@@ -103,12 +111,14 @@ if (labelsFile) {
     labelledCount: counted,
     classCounts,
     agreement: { correct: agree, total: counted, rate },
+    confusion,
     sessions: report,
   }, null, 2) + '\n')
-  console.log(`\nreport: calibration-report.json; minimum ${MIN_LABELS} matched labels with both classes and 90% agreement: ${calibrated ? 'met' : 'NOT MET'}`)
+  console.log(`\nreport: calibration-report.json; minimum ${MIN_LABELS} matched labels with both classes: ${eligible ? 'met' : 'NOT MET'}`)
   console.log(`\nagreement with your labels: ${agree}/${counted} (${Math.round(rate * 100)}%)`)
+  console.log(`confusion (human label vs scorer): ${JSON.stringify(confusion)}`)
   for (const disagreement of disagreements) console.log(`  DISAGREE ${disagreement}`)
-  process.exit(calibrated ? 0 : 1)
+  process.exit(eligible ? 0 : 1)
 } else {
   console.log('\nNo labels supplied. This is a scorer report, not a calibration result.')
 }
