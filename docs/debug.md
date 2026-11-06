@@ -1,3 +1,15 @@
+## DBG-070 — Build-plan refresh, PR/CI verification, and evaluation protocol alignment — 2026-11-07
+
+**Source of work:** owner-provided BUILD-PLAN.md and prompt.md; live GitHub repository state.
+
+**Verified:** PR #11 and PR #12 are merged. PR #11 merge commit is fbb20018e1255ff8a1a24e24669b95b49858bbaa; PR #12 merge commit is e93ff1edff16b9c643eecf54ec2b3985e5829369. CI run #63 for current main passed both Ubuntu and Windows jobs through npm ci, npm run typecheck, and npm test.
+
+**Crabbox review:** BASE_ENV now forwards PATH, HOME, USERPROFILE, APPDATA, LOCALAPPDATA, Docker variables, and XDG config/state/cache roots. PR #12's fake-CLI test verifies four user config/state/cache variables. This does not prove the original Windows ssh-keygen exit-255 hypothesis, nor a real Harness lease. No Windows environment reproduction or Docker/Crabbox command was run here.
+
+**Evaluation change:** added D-109 and aligned the evaluator with the owner's updated rule: at least 10 real sessions (20+ when already available), both classes, no 90% agreement gate, and explicit confusion counts. Labels must be committed and hashed before scorer output is generated/viewed. No data or labels were fabricated.
+
+**Limits:** no local npm run, real sandbox run, host-sentinel/orphan-reaper run, OpenRouter/Ollama full task, production package audit, Qwen artifact download, real embedding/poisoning run, or desktop benchmark was performed. These remain blocked or partial as recorded in docs/AUDIT-CLOSEOUT.md.
+
 ## DBG-069 — Lock stale-owner correction and desktop gap recheck — 2026-11-06
 
 **Defect fixed:** `tryBreakStale` previously broke a valid lock when its mtime exceeded `staleMs`, even if its owner PID was alive. A suspended/stalled holder could therefore be displaced. New rule: valid live PID means never age-break; dead PID means break; missing/invalid PID means age-break only. This preserves D-106 recovery for empty/partial lock files.
