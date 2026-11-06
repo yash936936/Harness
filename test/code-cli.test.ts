@@ -36,7 +36,7 @@ describe('governed profile code path', () => {
     expect(events.map(e => e.type)).toContain('tool.call')
     expect(events.map(e => e.type)).not.toContain('approval.pending')
     expect(tools).not.toContain('run_command')
-    ctx.dispose()
+    await ctx.dispose()
   })
 
   it('holds and logs a file-write approval before touching disk', async () => {
@@ -54,7 +54,7 @@ describe('governed profile code path', () => {
     expect(events.map(e => e.type)).toContain('approval.pending')
     expect(events.map(e => e.type)).toContain('approval.resolved')
     expect(readFileSync(join(root, 'approved.txt'), 'utf8')).toBe('approved')
-    ctx.dispose()
+    await ctx.dispose()
   })
 
   it('refuses OpenRouter before any request when the environment key is missing', async () => {
