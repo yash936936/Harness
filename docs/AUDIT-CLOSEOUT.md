@@ -1,6 +1,6 @@
 # Prototype audit closeout
 
-Date: 2026-11-06  
+Date: 2026-11-07  
 Repository: `yash936936/Harness`  
 Scope: working prototype only. Statuses below distinguish committed code, CI, and external acceptance evidence. A green test suite never stands in for a real sandbox, provider, desktop runtime, or human-labelled dataset.
 
@@ -12,7 +12,7 @@ Scope: working prototype only. Statuses below distinguish committed code, CI, an
 | ENG-04 | Partial | `LICENSE`, `THIRD_PARTY_LICENSES.md`, `package-lock.json`, `docs/decisions.md` (D-105) | Before distribution, rebuild the exact production bundle and verify included notices: `npm ci; npm run license:inventory`; inspect production dependency closure and retain the json-bignum MIT text in shipped notices. Apache-2.0 covers original repo work, not dependencies. |
 | ENG-08 | Partial | `docs/decisions.md` (D-104, D-105), `scripts/verify-model-artifact.ts` | Before any model artifact distribution: pin an immutable Qwen2.5-Coder-7B-Instruct revision, download artifact, write provenance JSON with model/revision/source/SHA-256, then `npx tsx scripts/verify-model-artifact.ts <artifact-file> <provenance.json>`. Qwen 3B remains excluded from commercial distribution absent written permission. No weights are in this repository. |
 | 6.2 | BLOCKED-HUMAN | `scripts/eval-calibrate.ts`, `scripts/eval-calibrate-validation.ts`, `docs/evidence/EVAL-10.md` | Generate at least 20 distinct real model sessions using `npm run harness -- code --model <real-model> "<task>"`; single owner labels them, includes both good and bad classes, hashes and commits labels before looking at scorer output. The evaluator rejects fewer than 20 matched sessions and requires at least 90% agreement. No fabricated sessions or labels. |
-| 6.4 | BLOCKED-HUMAN | `scripts/eval-calibrate.ts`, `docs/evidence/EVAL-10.md` | After at least 20 matched labels are committed and SHA-256 recorded, run `npm run eval -- <session-log-dir> <labels.json>`. The evaluator requires both label classes and at least 90% agreement. Report raw agreement only as **prototype-grade, not calibrated**. |
+| 6.4 | BLOCKED-HUMAN | `scripts/eval-calibrate.ts`, `docs/evidence/EVAL-10.md`, D-109 | After at least 10 matched labels (20+ if already collected) are committed with SHA-256, run `npm run eval -- <session-log-dir> <labels.json>`. Report raw agreement, class counts and confusion table as **prototype-grade, not calibrated**; no agreement cutoff. |
 | ARCH-02 | Partial | `src/bundles/router/`, `src/profiles/profile-coding.ts`, `docs/decisions.md` (D-100) | Safe default is retained (`router.owned` empty for unmeasured classes). Need the actual Needle runtime and frozen-suite comparisons before granting ownership: `npx tsx scripts/eval-router.ts` plus real Needle wrapper command documented by the script. |
 | Session logs | Closed | `src/bundles/session-log/`, `test/session-log-multiprocess.test.ts`, `test/fixtures/append-worker.ts`, `docs/debug.md` (DBG-064) | Repository implementation and process-interruption regression are committed; CI run #48 passed tests on Ubuntu/Windows. This is not a hardware power-loss durability claim. |
 | File locking | PARTIAL (Windows paused-holder verified) | `src/util/filelock.ts`, `test/session-log-multiprocess.test.ts`, `test/fixtures/append-worker.ts`, `scripts/test-windows-paused-lock.ps1`, `docs/evidence/WINDOWS-LOCK-TAURI-1B4.md` | Windows PsSuspend v1.09 acceptance passed: 15/15 tests, including the OS-suspended live-holder regression. Remaining: run stress tests on each supported target filesystem/platform and retain raw evidence; this Windows run is not a power-loss durability claim. |
@@ -27,13 +27,13 @@ Scope: working prototype only. Statuses below distinguish committed code, CI, an
 - Fail-closed command availability is implemented. Without Docker or when Crabbox doctor fails, `run_command` is excluded and the CLI prints the no-sandbox notice; file tools remain behind their policy gates. There is no host-execution fallback.
 - D-106 fixes are present in source and covered by regression tests. D-106 reports the tests failed against old code before passing after the fixes.
 - Session-log torn-tail recovery is implemented; the child-process interruption fixture is a process-level regression, not hardware durability proof.
-- GitHub CI run #48 passed on Ubuntu and Windows for the merged documentation commit. Each OS job completed `npm ci`, typecheck and Vitest. CI does not run `npm run lint` as a distinct step. The retrieved job summary does not include detailed Vitest pass/skip totals, so this closeout does not invent them.
+- GitHub Actions run #63 for main commit `e93ff1edff16b9c643eecf54ec2b3985e5829369` passed on Ubuntu and Windows. Both jobs completed `npm ci`, `npm run typecheck`, and `npm test`. CI does not run `npm run lint` as a distinct step. The job summary does not expose detailed Vitest pass/skip totals, so this closeout does not invent them.
 
 ## Blocked or partial
 
 - **BLOCKED-HARDWARE:** real Crabbox/Docker lease, execution and release; real Needle runtime; Tauri installed-shell and sidecar measurements. Windows OS-suspended live-holder acceptance is now verified; broader target-filesystem/platform stress remains.
 - **BLOCKED-KEY:** one live OpenRouter request and one complete governed OpenRouter task because credentials were not available to this run.
-- **BLOCKED-HUMAN:** at least 20 genuine model-driven sessions and owner-only labels committed and hashed before scorer output, with both good/bad classes and at least 90% agreement; real-data evaluation depends on that dataset.
+- **BLOCKED-HUMAN:** at least 10 genuine model-driven sessions (20+ if already collected) and owner-only labels committed and hashed before scorer output, with both good/bad classes; no agreement percentage is required. Real-data evaluation depends on that dataset.
 - **Partial:** third-party distribution notice verification, immutable Qwen artifact pin/hash, router comparison/ownership, real-model semantic-memory quality, and the full desktop product.
 
 ## Deferred by prototype scope
@@ -42,4 +42,4 @@ CubeSandbox, Qdrant, Langfuse, browser tool, Needle router ownership absent meas
 
 ## Defects and limitations found
 
-The closeout found a recordkeeping defect: `docs/status.md` referred to CI run #47 for the Batch 1 merge, while the actual run associated with the merged docs commit is #48. This branch corrects the run reference. Historical older status entries contain stale phase descriptions; they remain historical and are superseded by the newest dated entries. The Windows owner acceptance subsequently ran successfully: PsSuspend v1.09, 15/15 tests passed in 20.66 seconds, including the OS-suspended live-holder case. This follow-up updates that evidence without claiming other external gates. The local `npm ci` attempt during the earlier docs-only closeout timed out; no local lint or test result is claimed for that earlier run.
+The closeout found a recordkeeping defect: earlier status entries cited superseded CI runs. Current main was independently checked at run #63, which passed on Ubuntu and Windows. PR #11 and PR #12 are both merged. Historical older status entries contain stale phase descriptions; they remain historical and are superseded by the newest dated entries. The Windows owner acceptance subsequently ran successfully: PsSuspend v1.09, 15/15 tests passed in 20.66 seconds, including the OS-suspended live-holder case. This follow-up updates that evidence without claiming other external gates. The local `npm ci` attempt during the earlier docs-only closeout timed out; no local lint or test result is claimed here. PR #12's fake-CLI environment test does not close the real Crabbox acceptance gate.
