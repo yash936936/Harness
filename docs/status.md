@@ -1,3 +1,11 @@
+## 2026-11-06 — Batch 1 governed CLI CI closeout (DBG-067)
+
+- Fixed the optional Crabbox doctor detail access in `src/cli/code.ts`.
+- Strengthened `test/code-cli.test.ts` to script an actual `read_file` tool call, assert the governed execution/logging path, and dispose Cordis contexts with `ctx.fiber.dispose()`.
+- Merged PR #6 at `2b116cace5beae7ec7f5d99c24dc78fb14e9d5ef`.
+- GitHub Actions run #47 completed successfully on both `ubuntu-latest` and `windows-latest`; each job passed `npm ci`, `npm run typecheck`, and `npm test`.
+- This closes the Batch 1 CI repair scope only. It does not close external sandbox, model-quality, router-evaluation, or other acceptance gates listed below.
+
 ## 2026-11-06 — independent code review (D-106, DBG-066)
 
 - Reviewed the repo against upstream crabbox docs. Fixed five defects (crabbox working directory, release confirmation, slug normalization, empty-lock wedge, deny-list gaps); tests added and shown to fail on the old code.
