@@ -113,7 +113,7 @@ export async function runCodeTask(io: WizardIO, options: CodeTaskOptions): Promi
       const doctor = (await ctx.sandbox.doctor()).crabbox
       sandboxReady = doctor?.ok === true
       io.print(sandboxReady
-        ? `Sandbox: Crabbox local-container ready (${doctor.detail})`
+        ? `Sandbox: Crabbox local-container ready (${doctor?.detail ?? 'ready'})`
         : `Crabbox doctor failed: ${doctor?.detail ?? 'no doctor result'}`)
     }
     const offeredTools = ctx.tools.list().map((tool) => tool.name).filter((name) => sandboxReady || name !== COMMAND_TOOL)
