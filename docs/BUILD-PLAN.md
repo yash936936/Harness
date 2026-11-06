@@ -21,7 +21,7 @@ Not done:
 - Production dependency notices, Qwen immutable provenance, real-data evaluation, real retrieval/poisoning tests, and the desktop product remain open or partial.
 - harness run is one bare model call; the governed path is harness code.
 
-A green npm test does not mean Docker ran. Sandbox unit tests use a fake Crabbox CLI or fake E2B client. Only npm run test:real-sandbox touches Docker and the real Crabbox executable.
+A green `npm test` does not mean Docker ran. The regular sandbox unit tests use a fake Crabbox CLI or fake E2B client. Two opt-in checks exercise the real Crabbox executable: `npm run test:real-sandbox` (the fuller acceptance test, including exit codes 0 and 7) and `npx tsx scripts/smoke-crabbox.ts` (doctor, lease/run/release, successful output, and a failing command returning exit code 3). Neither is run by ordinary CI. The smoke script does not replace the host-sentinel or orphan-reaper acceptance in S1.
 
 ## 2. Stages
 
