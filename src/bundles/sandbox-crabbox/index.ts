@@ -28,7 +28,7 @@ export interface CrabboxConfig {
   envAllowlist?: string[]
 }
 
-const BASE_ENV = ['PATH', 'HOME', 'USERPROFILE', 'DOCKER_HOST', 'DOCKER_CONFIG', 'DOCKER_CONTEXT', 'XDG_CONFIG_HOME']
+const BASE_ENV = ['PATH', 'HOME', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'DOCKER_HOST', 'DOCKER_CONFIG', 'DOCKER_CONTEXT', 'XDG_CONFIG_HOME', 'XDG_STATE_HOME', 'XDG_CACHE_HOME']
 const LOCAL = new Set(['local-container', 'docker', 'container', 'local-docker'])
 
 function slugId(): string {

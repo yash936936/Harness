@@ -18,7 +18,7 @@ function state(extra: Record<string, unknown> = {}) {
   dirs.push(d)
   const file = join(d, 'state.json')
   writeFileSync(file, JSON.stringify({ leases: [], calls: [], ...extra }))
-  return { file, read: () => JSON.parse(readFileSync(file, 'utf8')) as { leases: string[]; calls: string[][] } }
+  return { file, read: () => JSON.parse(readFileSync(file, 'utf8')) as { leases: string[]; calls: string[][]; forwardedUserDirs?: Record<string, string> } }
 }
 
 async function boot(opts: { consent?: boolean; hosts?: string[] } = {}) {
@@ -49,6 +49,23 @@ describe('5.1 crabbox provider (fake CLI)', () => {
     await ctx.sandbox.run({ command: ['true'] })
     const warm = s.read().calls.find((c) => c[0] === 'warmup')!
     expect(warm).toContain('--local-container-runtime'); expect(warm[warm.indexOf('--local-container-runtime') + 1]).toBe('docker')
+  })
+  it('forwards user config, cache, and state roots to the Crabbox CLI', async () => {
+    const keys = ['APPDATA', 'LOCALAPPDATA', 'XDG_STATE_HOME', 'XDG_CACHE_HOME'] as const
+    const previous = Object.fromEntries(keys.map((key) => [key, process.env[key]]))
+    const expected = Object.fromEntries(keys.map((key) => [key, `harness-test-${key.toLowerCase()}`]))
+    try {
+      for (const key of keys) process.env[key] = expected[key]
+      const s = state(); const ctx = await boot()
+      await ctx.sandbox.register(crab(ctx, s.file))
+      await ctx.sandbox.run({ command: ['true'] })
+      expect(s.read().forwardedUserDirs).toEqual(expected)
+    } finally {
+      for (const key of keys) {
+        if (previous[key] === undefined) delete process.env[key]
+        else process.env[key] = previous[key]
+      }
+    }
   })
   it('a failing command is a normal result and the lease is still released', async () => {
     const s = state({ failRun: true }); const ctx = await boot()
