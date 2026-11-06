@@ -4,7 +4,7 @@ import { parseArgs } from 'node:util'
 import { basename } from 'node:path'
 import { runTask } from './run.js'
 import { runWizard } from './wizard.js'
-import { runCodeTask, type CodeProvider } from './code.js'
+import { parseTimeoutMs, runCodeTask, type CodeProvider } from './code.js'
 
 async function main(): Promise<number> {
   const io = new TerminalIO()
@@ -44,17 +44,26 @@ async function main(): Promise<number> {
           'base-url': { type: 'string' },
           project: { type: 'string', default: basename(process.cwd()) },
           sandbox: { type: 'string', default: 'auto' },
+          'timeout-ms': { type: 'string' },
         },
       })
       const task = positionals.join(' ')
-      if (!values.model || !task || (values.provider !== 'ollama' && values.provider !== 'openrouter') || (values.sandbox !== 'auto' && values.sandbox !== 'none')) {
-        io.print('usage: npm run harness -- code --model <tag-or-id> [--provider ollama|openrouter] [--base-url URL] [--project ID] [--sandbox auto|none] "<task>"')
+      let timeoutMs: number | undefined
+      try {
+        timeoutMs = parseTimeoutMs(values['timeout-ms'])
+      } catch (error) {
+        io.print(error instanceof Error ? error.message : String(error))
+        return 2
+      }
+      if (!values.model || !task || (values.provider !== 'ollama' && values.provider !== 'openrouter') || (values.sandbox !== 'auto' && values.sandbox !== 'none') || (values.provider === 'openrouter' && timeoutMs !== undefined)) {
+        io.print('usage: npm run harness -- code --model <tag-or-id> [--provider ollama|openrouter] [--base-url URL] [--project ID] [--sandbox auto|none] [--timeout-ms N (Ollama only)] "<task>"')
         return 2
       }
       const result = await runCodeTask(io, {
         task, projectId: values.project!, provider: values.provider as CodeProvider, model: values.model,
         ...(values['base-url'] ? { baseUrl: values['base-url'] } : {}),
         sandbox: values.sandbox as 'auto' | 'none',
+        ...(timeoutMs !== undefined ? { timeoutMs } : {}),
       })
       return result.ok ? 0 : 1
     }
