@@ -22,7 +22,14 @@ describe('governed profile code path', () => {
       projectId: 'scripted', projectRoot: root, sessionLog: { path: join(root, '.harness', 'sessions') },
       modelAdapter: { ollama: { model: 'scripted' } }, orchestrator: { maxRepairs: 0 },
     })
-    const mock = new MockProvider([plan, reply('README contains prototype.')])
+    const mock = new MockProvider([
+      plan,
+      {
+        toolCalls: [{ id: 'readme-read', name: 'read_file', input: { path: 'README.md' } }],
+        content: [{ type: 'tool_use', id: 'readme-read', name: 'read_file', input: { path: 'README.md' } }],
+      },
+      reply('README contains prototype.'),
+    ])
     ctx.llm.register('scripted', mock, { default: true })
     const sid = ctx.log.create()
     const tools = ctx.tools.list().map(t => t.name).filter(n => n !== 'run_command')
@@ -36,7 +43,7 @@ describe('governed profile code path', () => {
     expect(events.map(e => e.type)).toContain('tool.call')
     expect(events.map(e => e.type)).not.toContain('approval.pending')
     expect(tools).not.toContain('run_command')
-    await ctx.stop()
+    await ctx.fiber.dispose()
   })
 
   it('holds and logs a file-write approval before touching disk', async () => {
@@ -54,7 +61,7 @@ describe('governed profile code path', () => {
     expect(events.map(e => e.type)).toContain('approval.pending')
     expect(events.map(e => e.type)).toContain('approval.resolved')
     expect(readFileSync(join(root, 'approved.txt'), 'utf8')).toBe('approved')
-    await ctx.stop()
+    await ctx.fiber.dispose()
   })
 
   it('refuses OpenRouter before any request when the environment key is missing', async () => {
