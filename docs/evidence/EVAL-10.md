@@ -6,8 +6,8 @@ Create at least 10 distinct real model-driven sessions through npm run harness -
 
 1. Record the real session IDs and short task summaries without project secrets.
 2. Label using the schema accepted by scripts/eval-calibrate.ts, with both good and bad classes.
-3. Compute SHA-256 over the exact labels file.
-4. Commit the labels file and hash before running the scorer or viewing any scorer output.
+3. Run `powershell -ExecutionPolicy Bypass -File scripts/commit-eval-labels.ps1 -LabelsPath <path-to-labels.json>`. The script computes SHA-256, writes a sidecar, commits both, and verifies the committed bytes.
+4. Only after the script succeeds, run the scorer. Do not inspect scorer output before the label commit.
 5. Only after that commit, run npm run eval -- <logDir> labels.json; preserve complete output and scorer version.
 6. Report raw agreement, class counts, and the human-label-versus-scorer confusion table as **prototype-grade, not calibrated**. There is no minimum agreement percentage.
 
