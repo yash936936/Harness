@@ -1,3 +1,13 @@
+## D-108 — Live lock owners are never stale by age — 2026-11-06
+
+**Decision:** a file lock with a valid live PID must not be broken solely due to age. A paused process is still a live owner. Break immediately only when a valid PID is confirmed dead. If metadata is absent, invalid, empty, or partial, age-based recovery remains allowed to recover a crash between exclusive file creation and metadata write (D-106). The lock remains local-machine advisory and does not claim distributed-filesystem safety.
+
+**Why:** the previous age-only stale rule could take a lock away from a suspended process and permit concurrent critical sections. A finite stale timeout cannot safely distinguish a slow live process from a dead process when a valid PID is available.
+
+**Affects:** `src/util/filelock.ts`, `test/session-log-multiprocess.test.ts`, `test/fixtures/append-worker.ts`.
+
+**Desktop:** no change to D-048. Tauri remains provisional; the current hello-world benchmark is not the 1B.4 desktop application. Do not select Electron/Tauri or claim desktop completion without the real core integration and target-machine measurements.
+
 ## D-107 — Prototype closeout evidence boundaries — 2026-11-06
 
 **Decided:** the closeout status distinguishes implementation/CI from external acceptance. A governed CLI path and fake-backed regression tests may be recorded as implemented, but they do not close real sandbox, real provider, real Needle, human-label, Windows lock-pause, or target-desktop gates. Tauri remains provisional under D-048 until the existing benchmark is run on the target machine. CubeSandbox and the remaining platform/infrastructure items stay deferred under the prototype scope.
