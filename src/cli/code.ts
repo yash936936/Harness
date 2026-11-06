@@ -16,6 +16,8 @@ export interface CodeTaskOptions {
   provider: CodeProvider
   model: string
   baseUrl?: string
+  /** Per-model inference timeout in milliseconds. Ollama defaults to 120 seconds. */
+  timeoutMs?: number
   sandbox?: 'auto' | 'none'
   dockerAvailable?: boolean
 }
@@ -29,6 +31,16 @@ export function dockerEngineAvailable(): boolean {
 }
 
 const safeProjectId = (value: string) => value.replace(/[^A-Za-z0-9_.-]/g, '-').slice(0, 80) || 'project'
+
+/** Parse an optional positive integer timeout supplied in milliseconds. */
+export function parseTimeoutMs(value: string | undefined): number | undefined {
+  if (value === undefined) return undefined
+  const timeoutMs = Number(value)
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0) {
+    throw new RangeError('--timeout-ms must be a positive integer (milliseconds)')
+  }
+  return timeoutMs
+}
 
 export async function runCodeTask(io: WizardIO, options: CodeTaskOptions): Promise<CodeTaskResult> {
   const projectRoot = resolve(options.projectRoot ?? process.cwd())
@@ -83,7 +95,11 @@ export async function runCodeTask(io: WizardIO, options: CodeTaskOptions): Promi
         rateLimit: { perMinute: 16, perDay: 50, maxConcurrent: 1, statePath: join(stateDir, 'openrouter-rate.json'), provider: 'openrouter' },
       }
     : {
-        ollama: { model: options.model, ...(options.baseUrl ? { baseUrl: options.baseUrl } : {}) },
+        ollama: {
+          model: options.model,
+          ...(options.baseUrl ? { baseUrl: options.baseUrl } : {}),
+          ...(options.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}),
+        },
         default: 'ollama',
       }
 
