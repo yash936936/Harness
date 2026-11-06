@@ -7,17 +7,16 @@ $ErrorActionPreference = "Stop"
 
 $resolved = (Resolve-Path -LiteralPath $LabelsPath).Path
 $repoRootRaw = (git rev-parse --show-toplevel).Trim()
-$repoRoot = (Resolve-Path -LiteralPath $repoRootRaw).Path
-if ($LASTEXITCODE -ne 0 -or -not $repoRoot) {
+if ($LASTEXITCODE -ne 0 -or -not $repoRootRaw) {
     throw "Run this script from inside the Harness Git repository."
 }
-
-$rootPrefix = $repoRoot.TrimEnd('\', '/') + [IO.Path]::DirectorySeparatorChar
+$repoRoot = (Resolve-Path -LiteralPath $repoRootRaw).Path
+$rootPrefix = $repoRoot.TrimEnd([char[]]@(92, 47)) + [IO.Path]::DirectorySeparatorChar
 if (-not $resolved.StartsWith($rootPrefix, [StringComparison]::OrdinalIgnoreCase)) {
     throw "Labels file must be inside the repository."
 }
 
-$relative = $resolved.Substring($rootPrefix.Length).Replace('\', '/')
+$relative = $resolved.Substring($rootPrefix.Length).Replace([string][char]92, "/")
 $hash = (Get-FileHash -LiteralPath $resolved -Algorithm SHA256).Hash.ToLowerInvariant()
 $sidecar = $resolved + ".sha256"
 $sidecarRelative = $relative + ".sha256"
