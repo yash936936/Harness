@@ -1,3 +1,11 @@
+## DBG-071 — Evaluation artifact and provenance template review — 2026-11-07
+
+**Found:** the tracked root labels.json contains only three entries, all labelled good. It is insufficient for D-109 because it has fewer than 10 labels and no bad class; it is not treated as a completed human-evaluation dataset. The evidence README also retained the superseded 20-label/90%-agreement rule.
+
+**Fixed:** updated the evidence README to D-109 and corrected the model provenance template from Qwen/Qwen2.5-7B-Instruct to the exact Qwen/Qwen2.5-Coder-7B-Instruct model named by D-104/D-105.
+
+**Still open:** no immutable model revision, downloaded artifact digest, per-file models.lock.json, production THIRD_PARTY_NOTICES, or real labelled sessions are claimed. No weights were downloaded in this environment.
+
 ## DBG-070 — Build-plan refresh, PR/CI verification, and evaluation protocol alignment — 2026-11-07
 
 **Source of work:** owner-provided BUILD-PLAN.md and prompt.md; live GitHub repository state.
