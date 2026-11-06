@@ -1,3 +1,22 @@
+## 2026-11-07 — evaluation/provenance evidence-template review (DBG-071)
+
+- Found that tracked labels.json contains only three good labels. It does not satisfy D-109's 10+ sessions and both-class requirements, so it is not accepted as evaluation evidence.
+- Corrected the evidence README to remove the superseded 20-label/90%-agreement wording.
+- Corrected the Qwen provenance template to the exact Qwen2.5-Coder-7B-Instruct model selected by D-104/D-105. Immutable revision and artifact SHA-256 remain unavailable; no weights or model lock were created.
+- S5 and S6 remain partial/BLOCKED-HUMAN or BLOCKED-NETWORK as detailed in the audit.
+
+## 2026-11-07 — prototype closeout plan and live GitHub refresh (D-109, DBG-070)
+
+- Re-read the owner-provided BUILD-PLAN.md and prompt.md; copied the plan into docs/BUILD-PLAN.md. Scope remains a working prototype.
+- Live GitHub state: PR #11 (Ollama timeout) merged as fbb20018e1255ff8a1a24e24669b95b49858bbaa; PR #12 (Crabbox user-state environment) merged as e93ff1edff16b9c643eecf54ec2b3985e5829369. No open PRs were returned.
+- CI run #63 for e93ff1edff16b9c643eecf54ec2b3985e5829369 passed on both ubuntu-latest and windows-latest; both jobs completed npm ci, npm run typecheck, and npm test. This is CI evidence, not a real Crabbox run.
+- PR #12 forwards APPDATA, LOCALAPPDATA, XDG_STATE_HOME, and XDG_CACHE_HOME. The reported Go user-state-directory defect is fixed in code and fake-CLI tested. The build-plan's original ssh-keygen exit-255 diagnosis is not yet independently reproduced or disproved.
+- S0/ARCH-01 and Phase 5.1 remain BLOCKED-HARDWARE until the owner reruns Crabbox doctor and the real Harness lease/run/release test on Windows + Docker, captures exit codes 0 and 7, confirms cleanup, and checks the host sentinel. Do not infer this from CI.
+- S1 remains blocked behind S0: no host-sentinel/orphan-reaper acceptance evidence is committed.
+- S3 is implemented: npm run harness -- code is present and scripted-model tested. S4 remains BLOCKED-KEY / owner acceptance for a real full task on both OpenRouter and Ollama. harness run remains a separate bare model call.
+- D-109 sets the evaluation protocol to 10+ real sessions (20+ if already available), both label classes, owner-only labels hashed and committed before scorer output, no agreement-percentage gate, and a prototype-grade confusion report. No real sessions or labels are claimed.
+- No local test, Docker, live-provider, real embedding, or Needle run was performed in this environment.
+
 ## 2026-11-06 — Ollama coding CLI inference timeout exposed
 
 - Added `--timeout-ms` to the governed `code` command and passed it to `OllamaProvider.timeoutMs`. The default remains 120,000 ms when omitted; the option accepts decimal integer values from 1 through 4,294,967,295 and is rejected for OpenRouter, where this Ollama-specific setting does not apply.
