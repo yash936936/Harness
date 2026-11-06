@@ -1,5 +1,6 @@
 /** BUG-07: several PROCESSES appending to one session keep sequence numbers unique and gapless. BUG-09 uses the same lock. */
 import { spawn, spawnSync } from 'node:child_process'
+import { access } from 'node:fs/promises'
 import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -92,11 +93,42 @@ describe('file lock', () => {
     await expect(withFileLock(lock, async () => 'x', { timeoutMs: 150, retryMs: 10 })).rejects.toBeInstanceOf(LockTimeoutError)
     expect(existsSync(lock)).toBe(true) // untouched: it was not ours
   })
-  it('a live-but-ancient lock is treated as abandoned', async () => {
-    const dir = tmp(); const lock = join(dir, 'l.lock')
-    writeFileSync(lock, JSON.stringify({ pid: process.pid, token: 'old', ts: 0 }))
+  it('a paused live process is never taken over even after staleMs; contender times out and leaves lock intact', async () => {
+    const dir = tmp()
+    const holder = spawn(process.execPath, ['--import', 'tsx', WORKER, dir, 'unused', '0', 'holder', 'hold-lock'], { stdio: 'ignore' })
+    try {
+      const ready = join(dir, 'holder.ready')
+      const deadline = Date.now() + 5000
+      while (Date.now() < deadline) {
+        try { await access(ready); break } catch { await new Promise((r) => setTimeout(r, 20)) }
+      }
+      expect(existsSync(ready)).toBe(true)
+      await new Promise((r) => setTimeout(r, 250)) // > staleMs (100 ms)
+      const lockPath = join(dir, 'paused-holder.lock')
+      await expect(withFileLock(lockPath, async () => 'must not enter', { staleMs: 100, timeoutMs: 180, retryMs: 10 }))
+        .rejects.toBeInstanceOf(LockTimeoutError)
+      expect(existsSync(lockPath)).toBe(true)
+    } finally {
+      writeFileSync(join(dir, 'holder.release'), 'release')
+      await new Promise<void>((resolve) => holder.once('exit', () => resolve()))
+    }
+  }, 10_000)
+
+  it('a process that crashes while holding a lock leaves a dead-pid lock that the next process can safely break', async () => {
+    const dir = tmp()
+    const crashed = spawnSync(process.execPath, ['--import', 'tsx', WORKER, dir, 'unused', '0', 'crasher', 'crash-lock'], { encoding: 'utf8', timeout: 5000 })
+    expect(crashed.status).toBe(24)
+    expect(existsSync(join(dir, 'crashed-holder.lock'))).toBe(true)
+    await expect(withFileLock(join(dir, 'crashed-holder.lock'), async () => 'recovered', { staleMs: 100, timeoutMs: 1500 }))
+      .resolves.toBe('recovered')
+    expect(existsSync(join(dir, 'crashed-holder.lock'))).toBe(false)
+  }, 10_000)
+
+  it('an aged empty lock from a crash before metadata write remains breakable', async () => {
+    const dir = tmp(); const lock = join(dir, 'empty.lock')
+    writeFileSync(lock, '')
     await new Promise((r) => setTimeout(r, 60))
-    await expect(withFileLock(lock, async () => 'ok', { staleMs: 30, timeoutMs: 1000 })).resolves.toBe('ok')
+    await expect(withFileLock(lock, async () => 'recovered', { staleMs: 30, timeoutMs: 1000 })).resolves.toBe('recovered')
   })
 })
 
