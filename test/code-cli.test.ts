@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { bootProfileCoding } from '../src/profiles/profile-coding.js'
 import { MockProvider } from '../src/bundles/model-adapter/index.js'
+import { parseTimeoutMs } from '../src/cli/code.js'
 
 const roots: string[] = []
 afterEach(() => { for (const d of roots.splice(0)) rmSync(d, { recursive: true, force: true }) })
@@ -80,4 +81,23 @@ describe('governed profile code path', () => {
       if (prior !== undefined) process.env.OPENROUTER_API_KEY = prior
     }
   })
+})
+
+
+describe('Ollama CLI timeout option', () => {
+  it('leaves the provider default unchanged when omitted', () => {
+    expect(parseTimeoutMs(undefined)).toBeUndefined()
+  })
+
+  it('accepts a positive safe integer number of milliseconds', () => {
+    expect(parseTimeoutMs('300000')).toBe(300000)
+    expect(parseTimeoutMs('1')).toBe(1)
+  })
+
+  it.each(['0', '-1', '1.5', 'Infinity', 'NaN', '', '9007199254740992'])(
+    'rejects invalid timeout value %j',
+    (value) => {
+      expect(() => parseTimeoutMs(value)).toThrow('--timeout-ms must be a positive integer')
+    },
+  )
 })
