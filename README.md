@@ -18,8 +18,10 @@ Use the orchestrated, policy-gated path (separate from legacy single-call `run`)
 
 ```powershell
 npm ci
-npm run harness -- code --provider ollama --model <installed-model-tag> "Inspect the project and explain the main request flow."
+npm run harness -- code --provider ollama --model <installed-model-tag> [--timeout-ms 300000] "Inspect the project and explain the main request flow."
 ```
+
+`--timeout-ms` sets the Ollama model-request timeout in milliseconds. It must be a positive integer; when omitted, Ollama keeps its 120-second default. This is separate from the 120-second approval timeout. The option is Ollama-only.
 
 It uses the current directory as project root, saves JSONL sessions in `.harness/sessions/`, and asks before operations held by policy. With Docker and Crabbox ready it uses Crabbox local-container. Otherwise it prints `no sandbox: commands disabled, file tools still gated`; it never falls back to host command execution. File edits remain policy-gated.
 
