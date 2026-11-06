@@ -1,3 +1,18 @@
+## DBG-067 — Batch 1 governed CLI CI repair — 2026-11-06
+
+**Task:** Resolve the two-platform TypeScript CI failures in the governed CLI path.
+
+**Found:** The Crabbox doctor result is optional, so success-path diagnostic output must also use optional access. The governed CLI test needed a scripted model tool-call response to exercise the actual `read_file` dispatch rather than returning a text-only answer. Cordis context cleanup uses `ctx.fiber.dispose()`.
+
+**Fixed:**
+- Guarded `doctor?.detail` in `src/cli/code.ts`.
+- Updated the scripted provider fixture in `test/code-cli.test.ts` to issue a real `read_file` call.
+- Replaced the invalid test cleanup calls with `await ctx.fiber.dispose()`.
+
+**Verified:** PR #6 merged as `2b116cace5beae7ec7f5d99c24dc78fb14e9d5ef`. GitHub Actions run #47 passed on Ubuntu and Windows. Both jobs completed `npm ci`, `npm run typecheck`, and `npm test` successfully.
+
+**Boundary:** This is CI evidence for the repository test suite, not proof of a real Crabbox/Docker execution or any other external acceptance gate.
+
 ## DBG-066 — Review findings: crabbox cwd/release/slug, empty file lock, deny-list gaps — 2026-11-06
 
 **Tested:** full suite before changes (955 passed / 98 skipped, typecheck clean) and after (977 passed / 100 skipped, `npm run lint` clean). The new `test/audit-review-2026-11.test.ts` was run against the OLD source first: the crabbox slug, blind-list release and cwd tests, the new deny-list cases, and the empty-lock test all FAILED there, then pass on the fix.
