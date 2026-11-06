@@ -36,8 +36,8 @@ const safeProjectId = (value: string) => value.replace(/[^A-Za-z0-9_.-]/g, '-').
 export function parseTimeoutMs(value: string | undefined): number | undefined {
   if (value === undefined) return undefined
   const timeoutMs = Number(value)
-  if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0) {
-    throw new RangeError('--timeout-ms must be a positive integer (milliseconds)')
+  if (!/^\d+$/.test(value) || !Number.isSafeInteger(timeoutMs) || timeoutMs <= 0 || timeoutMs > 4_294_967_295) {
+    throw new RangeError('--timeout-ms must be an integer from 1 to 4294967295 milliseconds')
   }
   return timeoutMs
 }
