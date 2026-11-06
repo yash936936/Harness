@@ -2,10 +2,31 @@
 import { appendFile, mkdir, readdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { SessionLog } from '../../src/bundles/session-log/index.js'
+import { withFileLock } from '../../src/util/filelock.js'
 import { Context } from 'cordis'
 const [dir, sid, count, tag, mode] = process.argv.slice(2) as [string, string, string, string, string?]
 const ctx = new Context()
 await ctx.plugin(SessionLog, { path: dir })
+if (mode === 'hold-lock') {
+  const lockPath = join(dir, 'paused-holder.lock')
+  await withFileLock(lockPath, async () => {
+    await writeFile(join(dir, 'holder.ready'), String(process.pid))
+    const releasePath = join(dir, 'holder.release')
+    const deadline = Date.now() + 20_000
+    while (Date.now() < deadline) {
+      try { await import('node:fs/promises').then(({ access }) => access(releasePath)); return } catch {}
+      await new Promise((resolve) => setTimeout(resolve, 20))
+    }
+    throw new Error('holder release timed out')
+  }, { staleMs: 100, timeoutMs: 2000 })
+  process.exit(0)
+}
+if (mode === 'crash-lock') {
+  await withFileLock(join(dir, 'crashed-holder.lock'), async () => {
+    await writeFile(join(dir, 'crash.ready'), String(process.pid))
+    process.exit(24)
+  }, { staleMs: 100, timeoutMs: 2000 })
+}
 if (mode === 'crash-tail') {
   // Simulate a process dying after a partial JSONL write.
   await ctx.log.append(sid, 'before-crash', { tag })
