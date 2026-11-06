@@ -4,8 +4,9 @@
  * Usage:
  *   npx tsx scripts/eval-calibrate.ts <logDir> [labels.json] [checkCommandRegex]
  *
- * Label runs before reviewing scorer output. Calibration requires at least 20 matched,
- * independently labelled sessions, both good and bad classes, and at least 90% agreement.
+ * Commit and hash labels before scorer output is generated or viewed. Prototype-grade
+ * evaluation requires at least 10 matched labels (20+ when already available) and both classes.
+ * Agreement is reported with a confusion table; it is not a pass/fail gate.
  * Labels for session IDs absent from the log directory are rejected.
  */
 import { Context } from 'cordis'
