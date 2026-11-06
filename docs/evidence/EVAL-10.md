@@ -1,6 +1,6 @@
 # Prototype human-evaluation evidence
 
-**Status: BLOCKED-HUMAN.** No sessions or labels are fabricated here.
+**Status: BLOCKED-HUMAN.** No sessions or labels are fabricated here. The tracked root `labels.json` currently contains only three `good` labels; it does not meet D-109 (10+ labels and both classes) and is not accepted as evaluation evidence.
 
 Create at least 10 distinct real model-driven sessions through npm run harness -- code; use 20 or more if that many already exist. Use varied, non-sensitive tasks, including both successful and unsuccessful outcomes. The owner is the single labeler. The model that generated a session must not label it.
 
