@@ -1,3 +1,11 @@
+## 2026-11-06 — Windows paused-holder acceptance passed; evaluation threshold corrected
+
+- Owner-run Windows acceptance completed with Sysinternals PsSuspend v1.09. The dedicated PowerShell runner executed test/session-log-multiprocess.test.ts: **1 test file passed, 15 tests passed, 0 failed**, 20.66 seconds, exit code 0.
+- The Windows OS-suspended live-holder regression executed and passed. This closes the previously open Windows OS-suspension evidence item. It does not claim power-loss durability or cross-filesystem stress coverage.
+- Updated the audit to distinguish the verified Windows paused-holder scenario from remaining target-filesystem/platform stress.
+- Corrected Phase 6.2/6.4 documentation: scripts/eval-calibrate.ts sets MIN_LABELS = 20, and validation also requires both good and bad labels and at least 90% agreement. Ten labels are insufficient. No labels or scores are fabricated.
+- Crabbox, Needle, production dependency licensing, immutable model-artifact provenance, real semantic-memory quality, and the desktop product remain open or deferred pending their stated external evidence.
+
 ## 2026-11-06 — Windows lock recovery hardening (DBG-069)
 
 - Fixed a stale-lock takeover defect: a lock with a valid live PID is no longer broken merely because its mtime exceeds `staleMs`. A dead PID is still immediately recoverable; empty/partial metadata remains age-breakable to preserve D-106 crash-during-create recovery.
