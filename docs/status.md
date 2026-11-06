@@ -1,3 +1,10 @@
+## 2026-11-06 — Windows lock recovery hardening (DBG-069)
+
+- Fixed a stale-lock takeover defect: a lock with a valid live PID is no longer broken merely because its mtime exceeds `staleMs`. A dead PID is still immediately recoverable; empty/partial metadata remains age-breakable to preserve D-106 crash-during-create recovery.
+- Added process-level tests for a live holder remaining exclusive beyond `staleMs`, a child crashing while holding the lock, and an aged empty lock. Added an opt-in Windows OS-suspension regression using Sysinternals PsSuspend and `scripts/test-windows-paused-lock.ps1`.
+- The portable live-holder and crash regressions are committed in this branch. The actual OS-suspended Windows test has not run here; owner command: `powershell -ExecutionPolicy Bypass -File scripts/test-windows-paused-lock.ps1 -PsSuspendPath C:\\Tools\\PsSuspend64.exe` after `npm ci`. CI will run the regular tests; the PsSuspend-specific test is skipped unless the env var is set.
+- Tauri/1B.4 remains open: current `app/desktop/bench/hello-tauri` is a benchmark hello-world, not a production desktop app with Node sidecar, authenticated loopback JSON-RPC, live-run/approval/replay screens. No target-machine startup or memory measurement exists. Do not mark it closed.
+
 ## 2026-11-06 — prototype audit closeout (DBG-068)
 
 - Confirmed the governed command exists as `npm run harness -- code` in `src/cli/index.ts`; `src/cli/code.ts` boots `bootProfileCoding` with an absolute `projectRoot`, selected Ollama/OpenRouter provider, orchestrator, policy approver, gated tools and Crabbox when Docker is available. `run` remains a separate unchanged code path. Approvals print request id/tool/class/reason/input, use terminal approve/deny and are persisted through the session log's policy events.
