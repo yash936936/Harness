@@ -1,13 +1,16 @@
 # Coding Harness
 
-A multi-agent orchestration harness for coding tasks, built on Cordis. Every
-capability (model access, tools, retrieval, memory, sandboxing, the browser)
-is a swappable plugin ("bundle"). Profiles compose bundles into runnable
-stacks, from a single-agent smoke-test kernel up to a governed, multi-agent,
-multi-user system.
+A TypeScript multi-agent coding harness built on Cordis. Bundles provide model access, tools, retrieval, memory, sandbox providers, policy gates and evaluation; profiles compose them into runnable stacks. This repository is a working prototype, not the complete multi-user desktop product.
 
-## Status
-Phases 1-4 are closed (D-077). Phase 5 (sandbox, policy gates, `tools-local`, `profile-coding`) is built; the real sandbox smoke runs have not passed (DBG-058/059), so it is not closed. Phase 4.5 (router) is built and not closed: no class is owned until a real Needle beats the worker (D-091/D-092). Phase 6 (`ctx.eval`) is built; 6.2 and 6.4 are not closed because they need labelled real runs (D-098). Audit fixes D-094 to D-099 and later are in. The per-phase lists below were written as each phase landed and are not all updated; `docs/status.md` and `docs/phases.md` are the authority. Phase 1 (the `profile-minimal` kernel):
+## Current status (2026-11-07)
+
+**Implemented and CI-tested:** the governed `npm run harness -- code` path, terminal approvals, fail-closed command-tool availability, Crabbox provider integration, Ollama/OpenRouter adapters, session logging, cross-process file locking and bounded semantic-memory retrieval. PR #11 and PR #12 are merged. GitHub Actions run #63 passed install, typecheck and tests on Ubuntu and Windows.
+
+**Not yet accepted against real services:** the Harness-to-Crabbox lease/run/release path still needs a real Windows + Docker run after the user-state environment fix. Live full-task acceptance through both OpenRouter and Ollama remains outstanding. Real-data evaluation, real embedding/poisoning acceptance, production dependency-notice review and immutable Qwen artifact provenance remain open. The harness run command remains a separate bare model call; use harness code for the governed prototype path.
+
+**Experimental or deferred:** CubeSandbox, Needle router evaluation/ownership, full desktop UI and sidecar, Qdrant, Langfuse, browser tool and multi-user support. Tauri remains provisional under D-048. See docs/status.md, docs/AUDIT-CLOSEOUT.md and docs/BUILD-PLAN.md for evidence and owner commands.
+
+The per-phase notes below are historical implementation notes, not proof of current acceptance. docs/status.md and docs/AUDIT-CLOSEOUT.md are authoritative. Phase 1 (the profile-minimal kernel):
 
 - `ctx.log`: append-only session log with replay and fork (1.1).
 - `ctx.llm`: provider registry with Ollama (local), an OpenAI-compatible
