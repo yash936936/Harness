@@ -92,12 +92,13 @@ describe('Ollama CLI timeout option', () => {
   it('accepts a positive safe integer number of milliseconds', () => {
     expect(parseTimeoutMs('300000')).toBe(300000)
     expect(parseTimeoutMs('1')).toBe(1)
+    expect(parseTimeoutMs('4294967295')).toBe(4294967295)
   })
 
-  it.each(['0', '-1', '1.5', 'Infinity', 'NaN', '', '9007199254740992'])(
+  it.each(['0', '-1', '1.5', 'Infinity', 'NaN', '', '9007199254740992', '4294967296', '1e3'])(
     'rejects invalid timeout value %j',
     (value) => {
-      expect(() => parseTimeoutMs(value)).toThrow('--timeout-ms must be a positive integer')
+      expect(() => parseTimeoutMs(value)).toThrow('--timeout-ms must be an integer from 1 to 4294967295 milliseconds')
     },
   )
 })
