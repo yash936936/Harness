@@ -1,3 +1,11 @@
+## DBG-069 — Lock stale-owner correction and desktop gap recheck — 2026-11-06
+
+**Defect fixed:** `tryBreakStale` previously broke a valid lock when its mtime exceeded `staleMs`, even if its owner PID was alive. A suspended/stalled holder could therefore be displaced. New rule: valid live PID means never age-break; dead PID means break; missing/invalid PID means age-break only. This preserves D-106 recovery for empty/partial lock files.
+
+**Regression coverage added:** child process holds lock beyond stale threshold; child exits while holding lock and successor recovers; aged empty lock is recovered. An opt-in Windows-only test uses Sysinternals PsSuspend to suspend/resume the real holder process. Runner: `scripts/test-windows-paused-lock.ps1`.
+
+**Not run:** local tests (dependency install unavailable in prior environment) and actual Windows PsSuspend test. Do not call Windows acceptance closed until owner executes the script and preserves raw output. No desktop implementation was performed in this change; existing Tauri benchmark remains hello-world only.
+
 ## DBG-068 — Prototype audit closeout and CI evidence correction — 2026-11-06
 
 **Reviewed:** `context.md`, newest `docs/status.md`, D-106 downward in `docs/decisions.md`, `src/cli/code.ts`, `src/cli/index.ts`, `test/code-cli.test.ts`, real-sandbox/OpenRouter/evaluation evidence templates, CI workflow and desktop benchmark README.

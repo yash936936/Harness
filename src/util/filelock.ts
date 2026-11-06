@@ -8,14 +8,15 @@ import { randomBytes } from 'node:crypto'
  *
  * - A held lock is waited for up to `timeoutMs`, then `LockTimeoutError` is thrown. Never a silent skip: proceeding unlocked
  *   is exactly the corruption this prevents.
- * - A lock is STALE if its owner pid is gone, or it has not been touched for `staleMs`; a stale lock is broken so a crashed
- *   process cannot wedge everyone. The break re-checks identity right before deleting so a lock that was just re-taken is not
- *   removed (a window of microseconds remains; see below).
+ * - A lock with a valid, live owner pid is NEVER broken due to age. This protects a paused/suspended process.
+ * - A lock with a dead owner pid is broken immediately. An empty/partial/legacy lock without a usable pid is broken only
+ *   after `staleMs`, which recovers a crash between exclusive create and metadata write.
+ * - The break re-checks inode and mtime before deleting. A narrow cross-process TOCTOU window remains because portable
+ *   Node APIs do not provide an atomic compare-and-unlink primitive.
  * - Release deletes the file only if it still carries OUR token.
  *
  * Limits, stated plainly: advisory (only code that takes the lock is excluded); assumes one machine and a local filesystem
- * (pid liveness is meaningless across hosts and `wx` is not reliable on some network filesystems); a process stalled for longer
- * than `staleMs` while holding the lock can lose it, so `staleMs` must exceed the longest critical section (these are file appends).
+ * (pid liveness is meaningless across hosts and `wx` is not reliable on some network filesystems).
  */
 export class LockTimeoutError extends Error {
   override name = 'LockTimeoutError'
@@ -59,9 +60,10 @@ async function tryBreakStale(lockPath: string, staleMs: number): Promise<boolean
     // (old: it must be breakable, or one crash wedges the lock for good). Judged by age below, with no pid to check.
     body = {}
   }
-  const dead = typeof body.pid === 'number' && !pidAlive(body.pid)
-  const old = Date.now() - before.mtimeMs > staleMs
-  if (!dead && !old) return false
+  const hasPid = Number.isSafeInteger(body.pid) && (body.pid ?? 0) > 0
+  const dead = hasPid && !pidAlive(body.pid!)
+  const oldUnowned = !hasPid && Date.now() - before.mtimeMs > staleMs
+  if (!dead && !oldUnowned) return false
   try {
     const now = await stat(lockPath)
     if (now.ino !== before.ino || now.mtimeMs !== before.mtimeMs) return false // someone re-took it: not ours to break
