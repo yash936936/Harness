@@ -1,3 +1,9 @@
+## 2026-11-06 — Ollama coding CLI inference timeout exposed
+
+- Added `--timeout-ms` to the governed `code` command and passed it to `OllamaProvider.timeoutMs`. The default remains 120,000 ms when omitted; the option accepts positive safe integers only and is rejected for OpenRouter, where this Ollama-specific setting does not apply.
+- Added parser tests for omitted, valid, zero, negative, fractional, non-finite, empty, and unsafe-integer values.
+- This separates the model inference timeout from the independent 120,000 ms policy approval timeout. CI verification is pending; no local test result is claimed.
+
 ## 2026-11-06 — Windows paused-holder acceptance passed; evaluation threshold corrected
 
 - Owner-run Windows acceptance completed with Sysinternals PsSuspend v1.09. The dedicated PowerShell runner executed test/session-log-multiprocess.test.ts: **1 test file passed, 15 tests passed, 0 failed**, 20.66 seconds, exit code 0.
