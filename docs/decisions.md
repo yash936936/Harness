@@ -1,3 +1,13 @@
+## D-109 — Prototype evaluation evidence threshold and label ordering — 2026-11-07
+
+**Decision:** For prototype-grade evaluation, require at least 10 distinct real model-driven sessions; use 20 or more when that many already exist. The owner is the single human labeler. The generating model must not label its own session. Commit the labels file and its SHA-256 before generating or viewing scorer output. Require both good and bad labels, but do not impose a minimum scorer-agreement percentage. Report raw agreement, class counts, and a human-label-versus-scorer confusion table, explicitly marked **prototype-grade, not calibrated**.
+
+**Why:** With a small prototype sample, a 90% agreement cutoff is dominated by one or two examples and is not a defensible calibration gate. A fixed 20-session minimum blocks a useful first evaluation when only 10 genuine sessions are available. The evidence must remain honest about its small sample and must not be described as statistically calibrated.
+
+**Supersedes:** Any earlier 20-session minimum and 90%-agreement requirement for Phase 6.2/6.4, including wording in D-104 and the 2026-11-06 status/audit entries. Historical entries are retained; this decision governs new work.
+
+**Affects:** scripts/eval-calibrate.ts, scripts/eval-calibrate-validation.ts, test/eval-calibrate-validation.test.ts, docs/evidence/EVAL-10.md, docs/AUDIT-CLOSEOUT.md, docs/status.md.
+
 ## D-108 — Live lock owners are never stale by age — 2026-11-06
 
 **Decision:** a file lock with a valid live PID must not be broken solely due to age. A paused process is still a live owner. Break immediately only when a valid PID is confirmed dead. If metadata is absent, invalid, empty, or partial, age-based recovery remains allowed to recover a crash between exclusive file creation and metadata write (D-106). The lock remains local-machine advisory and does not claim distributed-filesystem safety.
