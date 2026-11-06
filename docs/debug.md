@@ -1,3 +1,15 @@
+## DBG-068 — Prototype audit closeout and CI evidence correction — 2026-11-06
+
+**Reviewed:** `context.md`, newest `docs/status.md`, D-106 downward in `docs/decisions.md`, `src/cli/code.ts`, `src/cli/index.ts`, `test/code-cli.test.ts`, real-sandbox/OpenRouter/evaluation evidence templates, CI workflow and desktop benchmark README.
+
+**Confirmed:** governed `harness code` path is already implemented; fail-closed no-Docker/no-doctor behavior removes `run_command` and retains gated file tools; the `run` path remains a distinct branch. CI run #48 for commit `8ab78294d70e6ddc798f4ace6ec468b3445df84d` passed both Ubuntu and Windows jobs, each through install, typecheck and test steps. This is CI evidence only. The runner metadata did not expose Vitest's pass/skip counts.
+
+**Corrected:** the prior newest status entry cited CI run #47. Verified association is run #48, so the new status entry and audit refer to #48.
+
+**Environment limit:** supplied source ZIP has no Git metadata. `npm ci` timed out; no local lint/test output is claimed. No Docker/Crabbox runtime, OpenRouter key, real Needle, human labels, target Windows lock pause test, or 8 GB desktop measurement was run.
+
+**Defect/limitation:** status history contains older stale phase statements; the new dated entry supersedes them without rewriting history. No additional runtime defect reproduced in this documentation-only closeout.
+
 ## DBG-067 — Batch 1 governed CLI CI repair — 2026-11-06
 
 **Task:** Resolve the two-platform TypeScript CI failures in the governed CLI path.

@@ -1,3 +1,10 @@
+## D-107 — Prototype closeout evidence boundaries — 2026-11-06
+
+**Decided:** the closeout status distinguishes implementation/CI from external acceptance. A governed CLI path and fake-backed regression tests may be recorded as implemented, but they do not close real sandbox, real provider, real Needle, human-label, Windows lock-pause, or target-desktop gates. Tauri remains provisional under D-048 until the existing benchmark is run on the target machine. CubeSandbox and the remaining platform/infrastructure items stay deferred under the prototype scope.
+
+**CI correction:** run #48 is the verified successful workflow run associated with commit `8ab78294d70e6ddc798f4ace6ec468b3445df84d`; earlier status text that said #47 is not used as evidence. Run #48's two jobs show successful npm install, typecheck and test steps, but the available job summary does not expose pass/skip counts. Do not infer them.
+
+**Affects:** `docs/AUDIT-CLOSEOUT.md`, `docs/status.md`, `docs/debug.md`. No runtime policy or provider behavior is changed.
 ## D-106 — Independent code review: sandbox, lock and deny-list findings — 2026-11-06
 
 **Why this entry exists:** a full local run was green (955 passed / 98 skipped) while Docker and crabbox had never been started. That is expected and was not stated plainly enough: every sandbox test drives `test/fixtures/fake-crabbox.mjs` or a fake E2B client, so a green suite proves the wrapper's logic against a fake, not against crabbox or Docker. Upstream (openclaw/crabbox docs) was read to compare the wrapper with the real CLI.

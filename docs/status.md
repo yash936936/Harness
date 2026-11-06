@@ -1,9 +1,18 @@
+## 2026-11-06 — prototype audit closeout (DBG-068)
+
+- Confirmed the governed command exists as `npm run harness -- code` in `src/cli/index.ts`; `src/cli/code.ts` boots `bootProfileCoding` with an absolute `projectRoot`, selected Ollama/OpenRouter provider, orchestrator, policy approver, gated tools and Crabbox when Docker is available. `run` remains a separate unchanged code path. Approvals print request id/tool/class/reason/input, use terminal approve/deny and are persisted through the session log's policy events.
+- Confirmed no host-execution fallback: if Docker is unavailable or Crabbox doctor fails, `run_command` is removed from offered tools and the CLI prints `no sandbox: commands disabled, file tools still gated`. This is verified from source and scripted tests, not from a real Crabbox run.
+- GitHub Actions run #48 for commit `8ab78294d70e6ddc798f4ace6ec468b3445df84d` completed successfully. Both `ubuntu-latest` and `windows-latest` passed `npm ci`, `npm run typecheck`, and `npm test`. This is CI evidence, not a local run. The prior status text naming run #47 was inaccurate; #48 is the confirmed run attached to the merged docs commit.
+- The supplied ZIP is not a Git checkout. A local `npm ci` attempt timed out; no local lint/test counts are claimed. The CI workflow does not run `npm run lint` as a separate command; it runs typecheck plus Vitest.
+- No live Docker/Crabbox, OpenRouter key/request, 10 human-labelled sessions, real Needle runtime, target-machine Windows lock stress, or installed Tauri app was available for this run. Required owner commands and evidence templates are listed in `docs/AUDIT-CLOSEOUT.md` and `docs/evidence/`.
+- Found documentation drift: old entries under `docs/status.md` still describe previous phases and no longer reflect current decisions; the newest status section supersedes those historical entries. No new implementation defect was independently demonstrated in this documentation-only closeout.
+
 ## 2026-11-06 — Batch 1 governed CLI CI closeout (DBG-067)
 
 - Fixed the optional Crabbox doctor detail access in `src/cli/code.ts`.
 - Strengthened `test/code-cli.test.ts` to script an actual `read_file` tool call, assert the governed execution/logging path, and dispose Cordis contexts with `ctx.fiber.dispose()`.
 - Merged PR #6 at `2b116cace5beae7ec7f5d99c24dc78fb14e9d5ef`.
-- GitHub Actions run #47 completed successfully on both `ubuntu-latest` and `windows-latest`; each job passed `npm ci`, `npm run typecheck`, and `npm test`.
+- GitHub Actions run #48 (verified on the merged docs commit) completed successfully on both `ubuntu-latest` and `windows-latest`; each job passed `npm ci`, `npm run typecheck`, and `npm test`.
 - This closes the Batch 1 CI repair scope only. It does not close external sandbox, model-quality, router-evaluation, or other acceptance gates listed below.
 
 ## 2026-11-06 — independent code review (D-106, DBG-066)
