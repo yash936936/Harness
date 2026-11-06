@@ -1,3 +1,10 @@
+## 2026-11-07 — evaluation/provenance evidence-template review (DBG-071)
+
+- Found that tracked labels.json contains only three good labels. It does not satisfy D-109's 10+ sessions and both-class requirements, so it is not accepted as evaluation evidence.
+- Corrected the evidence README to remove the superseded 20-label/90%-agreement wording.
+- Corrected the Qwen provenance template to the exact Qwen2.5-Coder-7B-Instruct model selected by D-104/D-105. Immutable revision and artifact SHA-256 remain unavailable; no weights or model lock were created.
+- S5 and S6 remain partial/BLOCKED-HUMAN or BLOCKED-NETWORK as detailed in the audit.
+
 ## 2026-11-07 — prototype closeout plan and live GitHub refresh (D-109, DBG-070)
 
 - Re-read the owner-provided BUILD-PLAN.md and prompt.md; copied the plan into docs/BUILD-PLAN.md. Scope remains a working prototype.
