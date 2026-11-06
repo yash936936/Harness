@@ -6,7 +6,8 @@ param(
 $ErrorActionPreference = "Stop"
 
 $resolved = (Resolve-Path -LiteralPath $LabelsPath).Path
-$repoRoot = (git rev-parse --show-toplevel).Trim()
+$repoRootRaw = (git rev-parse --show-toplevel).Trim()
+$repoRoot = (Resolve-Path -LiteralPath $repoRootRaw).Path
 if ($LASTEXITCODE -ne 0 -or -not $repoRoot) {
     throw "Run this script from inside the Harness Git repository."
 }
