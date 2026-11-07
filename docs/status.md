@@ -1,3 +1,8 @@
+## 2026-11-07 hot-memory metadata redaction (DBG-081)
+
+- Fixed source metadata redaction in hot memory on write and list/read, including legacy persisted records.
+- Added a regression for registered secrets in source metadata. Fresh CI required.
+
 ## 2026-11-07 retrieval file-read hardening (DBG-080)
 
 - Hardened retrieval-rank against symlink swaps between path resolution and open, and bounded reads while the file is being consumed so concurrent growth cannot exceed maxFileBytes.
