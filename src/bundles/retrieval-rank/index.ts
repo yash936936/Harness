@@ -93,7 +93,7 @@ export class RetrievalRank extends Service {
     for (const [n, v] of [['k', this.k], ['rrfK', this.rrfK], ['vectorTopK', this.vectorTopK], ['windowLines', this.chunkOpts.windowLines], ['maxChunkLines', this.chunkOpts.maxChunkLines], ['indexGroupChunks', this.indexGroupChunks], ['maxFileBytes', this.maxFileBytes], ['maxCandidateChunks', this.maxCandidateChunks], ['maxHitChars', this.maxHitChars], ['maxChunkChars', this.chunkOpts.maxChunkChars]] as const) {
       if (!Number.isSafeInteger(v) || v < 1) throw new RetrievalRankConfigError(`retrieval-rank: ${n} must be a positive integer`)
     }
-    if (!Number.isFinite(this.nameBoost) || this.nameBoost < 0) throw new RetrievalRankConfigError('retrieval-rank: nameBoost must be finite and non-negative')
+    if (!Number.isSafeInteger(this.nameBoost) || this.nameBoost < 0) throw new RetrievalRankConfigError('retrieval-rank: nameBoost must be finite and non-negative')
     if (!Number.isFinite(this.bm25Params.k1) || this.bm25Params.k1 <= 0 || !Number.isFinite(this.bm25Params.b) || this.bm25Params.b < 0 || this.bm25Params.b > 1) throw new RetrievalRankConfigError('retrieval-rank: BM25 k1 must be positive and b must be between 0 and 1')
   }
 

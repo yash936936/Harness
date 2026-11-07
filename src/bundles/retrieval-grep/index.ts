@@ -217,7 +217,8 @@ export class RetrievalGrep extends Service {
     if (this.includeSecrets) args.push('--hidden')
     args.push(...this.extraArgs, ...this.excludeArgs(), '--', target)
 
-    const res = await this.ctx.subprocess.run(this.rgPath, args, { cwd: realRoot, timeoutMs: this.timeoutMs })
+    const res = await this.ctx.subprocess.run(this.rgPath, args, { cwd: realRoot, timeoutMs: this.timeoutMs, ...(opts.signal ? { signal: opts.signal } : {}) })
+    opts.signal?.throwIfAborted()
     if (res.spawnError) return { ok: false, error: { kind: 'rg_missing', detail: res.spawnError } }
     if (res.timedOut) return { ok: false, error: { kind: 'timeout' } }
     if (res.exitCode !== 0 && res.exitCode !== 1) {
