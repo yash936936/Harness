@@ -69,6 +69,9 @@ export class MemorySemantic extends Service {
   async add(input: { text: string; why: string; id?: string; tags?: string[]; source?: string }): Promise<AddResult> {
     let text = oneLine(input.text ?? '')
     let why = oneLine(input.why ?? '')
+    const id = input.id
+    const source = input.source
+    const tags = input.tags ? [...input.tags] : undefined
     if (!text) throw new MemoryError('memory: semantic fact text is empty')
     if (!why) throw new MemoryError('memory: semantic fact needs a `why`: what makes it non-trivial to reconstruct from the code')
     const egress = this.ctx.egress
@@ -77,20 +80,20 @@ export class MemorySemantic extends Service {
 
     let result!: { fact: SemanticFact; created: boolean }
     await this.mutate((list) => {
-      const dup = list.find((f) => sameText(f.text, text) && f.id !== input.id)
+      const dup = list.find((f) => sameText(f.text, text) && f.id !== id)
       if (dup) {
         result = { fact: dup, created: false }
         return false
       }
-      const i = input.id ? list.findIndex((f) => f.id === input.id) : -1
+      const i = id ? list.findIndex((f) => f.id === id) : -1
       const ts = this.now().toISOString()
       const fact: SemanticFact = {
         tier: 'semantic',
-        id: input.id ?? randomUUID(),
+        id: id ?? randomUUID(),
         text,
         why,
-        ...(input.tags?.length ? { tags: input.tags.map(oneLine).filter(Boolean) } : {}),
-        ...(input.source ? { source: input.source } : {}),
+        ...(tags?.length ? { tags: tags.map(oneLine).filter(Boolean) } : {}),
+        ...(source ? { source } : {}),
         ts: i >= 0 ? list[i]!.ts : ts,
         ...(i >= 0 ? { updatedTs: ts } : {}),
       }
