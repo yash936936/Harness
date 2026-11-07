@@ -412,7 +412,7 @@ describe('run_command', () => {
     if (timer) clearTimeout(timer)
     expect(result).not.toBeNull()
     expect(result!.ok).toBe(false)
-    expect(result!.content).toContain('did not return an exit code')
+    expect(result!.content).toContain('cancel command')
   })
 
   it('kills a command at its timeout, and caps what a model may ask for', async () => {
