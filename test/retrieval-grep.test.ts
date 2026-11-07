@@ -234,7 +234,7 @@ describe.skipIf(!hasRg)('RetrievalGrep with real ripgrep', () => {
 
   it('excludes secrets, .git, node_modules and binaries by default', async () => {
     const got = await files(Q)
-    for (const bad of ['.env', '.env.local', 'prod.env', 'key.pem', 'deploy.key', 'id_rsa', 'credentials.json', 'service-account-prod.json', 'kubeconfig', 'secrets.yaml', 'cert.p12', '.aws/credentials', '.ssh/id_ed25519', '.npmrc', '.netrc', '.pgpass', '.git-credentials', '.docker/config.json', '.kube/config', '.azure/profile', '.config/gh/hosts.yml', '.AWS/credentials', '.cargo/credentials.toml', '.terraform.d/credentials.tfrc.json', '.config/gcloud/credentials.db', '.gnupg/private-keys-v1.d/key.key', 'bin.dat']) expect(got).not.toContain(bad)
+    for (const bad of ['.env', '.env.local', 'prod.env', 'key.pem', 'deploy.key', 'id_rsa', 'credentials.json', 'service-account-prod.json', 'kubeconfig', 'secrets.yaml', 'cert.p12', '.aws/credentials', '.ssh/id_ed25519', '.npmrc', '.netrc', '.pgpass', '.git-credentials', '.docker/config.json', '.kube/config', '.azure/profile', '.config/gh/hosts.yml', ...(process.platform === 'win32' ? [] : ['.AWS/credentials']), '.cargo/credentials.toml', '.terraform.d/credentials.tfrc.json', '.config/gcloud/credentials.db', '.gnupg/private-keys-v1.d/key.key', 'bin.dat']) expect(got).not.toContain(bad)
     expect(got.some((f) => f.startsWith('node_modules') || f.startsWith('.git'))).toBe(false)
     expect(got).toContain('README.md') // positive control
   })
