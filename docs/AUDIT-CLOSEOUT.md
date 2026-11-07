@@ -79,3 +79,72 @@ The follow-up review is being developed on branch `audit/repository-wide-review-
 The audit branch also adds a dedicated CI lint step (`npm run lint`) in addition to typecheck and tests. No local compiler/test execution was available through the repository connector. Do not merge until the latest branch commit passes Ubuntu and Windows CI.
 
 This work does not run S0. ARCH-01 remains BLOCKED-HARDWARE until the owner runs the real Windows + Docker + Crabbox lease/run/release acceptance and preserves the raw output.
+
+## Owner acceptance commands (Windows PowerShell 5.1)
+
+Run each command on its own line. Replace angle-bracket placeholders locally; do not paste secrets into chat, logs, or files.
+
+- **ARCH-01 / S0:**
+  ~~~powershell
+  npm ci
+  crabbox --version
+  docker version
+  crabbox doctor --provider local-container --local-container-runtime docker
+  $env:HARNESS_REAL_CRABBOX = "1"
+  npm run test:real-sandbox 2>&1 | Tee-Object docs/evidence/PHASE-5.1.raw.txt
+  docker ps -a
+  ~~~
+- **S1:** no valid acceptance command exists yet. The repository has no orphan-lease reaper and no host-sentinel regression test. Implement those first; then add a deterministic real-sandbox acceptance script and record docs/evidence/ARCH-01.md. Do not substitute npm test or S0's lease test.
+- **S3:**
+  ~~~powershell
+  npm run harness -- code --provider ollama --model "<installed-model-tag>" "Create a small file change that requires approval, attempt one deny-listed action, and wait for my approval before writing. Record the approval and denial in the session log."
+  ~~~
+- **S4 / Ollama:**
+  ~~~powershell
+  npm run harness -- code --provider ollama --model "<installed-model-tag>" "Fix one real bug in this project and run its tests."
+  ~~~
+- **S4 / OpenRouter:**
+  ~~~powershell
+  $env:OPENROUTER_API_KEY = "<set locally; do not paste>"
+  $env:OPENROUTER_MODEL = "<exact free-tier model id>"
+  npm run smoke:openrouter
+  npm run harness -- code --provider openrouter --model "$env:OPENROUTER_MODEL" "Fix one real bug in this project and run its tests."
+  ~~~
+- **ENG-04:**
+  ~~~powershell
+  npm ci
+  npm run license:inventory
+  ~~~
+  Inspect the production dependency closure and verify that shipped notices contain the required json-bignum text; this is not yet automated.
+- **ENG-08:**
+  ~~~powershell
+  npx tsx scripts/verify-model-artifact.ts <artifact-file> <provenance.json>
+  ~~~
+  The artifact and provenance must first be downloaded/pinned at an immutable revision; the command alone does not create provenance.
+- **6.2 / 6.4:** after at least 10 genuine sessions are independently labelled, both classes are present, and labels plus SHA-256 are committed:
+  ~~~powershell
+  powershell -ExecutionPolicy Bypass -File scripts/commit-eval-labels.ps1 -LabelsPath <path-to-labels.json>
+  npm run eval -- <session-log-dir> <labels.json>
+  ~~~
+  The commit script must run before any scorer output is generated or viewed. Do not use the three-entry root placeholder.
+- **ARCH-02:** configure the real Needle wrapper and frozen suite, then run:
+  ~~~powershell
+  npx tsx scripts/eval-router.ts
+  ~~~
+- **File-lock stress:**
+  ~~~powershell
+  powershell -ExecutionPolicy Bypass -File scripts/test-windows-paused-lock.ps1
+  ~~~
+  Existing 15/15 paused-holder evidence is already recorded; this rerun is for additional target-filesystem stress, not a replacement claim.
+- **BUG-12 / real embedding:**
+  ~~~powershell
+  $env:HARNESS_OLLAMA_EMBED_MODEL = "nomic-embed-text"
+  npx tsx scripts/smoke-phase3.ts
+  ~~~
+  This does not replace the missing poisoned-content acceptance. There is currently no real-provider poisoning acceptance script.
+- **Tauri benchmark:**
+  ~~~powershell
+  powershell -ExecutionPolicy Bypass -File scripts/tauri-benchmark.ps1
+  ~~~
+- **1B.4 desktop product:** no acceptance command exists because the desktop shell, authenticated loopback RPC, screens, and replay product are not implemented. The hello-world benchmarks are not the product.
+
