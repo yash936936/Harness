@@ -99,7 +99,7 @@ export class OpenAICompatibleProvider implements LLMProvider {
     try {
       res = await this.doFetch(`${this.baseUrl}/models`, { headers, signal, ...NO_REDIRECT })
     } catch (e: any) {
-      const code = e?.cause?.code ?? e?.message ?? 'unknown'
+      const code = e?.cause?.code ?? 'unknown'
       throw new LLMError('network', this.scrub(`${this.name}: cannot reach ${this.egress.host} (${code})`), this.name)
     }
     if (isRedirect(res)) throw new LLMError('invalid_request', this.scrub(redirectMessage(this.name, res)), this.name, res.status)
