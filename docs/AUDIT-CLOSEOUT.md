@@ -53,7 +53,7 @@ The closeout found a recordkeeping defect: earlier status entries cited supersed
 
 ## 2026-11-07 repository-wide review delta
 
-The follow-up review is being developed on branch `audit/repository-wide-review-2026-11-07`. It is not merged or CI-accepted yet.
+The follow-up review was developed on `audit/repository-wide-review-2026-11-07` and merged through PR #15 on 2026-11-07. The final audit head passed Ubuntu and Windows typecheck, lint, and tests in GitHub Actions run #237.
 
 | Area | Defect found | Change and regression coverage | Remaining acceptance |
 |---|---|---|---|
@@ -62,7 +62,7 @@ The follow-up review is being developed on branch `audit/repository-wide-review-
 | Egress consent | Concurrent processes could lose read-modify-write updates; special object keys and mutable record references were unsafe | Lock + unique temp file + atomic rename; validate records; defensive copies; null-prototype map; concurrency/special-key tests | Fresh CI; local filesystem assumption inherited from filelock |
 | Local file security | Credential denylist missed common cloud/SSH/CLI/Kubernetes/Docker/GCP/Cargo/Terraform locations | Expanded path matcher and read refusal tests | Fresh CI; secret naming patterns cannot identify arbitrary user-defined secret files |
 | Code retrieval | Secret globs were incomplete/case-sensitive; configured ripgrep symlink following could surface outside-root content | Case-insensitive exclusions and realpath check for existing match paths; integration fixtures cover credential directories and `--follow` | Fresh CI; retrieval with `includeSecrets: true` remains an explicit opt-in |
-| Model provider config | OpenAI-compatible endpoint accepted non-HTTP schemes and URL userinfo | Reject unsupported protocols and embedded credentials; tests added | Fresh CI; no live provider request claimed |
+| Model provider config | OpenAI-compatible endpoint accepted non-HTTP schemes and URL userinfo; governed OpenRouter CLI allowed cleartext HTTP credential transport (DBG-085) | Reject unsupported protocols and embedded credentials in the adapter; require HTTPS in the OpenRouter CLI; regressions added | CI passed on both platforms in run #237 for DBG-072..084; DBG-085 is pending its new CI runs. No live provider request claimed |
 | Evaluation | Custom scorers could return non-finite weights or invalid score/result fields | Validate scorer names, weights, score range and result types; tests added | Fresh CI; real-data evaluation remains blocked under D-109 |
 | Label provenance | The evaluator trusted a manual instruction to commit labels before scoring but did not enforce it | New provenance verifier requires tracked, committed, clean labels and a matching SHA-256 sidecar; temp-Git regression tests | Fresh CI; owner must still label genuine sessions independently |
 | Async data integrity | Session-log events, episodic episodes, semantic metadata and model prompts could be mutated by callers while queued or awaiting remote consent | Snapshot payloads at API entry; regression tests verify stored/logged/sent values match the original request | Fresh CI |
@@ -74,7 +74,9 @@ The follow-up review is being developed on branch `audit/repository-wide-review-
 | Provider connection probe | Invalid timeout values could throw before the never-throw result contract; caller aborts were misreported as timeouts | Validate positive bounded timeout values and classify caller cancellation separately; tests added | Fresh CI |
 | Encrypted credential key | Existing key files were not re-tightened to mode `0600`, and symlinked key paths were accepted | Reapply POSIX mode on read and reject non-regular/symlink key paths; tests added | Fresh CI; Windows ACLs remain platform-managed |
 | Model artifact pin | Artifact verifier accepted mutable revision names such as `main` despite the immutable-pin requirement | Shared provenance validator requires full 40/64-hex commit hash and SHA-256; unit tests added | Fresh CI; actual Qwen revision/files/hashes still owner/network evidence |
-| Policy gate build | Existing invalid-signal branch referenced its decision base before declaration; the new lint gate also found an unused helper | Initialize decision snapshot before validating signals; validate persisted day keys with the helper | Fresh CI |
+| Egress metadata and provider errors | Hot-memory source metadata, episodic legacy records, and provider transport errors could expose registered secrets or endpoint paths (DBG-081..083) | Redact hot and episodic metadata on read/write; remove raw provider error/path details; regressions added | CI passed on both platforms in run #237 |
+| Consent store symlink | Persisted egress consent could follow a symlink and trust an unrelated target (DBG-084) | Require a regular file, use `O_NOFOLLOW` where supported, and verify descriptor identity; regression added | CI passed on both platforms in run #237 |
+| Policy gate build | Existing invalid-signal branch referenced its decision base before declaration; the new lint gate also found an unused helper | Initialize decision snapshot before validating signals; validate persisted day keys with the helper | CI passed on both platforms in run #237 |
 
 The audit branch added a dedicated CI lint step (`npm run lint`) in addition to typecheck and tests. The audit PR was merged on 2026-11-07. Its final audit head (`0e9ad7a5585d73b96494d990b5be90e16dc4f036`) passed both `typecheck + tests (ubuntu-latest)` and `typecheck + tests (windows-latest)` in GitHub Actions run #237. This validates automated checks only; it does not close hardware, human-labelled data, live-provider, distribution, or desktop acceptance gates.
 
