@@ -31,6 +31,8 @@ export interface SearchOptions {
   fixedStrings?: boolean
   /** Force case-sensitive (`-s`). Default is smart-case (`-S`). */
   caseSensitive?: boolean
+  /** Cancels the ripgrep subprocess when the caller is cancelled. */
+  signal?: AbortSignal
 }
 
 export interface SearchMatch {
@@ -74,6 +76,7 @@ export class RetrievalGrepConfigError extends Error {
 export interface ListFilesOptions {
   /** Directory to list, resolved relative to `root`. Must stay inside `root`. */
   path?: string
+  signal?: AbortSignal
 }
 
 export type ListFilesResult =

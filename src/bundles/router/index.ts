@@ -54,6 +54,7 @@ export class Router extends Service {
 
   constructor(ctx: Context, private readonly config: RouterConfig = {}) {
     super(ctx, 'router')
+    if (config.owned !== undefined && !Array.isArray(config.owned)) throw new Error('router: owned must be an array of decision classes')
     this.owned = new Set(config.owned ?? [])
     this.timeoutMs = config.backendTimeoutMs ?? 5000
     this.maxTools = config.maxToolCandidates ?? 5

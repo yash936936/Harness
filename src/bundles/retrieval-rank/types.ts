@@ -51,6 +51,7 @@ export interface SearchOptions {
   weight?: number
   /** Override the configured similarity floor for this call (-1 to 1). */
   minVectorScore?: number
+  signal?: AbortSignal
 }
 
 export interface RankHit {
@@ -106,6 +107,7 @@ export interface IndexOptions {
    * for 622 chunks measured), so a caller should show progress. Errors thrown here are ignored.
    */
   onProgress?: (done: number, total: number) => void
+  signal?: AbortSignal
 }
 
 export interface IndexSkip {

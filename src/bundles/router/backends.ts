@@ -69,6 +69,7 @@ export async function sha256File(path: string, signal?: AbortSignal): Promise<st
     }
     const abort = () => stream.destroy(signal?.reason instanceof Error ? signal.reason : new Error('aborted'))
     signal?.addEventListener('abort', abort, { once: true })
+    if (signal?.aborted) abort()
     stream.on('data', (data) => hash.update(data))
     stream.once('end', () => finish())
     stream.once('error', (error) => finish(error))
@@ -123,8 +124,12 @@ export class CommandBackend implements RouterBackend {
       let output = ''
       let done = false
       const killTree = () => {
-        if (process.platform !== 'win32' && child.pid !== undefined) {
+        if (child.pid !== undefined && process.platform !== 'win32') {
           try { process.kill(-child.pid, 'SIGKILL'); return } catch {}
+        }
+        if (child.pid !== undefined && process.platform === 'win32') {
+          // Windows has no negative-pid process groups; taskkill /T is the tree equivalent.
+          spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' }).on('error', () => {})
         }
         child.kill('SIGKILL')
       }
@@ -138,6 +143,7 @@ export class CommandBackend implements RouterBackend {
       const abort = () => { killTree(); finish(() => reject(req.signal?.reason ?? new Error('aborted'))) }
       const timer = setTimeout(() => { killTree(); finish(() => reject(new Error('router backend timed out'))) }, this.cfg.timeoutMs ?? 5000)
       req.signal?.addEventListener('abort', abort, { once: true })
+      if (req.signal?.aborted) abort()
       child.stdout.on('data', (data) => {
         output += data
         if (output.length > 4096) { killTree(); finish(() => reject(new Error('router backend output too large'))) }

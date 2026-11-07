@@ -1,4 +1,4 @@
-import { readFileSync, realpathSync, statSync } from 'node:fs'
+import { closeSync, fstatSync, openSync, readFileSync, realpathSync, statSync } from 'node:fs'
 import { isAbsolute, relative, resolve, sep } from 'node:path'
 import { Context, Service } from 'cordis'
 import { isGitInternal, isSecretPath } from '../tools-local/paths.js'
@@ -87,11 +87,14 @@ export class RetrievalRank extends Service {
     this.maxCandidateChunks = config.maxCandidateChunks ?? 3000
     this.maxHitChars = config.maxHitChars ?? 1500
     this.indexGroupChunks = config.indexGroupChunks ?? 512
+    if (typeof this.collectionName !== 'string' || !this.collectionName.trim()) throw new RetrievalRankConfigError('retrieval-rank: collection must be a non-empty string')
     if (!(this.weight >= 0 && this.weight <= 1)) throw new RetrievalRankConfigError('retrieval-rank: weight must be between 0 and 1')
     if (this.minVectorScore !== undefined && !(this.minVectorScore >= -1 && this.minVectorScore <= 1)) throw new RetrievalRankConfigError('retrieval-rank: minVectorScore must be between -1 and 1')
-    for (const [n, v] of [['k', this.k], ['rrfK', this.rrfK], ['vectorTopK', this.vectorTopK], ['windowLines', this.chunkOpts.windowLines], ['maxChunkLines', this.chunkOpts.maxChunkLines], ['indexGroupChunks', this.indexGroupChunks]] as const) {
-      if (!Number.isInteger(v) || v < 1) throw new RetrievalRankConfigError(`retrieval-rank: ${n} must be a positive integer`)
+    for (const [n, v] of [['k', this.k], ['rrfK', this.rrfK], ['vectorTopK', this.vectorTopK], ['windowLines', this.chunkOpts.windowLines], ['maxChunkLines', this.chunkOpts.maxChunkLines], ['indexGroupChunks', this.indexGroupChunks], ['maxFileBytes', this.maxFileBytes], ['maxCandidateChunks', this.maxCandidateChunks], ['maxHitChars', this.maxHitChars], ['maxChunkChars', this.chunkOpts.maxChunkChars]] as const) {
+      if (!Number.isSafeInteger(v) || v < 1) throw new RetrievalRankConfigError(`retrieval-rank: ${n} must be a positive integer`)
     }
+    if (!Number.isFinite(this.nameBoost) || this.nameBoost < 0) throw new RetrievalRankConfigError('retrieval-rank: nameBoost must be finite and non-negative')
+    if (!Number.isFinite(this.bm25Params.k1) || this.bm25Params.k1 <= 0 || !Number.isFinite(this.bm25Params.b) || this.bm25Params.b < 0 || this.bm25Params.b > 1) throw new RetrievalRankConfigError('retrieval-rank: BM25 k1 must be positive and b must be between 0 and 1')
   }
 
   /* ---------------------------------------------------------------- files */
@@ -129,10 +132,21 @@ export class RetrievalRank extends Service {
       const st = statSync(real)
       if (!st.isFile()) return { ok: false, reason: 'not_a_file' }
       if (st.size > this.maxFileBytes) return { ok: false, reason: 'too_large' }
-      const buf = readFileSync(real)
-      if (looksBinary(buf)) return { ok: false, reason: 'binary' }
-      const text = buf.toString('utf8')
-      return { ok: true, text, lines: splitLines(text) }
+      // Open the resolved path and compare its identity with the pre-open stat.
+      // If an attacker swaps it for an outside symlink between realpath/stat/open,
+      // the descriptor's device/inode will differ and no bytes are read.
+      const fd = openSync(real, 'r')
+      try {
+        const opened = fstatSync(fd)
+        if (!opened.isFile() || opened.dev !== st.dev || opened.ino !== st.ino) return { ok: false, reason: 'outside_root' }
+        if (opened.size > this.maxFileBytes) return { ok: false, reason: 'too_large' }
+        const buf = readFileSync(fd)
+        if (looksBinary(buf)) return { ok: false, reason: 'binary' }
+        const text = buf.toString('utf8')
+        return { ok: true, text, lines: splitLines(text) }
+      } finally {
+        closeSync(fd)
+      }
     } catch {
       return { ok: false, reason: 'unreadable' }
     }
@@ -146,6 +160,7 @@ export class RetrievalRank extends Service {
   /* --------------------------------------------------------------- search */
 
   async search(query: string, opts: SearchOptions = {}): Promise<RankResult> {
+    opts.signal?.throwIfAborted()
     if (typeof query !== 'string' || query.trim() === '') return { ok: false, error: { kind: 'input', detail: 'query must be a non-empty string' } }
     if (query.length > MAX_QUERY_CHARS) return { ok: false, error: { kind: 'input', detail: `query is longer than ${MAX_QUERY_CHARS} characters` } }
     const k = opts.k ?? this.k
@@ -183,7 +198,8 @@ export class RetrievalRank extends Service {
     type VecHit = { key: string; file: string; startLine: number; endLine: number; kind: 'symbol' | 'window'; name?: string; text: string; score: number }
     const vecHits: VecHit[] = []
     if (emb && vs) {
-      const sem = await this.semanticHits(emb, vs, query, realRoot, cache, stats, inScope, floor)
+      const sem = await this.semanticHits(emb, vs, query, realRoot, cache, stats, inScope, floor, opts.signal)
+      opts.signal?.throwIfAborted()
       if (sem.ok) vecHits.push(...sem.hits)
       else degraded = sem.reason
     }
@@ -193,7 +209,8 @@ export class RetrievalRank extends Service {
     const keyOf = (c: { file: string; startLine: number; endLine: number }) => `${c.file}:${c.startLine}-${c.endLine}`
     let grepFailure: string | undefined
     if (grepTerms.length > 0) {
-      const g = await this.ctx.retrievalGrep.search(grepTerms.join('|'), opts.path !== undefined ? { path: opts.path } : {})
+      opts.signal?.throwIfAborted()
+      const g = await this.ctx.retrievalGrep.search(grepTerms.join('|'), { ...(opts.path !== undefined ? { path: opts.path } : {}), ...(opts.signal ? { signal: opts.signal } : {}) })
       if (!g.ok) {
         if (g.error.kind === 'outside_root' || g.error.kind === 'path_not_found') return { ok: false, error: { kind: g.error.kind, detail: opts.path ?? '' } }
         grepFailure = g.error.detail ? `${g.error.kind}: ${g.error.detail}` : g.error.kind
@@ -267,8 +284,9 @@ export class RetrievalRank extends Service {
     stats: RankStats,
     inScope: (file: string) => boolean,
     floor: number | undefined,
+    signal?: AbortSignal,
   ): Promise<{ ok: true; hits: Array<{ key: string; file: string; startLine: number; endLine: number; kind: 'symbol' | 'window'; name?: string; text: string; score: number }> } | { ok: false; reason: string }> {
-    const e = await emb.embed([query], { kind: 'query' })
+    const e = await emb.embed([query], { kind: 'query', ...(signal ? { signal } : {}) })
     if (!e.ok) return { ok: false, reason: `embeddings ${e.error.kind}: ${e.error.detail}` }
     const info = emb.info()
     if (!info?.fingerprint || !info.dimensions) return { ok: false, reason: 'embeddings did not report a fingerprint' }
@@ -327,6 +345,7 @@ export class RetrievalRank extends Service {
 
   /** Chunk, embed and store the given root-relative files (replacing whatever was stored for them). */
   async indexFiles(files: readonly string[], opts: IndexOptions = {}): Promise<IndexResult> {
+    opts.signal?.throwIfAborted()
     const emb = this.ctx.get('embeddings')
     const vs = this.ctx.get('vectorstore')
     if (!emb || !vs) return { ok: false, error: { kind: 'unavailable', detail: `${!emb ? 'embeddings' : 'vectorstore'} is not available, so there is nothing to index into` } }
@@ -338,6 +357,7 @@ export class RetrievalRank extends Service {
     const prepared: Array<{ file: string; chunks: Chunk[] }> = []
     const gone: string[] = [] // previously indexed files that can no longer be read: drop their chunks
     for (const rel of new Set(files)) {
+      opts.signal?.throwIfAborted()
       const f = this.readFile(rel, realRoot)
       if (!f.ok) {
         skipped.push({ file: String(rel), reason: f.reason })
@@ -413,10 +433,11 @@ export class RetrievalRank extends Service {
     let embeddedFiles = 0
     let embeddedChunks = 0
     for (const group of groups) {
+      opts.signal?.throwIfAborted()
       const all = group.flatMap((g) => g.chunks)
       let vectors: Float32Array[] = []
       if (all.length > 0) {
-        const e = await emb.embed(all.map((c) => c.text), { kind: 'document' })
+        const e = await emb.embed(all.map((c) => c.text), { kind: 'document', ...(opts.signal ? { signal: opts.signal } : {}) })
         if (!e.ok) return { ok: false, error: { kind: 'embeddings', detail: `${e.error.kind}: ${e.error.detail}` } }
         vectors = e.vectors
       }
@@ -446,11 +467,12 @@ export class RetrievalRank extends Service {
 
   /** Index every file `retrievalGrep.listFiles` reports under `path` (default: the whole root). */
   async indexProject(opts: IndexOptions & { path?: string } = {}): Promise<IndexResult> {
-    const l = await this.ctx.retrievalGrep.listFiles(opts.path !== undefined ? { path: opts.path } : {})
+    const l = await this.ctx.retrievalGrep.listFiles({ ...(opts.path !== undefined ? { path: opts.path } : {}), ...(opts.signal ? { signal: opts.signal } : {}) })
     if (!l.ok) {
       const kind = l.error.kind === 'outside_root' || l.error.kind === 'path_not_found' ? l.error.kind : 'grep_failed'
       return { ok: false, error: { kind, detail: l.error.detail ?? l.error.kind } }
     }
+    opts.signal?.throwIfAborted()
     return this.indexFiles(l.files, opts)
   }
 
