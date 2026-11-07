@@ -1,3 +1,8 @@
+## 2026-11-07 D-109 pre-scoring gate follow-up (DBG-079)
+
+- The calibration command now requires committed labels and refuses to print scorer output until provenance, matched IDs, sample minimum (10 or 20 when 20+ sessions are present), and both label classes pass.
+- Removed the scorer-only output path and updated README usage. Root placeholder labels remain ineligible.
+
 ## 2026-11-07 evaluation provenance cross-platform follow-up (DBG-078)
 
 - D-109 label hashing now uses Git-normalized index/commit blob bytes, avoiding false failures on Windows checkouts with core.autocrlf=true.
