@@ -1,3 +1,11 @@
+## DBG-078 — cross-platform label provenance and Git clean filters — 2026-11-07
+
+**Found:** D-109 verification compared raw working-tree SHA-256 with the committed Git blob. On Windows with core.autocrlf=true, Git can normalize CRLF to LF while the working tree remains clean, so valid labels and sidecar hashes were rejected. The label commit script also hashed raw bytes instead of the staged blob.
+
+**Fixed:** added a Git-index blob hashing helper, changed verification to compare the sidecar with committed blob bytes after confirming a clean working tree, and updated the PowerShell commit script to stage labels before hashing. Added a CRLF/core.autocrlf regression.
+
+**Validation:** fresh Windows and Ubuntu CI required.
+
 ## DBG-077 — release budget holds for pre-dispatch cancellation — 2026-11-07
 
 **Found:** LLMService charged a failed request for cancellation after the request was logged but before the provider callback ran (for example, while waiting for a shared rate-limiter slot). A failed request-log write also used the metered-failure path despite never dispatching. Repeated queued cancellations could consume the hard request budget without sending requests.
