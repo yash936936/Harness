@@ -170,7 +170,7 @@ describe.skipIf(!hasRg)('RetrievalGrep with real ripgrep', () => {
     base = realpathSync(mkdtempSync(join(tmpdir(), 'rgtest-')))
     root = join(base, 'root')
     outside = join(base, 'root-evil') // sibling whose name starts with root's name
-    for (const d of ['root/src', 'root/skip', 'root/node_modules/dep', 'root/.git', 'root/.aws', 'root/.ssh', 'root-evil']) mkdirSync(join(base, d), { recursive: true })
+    for (const d of ['root/src', 'root/skip', 'root/node_modules/dep', 'root/.git', 'root/.aws', 'root/.ssh', 'root/.docker', 'root/.kube', 'root/.azure', 'root/.config/gh', 'root-evil']) mkdirSync(join(base, d), { recursive: true })
     const w = (rel: string, s: string | Buffer) => writeFileSync(join(base, rel), s)
     w('root/src/app.ts', `const a = "${Q}"\n`)
     w('root/skip/other.ts', `${Q}\n`)
@@ -188,6 +188,14 @@ describe.skipIf(!hasRg)('RetrievalGrep with real ripgrep', () => {
     w('root/cert.p12', `${Q}\n`)
     w('root/.aws/credentials', `${Q}\n`)
     w('root/.ssh/id_ed25519', `${Q}\n`)
+    w('root/.npmrc', `${Q}\n`)
+    w('root/.netrc', `${Q}\n`)
+    w('root/.pgpass', `${Q}\n`)
+    w('root/.git-credentials', `${Q}\n`)
+    w('root/.docker/config.json', `${Q}\n`)
+    w('root/.kube/config', `${Q}\n`)
+    w('root/.azure/profile', `${Q}\n`)
+    w('root/.config/gh/hosts.yml', `${Q}\n`)
     w('root/node_modules/dep/index.js', `${Q}\n`)
     w('root/.git/config', `${Q}\n`)
     w('root/bin.dat', Buffer.concat([Buffer.from([0, 1, 2]), Buffer.from(Q), Buffer.from([0])]))
@@ -214,15 +222,23 @@ describe.skipIf(!hasRg)('RetrievalGrep with real ripgrep', () => {
 
   it('excludes secrets, .git, node_modules and binaries by default', async () => {
     const got = await files(Q)
-    for (const bad of ['.env', '.env.local', 'prod.env', 'key.pem', 'deploy.key', 'id_rsa', 'credentials.json', 'service-account-prod.json', 'kubeconfig', 'secrets.yaml', 'cert.p12', '.aws/credentials', '.ssh/id_ed25519', 'bin.dat']) expect(got).not.toContain(bad)
+    for (const bad of ['.env', '.env.local', 'prod.env', 'key.pem', 'deploy.key', 'id_rsa', 'credentials.json', 'service-account-prod.json', 'kubeconfig', 'secrets.yaml', 'cert.p12', '.aws/credentials', '.ssh/id_ed25519', '.npmrc', '.netrc', '.pgpass', '.git-credentials', '.docker/config.json', '.kube/config', '.azure/profile', '.config/gh/hosts.yml', 'bin.dat']) expect(got).not.toContain(bad)
     expect(got.some((f) => f.startsWith('node_modules') || f.startsWith('.git'))).toBe(false)
     expect(got).toContain('README.md') // positive control
   })
 
   it('includeSecrets searches secrets and hidden files but still never .git / node_modules', async () => {
     const got = await files(Q, { includeSecrets: true })
-    for (const good of ['.env', '.env.local', 'prod.env', 'key.pem', 'deploy.key', 'id_rsa', 'credentials.json', 'service-account-prod.json', 'kubeconfig', 'secrets.yaml', 'cert.p12', '.aws/credentials', '.ssh/id_ed25519']) expect(got).toContain(good)
+    for (const good of ['.env', '.env.local', 'prod.env', 'key.pem', 'deploy.key', 'id_rsa', 'credentials.json', 'service-account-prod.json', 'kubeconfig', 'secrets.yaml', 'cert.p12', '.aws/credentials', '.ssh/id_ed25519', '.npmrc', '.netrc', '.pgpass', '.git-credentials', '.docker/config.json', '.kube/config', '.azure/profile', '.config/gh/hosts.yml']) expect(got).toContain(good)
     expect(got.some((f) => f.startsWith('node_modules') || f.startsWith('.git'))).toBe(false)
+  })
+
+  it('extraArgs may include hidden source files but cannot expose hidden credential directories', async () => {
+    const got = await files(Q, { extraArgs: ['--hidden'] })
+    expect(got).toContain('README.md')
+    for (const bad of ['.aws/credentials', '.ssh/id_ed25519', '.npmrc', '.netrc', '.pgpass', '.git-credentials', '.docker/config.json', '.kube/config', '.azure/profile', '.config/gh/hosts.yml']) {
+      expect(got).not.toContain(bad)
+    }
   })
 
   it('extraArgs cannot re-include secrets', async () => {
