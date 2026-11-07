@@ -97,6 +97,19 @@ async function seed(ctx: Context) {
 }
 
 describe('semantic tier (3.3): write, retrieve by meaning', () => {
+  it('snapshots fact metadata before waiting for persistence and indexing', async () => {
+    const { ctx } = await boot({ sem: { path: await tmp() } })
+    const tags = ['original']
+    const input = { text: 'A stable fact', why: WHY, id: 'snapshot-id', tags, source: 'original-source' }
+    const pending = ctx.memorySemantic.add(input)
+    tags[0] = 'mutated'
+    input.id = 'mutated-id'
+    input.source = 'mutated-source'
+    await pending
+    const fact = (await ctx.memorySemantic.list())[0]!
+    expect(fact).toMatchObject({ id: 'snapshot-id', tags: ['original'], source: 'original-source' })
+  })
+
   it('finds a fact by a query that shares NO words with it, and ranks it first among unrelated facts', async () => {
     const { ctx } = await boot()
     await seed(ctx)
