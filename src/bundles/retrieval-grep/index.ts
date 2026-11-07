@@ -30,12 +30,13 @@ const SECRET_EXCLUDES = [
   '!*.pem', '!**/*.pem', '!*.key', '!**/*.key',
   '!*.p12', '!**/*.p12', '!*.pfx', '!**/*.pfx', '!*.jks', '!**/*.jks', '!*.keystore', '!**/*.keystore',
   '!id_rsa*', '!**/id_rsa*', '!**/id_dsa*', '!**/id_ecdsa*', '!**/id_ed25519*',
-  '!**/.aws/credentials', '!**/.aws/config', '!**/.ssh/**',
-  '!**/.npmrc', '!**/.netrc', '!**/.pgpass', '!**/.git-credentials',
-  '!**/.docker/config.json', '!**/.kube/config', '!**/.azure/**', '!**/.config/gh/hosts.yml', '!**/.config/gh/hosts.yaml',
+  '!**/.aws/**', '!**/.ssh/**', '!**/.azure/**', '!**/.docker/**', '!**/.kube/**', '!**/.gnupg/**',
+  '!**/.config/gcloud/**', '!**/.config/gh/**',
+  '!**/.npmrc', '!**/.netrc', '!**/.pgpass', '!**/.git-credentials', '!**/.pypirc', '!**/.terraformrc',
+  '!**/.cargo/credentials', '!**/.cargo/credentials.toml', '!**/.terraform.d/credentials.tfrc.json',
   '!**/credentials', '!**/credentials.json', '!**/service-account*.json', '!**/service_account*.json',
   '!**/application_default_credentials.json', '!**/kubeconfig', '!**/secrets.yml', '!**/secrets.yaml',
-  '!**/secrets.json', '!**/secrets.toml',
+  '!**/secrets.json', '!**/secrets.toml', '!**/etc/shadow', '!**/proc/self/environ',
 ]
 
 /** True if `target` is `root` or lies under it. Both must already be real, absolute paths. */
@@ -72,7 +73,15 @@ export function parseRgJson(
     if (typeof path !== 'string' || typeof text !== 'string' || typeof line !== 'number') continue
     const abs = resolve(root, path)
     if (!isInside(root, abs)) continue
-    const file = relative(root, abs).split(sep).join('/')
+    // A configured --follow must not let an in-root symlink reveal an outside file.
+    let real: string
+    try {
+      real = realpathSync(abs)
+    } catch {
+      continue
+    }
+    if (!isInside(root, real)) continue
+    const file = relative(root, real).split(sep).join('/')
     let entry = files.get(file)
     if (!entry) files.set(file, (entry = { matches: [], total: 0 }))
     entry.total++
@@ -176,8 +185,8 @@ export class RetrievalGrep extends Service {
   /** The exclude globs shared by `search` and `listFiles`. They come after `extraArgs` (a later --glob wins). */
   private excludeArgs(): string[] {
     const out: string[] = []
-    for (const g of ALWAYS_EXCLUDED) out.push('--glob', g)
-    if (!this.includeSecrets) for (const g of SECRET_EXCLUDES) out.push('--glob', g)
+    for (const g of ALWAYS_EXCLUDED) out.push('--iglob', g)
+    if (!this.includeSecrets) for (const g of SECRET_EXCLUDES) out.push('--iglob', g)
     return out
   }
 
