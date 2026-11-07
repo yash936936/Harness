@@ -116,7 +116,7 @@ export class LLMService extends Service {
     return [...this.providers.keys()]
   }
 
-  async complete(req: CompletionRequest): Promise<CompletionResponse> {
+  async complete(req: CompletionRequest, signal?: AbortSignal): Promise<CompletionResponse> {
     const name = req.provider ?? this.defaultName
     if (!name) throw new LLMError('config', 'no provider specified and no default configured', '(none)')
     const provider = this.providers.get(name)
@@ -184,7 +184,8 @@ export class LLMService extends Service {
     }
 
     try {
-      const res = await (this.limiter ? this.limiter.run(() => provider.complete(redacted)) : provider.complete(redacted))
+      signal?.throwIfAborted()
+      const res = await (this.limiter ? this.limiter.run(() => provider.complete(redacted, signal), signal) : provider.complete(redacted, signal))
       const out: CompletionResponse = { provider: name, ...res }
       await book(out.usage, false)
       await log.append(
