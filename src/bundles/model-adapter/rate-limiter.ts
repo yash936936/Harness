@@ -183,6 +183,7 @@ export class RateLimiter {
     // The persistent ceiling is shared across processes. Read, check, increment and
     // replace the state while holding one lock so concurrent Harness processes cannot
     // each spend the same final request slot.
+    await mkdir(dirname(this.statePath), { recursive: true })
     await withFileLock(`${this.statePath}.lock`, async () => {
       const current = await this.readStateFile(day)
       if (this.perDay !== undefined && current.count >= this.perDay) {
