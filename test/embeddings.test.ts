@@ -68,6 +68,14 @@ describe('Embeddings service', () => {
     expect(r.vectors).toHaveLength(5)
   })
 
+  it('returns independent vector buffers for duplicate inputs', async () => {
+    const { provider } = stub()
+    const { svc } = await boot({ normalize: false }, provider)
+    const r = ok(await svc.embed(['same', 'same']))
+    ;(r.vectors[0] as Float32Array)[0] = 999
+    expect((r.vectors[1] as Float32Array)[0]).not.toBe(999)
+  })
+
   it('batches by count: 100 texts at maxBatchSize 32 is 4 calls, not 100', async () => {
     const { provider, calls } = stub()
     const { svc } = await boot({ maxBatchSize: 32 }, provider)
@@ -179,6 +187,19 @@ describe('Embeddings service', () => {
         const { svc } = await boot({}, stub({ answer }).provider)
         expect(kind(await svc.embed(['a', 'b']))).toBe('malformed')
       }
+    })
+
+    it('rejects zero, unconvertible and numerically extreme vectors safely', async () => {
+      const zero = await boot({}, stub({ answer: () => [[0, 0]] }).provider)
+      expect(kind(await zero.svc.embed(['x']))).toBe('malformed')
+
+      const invalid = await boot({}, stub({ embed: async () => [null] as unknown as ReadonlyArray<ArrayLike<number>> }).provider)
+      expect(kind(await invalid.svc.embed(['x']))).toBe('malformed')
+
+      const large = await boot({}, stub({ answer: () => [[3e38, 3e38]] }).provider)
+      const normalized = ok(await large.svc.embed(['x']))
+      expect(normalized.vectors[0]![0]).toBeCloseTo(Math.SQRT1_2, 5)
+      expect(normalized.vectors[0]![1]).toBeCloseTo(Math.SQRT1_2, 5)
     })
 
     it('a different dimension on a later call is dimension_mismatch, and info() carries the fingerprint', async () => {
