@@ -1,3 +1,8 @@
+## 2026-11-07 provider error redaction (DBG-082)
+
+- Provider network errors now expose only the endpoint host and a stable system error code, not URL paths or arbitrary raw fetch errors.
+- Added OpenAI-compatible and Ollama regressions for path-bearing endpoint strings. Fresh CI required.
+
 ## 2026-11-07 hot-memory metadata redaction (DBG-081)
 
 - Fixed source metadata redaction in hot memory on write and list/read, including legacy persisted records.
