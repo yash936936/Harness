@@ -31,11 +31,19 @@ function clip(text: string, max: number): string {
   return last >= 0xd800 && last <= 0xdbff ? cut.slice(0, -1) : cut
 }
 
-function l2normalize(v: Float32Array): Float32Array {
+function l2normalize(v: Float32Array): Float32Array | undefined {
+  // Scale before squaring: finite Float32 values can still overflow when squared.
+  let scale = 0
+  for (const x of v) scale = Math.max(scale, Math.abs(x))
+  if (scale === 0) return undefined
   let sum = 0
-  for (const x of v) sum += x * x
+  for (const x of v) {
+    const scaled = x / scale
+    sum += scaled * scaled
+  }
   const norm = Math.sqrt(sum)
-  if (norm > 0) for (let i = 0; i < v.length; i++) v[i] = (v[i] as number) / norm
+  if (!Number.isFinite(norm) || norm === 0) return undefined
+  for (let i = 0; i < v.length; i++) v[i] = ((v[i] as number) / scale) / norm
   return v
 }
 
@@ -158,12 +166,20 @@ export class Embeddings extends Service {
         return fail('malformed', `${provider.name}: sent ${batch.length} texts, got ${Array.isArray(raw) ? raw.length : 'no'} vectors back`)
       }
       for (const r of raw) {
-        const v = Float32Array.from(r)
+        let v: Float32Array
+        try {
+          v = Float32Array.from(r)
+        } catch {
+          return fail('malformed', `${provider.name}: response contains a value that is not a numeric vector`)
+        }
         if (v.length === 0 || !v.every(Number.isFinite)) return fail('malformed', `${provider.name}: empty or non-finite vector`)
         dims ??= v.length
         if (v.length !== dims) return fail('malformed', `${provider.name}: vectors in one response have different lengths (${dims} vs ${v.length})`)
-        vectors.push(this.normalize ? l2normalize(v) : v)
+        const prepared = this.normalize ? l2normalize(v) : v
+        if (!prepared || !prepared.some((x) => x !== 0)) return fail('malformed', `${provider.name}: zero vector has undefined cosine similarity`)
+        vectors.push(prepared)
       }
+      if (this.provider !== provider) return fail('config', 'embedding provider changed while a request was in flight; discard the result')
       if (this.dimensions !== undefined && dims !== this.dimensions) {
         return fail('dimension_mismatch', `${provider.name}/${provider.model} returned ${dims}-dimensional vectors, previously ${this.dimensions}; stored vectors would be incomparable`)
       }
@@ -172,7 +188,7 @@ export class Embeddings extends Service {
 
     return {
       ok: true,
-      vectors: slot.map((i) => vectors[i] as Float32Array),
+      vectors: slot.map((i) => (vectors[i] as Float32Array).slice()),
       model: provider.model,
       dimensions: dims as number,
       requests,
