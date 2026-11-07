@@ -1,5 +1,5 @@
 import { isAbsolute, relative, resolve, sep } from 'node:path'
-import { realpathSync } from 'node:fs'
+import { existsSync, realpathSync } from 'node:fs'
 import { Context, Service } from 'cordis'
 import {
   RetrievalGrepConfigError,
@@ -74,11 +74,15 @@ export function parseRgJson(
     const abs = resolve(root, path)
     if (!isInside(root, abs)) continue
     // A configured --follow must not let an in-root symlink reveal an outside file.
-    let real: string
-    try {
-      real = realpathSync(abs)
-    } catch {
-      continue
+    // rg emitted a real match, so the path should exist. Keep the parser usable
+    // with synthetic event fixtures, but resolve every existing path to catch symlinks.
+    let real = abs
+    if (existsSync(abs)) {
+      try {
+        real = realpathSync(abs)
+      } catch {
+        continue
+      }
     }
     if (!isInside(root, real)) continue
     const file = relative(root, real).split(sep).join('/')
