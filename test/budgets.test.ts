@@ -199,6 +199,7 @@ describe('budgets: persistence (day counter survives restart, mirrors RateLimite
     ['negative count', { day: '2026-01-01', requests: -5, tokens: 1 }],
     ['NaN-like', { day: '2026-01-01', requests: null, tokens: 1 }],
     ['bad day', { day: 'yesterday', requests: 1, tokens: 1 }],
+    ['impossible calendar day', { day: '2026-99-99', requests: 1, tokens: 1 }],
     ['missing fields', { day: '2026-01-01' }],
     ['not an object', [1, 2, 3]],
   ])('BUG-10: malformed contents (%s) are refused, even for a different day', (_n, body) => {
@@ -214,6 +215,13 @@ describe('budgets: persistence (day counter survives restart, mirrors RateLimite
     writeFileSync(statePath, JSON.stringify({ day: '2020-01-01', requests: 99, tokens: 99 }))
     const b = new Budgets({ statePath, requests: { day: { hard: 100 } }, now: () => Date.parse('2026-06-01T00:00:00Z') })
     expect(b.requestsLeftToday()).toBe(100)
+  })
+
+  it('BUG-10: a valid but future-dated state file fails closed instead of resetting the budget', () => {
+    const statePath = join(dir, 'budgets.json')
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(statePath, JSON.stringify({ day: '2026-06-02', requests: 99, tokens: 99 }))
+    expect(() => new Budgets({ statePath, now: () => Date.parse('2026-06-01T00:00:00Z') })).toThrow(/ahead of the system date/)
   })
 
   it('BUG-10: valid same-day counters are loaded exactly', () => {
