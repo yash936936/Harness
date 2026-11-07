@@ -3,6 +3,18 @@ import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync, realpathSync } from 'node:fs'
 import { basename, dirname, isAbsolute, relative, resolve, sep } from 'node:path'
 
+function cleanGitEnv(): NodeJS.ProcessEnv {
+  const env = { ...process.env }
+  // A parent Git process/runner may export repository overrides. Ignore them so
+  // discovery is based on the labels file's actual directory.
+  for (const key of [
+    'GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_INDEX_FILE',
+    'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES', 'GIT_PREFIX',
+    'GIT_CEILING_DIRECTORIES',
+  ]) delete env[key]
+  return env
+}
+
 /**
  * D-109: refuse to emit scorer output for labels unless the exact labels and
  * SHA-256 sidecar are already committed and the working copies are clean.
@@ -16,7 +28,7 @@ export function verifyCommittedLabels(labelsPath: string): { sha256: string; com
 
   let root: string
   try {
-    root = realpathSync(execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: dirname(absolute), encoding: 'utf8' }).trim())
+    root = realpathSync(execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: dirname(absolute), encoding: 'utf8', env: cleanGitEnv() }).trim())
   } catch {
     throw new Error('D-109: labels must be inside a Git repository')
   }
@@ -35,21 +47,21 @@ export function verifyCommittedLabels(labelsPath: string): { sha256: string; com
 
   let committedPaths: string[]
   try {
-    committedPaths = execFileSync('git', ['ls-tree', '-r', '--name-only', 'HEAD'], { cwd: root, encoding: 'utf8' }).split(/\r?\n/)
+    committedPaths = execFileSync('git', ['ls-tree', '-r', '--name-only', 'HEAD'], { cwd: root, encoding: 'utf8', env: cleanGitEnv() }).split(/\r?\n/)
   } catch {
     throw new Error('D-109: could not inspect the committed Git tree for labels')
   }
   if (!committedPaths.includes(labelsRelative) || !committedPaths.includes(sidecarRelative)) {
     throw new Error(`D-109: labels and SHA-256 sidecar must both be committed in HEAD (labels=${labelsRelative}; sidecar=${sidecarRelative}; tree=${JSON.stringify(committedPaths)})`)
   }
-  const dirty = execFileSync('git', ['status', '--porcelain', '--', labelsRelative, sidecarRelative], { cwd: root, encoding: 'utf8' })
+  const dirty = execFileSync('git', ['status', '--porcelain', '--', labelsRelative, sidecarRelative], { cwd: root, encoding: 'utf8', env: cleanGitEnv() })
   if (dirty.trim()) throw new Error('D-109: labels and SHA-256 sidecar must be committed with a clean working copy')
 
   let committedLabels: Buffer
   let committedSidecar: string
   let commit: string
   try {
-    committedLabels = execFileSync('git', ['show', `HEAD:${labelsRelative}`], { cwd: root })
+    committedLabels = execFileSync('git', ['show', `HEAD:${labelsRelative}`], { cwd: root, env: cleanGitEnv() })
     committedSidecar = execFileSync('git', ['show', `HEAD:${sidecarRelative}`], { cwd: root, encoding: 'utf8' }).trim()
     commit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim()
   } catch {
