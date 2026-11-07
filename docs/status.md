@@ -1,3 +1,8 @@
+## 2026-11-07 egress consent store symlink hardening (DBG-084)
+
+- FileConsentStore now fails closed on symlinked/non-regular consent files and validates file identity after open.
+- Added a symlinked consent store regression on platforms that support unprivileged symlink creation. Fresh CI required.
+
 ## 2026-11-07 episodic-memory read-time redaction (DBG-083)
 
 - Episodic query and duplicate-record return paths now redact persisted records using the current egress secret registry.
