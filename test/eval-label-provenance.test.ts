@@ -62,9 +62,11 @@ describe('D-109 committed label provenance', () => {
     expect(() => verifyCommittedLabels(labelsPath)).toThrow(/clean working copy/)
   })
 
-  it('rejects a mismatched sidecar', () => {
-    const { labelsPath } = repoWithCommittedLabels()
-    writeFileSync(labelsPath + '.sha256', `0000000000000000000000000000000000000000000000000000000000000000  labels.json\n`)
-    expect(() => verifyCommittedLabels(labelsPath)).toThrow(/sidecar does not match/)
+  it('rejects a mismatched committed sidecar', () => {
+    const { root, labelsPath } = repoWithCommittedLabels()
+    writeFileSync(labelsPath + '.sha256', '0000000000000000000000000000000000000000000000000000000000000000  labels.json\\n')
+    execFileSync('git', ['add', '--', 'labels.json.sha256'], { cwd: root })
+    execFileSync('git', ['commit', '-m', 'tampered sidecar'], { cwd: root, stdio: 'ignore', env: cleanGitEnv() })
+    expect(() => verifyCommittedLabels(labelsPath)).toThrow(/committed labels or SHA-256 sidecar differ/)
   })
 })
