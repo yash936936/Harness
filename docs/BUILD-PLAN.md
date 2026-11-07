@@ -84,7 +84,7 @@ npm run test:real-sandbox 2>&1 | Tee-Object docs/evidence/PHASE-5.1.raw.txt
 docker ps -a
 ~~~
 
-Record the full raw output, date/time, Windows build, Docker version, Crabbox version and exit codes in docs/evidence/PHASE-5.1.md. The acceptance gate requires a real Harness-created lease, a command executed inside the container, correct exit codes 0 and 7, confirmed release, no leftover container, and a host-only sentinel absent inside the sandbox.
+Record the full raw output, date/time, Windows build, Docker version, Crabbox version and exit codes in docs/evidence/PHASE-5.1.md. The S0 acceptance gate requires a real Harness-created lease, a command executed inside the container, correct exit codes 0 and 7, confirmed release, and no leftover container. Host-only sentinel absence and orphan recovery are separate S1 gates.
 
 ## 4. Locked decisions
 
