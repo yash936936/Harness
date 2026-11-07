@@ -63,9 +63,15 @@ export class Subprocess extends Service {
   constructor(ctx: Context, config: SubprocessConfig = {}) {
     super(ctx, 'subprocess')
     this.cwd = config.cwd ?? process.cwd()
-    this.baseAllowlist = new Set(config.envAllowlist ?? [])
+    const allowlist = config.envAllowlist ?? []
+    if (!Array.isArray(allowlist) || allowlist.some((key) => typeof key !== 'string' || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(key))) {
+      throw new SubprocessError('config', 'subprocess: envAllowlist must contain valid environment variable names')
+    }
+    this.baseAllowlist = new Set(allowlist)
     this.defaultTimeoutMs = config.timeoutMs ?? 0
     this.defaultMaxOutput = config.maxOutputBytes ?? DEFAULT_MAX_OUTPUT
+    if (!Number.isSafeInteger(this.defaultTimeoutMs) || this.defaultTimeoutMs < 0) throw new SubprocessError('config', 'subprocess: timeoutMs must be a non-negative safe integer (0 disables the timeout)')
+    if (!Number.isSafeInteger(this.defaultMaxOutput) || this.defaultMaxOutput < 0) throw new SubprocessError('config', 'subprocess: maxOutputBytes must be a non-negative safe integer')
   }
 
   /** Run `command` with `args`. Never throws for a failure the caller needs to see — see the class doc. */
@@ -92,6 +98,12 @@ export class Subprocess extends Service {
     const maxOutput = opts.maxOutputBytes ?? this.defaultMaxOutput
     const timeoutMs = opts.timeoutMs ?? this.defaultTimeoutMs
     const killGraceMs = opts.killGraceMs ?? DEFAULT_KILL_GRACE_MS
+    if (!Number.isSafeInteger(maxOutput) || maxOutput < 0) throw new SubprocessError('config', 'subprocess: maxOutputBytes must be a non-negative safe integer')
+    if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 0) throw new SubprocessError('config', 'subprocess: timeoutMs must be a non-negative safe integer')
+    if (!Number.isSafeInteger(killGraceMs) || killGraceMs < 0) throw new SubprocessError('config', 'subprocess: killGraceMs must be a non-negative safe integer')
+    if (typeof command !== 'string' || !command.trim() || !Array.isArray(args) || args.some((arg) => typeof arg !== 'string')) {
+      throw new SubprocessError('config', 'subprocess: command must be non-empty and args must be strings')
+    }
     const start = Date.now()
 
     // BUG-01: a task that was already cancelled must not launch anything at all.
