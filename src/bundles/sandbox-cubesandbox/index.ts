@@ -122,20 +122,25 @@ export class CubeSandboxProvider implements SandboxProvider {
     req.signal?.throwIfAborted()
     const start = Date.now()
     const client = await raceAbort(this.getClient(), req.signal)
-    const create = client.create({ template: this.cfg.template, timeoutMs: this.cfg.sandboxTimeoutMs ?? 300_000 })
+    let create: Promise<CubeSandboxHandle> | undefined
     let handle: CubeSandboxHandle
     try {
+      create = Promise.resolve(client.create({ template: this.cfg.template, timeoutMs: this.cfg.sandboxTimeoutMs ?? 300_000 }))
       handle = await raceAbort(create, req.signal)
     } catch (error: any) {
       if (req.signal?.aborted) {
         // The SDK create call has no cancellation parameter. If it completes after
         // the caller aborts, kill the late handle instead of leaving a remote VM.
-        void create.then((late) => late.kill()).catch(() => {})
+        if (create) void create.then((late) => late.kill()).catch(() => {})
         throw req.signal.reason ?? error
       }
       throw new SandboxError('unreachable', `cubesandbox: could not create a sandbox (${String(error?.message ?? error).slice(0, 300)})`)
     }
-    if (!handle || typeof handle.id !== 'string' || !handle.id || typeof handle.run !== 'function' || typeof handle.kill !== 'function') {
+    if (!handle || typeof handle.kill !== 'function') {
+      throw new SandboxError('unreachable', 'cubesandbox: client returned a handle without a kill function')
+    }
+    if (typeof handle.id !== 'string' || !handle.id || typeof handle.run !== 'function') {
+      await Promise.resolve().then(() => handle.kill()).catch(() => {})
       throw new SandboxError('unreachable', 'cubesandbox: client returned an invalid sandbox handle')
     }
     const bootMs = Date.now() - start
@@ -155,10 +160,12 @@ export class CubeSandboxProvider implements SandboxProvider {
       timedOut = /timeout|timed out/i.test(msg)
       out = { exitCode: null, stdout: '', stderr: msg.slice(0, 500) }
     } finally {
-      rel = await handle.kill().then(
-        () => ({ released: true } as { released: boolean; note?: string }),
-        (error: any) => ({ released: false, note: `kill failed: ${String(error?.message ?? error).slice(0, 160)}` }),
-      )
+      try {
+        await handle.kill()
+        rel = { released: true }
+      } catch (error: any) {
+        rel = { released: false, note: `kill failed: ${String(error?.message ?? error).slice(0, 160)}` }
+      }
     }
     const budget = this.cfg.bootBudgetMs ?? 200
     return {
