@@ -14,12 +14,23 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { SessionLog } from '../src/bundles/session-log/index.js'
 import { EvalRunner, commandPassed, defaultScorers } from '../src/bundles/eval-runner/index.js'
 import { meetsCalibrationMinimum, validateHumanRunLabels } from './eval-calibrate-validation.js'
+import { verifyCommittedLabels } from './eval-label-provenance.js'
 
 const [dir, labelsFile, checkPattern] = process.argv.slice(2)
 const MIN_LABELS = 10
 if (!dir) {
   console.error('usage: npx tsx scripts/eval-calibrate.ts <logDir> [labels.json] [checkCommandRegex]')
   process.exit(2)
+}
+
+if (labelsFile) {
+  try {
+    const provenance = verifyCommittedLabels(labelsFile)
+    console.log(`D-109 labels verified: SHA-256 ${provenance.sha256}; commit ${provenance.commit}`)
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error))
+    process.exit(2)
+  }
 }
 
 let parsedLabels: unknown = {}
