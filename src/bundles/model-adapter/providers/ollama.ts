@@ -52,9 +52,21 @@ export class OllamaProvider implements LLMProvider {
     if (!config.model) throw new LLMError('config', 'ollama: `model` is required in config', NAME)
     this.model = config.model
     this.baseUrl = resolveBaseUrl(config.baseUrl)
-    const host = new URL(this.baseUrl).hostname
+    let endpoint: URL
+    try {
+      endpoint = new URL(this.baseUrl)
+    } catch {
+      throw new LLMError('config', 'ollama: `baseUrl` is not a valid URL', NAME)
+    }
+    if ((endpoint.protocol !== 'http:' && endpoint.protocol !== 'https:') || !endpoint.hostname || endpoint.username || endpoint.password || endpoint.search || endpoint.hash) {
+      throw new LLMError('config', 'ollama: `baseUrl` must be an HTTP(S) URL without credentials, query or fragment', NAME)
+    }
+    const host = endpoint.hostname
     this.egress = { host, remote: !/^(localhost|127(\.\d{1,3}){3}|\[?::1\]?)$/i.test(host) }
     this.timeoutMs = config.timeoutMs ?? 120_000
+    if (!Number.isSafeInteger(this.timeoutMs) || this.timeoutMs < 1 || this.timeoutMs > 4_294_967_295) {
+      throw new LLMError('config', 'ollama: `timeoutMs` must be an integer from 1 to 4294967295 milliseconds', NAME)
+    }
     this.doFetch = config.fetch ?? fetch
     this.textToolCalls = config.textToolCalls === true
     this.allowInsecureHttp = config.allowInsecureHttp === true
