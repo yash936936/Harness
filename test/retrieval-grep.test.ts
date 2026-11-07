@@ -170,7 +170,7 @@ describe.skipIf(!hasRg)('RetrievalGrep with real ripgrep', () => {
     base = realpathSync(mkdtempSync(join(tmpdir(), 'rgtest-')))
     root = join(base, 'root')
     outside = join(base, 'root-evil') // sibling whose name starts with root's name
-    for (const d of ['root/src', 'root/skip', 'root/node_modules/dep', 'root/.git', 'root-evil']) mkdirSync(join(base, d), { recursive: true })
+    for (const d of ['root/src', 'root/skip', 'root/node_modules/dep', 'root/.git', 'root/.aws', 'root/.ssh', 'root-evil']) mkdirSync(join(base, d), { recursive: true })
     const w = (rel: string, s: string | Buffer) => writeFileSync(join(base, rel), s)
     w('root/src/app.ts', `const a = "${Q}"\n`)
     w('root/skip/other.ts', `${Q}\n`)
@@ -181,6 +181,13 @@ describe.skipIf(!hasRg)('RetrievalGrep with real ripgrep', () => {
     w('root/key.pem', `${Q}\n`)
     w('root/deploy.key', `${Q}\n`)
     w('root/id_rsa', `${Q}\n`)
+    w('root/credentials.json', `${Q}\n`)
+    w('root/service-account-prod.json', `${Q}\n`)
+    w('root/kubeconfig', `${Q}\n`)
+    w('root/secrets.yaml', `${Q}\n`)
+    w('root/cert.p12', `${Q}\n`)
+    w('root/.aws/credentials', `${Q}\n`)
+    w('root/.ssh/id_ed25519', `${Q}\n`)
     w('root/node_modules/dep/index.js', `${Q}\n`)
     w('root/.git/config', `${Q}\n`)
     w('root/bin.dat', Buffer.concat([Buffer.from([0, 1, 2]), Buffer.from(Q), Buffer.from([0])]))
@@ -207,14 +214,14 @@ describe.skipIf(!hasRg)('RetrievalGrep with real ripgrep', () => {
 
   it('excludes secrets, .git, node_modules and binaries by default', async () => {
     const got = await files(Q)
-    for (const bad of ['.env', '.env.local', 'prod.env', 'key.pem', 'deploy.key', 'id_rsa', 'bin.dat']) expect(got).not.toContain(bad)
+    for (const bad of ['.env', '.env.local', 'prod.env', 'key.pem', 'deploy.key', 'id_rsa', 'credentials.json', 'service-account-prod.json', 'kubeconfig', 'secrets.yaml', 'cert.p12', '.aws/credentials', '.ssh/id_ed25519', 'bin.dat']) expect(got).not.toContain(bad)
     expect(got.some((f) => f.startsWith('node_modules') || f.startsWith('.git'))).toBe(false)
     expect(got).toContain('README.md') // positive control
   })
 
   it('includeSecrets searches secrets and hidden files but still never .git / node_modules', async () => {
     const got = await files(Q, { includeSecrets: true })
-    for (const good of ['.env', '.env.local', 'prod.env', 'key.pem', 'deploy.key', 'id_rsa']) expect(got).toContain(good)
+    for (const good of ['.env', '.env.local', 'prod.env', 'key.pem', 'deploy.key', 'id_rsa', 'credentials.json', 'service-account-prod.json', 'kubeconfig', 'secrets.yaml', 'cert.p12', '.aws/credentials', '.ssh/id_ed25519']) expect(got).toContain(good)
     expect(got.some((f) => f.startsWith('node_modules') || f.startsWith('.git'))).toBe(false)
   })
 
@@ -222,6 +229,8 @@ describe.skipIf(!hasRg)('RetrievalGrep with real ripgrep', () => {
     const got = await files(Q, { extraArgs: ['--glob', '.env', '--glob', '*.pem'] })
     expect(got).not.toContain('.env')
     expect(got).not.toContain('key.pem')
+    expect(got).not.toContain('credentials.json')
+    expect(got).not.toContain('service-account-prod.json')
   })
 
   it('extraArgs ignore globs work (positive control)', async () => {
@@ -348,7 +357,7 @@ describe('RetrievalGrep.listFiles', () => {
       root = join(base, 'root')
       for (const d of ['root/src/deep', 'root/skip', 'root/node_modules/dep', 'root/.git', 'root-evil']) mkdirSync(join(base, d), { recursive: true })
       const w = (rel: string, s: string) => writeFileSync(join(base, rel), s)
-      for (const f of ['root/z.txt', 'root/a.txt', 'root/src/app.ts', 'root/src/deep/x.ts', 'root/skip/s.ts', 'root/.env', 'root/.env.local', 'root/prod.env', 'root/key.pem', 'root/deploy.key', 'root/id_rsa', 'root/node_modules/dep/i.js', 'root/.git/config', 'root/.hidden.txt', 'root-evil/loot.txt']) w(f, 'x\n')
+      for (const f of ['root/z.txt', 'root/a.txt', 'root/src/app.ts', 'root/src/deep/x.ts', 'root/skip/s.ts', 'root/.env', 'root/.env.local', 'root/prod.env', 'root/key.pem', 'root/deploy.key', 'root/id_rsa', 'root/credentials.json', 'root/service-account-prod.json', 'root/kubeconfig', 'root/secrets.yaml', 'root/cert.p12', 'root/.aws/credentials', 'root/.ssh/id_ed25519', 'root/node_modules/dep/i.js', 'root/.git/config', 'root/.hidden.txt', 'root-evil/loot.txt']) w(f, 'x\n')
       try { symlinkSync(join(base, 'root-evil'), join(root, 'link-dir'), 'dir') } catch { /* no symlink privilege */ }
     })
     afterAll(() => rmSync(base, { recursive: true, force: true }))
@@ -367,15 +376,15 @@ describe('RetrievalGrep.listFiles', () => {
 
     it('includeSecrets adds hidden and secret files but never .git or node_modules', async () => {
       const r = await list({ includeSecrets: true })
-      expect(r.ok && r.files).toEqual(['.env', '.env.local', '.hidden.txt', 'a.txt', 'deploy.key', 'id_rsa', 'key.pem', 'prod.env', 'skip/s.ts', 'src/app.ts', 'src/deep/x.ts', 'z.txt'])
+      expect(r.ok && r.files).toEqual(['.aws/credentials', '.env', '.env.local', '.hidden.txt', '.ssh/id_ed25519', 'a.txt', 'cert.p12', 'credentials.json', 'deploy.key', 'id_rsa', 'key.pem', 'kubeconfig', 'prod.env', 'secrets.yaml', 'service-account-prod.json', 'skip/s.ts', 'src/app.ts', 'src/deep/x.ts', 'z.txt'])
     })
 
     it('extraArgs can narrow the list but cannot re-include secrets', async () => {
       const narrowed = await list({ extraArgs: ['--glob', '!skip/**'] })
       expect(narrowed.ok && narrowed.files).not.toContain('skip/s.ts')
       expect(narrowed.ok && narrowed.files).toContain('src/app.ts')
-      const tried = await list({ extraArgs: ['--glob', '.env', '--glob', '*.pem', '--glob', 'id_rsa'] })
-      expect(tried.ok && tried.files.some((f) => f.startsWith('.env') || f.endsWith('.pem') || f === 'id_rsa')).toBe(false)
+      const tried = await list({ extraArgs: ['--glob', '.env', '--glob', '*.pem', '--glob', 'id_rsa', '--glob', 'credentials.json'] })
+      expect(tried.ok && tried.files.some((f) => f.startsWith('.env') || f.endsWith('.pem') || f === 'id_rsa' || f === 'credentials.json')).toBe(false)
     })
 
     it('is scoped by path, and path escapes are refused exactly as for search', async () => {
