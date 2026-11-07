@@ -22,9 +22,21 @@ export class OllamaEmbeddingProvider implements EmbeddingProvider {
     if (!config?.model) throw new EmbeddingsConfigError('ollama embeddings: `model` is required in config (e.g. an installed embedding model tag)')
     this.model = config.model
     this.baseUrl = resolveBaseUrl(config.baseUrl)
-    const host = new URL(this.baseUrl).hostname
+    let endpoint: URL
+    try {
+      endpoint = new URL(this.baseUrl)
+    } catch {
+      throw new EmbeddingsConfigError('ollama embeddings: baseUrl is not a valid URL')
+    }
+    if (!endpoint.hostname) throw new EmbeddingsConfigError('ollama embeddings: baseUrl must have a host')
+    if (endpoint.username || endpoint.password) throw new EmbeddingsConfigError('ollama embeddings: baseUrl must not contain embedded credentials')
+    if (endpoint.search || endpoint.hash) throw new EmbeddingsConfigError('ollama embeddings: baseUrl must not contain a query or fragment')
+    const host = endpoint.hostname
     this.egress = { host, remote: !/^(localhost|127(\.\d{1,3}){3}|\[?::1\]?)$/i.test(host) }
     this.timeoutMs = config.timeoutMs ?? 120_000
+    if (!Number.isSafeInteger(this.timeoutMs) || this.timeoutMs < 1 || this.timeoutMs > 4_294_967_295) {
+      throw new EmbeddingsConfigError('ollama embeddings: timeoutMs must be an integer from 1 to 4294967295 milliseconds')
+    }
     this.keepAlive = config.keepAlive
     this.doFetch = config.fetch ?? fetch
     this.allowInsecureHttp = config.allowInsecureHttp === true
