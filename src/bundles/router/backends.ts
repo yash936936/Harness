@@ -31,10 +31,10 @@ export class WorkerBackend implements RouterBackend {
   readonly name = 'worker' as const
   readonly requestCost = 1
   constructor(private readonly llm: WorkerLike, private readonly sessionId = 'router') {}
-  async decide(cls: DecisionClass, req: { task: string; candidates: Candidate[] }): Promise<string | null> {
+  async decide(cls: DecisionClass, req: { task: string; candidates: Candidate[]; sessionId?: string }): Promise<string | null> {
     const list = req.candidates.map((c) => `- ${c.id}: ${c.description}`).join('\n')
     const r = await this.llm.complete({
-      sessionId: this.sessionId,
+      sessionId: req.sessionId ?? this.sessionId,
       system: `You route a task to exactly one ${cls}. Reply with ONLY the id of the best one, nothing else. If none fits, reply NONE.`,
       messages: [{ role: 'user', content: `Task: ${req.task}\n\nOptions:\n${list}` }],
       maxTokens: 20,
