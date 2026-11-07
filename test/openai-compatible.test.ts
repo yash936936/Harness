@@ -464,6 +464,18 @@ describe('SEC-02 redirects and plaintext transport', () => {
     expect((calls[0]!.init as any).redirect).toBe('manual')
   })
 
+  it('does not echo a path-bearing endpoint or raw fetch error on network failure', async () => {
+    const p = new OpenAICompatibleProvider({
+      model: 'm',
+      baseUrl: 'https://llm.example.com/private-path-token',
+      fetch: (async () => { throw new Error('private-path-token transport detail') }) as typeof fetch,
+    })
+    const error = await p.listModels().catch((value) => value as LLMError)
+    expect(error).toBeInstanceOf(LLMError)
+    expect(error.message).toContain('llm.example.com')
+    expect(error.message).not.toContain('private-path-token')
+  })
+
   it('listModels also refuses redirects', async () => {
     const { f } = fakeFetch(() => redirect(307))
     const p = new OpenAICompatibleProvider({ name: 'or', model: 'm', baseUrl: BASE, apiKey: KEY, fetch: f })
