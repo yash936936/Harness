@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net'
 import { describe, expect, it } from 'vitest'
 import { SessionLog } from '../src/bundles/session-log/index.js'
 import { EgressPolicy } from '../src/bundles/egress/index.js'
-import { LLMError, LLMService, MockProvider, resolveBaseUrl, type CompletionRequest } from '../src/bundles/model-adapter/index.js'
+import { LLMError, LLMService, MockProvider, OllamaProvider, resolveBaseUrl, type CompletionRequest } from '../src/bundles/model-adapter/index.js'
 
 type FetchCall = { url: string; init: RequestInit }
 function fakeFetch(respond: (call: FetchCall) => Response | Promise<Response>) {
@@ -106,6 +106,15 @@ describe('ollama provider (mocked HTTP)', () => {
     expect(res.toolCalls[0]!.input).toEqual({ a: 1 })
     const { f: f2 } = fakeFetch(() => json(200, okBody({ done_reason: 'length' })))
     expect((await (await boot({ model: 'm', fetch: f2 })).llm.complete(req())).stopReason).toBe('max_tokens')
+  })
+
+  it('rejects invalid endpoint components and timeout values at construction', () => {
+    expect(() => new OllamaProvider({ model: 'm', baseUrl: 'ftp://localhost:11434' })).toThrow(/HTTP\(S\) URL/)
+    expect(() => new OllamaProvider({ model: 'm', baseUrl: 'http://user:pass@localhost:11434' })).toThrow(/without credentials/)
+    expect(() => new OllamaProvider({ model: 'm', baseUrl: 'http://localhost:11434?token=x' })).toThrow(/query or fragment/)
+    for (const timeoutMs of [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, 4_294_967_296]) {
+      expect(() => new OllamaProvider({ model: 'm', timeoutMs })).toThrow(/timeoutMs must be an integer/)
+    }
   })
 
   it('requires model; resolves base URL from config, OLLAMA_HOST, or default', async () => {
