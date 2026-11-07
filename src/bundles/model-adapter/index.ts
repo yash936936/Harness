@@ -172,8 +172,12 @@ export class LLMService extends Service {
         throw new LLMError('budget', e.message, name)
       }
     }
-    const book = async (usage: { inputTokens: number; outputTokens: number } | undefined, failed: boolean) => {
+    const book = async (usage: { inputTokens: number; outputTokens: number } | undefined, failed: boolean, dispatched = true) => {
       if (!reservation) return
+      if (!dispatched) {
+        reservation.release()
+        return
+      }
       const spent = failed ? reservation.fail() : reservation.settle(usage)
       const soft = spent.flatMap((r) => r.newlySoftBreached)
       if (soft.length) await log.append(sessionId, 'budget.warning', { provider: name, softBreached: soft }, actor).catch(() => {})
@@ -185,13 +189,18 @@ export class LLMService extends Service {
       await log.append(sessionId, 'model.request', { provider: name, ...redacted, ...egressLog }, actor)
     } catch (e) {
       // Not sent, so not spent: give the hold back and let the log failure stop the call as before.
-      if (reservation) await book(undefined, true).catch(() => {})
+      if (reservation) await book(undefined, true, false).catch(() => {})
       throw e
     }
 
-    try {
+    let dispatchStarted = false
+    const dispatch = () => {
       signal?.throwIfAborted()
-      const res = await (this.limiter ? this.limiter.run(() => provider.complete(redacted, signal), signal) : provider.complete(redacted, signal))
+      dispatchStarted = true
+      return provider.complete(redacted, signal)
+    }
+    try {
+      const res = await (this.limiter ? this.limiter.run(dispatch, signal) : dispatch())
       const out: CompletionResponse = { provider: name, ...res }
       await book(out.usage, false)
       await log.append(
@@ -203,7 +212,7 @@ export class LLMService extends Service {
       return out
     } catch (e: any) {
       const err = e instanceof LLMError ? e : new LLMError('unknown', `${name}: ${e?.message ?? String(e)}`, name)
-      await book(undefined, true) // no-op if the response was already booked and it was the log write after it that failed
+      await book(undefined, true, dispatchStarted) // only charge a failed request after provider dispatch began
       await log.append(sessionId, 'model.error', { provider: name, kind: err.kind, status: err.status, message: err.message }, actor)
       throw err
     }
