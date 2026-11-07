@@ -110,7 +110,7 @@ describe('ollama provider (mocked HTTP)', () => {
 
   it('rejects invalid endpoint components and timeout values at construction', () => {
     expect(() => new OllamaProvider({ model: 'm', baseUrl: 'ftp://localhost:11434' })).toThrow(/HTTP\(S\) URL/)
-    expect(() => new OllamaProvider({ model: 'm', baseUrl: 'http://user:pass@localhost:11434' })).toThrow(/without credentials/)
+    expect(() => new OllamaProvider({ model: 'm', baseUrl: 'http://user:pass@localhost:11434' })).toThrow(/embedded credentials/)
     expect(() => new OllamaProvider({ model: 'm', baseUrl: 'http://localhost:11434?token=x' })).toThrow(/query or fragment/)
     for (const timeoutMs of [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, 4_294_967_296]) {
       expect(() => new OllamaProvider({ model: 'm', timeoutMs })).toThrow(/timeoutMs must be an integer/)

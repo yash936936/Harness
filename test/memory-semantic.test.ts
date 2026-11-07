@@ -96,6 +96,23 @@ async function seed(ctx: Context) {
   }
 }
 
+describe('semantic tier configuration and persisted data validation', () => {
+  it('rejects invalid size limits and query thresholds', async () => {
+    await expect(boot({ sem: { maxTextChars: 0 } })).rejects.toThrow(/positive safe integers/)
+    await expect(boot({ sem: { maxWhyChars: Number.POSITIVE_INFINITY } })).rejects.toThrow(/positive safe integers/)
+    const { ctx } = await boot()
+    await expect(ctx.memorySemantic.query('query', { minScore: Number.NaN })).rejects.toThrow(/minScore/)
+    await expect(ctx.memorySemantic.query('query', { minScore: 1.1 })).rejects.toThrow(/minScore/)
+  })
+
+  it('rejects malformed persisted facts rather than returning them to callers', async () => {
+    const dir = await tmp()
+    const { ctx } = await boot({ sem: { path: dir } })
+    await writeFile(join(dir, 'semantic.json'), JSON.stringify([{ tier: 'semantic', id: 'bad', text: 'fact', why: 'reason', ts: 'not-a-date' }]))
+    await expect(ctx.memorySemantic.list()).rejects.toThrow(/semantic.json is unreadable/)
+  })
+})
+
 describe('semantic tier (3.3): write, retrieve by meaning', () => {
   it('snapshots fact metadata before waiting for persistence and indexing', async () => {
     const { ctx } = await boot({ sem: { path: await tmp() } })
