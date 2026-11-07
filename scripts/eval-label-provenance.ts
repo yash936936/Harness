@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
-import { existsSync, readFileSync, realpathSync } from 'node:fs'
+import { existsSync, lstatSync, readFileSync, realpathSync } from 'node:fs'
 import { basename, dirname, isAbsolute, relative, resolve, sep } from 'node:path'
 
 function cleanGitEnv(): NodeJS.ProcessEnv {
@@ -20,11 +20,13 @@ function cleanGitEnv(): NodeJS.ProcessEnv {
  * SHA-256 sidecar are already committed and the working copies are clean.
  */
 export function verifyCommittedLabels(labelsPath: string): { sha256: string; commit: string } {
-  const absolute = realpathSync(resolve(labelsPath))
-  const sidecar = absolute + '.sha256'
-  if (!existsSync(absolute) || !existsSync(sidecar)) {
+  const requested = resolve(labelsPath)
+  const requestedSidecar = requested + '.sha256'
+  if (!existsSync(requested) || !existsSync(requestedSidecar)) {
     throw new Error('D-109: labels file and its .sha256 sidecar must exist and be committed before scoring')
   }
+  const absolute = realpathSync(requested)
+  const sidecar = requestedSidecar
 
   let root: string
   try {
@@ -36,6 +38,15 @@ export function verifyCommittedLabels(labelsPath: string): { sha256: string; com
   const sidecarRelative = labelsRelative + '.sha256'
   if (!labelsRelative || labelsRelative === '..' || labelsRelative.startsWith(`..${sep}`) || isAbsolute(labelsRelative)) {
     throw new Error(`D-109: labels file must be inside the Git repository (root=${root}; relative=${labelsRelative})`)
+  }
+
+  if (lstatSync(sidecar).isSymbolicLink() || !lstatSync(sidecar).isFile()) {
+    throw new Error('D-109: labels SHA-256 sidecar must be a regular file, not a symlink')
+  }
+  const sidecarReal = realpathSync(sidecar)
+  const sidecarRelativeReal = relative(root, sidecarReal)
+  if (sidecarRelativeReal === '..' || sidecarRelativeReal.startsWith(`..${sep}`) || isAbsolute(sidecarRelativeReal)) {
+    throw new Error('D-109: labels SHA-256 sidecar must resolve inside the Git repository')
   }
 
   const bytes = readFileSync(absolute)
@@ -62,7 +73,7 @@ export function verifyCommittedLabels(labelsPath: string): { sha256: string; com
   let commit: string
   try {
     committedLabels = execFileSync('git', ['show', `HEAD:${labelsRelative}`], { cwd: root, env: cleanGitEnv() })
-    committedSidecar = execFileSync('git', ['show', `HEAD:${sidecarRelative}`], { cwd: root, encoding: 'utf8' }).trim()
+    committedSidecar = execFileSync('git', ['show', `HEAD:${sidecarRelative}`], { cwd: root, encoding: 'utf8', env: cleanGitEnv() }).trim()
     commit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim()
   } catch {
     throw new Error('D-109: labels and SHA-256 sidecar must exist in HEAD before scoring')
