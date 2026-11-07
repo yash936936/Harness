@@ -26,6 +26,8 @@ export class JsonlEpisodeStore implements EpisodeStore {
   }
 
   async add(e: Episode): Promise<boolean> {
+    // Snapshot at the API boundary; this write may wait behind a queue or file lock.
+    const episode = structuredClone(e)
     // Serialised so two concurrent writes of the same turn cannot both pass the duplicate check.
     // BUG-09: and across PROCESSES: under a file lock the ids are re-read from the file, so two processes cannot both add the same turn.
     const job = this.queue.then(async () => {
@@ -33,8 +35,8 @@ export class JsonlEpisodeStore implements EpisodeStore {
       return withFileLock(`${this.file}.lock`, async () => {
         await this.repairTail()
         const ids = new Set((await this.all()).map((x) => x.id))
-        if (ids.has(e.id)) return false
-        await appendFile(this.file, JSON.stringify(e) + '\n', 'utf8')
+        if (ids.has(episode.id)) return false
+        await appendFile(this.file, JSON.stringify(episode) + '\n', 'utf8')
         return true
       })
     })
