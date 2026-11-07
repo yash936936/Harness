@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { createHash } from 'node:crypto'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { CommandBackend, RulesBackend, Router, SUITE, SUITE_SHA256, evaluateClass, suiteSha256, verdict, type Candidate, type ClassResult, type DecisionClass, type RouterBackend } from '../src/bundles/router/index.js'
+import { CommandBackend, RulesBackend, Router, WorkerBackend, SUITE, SUITE_SHA256, evaluateClass, suiteSha256, verdict, type Candidate, type ClassResult, type DecisionClass, type RouterBackend } from '../src/bundles/router/index.js'
 import { bootProfileCoding } from '../src/profiles/profile-coding.js'
 import { NEEDLE_PIN, ROUTER_BINDING } from '../src/bundles/model-store/index.js'
 
@@ -63,6 +63,16 @@ describe('router chain', () => {
     expect(d).toMatchObject({ choice: 'b', source: 'worker', workerRequests: 1, requestSaved: false })
     expect(needle.calls).toBe(0)
   })
+  it('passes the active session id to the worker backend instead of logging under the fallback id', async () => {
+    const sessions: string[] = []
+    const worker = new WorkerBackend({
+      complete: async (req) => { sessions.push(req.sessionId); return { text: 'a' } },
+    })
+    const ctx = await mk({ worker })
+    await ctx.router.decide('agent', { task: 'choose alpha', candidates: CANDS, sessionId: 'coding-session-42' })
+    expect(sessions).toEqual(['coding-session-42'])
+  })
+
   it('an owned class goes to Needle first and records a saved request', async () => {
     const needle = fixed('needle', 'a'); const worker = fixed('worker', 'b', 1)
     const ctx = await mk({ needle, worker, owned: ['agent'] })
