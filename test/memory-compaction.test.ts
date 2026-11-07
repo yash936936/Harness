@@ -135,7 +135,7 @@ describe('compaction (3.4): promotes a recurring lesson', () => {
     for (let i = 0; i < 3; i++) await turn(ctx, LESSON, s)
     const result = await ctx.memory.compact({ approve: (() => 'yes') as never })
     expect(result.promoted).toEqual([])
-    expect(result.skipped.approvalDenied).toBe(1)
+    expect(result.skipped.rejected).toBe(1)
   })
 
   it('persisted: a restart does not promote it a second time', async () => {
