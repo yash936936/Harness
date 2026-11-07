@@ -94,6 +94,18 @@ describe('6.1 eval-runner core', () => {
     expect(() => scoreEvents('fx', GOOD, [scorer(1, 1.1)])).toThrow(/invalid result/)
   })
 
+  it('computes a finite weighted score when finite weights would overflow a direct sum', () => {
+    const make = (name: string, weight: number, score: number): Scorer => ({
+      name, weight, run: () => ({ score, pass: true, detail: name, applicable: true }),
+    })
+    const report = scoreEvents('fx', GOOD, [
+      make('high', Number.MAX_VALUE, 1),
+      make('low', Number.MAX_VALUE, 0),
+    ])
+    expect(Number.isFinite(report.score)).toBe(true)
+    expect(report.score).toBe(0.5)
+  })
+
   it('does not let scorer results override registered identity, required status or weight', () => {
     const custom: Scorer = {
       name: 'required-check',
