@@ -84,7 +84,13 @@ export class AgentLoop extends Service {
     if (config.system !== undefined) this.system = config.system
     this.retry = { ...DEFAULT_RETRY, ...config.retry }
     this.sleep = config.sleep ?? defaultSleep
-    if (this.maxSteps < 1) throw new AgentLoopError('agent-loop: maxSteps must be at least 1')
+    if (!Number.isSafeInteger(this.maxSteps) || this.maxSteps < 1) throw new AgentLoopError('agent-loop: maxSteps must be a positive safe integer')
+    if (!Number.isSafeInteger(this.retry.maxAttempts) || this.retry.maxAttempts < 0 ||
+      !Number.isFinite(this.retry.baseDelayMs) || this.retry.baseDelayMs < 0 ||
+      !Number.isFinite(this.retry.factor) || this.retry.factor < 1 ||
+      !Number.isFinite(this.retry.maxDelayMs) || this.retry.maxDelayMs < 0) {
+      throw new AgentLoopError('agent-loop: retry maxAttempts must be a non-negative safe integer; delays must be finite and non-negative; factor must be finite and at least 1')
+    }
   }
 
   /**
@@ -167,6 +173,7 @@ export class AgentLoop extends Service {
 
     const providerChain = [opts.provider ?? this.provider, ...(opts.fallbackProviders ?? this.fallbackProviders)]
     const maxSteps = opts.maxSteps ?? this.maxSteps
+    if (!Number.isSafeInteger(maxSteps) || maxSteps < 1) throw new AgentLoopError('agent-loop: run maxSteps must be a positive safe integer')
     const reflectionOn = opts.reflection ?? this.reflection
     const model = opts.model ?? this.model
     const system = await this.buildSystem(opts.system ?? this.system, opts.sessionId, opts.prompt, opts.actor)
@@ -248,7 +255,9 @@ export class AgentLoop extends Service {
           // The budget is shared by every provider: trying the next one would only spend another refusal.
           if (e instanceof LLMError && e.kind === 'budget') throw e
           if (!(e instanceof LLMError) || !e.retryable || attempt >= this.retry.maxAttempts) break
-          const delay = e.retryAfterMs ?? Math.min(this.retry.maxDelayMs, this.retry.baseDelayMs * this.retry.factor ** attempt)
+          const suggested = e.retryAfterMs
+          const backoff = Math.min(this.retry.maxDelayMs, this.retry.baseDelayMs * this.retry.factor ** attempt)
+          const delay = typeof suggested === 'number' && Number.isFinite(suggested) && suggested >= 0 ? suggested : backoff
           attempt++
           retries++
           await this.sleep(Math.min(delay, this.retry.maxDelayMs), signal)
