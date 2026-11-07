@@ -93,6 +93,15 @@ describe('bundle-session-log', () => {
     expect((await reader.log.resume('shared')).nextSeq).toBe(3)
   })
 
+  it('snapshots caller payloads before waiting in the append queue', async () => {
+    const ctx = await boot({ memory: true })
+    const payload = { nested: { value: 'original' } }
+    const pending = ctx.log.append('snapshot', 'custom', payload)
+    payload.nested.value = 'mutated'
+    await pending
+    expect((await ctx.log.read('snapshot'))[0]!.data).toEqual({ nested: { value: 'original' } })
+  })
+
   it('forks without modifying the original', async () => {
     const ctx = await boot({ memory: true })
     for (const t of ['a', 'b', 'c']) await ctx.log.append('orig', t)
