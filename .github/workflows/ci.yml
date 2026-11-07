@@ -21,5 +21,6 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run typecheck
+      - run: npm run lint
       # Tests that need a local Ollama or a real sandbox skip themselves when it is absent.
       - run: npm test
