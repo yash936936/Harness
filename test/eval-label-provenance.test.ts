@@ -9,10 +9,20 @@ import { verifyCommittedLabels } from '../scripts/eval-label-provenance.js'
 const roots: string[] = []
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }) })
 
+function cleanGitEnv() {
+  const env = { ...process.env }
+  for (const key of [
+    'GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_INDEX_FILE',
+    'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES', 'GIT_PREFIX',
+    'GIT_CEILING_DIRECTORIES',
+  ]) delete env[key]
+  return env
+}
+
 function repoWithCommittedLabels() {
   const root = mkdtempSync(join(tmpdir(), 'eval-label-provenance-'))
   roots.push(root)
-  execFileSync('git', ['-c', 'init.defaultBranch=main', 'init', '-q'], { cwd: root })
+  execFileSync('git', ['-c', 'init.defaultBranch=main', 'init', '-q'], { cwd: root, env: cleanGitEnv() })
   execFileSync('git', ['config', 'user.name', 'Harness Test'], { cwd: root })
   execFileSync('git', ['config', 'user.email', 'harness-test@example.invalid'], { cwd: root })
   const labelsPath = join(root, 'labels.json')
@@ -21,7 +31,7 @@ function repoWithCommittedLabels() {
   writeFileSync(labelsPath, labels)
   writeFileSync(labelsPath + '.sha256', `${hash}  ${basename(labelsPath)}\n`)
   execFileSync('git', ['add', '--', 'labels.json', 'labels.json.sha256'], { cwd: root })
-  execFileSync('git', ['commit', '-m', 'blinded labels'], { cwd: root, stdio: 'ignore' })
+  execFileSync('git', ['commit', '-m', 'blinded labels'], { cwd: root, stdio: 'ignore', env: cleanGitEnv() })
   return { root, labelsPath, hash }
 }
 
