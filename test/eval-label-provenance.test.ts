@@ -33,7 +33,7 @@ function repoWithCommittedLabels(autocrlf = false) {
   execFileSync('git', ['add', '--', 'labels.json'], { cwd: root })
   const staged = execFileSync('git', ['show', ':labels.json'], { cwd: root, env: cleanGitEnv() })
   const hash = createHash('sha256').update(staged).digest('hex')
-  writeFileSync(labelsPath + '.sha256', `${hash}  ${basename(labelsPath)}\n`)
+  writeFileSync(labelsPath + '.sha256', hash + '  ' + basename(labelsPath) + '\n')
   execFileSync('git', ['add', '--', 'labels.json.sha256'], { cwd: root })
   execFileSync('git', ['commit', '-m', 'blinded labels'], { cwd: root, stdio: 'ignore', env: cleanGitEnv() })
   return { root, labelsPath, hash }
