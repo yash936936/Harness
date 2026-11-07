@@ -197,6 +197,21 @@ describe('subprocess: timeout and abort', () => {
     expect(res.timedOut).toBe(false)
   }, 10_000)
 
+  it('catches an abort between the initial check and listener registration', async () => {
+    const ctx = await boot()
+    let reads = 0
+    const signal = {
+      get aborted() { reads++; return reads >= 2 },
+      reason: new Error('late abort'),
+      addEventListener() {},
+      removeEventListener() {},
+    } as unknown as AbortSignal
+    const res = await ctx.subprocess.run(NODE, ['-e', 'setTimeout(() => {}, 30000)'], { signal, killGraceMs: 0 })
+    expect(reads).toBeGreaterThanOrEqual(2)
+    expect(res.aborted).toBe(true)
+    expect(res.timedOut).toBe(false)
+  })
+
   it('a fast run under an abort signal that never fires completes normally', async () => {
     const ctx = await boot()
     const ac = new AbortController()
