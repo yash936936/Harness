@@ -173,6 +173,13 @@ describe('egress: EgressPolicy', () => {
       })
     })
 
+    it('redacts secret values used as object keys as well as string leaves', async () => {
+      const ctx = await bootPolicy({ secrets: { key: 'topsecret' } })
+      expect(ctx.egress.redactValue({ topsecret: 'ordinary value' })).toEqual({
+        '[redacted:key]': 'ordinary value',
+      })
+    })
+
     it('a seeded fake secret never survives redaction even split across a larger string', async () => {
       const ctx = await bootPolicy({ secrets: { k: 'AKIAFAKEEXAMPLE1234' } })
       const text = `export AWS_KEY=AKIAFAKEEXAMPLE1234\nsome other text AKIAFAKEEXAMPLE1234 end`
