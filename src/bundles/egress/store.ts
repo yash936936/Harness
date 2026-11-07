@@ -9,11 +9,13 @@ export class MemoryConsentStore implements ConsentStore {
   private records = new Map<string, ConsentRecord>()
 
   async get(projectId: string): Promise<ConsentRecord | undefined> {
-    return this.records.get(projectId)
+    const record = this.records.get(projectId)
+    return record ? { ...record } : undefined
   }
 
   async set(record: ConsentRecord): Promise<void> {
-    this.records.set(record.projectId, record)
+    if (!record || typeof record.projectId !== 'string' || !record.projectId.trim() || typeof record.consented !== 'boolean' || typeof record.decidedAt !== 'string') throw new Error('egress: invalid consent record')
+    this.records.set(record.projectId, { ...record })
   }
 }
 
@@ -27,14 +29,17 @@ export class FileConsentStore implements ConsentStore {
 
   async get(projectId: string): Promise<ConsentRecord | undefined> {
     const all = await this.readAll()
-    return Object.hasOwn(all, projectId) ? all[projectId] : undefined
+    const record = Object.hasOwn(all, projectId) ? all[projectId] : undefined
+    return record ? { ...record } : undefined
   }
 
   async set(record: ConsentRecord): Promise<void> {
+    if (!record || typeof record.projectId !== 'string' || !record.projectId.trim() || typeof record.consented !== 'boolean' || typeof record.decidedAt !== 'string') throw new Error('egress: invalid consent record')
+    const safeRecord = { ...record }
     await mkdir(dirname(this.path), { recursive: true })
     await withFileLock(`${this.path}.lock`, async () => {
       const all = await this.readAll()
-      all[record.projectId] = record
+      all[safeRecord.projectId] = safeRecord
       const temp = `${this.path}.${process.pid}.${randomUUID()}.tmp`
       try {
         await writeFile(temp, `${JSON.stringify(all, null, 2)}\n`, { encoding: 'utf8', mode: 0o600, flag: 'wx' })
@@ -67,7 +72,7 @@ export class FileConsentStore implements ConsentStore {
       }
       return records
     } catch (e: any) {
-      if (e?.code === 'ENOENT') return {}
+      if (e?.code === 'ENOENT') return Object.create(null) as Record<string, ConsentRecord>
       throw e
     }
   }
