@@ -1,3 +1,21 @@
+## DBG-072 — repository-wide reliability and security audit — 2026-11-07
+
+**Scope:** inspected the 96 TypeScript source files by bundle and reviewed the high-risk paths in persistence, local file access, retrieval, provider configuration, evaluation, subprocess execution, sandbox wiring, profile boot, and CLI. Static inventory also counted 60 test files, 28 scripts, 52 desktop benchmark/app assets, and 17 docs. This is a code review, not a claim that every runtime/platform behavior was exercised.
+
+**Found and fixed on branch `audit/repository-wide-review-2026-11-07`:**
+
+- Session JSONL and episodic-memory JSONL repair did not separate a complete final JSON record that had lost its newline. The next append could concatenate two valid JSON objects. Both stores now restore the delimiter under their existing lock; tests cover valid final records without a newline and incomplete tails.
+- File consent persistence used an unlocked read-modify-write. Separate processes could lose another project's consent update. It now locks, writes a unique mode-0600 temporary file, and atomically renames. Records are validated, copied defensively, and stored in a null-prototype map so special project IDs cannot use inherited object properties. Tests cover concurrent instances, special keys, copies, and parseable on-disk JSON.
+- Local file reads and retrieval did not share a complete credential-path denylist. Added cloud/SSH/CLI/Kubernetes/Docker/GCP/Cargo/Terraform and related credential locations; retrieval uses case-insensitive globs. Retrieval result parsing resolves existing paths to reject outside-root symlinks when `--follow` is enabled.
+- OpenAI-compatible provider accepted URL schemes other than HTTP(S) and URL userinfo. Constructor now rejects both; regression tests added.
+- Evaluation accepted custom scorer weights/results containing non-finite or out-of-range values. Scorer registration/execution now validates identity, finite non-negative weights, score range, and result field types.
+
+**Validation status:** the code edits and regression tests are committed to the audit branch. No local `npm ci`, typecheck, lint, Vitest, real sandbox, or live-provider run is claimed. Run fresh CI on the PR before merging. S0/ARCH-01 remains a separate real Windows + Docker + Crabbox acceptance gate; this audit does not run S0.
+
+**Remaining review boundary:** the desktop trees are benchmarks, not a production app. Live provider, real embedding, poisoning, real-data evaluation, license distribution, model artifact provenance, and target-host sandbox checks remain external acceptance items.
+
+---
+
 ## DBG-071 — Evaluation artifact and provenance template review — 2026-11-07
 
 **Found:** the tracked root labels.json contains only three entries, all labelled good. It is insufficient for D-109 because it has fewer than 10 labels and no bad class; it is not treated as a completed human-evaluation dataset. The evidence README also retained the superseded 20-label/90%-agreement rule.
