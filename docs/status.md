@@ -1,3 +1,9 @@
+## 2026-11-07 repository-wide audit CI closeout
+
+- Audit PR #15 was merged on 2026-11-07. Final audit head `0e9ad7a5585d73b96494d990b5be90e16dc4f036` passed GitHub Actions run #237 on both Ubuntu and Windows (typecheck, lint, and tests).
+- The DBG-072 through DBG-084 code/test changes on that head are now CI-verified. This does not establish real Docker/Crabbox execution, S1 orphan reaping, live provider execution, real embedding/poisoning quality, human-labelled evaluation, distribution notices/model provenance, or desktop acceptance.
+- S0 remains BLOCKED-HARDWARE. Do not infer S0 success from CI.
+
 ## 2026-11-07 egress consent store symlink hardening (DBG-084)
 
 - FileConsentStore now fails closed on symlinked/non-regular consent files and validates file identity after open.
