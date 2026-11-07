@@ -76,7 +76,7 @@ export class Sandbox extends Service {
       throw new SandboxError('unknown-provider', `sandbox: no provider "${name ?? '(default)'}". Registered: ${known}.`)
     }
     if (!Array.isArray(req.command) || req.command.length === 0 ||
-        req.command.some((arg) => typeof arg !== 'string' || arg.includes('\\0')) ||
+        req.command.some((arg) => typeof arg !== 'string' || arg.includes('\0')) ||
         !req.command[0]!.trim()) {
       throw new SandboxError('config', 'sandbox: command must start with a non-empty executable and contain only strings without NUL')
     }
