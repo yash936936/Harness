@@ -1,5 +1,6 @@
 import { SandboxError, type SandboxDoctor, type SandboxProvider, type SandboxRunRequest, type SandboxRunResult } from '../sandbox/types.js'
 import type { Subprocess } from '../subprocess/index.js'
+import { randomUUID } from 'node:crypto'
 
 export interface CrabboxConfig {
   /** Crabbox provider. D-024: direct, local-container or static-SSH only; the hosted broker is not available to this project. Default `local-container`. */
@@ -28,11 +29,11 @@ export interface CrabboxConfig {
   envAllowlist?: string[]
 }
 
-const BASE_ENV = ['PATH', 'HOME', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'DOCKER_HOST', 'DOCKER_CONFIG', 'DOCKER_CONTEXT', 'XDG_CONFIG_HOME', 'XDG_STATE_HOME', 'XDG_CACHE_HOME']
+const BASE_ENV = ['PATH', 'HOME', 'USERPROFILE', 'SystemRoot', 'WINDIR', 'COMSPEC', 'TEMP', 'TMP', 'APPDATA', 'LOCALAPPDATA', 'DOCKER_HOST', 'DOCKER_CONFIG', 'DOCKER_CONTEXT', 'XDG_CONFIG_HOME', 'XDG_STATE_HOME', 'XDG_CACHE_HOME']
 const LOCAL = new Set(['local-container', 'docker', 'container', 'local-docker'])
 
 function slugId(): string {
-  return `harness-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+  return `harness-${randomUUID()}`
 }
 
 /**
@@ -60,7 +61,17 @@ export class CrabboxProvider implements SandboxProvider {
     this.bin = cfg.bin ?? 'crabbox'
     this.binArgs = cfg.binArgs ?? []
     this.controlTimeout = cfg.controlTimeoutMs ?? 300_000
-    this.envNames = [...BASE_ENV, ...(cfg.envAllowlist ?? [])]
+    const extraEnv = cfg.envAllowlist ?? []
+    if (typeof this.provider !== 'string' || !this.provider.trim()) throw new SandboxError('config', 'crabbox: provider must be a non-empty string')
+    if (typeof this.bin !== 'string' || !this.bin.trim()) throw new SandboxError('config', 'crabbox: bin must be a non-empty executable')
+    if (!Array.isArray(this.binArgs) || this.binArgs.some((arg) => typeof arg !== 'string')) throw new SandboxError('config', 'crabbox: binArgs must be strings')
+    if (!Number.isSafeInteger(this.controlTimeout) || this.controlTimeout < 1) throw new SandboxError('config', 'crabbox: controlTimeoutMs must be a positive safe integer')
+    if (!Array.isArray(extraEnv) || extraEnv.some((key) => typeof key !== 'string' || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(key))) throw new SandboxError('config', 'crabbox: envAllowlist must contain valid environment variable names')
+    if (cfg.runtime !== undefined && !['docker', 'podman'].includes(cfg.runtime)) throw new SandboxError('config', 'crabbox: runtime must be docker or podman')
+    if (cfg.image !== undefined && (typeof cfg.image !== 'string' || !cfg.image.trim())) throw new SandboxError('config', 'crabbox: image must be a non-empty string')
+    if (cfg.expectedVersion !== undefined && (typeof cfg.expectedVersion !== 'string' || !cfg.expectedVersion.trim())) throw new SandboxError('config', 'crabbox: expectedVersion must be non-empty when supplied')
+    if (cfg.cwd !== undefined && (typeof cfg.cwd !== 'string' || !cfg.cwd.trim())) throw new SandboxError('config', 'crabbox: cwd must be a non-empty path')
+    this.envNames = [...new Set([...BASE_ENV, ...extraEnv])]
     this.cwd = cfg.cwd
     this.destination = LOCAL.has(this.provider) ? 'local' : 'remote'
     if (this.destination === 'remote') this.host = cfg.host ?? this.provider
@@ -88,6 +99,7 @@ export class CrabboxProvider implements SandboxProvider {
   }
 
   async run(req: SandboxRunRequest): Promise<SandboxRunResult> {
+    req.signal?.throwIfAborted()
     const slug = slugId()
     const start = Date.now()
     const warm = ['warmup', '--provider', this.provider, '--slug', slug]
@@ -103,6 +115,7 @@ export class CrabboxProvider implements SandboxProvider {
     try {
       leaseTried = true
       const w = await this.cb(warm, this.controlTimeout, req.signal)
+      if (req.signal?.aborted) throw req.signal.reason ?? new Error('aborted')
       if (w.spawnError || w.exitCode !== 0) {
         throw new SandboxError('unreachable', `crabbox: could not lease a box (${w.spawnError ?? (w.stderr || w.stdout).trim().slice(0, 300)})`)
       }
@@ -112,11 +125,13 @@ export class CrabboxProvider implements SandboxProvider {
       if (cbx) names.add(cbx)
       leaseId = said ?? slug
       run = await this.cb(['run', '--provider', this.provider, '--id', leaseId, '--', ...req.command], req.timeoutMs ?? 0, req.signal)
+      if (req.signal?.aborted) throw req.signal.reason ?? new Error('aborted')
     } finally {
       if (leaseTried) {
         rel = await this.release(leaseId, names)
       }
     }
+    if (req.signal?.aborted) throw req.signal.reason ?? new Error('aborted')
     return {
       provider: this.name,
       leaseId,
@@ -139,16 +154,20 @@ export class CrabboxProvider implements SandboxProvider {
   private async release(id: string, names: Set<string>): Promise<{ released: boolean; note?: string }> {
     let note = ''
     for (let attempt = 0; attempt < 2; attempt++) {
-      const s = await this.cb(['stop', '--provider', this.provider, id], this.controlTimeout)
-      const l = await this.cb(['list', '--provider', this.provider], this.controlTimeout)
-      const stillListed = [...names].some((n) => l.stdout.includes(n))
-      if (s.exitCode === 0 && !s.spawnError && l.exitCode === 0 && !stillListed) return { released: true }
-      note =
-        l.exitCode !== 0
-          ? `could not confirm release: list failed (${(l.stderr || l.spawnError || '').trim().slice(0, 120)})`
-          : stillListed
-            ? `lease ${id} still listed after stop (stop exit ${s.exitCode})`
-            : `stop failed (exit ${s.exitCode}${s.spawnError ? ', ' + s.spawnError : ''}): ${(s.stderr || s.stdout).trim().slice(0, 120)}`
+      let stop: Awaited<ReturnType<CrabboxProvider['cb']>> | undefined
+      let list: Awaited<ReturnType<CrabboxProvider['cb']>> | undefined
+      try { stop = await this.cb(['stop', '--provider', this.provider, id], this.controlTimeout) }
+      catch (error: any) { note = `stop threw: ${String(error?.message ?? error).slice(0, 120)}` }
+      try { list = await this.cb(['list', '--provider', this.provider], this.controlTimeout) }
+      catch (error: any) { note = `list threw: ${String(error?.message ?? error).slice(0, 120)}` }
+      if (!list) continue
+      const stillListed = [...names].some((name) => list!.stdout.includes(name))
+      if (stop?.exitCode === 0 && !stop.spawnError && list.exitCode === 0 && !stillListed) return { released: true }
+      note = list.exitCode !== 0
+        ? `could not confirm release: list failed (${(list.stderr || list.spawnError || '').trim().slice(0, 120)})`
+        : stillListed
+          ? `lease ${id} still listed after stop (stop exit ${stop?.exitCode ?? 'threw'})`
+          : `stop failed (exit ${stop?.exitCode ?? 'threw'}${stop?.spawnError ? ', ' + stop.spawnError : ''}): ${(stop?.stderr || stop?.stdout || '').trim().slice(0, 120)}`
     }
     return { released: false, note }
   }
