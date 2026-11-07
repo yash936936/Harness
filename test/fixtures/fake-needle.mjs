@@ -6,6 +6,8 @@ process.stdin.on('end', () => {
   const req = JSON.parse(buf.trim())
   if (mode === 'hang') return setInterval(() => {}, 1000)
   if (mode === 'invalid') return console.log('not json')
+  if (mode === 'nonzero') { console.log(JSON.stringify({ choice: req.candidates[0].id })); process.exitCode = 2; return }
+  if (mode === 'multiline') { console.log(JSON.stringify({ choice: req.candidates[0].id })); console.log(JSON.stringify({ choice: req.candidates[1].id })); return }
   if (mode === 'invented') return console.log(JSON.stringify({ choice: 'rm_everything' }))
   if (mode === 'abstain') return console.log(JSON.stringify({ choice: null }))
   console.log(JSON.stringify({ choice: req.candidates[req.candidates.length - 1].id, seen: req.candidates.map((c) => c.id) }))
