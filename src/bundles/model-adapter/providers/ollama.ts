@@ -70,7 +70,7 @@ export class OllamaProvider implements LLMProvider {
     this.egress = { host, remote: !/^(localhost|127(\.\d{1,3}){3}|\[?::1\]?)$/i.test(host) }
     this.timeoutMs = config.timeoutMs ?? 120_000
     if (!Number.isSafeInteger(this.timeoutMs) || this.timeoutMs < 1 || this.timeoutMs > 4_294_967_295) {
-      throw new LLMError('config', 'ollama: `timeoutMs` must be an integer from 1 to 4294967295 milliseconds', NAME)
+      throw new LLMError('config', 'ollama: timeoutMs must be an integer from 1 to 4294967295 milliseconds', NAME)
     }
     this.doFetch = config.fetch ?? fetch
     this.textToolCalls = config.textToolCalls === true

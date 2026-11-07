@@ -378,6 +378,7 @@ export class LocalTools extends Service {
         const r = await this.ctx.sandbox.run({ command, timeoutMs: seconds * 1000, ...(tctx.signal ? { signal: tctx.signal } : {}) })
         if (!r.released) throw new Error(`sandbox lease ${r.leaseId} may not have been released: ${r.releaseNote ?? 'provider did not confirm release'}`)
         if (r.spawnError) throw new Error(`could not start ${input.command}: ${r.spawnError}`)
+        if (r.aborted || tctx.signal?.aborted) throw tctx.signal?.reason ?? new Error(`command ${input.command} was cancelled`)
         if (r.exitCode === null && !r.timedOut) {
           throw new Error(`command ${input.command} did not return an exit code${r.stderr ? ` (${r.stderr})` : ''}`)
         }
