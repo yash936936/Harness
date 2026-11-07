@@ -1,3 +1,11 @@
+## DBG-079 — prevent scorer-only evaluation before D-109 labels — 2026-11-07
+
+**Found:** eval-calibrate.ts accepted an omitted labels argument and printed scorer output, which allowed the scorer to be viewed before human labels were committed. When labels were supplied, the minimum of 10 (or 20 when 20+ sessions were already collected) and both-class requirement was checked only after scoring, so an insufficient label set still exposed scorer output.
+
+**Fixed:** labels are now mandatory, provenance is verified before scoring, unknown IDs and the D-109 sample/class minimum are checked before the scorer loop, and the scorer-only report path was removed. README usage now requires committed labels.
+
+**Validation:** fresh Ubuntu and Windows CI required. Root labels.json remains only three good labels and is not eligible evidence.
+
 ## DBG-078 — cross-platform label provenance and Git clean filters — 2026-11-07
 
 **Found:** D-109 verification compared raw working-tree SHA-256 with the committed Git blob. On Windows with core.autocrlf=true, Git can normalize CRLF to LF while the working tree remains clean, so valid labels and sidecar hashes were rejected. The label commit script also hashed raw bytes instead of the staged blob.
