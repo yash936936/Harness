@@ -399,6 +399,22 @@ describe('run_command', () => {
       delete process.env['HARNESS_TL_SECRET']
     }
   })
+  it('propagates cancellation into the sandbox command', async () => {
+    const { ctx } = await boot()
+    const controller = new AbortController()
+    const pending = ctx.tools.call(COMMAND_TOOL, node('setTimeout(()=>{}, 30000)'), { sessionId: 'cancel-command', signal: controller.signal })
+    setTimeout(() => controller.abort(new Error('cancel command')), 100)
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const result = await Promise.race([
+      pending,
+      new Promise<null>((resolve) => { timer = setTimeout(() => resolve(null), 3000) }),
+    ])
+    if (timer) clearTimeout(timer)
+    expect(result).not.toBeNull()
+    expect(result!.ok).toBe(false)
+    expect(result!.content).toContain('did not return an exit code')
+  })
+
   it('kills a command at its timeout, and caps what a model may ask for', async () => {
     const { call } = await boot({ commandTimeoutSeconds: 2, maxCommandTimeoutSeconds: 5 })
     const r = await call(COMMAND_TOOL, { ...node('setTimeout(()=>{}, 30000)'), timeoutSeconds: 1 })
