@@ -57,6 +57,9 @@ export class Router extends Service {
     this.owned = new Set(config.owned ?? [])
     this.timeoutMs = config.backendTimeoutMs ?? 5000
     this.maxTools = config.maxToolCandidates ?? 5
+    if (!Number.isSafeInteger(this.timeoutMs) || this.timeoutMs < 1) throw new Error('router: backendTimeoutMs must be a positive safe integer')
+    if (!Number.isSafeInteger(this.maxTools) || this.maxTools < 1) throw new Error('router: maxToolCandidates must be a positive safe integer')
+    if ((config.owned ?? []).some((value) => !DECISION_CLASSES.includes(value))) throw new Error('router: owned contains an unknown decision class')
     // ARCH-02: hand the agent loop this router whenever both exist, in either boot order. Neither requires the other.
     ctx.inject(['agentLoop'], (c) => {
       c.effect(() => c.agentLoop.useRouter(this as unknown as ToolRouter))
@@ -88,17 +91,24 @@ export class Router extends Service {
     let workerRequests = 0
     if (candidates.length > 0) {
       for (const b of chain) {
-        if (b.available) {
-          let a: { ok: boolean; why?: string }
-          try { a = await b.available() } catch (e: any) { a = { ok: false, why: String(e?.message ?? e).slice(0, 80) } }
-          if (!a.ok) { skipped.push({ source: b.name, why: a.why ?? 'unavailable' }); continue }
-        }
-        workerRequests += b.requestCost ?? 0
+        const controller = new AbortController()
         let timer: NodeJS.Timeout | undefined
+        const timeout = new Promise<never>((_, reject) => {
+          timer = setTimeout(() => {
+            const error = new Error('timed out')
+            controller.abort(error)
+            reject(error)
+          }, this.timeoutMs)
+        })
         try {
+          if (b.available) {
+            const a = await Promise.race([b.available(controller.signal), timeout])
+            if (!a.ok) { skipped.push({ source: b.name, why: a.why ?? 'unavailable' }); continue }
+          }
+          workerRequests += b.requestCost ?? 0
           const ans = await Promise.race([
-            b.decide(cls, { task: req.task, candidates, ...(req.sessionId ? { sessionId: req.sessionId } : {}) }),
-            new Promise<never>((_, rej) => { timer = setTimeout(() => rej(new Error('timed out')), this.timeoutMs) }),
+            b.decide(cls, { task: req.task, candidates, ...(req.sessionId ? { sessionId: req.sessionId } : {}), signal: controller.signal }),
+            timeout,
           ])
           if (ans === null || ans === undefined) { skipped.push({ source: b.name, why: 'abstained' }); continue }
           if (!ids.has(ans)) { this.failures++; skipped.push({ source: b.name, why: 'answered an id that was not offered' }); continue }
@@ -110,6 +120,7 @@ export class Router extends Service {
           skipped.push({ source: b.name, why: String(e?.message ?? e).slice(0, 80) })
         } finally {
           if (timer) clearTimeout(timer)
+          if (!controller.signal.aborted) controller.abort(new Error('routing backend finished'))
         }
       }
     }
