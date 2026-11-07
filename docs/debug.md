@@ -1,3 +1,11 @@
+## DBG-074 — audit documentation and complete file inventory — 2026-11-07
+
+**Found:** S0 and S1 were conflated in the Phase 5.1 evidence template: S0 required a host sentinel check even though the build plan defines sentinel/orphan recovery as S1. The audit table also lacked one consolidated Windows PowerShell owner-command section and an exact tracked-file inventory.
+
+**Fixed:** separated S0 lease/run/release criteria from S1 host-sentinel/orphan-reaper criteria, added PowerShell 5.1 owner commands and explicit notes where no valid command exists because the implementation is missing, and added AUDIT-FILE-MANIFEST.md listing every tracked file at audit commit 865b53c62e6e.
+
+**Boundary:** this inventory proves path coverage, not runtime validation of every platform or binary asset. Source review, test review, and external acceptance are distinguished in the manifest and closeout. No S0 run was performed.
+
 
 ## DBG-073 — follow-up audit: strict rate-limit calendar validation — 2026-11-07
 
