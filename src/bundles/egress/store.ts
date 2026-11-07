@@ -27,7 +27,7 @@ export class FileConsentStore implements ConsentStore {
 
   async get(projectId: string): Promise<ConsentRecord | undefined> {
     const all = await this.readAll()
-    return all[projectId]
+    return Object.hasOwn(all, projectId) ? all[projectId] : undefined
   }
 
   async set(record: ConsentRecord): Promise<void> {
@@ -48,8 +48,24 @@ export class FileConsentStore implements ConsentStore {
   private async readAll(): Promise<Record<string, ConsentRecord>> {
     try {
       const raw = await readFile(this.path, 'utf8')
-      const parsed = JSON.parse(raw)
-      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}
+      const parsed: unknown = JSON.parse(raw)
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new Error('egress: consent store must contain a JSON object keyed by project id')
+      }
+      // A null-prototype map prevents project ids such as "__proto__" from
+      // mutating the map's prototype or exposing inherited properties as consent.
+      const records = Object.create(null) as Record<string, ConsentRecord>
+      for (const [key, value] of Object.entries(parsed)) {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) {
+          throw new Error(`egress: invalid consent record for project "${key}"`)
+        }
+        const record = value as Partial<ConsentRecord>
+        if (record.projectId !== key || typeof record.consented !== 'boolean' || typeof record.decidedAt !== 'string') {
+          throw new Error(`egress: invalid consent record for project "${key}"`)
+        }
+        records[key] = record as ConsentRecord
+      }
+      return records
     } catch (e: any) {
       if (e?.code === 'ENOENT') return {}
       throw e
