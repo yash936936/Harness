@@ -79,7 +79,7 @@ describe('bundle-session-log', () => {
     const next = await resumed.log.append('no-newline', 'second', { ok: true })
     expect(next.seq).toBe(2)
     const raw = await readFile(file, 'utf8')
-    expect(raw.split('\\n').filter(Boolean)).toHaveLength(2)
+    expect(raw.split('\n').filter(Boolean)).toHaveLength(2)
     expect((await resumed.log.read('no-newline')).map((event) => event.type)).toEqual(['first', 'second'])
   })
 
