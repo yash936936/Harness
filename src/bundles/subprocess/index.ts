@@ -195,6 +195,9 @@ export class Subprocess extends Service {
         terminate()
       }
       opts.signal?.addEventListener('abort', onAbort, { once: true })
+      // Close the race between the pre-spawn check and listener registration:
+      // AbortSignal does not replay an abort event to a late listener.
+      if (opts.signal?.aborted) onAbort()
 
       const cleanup = () => {
         for (const t of timers) clearTimeout(t)
