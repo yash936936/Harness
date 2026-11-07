@@ -145,6 +145,13 @@ describe('RetrievalGrep with a stubbed subprocess', () => {
     await ctx.plugin(Subprocess)
     await expect(ctx.plugin(RetrievalGrep, { root: 'relative/dir' })).rejects.toBeInstanceOf(RetrievalGrepConfigError)
   })
+
+  it('refuses extraArgs that would make ripgrep follow symlinks', async () => {
+    const ctx = new Context()
+    await ctx.plugin(Subprocess)
+    await expect(ctx.plugin(RetrievalGrep, { root, extraArgs: ['--follow'] })).rejects.toBeInstanceOf(RetrievalGrepConfigError)
+    await expect(ctx.plugin(RetrievalGrep, { root, extraArgs: ['-L'] })).rejects.toBeInstanceOf(RetrievalGrepConfigError)
+  })
 })
 
 /* ------------------------------------------------------ real ripgrep */
@@ -291,16 +298,6 @@ describe.skipIf(!hasRg)('RetrievalGrep with real ripgrep', () => {
     const got = await files(Q)
     expect(got).not.toContain('link-file.txt')
     expect(got.some((f) => f.startsWith('link-dir'))).toBe(false)
-    expect(got).toContain('README.md')
-  })
-
-  it('rejects outside symlink targets even when extraArgs enables --follow', async () => {
-    let linked = true
-    try { realpathSync(join(root, 'link-file.txt')) } catch { linked = false }
-    if (!linked) return
-    const got = await files(Q, { extraArgs: ['--follow'] })
-    expect(got).not.toContain('link-file.txt')
-    expect(got.some((f) => f.startsWith('link-dir/'))).toBe(false)
     expect(got).toContain('README.md')
   })
 
