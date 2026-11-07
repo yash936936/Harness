@@ -313,3 +313,15 @@ describe('SEC-02 Ollama transport', () => {
     expect(n).toBe(0)
   })
 })
+
+  it('does not echo a path-bearing Ollama endpoint or raw fetch error', async () => {
+    const p = new OllamaProvider({
+      model: 'm',
+      baseUrl: 'https://ollama.example.com/private-path-token',
+      fetch: (async () => { throw new Error('private-path-token transport detail') }) as typeof fetch,
+    })
+    const error = await p.listInstalledModels().catch((value) => value as LLMError)
+    expect(error).toBeInstanceOf(LLMError)
+    expect(error.message).toContain('ollama.example.com')
+    expect(error.message).not.toContain('private-path-token')
+  })
