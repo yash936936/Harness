@@ -40,7 +40,7 @@ export function scoreEvents(sessionId: string, events: readonly SessionEvent[], 
       typeof r.pass !== 'boolean' || typeof r.applicable !== 'boolean' || typeof r.detail !== 'string') {
       throw new EvalError(`eval: scorer "${s.name}" returned an invalid result; score must be 0..1 and pass/applicable/detail must have the expected types`)
     }
-    return { name: s.name, required: !!s.required, weight, ...r }
+    return { ...r, name: s.name, required: !!s.required, weight }
   })
   const live = results.filter((r) => r.applicable)
   const wsum = live.reduce((n, r) => n + r.weight, 0)
