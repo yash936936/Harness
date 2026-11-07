@@ -37,6 +37,21 @@ async function boot(script: ConstructorParameters<typeof MockProvider>[0], memor
 }
 
 describe('memory: JSONL tail recovery', () => {
+  it('redacts registered secrets from legacy episodic records on query', async () => {
+    const dir = await tmp()
+    const ctx = await boot([], { path: dir })
+    ctx.egress.registerSecret('legacy-episode', 'sk-legacy-episode-secret')
+    const episode = {
+      id: 'legacy:1', sessionId: 'legacy', agentId: 'main', ts: '2026-11-07T00:00:00.000Z',
+      task: 'task', approach: 'read_file', result: 'result sk-legacy-episode-secret', outcome: 'done' as const,
+      lesson: 'lesson sk-legacy-episode-secret', fromSeq: 1, toSeq: 1, steps: 1, toolCalls: 1,
+    }
+    await writeFile(join(dir, 'episodic.jsonl'), JSON.stringify(episode) + '\n', 'utf8')
+    const queried = await ctx.memory.episodic.query()
+    expect(JSON.stringify(queried)).not.toContain('sk-legacy-episode-secret')
+  })
+
+
   it('snapshots an episode before it waits in the persistence queue', async () => {
     const dir = await tmp()
     const store = new JsonlEpisodeStore(dir)
