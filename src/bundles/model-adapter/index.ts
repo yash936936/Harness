@@ -117,14 +117,17 @@ export class LLMService extends Service {
   }
 
   async complete(req: CompletionRequest, signal?: AbortSignal): Promise<CompletionResponse> {
-    const name = req.provider ?? this.defaultName
+    // Snapshot at entry so an async consent check cannot make the logged prompt
+    // differ from the request eventually sent to the provider.
+    const request = structuredClone(req)
+    const name = request.provider ?? this.defaultName
     if (!name) throw new LLMError('config', 'no provider specified and no default configured', '(none)')
     const provider = this.providers.get(name)
     if (!provider) {
       throw new LLMError('config', `unknown provider "${name}" (registered: ${this.list().join(', ') || 'none'})`, name)
     }
 
-    const { sessionId, provider: _p, actor, ...rest } = req
+    const { sessionId, provider: _p, actor, ...rest } = request
     const log = this.ctx.log
     const egress = provider.egress
 
