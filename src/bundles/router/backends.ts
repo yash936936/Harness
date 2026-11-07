@@ -23,7 +23,7 @@ export class RulesBackend implements RouterBackend {
 }
 
 export interface WorkerLike {
-  complete(req: { sessionId: string; system?: string; messages: Array<{ role: 'user'; content: string }>; maxTokens?: number; temperature?: number }): Promise<{ text: string }>
+  complete(req: { sessionId: string; system?: string; messages: Array<{ role: 'user'; content: string }>; maxTokens?: number; temperature?: number }, signal?: AbortSignal): Promise<{ text: string }>
 }
 
 /** Fallback 3 and the baseline Needle must beat: ask the worker model, one request per decision. */
@@ -31,7 +31,7 @@ export class WorkerBackend implements RouterBackend {
   readonly name = 'worker' as const
   readonly requestCost = 1
   constructor(private readonly llm: WorkerLike, private readonly sessionId = 'router') {}
-  async decide(cls: DecisionClass, req: { task: string; candidates: Candidate[]; sessionId?: string }): Promise<string | null> {
+  async decide(cls: DecisionClass, req: { task: string; candidates: Candidate[]; sessionId?: string; signal?: AbortSignal }): Promise<string | null> {
     const list = req.candidates.map((c) => `- ${c.id}: ${c.description}`).join('\n')
     const r = await this.llm.complete({
       sessionId: req.sessionId ?? this.sessionId,
@@ -39,7 +39,7 @@ export class WorkerBackend implements RouterBackend {
       messages: [{ role: 'user', content: `Task: ${req.task}\n\nOptions:\n${list}` }],
       maxTokens: 20,
       temperature: 0,
-    })
+    }, req.signal)
     const text = r.text.trim().replace(/^["'`]+|["'`.]+$/g, '')
     return text.toUpperCase() === 'NONE' ? null : text
   }
