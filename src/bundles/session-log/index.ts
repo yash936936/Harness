@@ -121,6 +121,12 @@ export class SessionLog extends Service {
   }
 
   private async lastSeq(sessionId: string): Promise<number> {
+    // A JSONL store may be shared by several processes. Never trust this
+    // instance's cache for it, and hold its lock while repairing/reading the tail.
+    if (this.store.lastSeq) {
+      const read = () => this.store.lastSeq!(sessionId)
+      return this.store.withLock ? this.store.withLock(sessionId, read) : read()
+    }
     const cached = this.seqs.get(sessionId)
     if (cached !== undefined) return cached
     const events = await this.store.read(sessionId)
