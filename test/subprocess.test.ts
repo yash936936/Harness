@@ -45,6 +45,9 @@ describe('subprocess: configuration validation', () => {
 
   it('rejects malformed environment allowlists', async () => {
     await expect(boot({ envAllowlist: ['BAD=NAME'] })).rejects.toBeInstanceOf(SubprocessError)
+    const ctx = await boot()
+    await expect(ctx.subprocess.run(NODE, ['-e', '0'], { envAllowlist: ['BAD=NAME'] })).rejects.toBeInstanceOf(SubprocessError)
+    await expect(ctx.subprocess.run(NODE, ['-e', '0'], { envAllowlist: ['OK'], env: { OK: 42 as any } })).rejects.toBeInstanceOf(SubprocessError)
   })
 })
 
