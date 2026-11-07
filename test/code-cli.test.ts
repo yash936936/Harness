@@ -95,6 +95,32 @@ describe('governed profile code path', () => {
     }
   })
 
+  it('rejects cleartext HTTP OpenRouter endpoints before consent or provider startup', async () => {
+    const prior = process.env.OPENROUTER_API_KEY
+    process.env.OPENROUTER_API_KEY = 'test-key'
+    const prompts: string[] = []
+    const output: string[] = []
+    try {
+      const { runCodeTask } = await import('../src/cli/code.js')
+      const io = {
+        print: (line: string) => output.push(line),
+        ask: async () => '',
+        confirm: async (prompt: string) => { prompts.push(prompt); return true },
+      }
+      const result = await runCodeTask(io, {
+        task: 'inspect', projectRoot: makeProject(), provider: 'openrouter', model: 'demo/model:free',
+        baseUrl: 'http://gateway.example.test/v1', dockerAvailable: false,
+      })
+      expect(result.ok).toBe(false)
+      expect(result.reason).toContain('invalid OpenRouter endpoint')
+      expect(prompts).toHaveLength(0)
+      expect(output.join('\\n')).toContain('expected an HTTPS URL')
+    } finally {
+      if (prior === undefined) delete process.env.OPENROUTER_API_KEY
+      else process.env.OPENROUTER_API_KEY = prior
+    }
+  })
+
   it('names the configured endpoint and API-key disclosure before requesting remote consent', async () => {
     const prior = process.env.OPENROUTER_API_KEY
     process.env.OPENROUTER_API_KEY = 'test-key'
