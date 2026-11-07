@@ -137,6 +137,8 @@ describe('openai-compatible provider: config', () => {
     expect(() => new OpenAICompatibleProvider({ model: '', baseUrl: BASE })).toThrow(LLMError)
     expect(() => new OpenAICompatibleProvider({ model: 'm', baseUrl: '' })).toThrow(LLMError)
     expect(() => new OpenAICompatibleProvider({ model: 'm', baseUrl: 'not a url' })).toThrow(/valid URL/)
+    expect(() => new OpenAICompatibleProvider({ model: 'm', baseUrl: 'ftp://api.example.com/v1', allowInsecureHttp: true })).toThrow(/http:\/\/ or https:\/\//)
+    expect(() => new OpenAICompatibleProvider({ model: 'm', baseUrl: 'https://user:pass@api.example.com/v1' })).toThrow(/embedded credentials/)
   })
 
   it('fails clearly when apiKeyEnv points at an unset variable', () => {
