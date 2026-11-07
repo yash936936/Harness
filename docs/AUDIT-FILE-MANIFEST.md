@@ -1,27 +1,27 @@
 # Repository file inventory and audit coverage
 
-Audit snapshot: commit 865b53c62e6e (branch audit/repository-wide-review-2026-11-07, 2026-11-07).
+Audit snapshot: merge commit d07e191548c2fc3f6bc56192a27824af38a177d0 on main (2026-11-07).
 
-This manifest lists every tracked file in the Git tree at the snapshot. It includes source, tests, scripts, docs, configuration, lockfiles, and desktop benchmark assets. Directory entries are omitted because they are not files.
+This manifest lists every tracked file in the Git tree at the merge snapshot, including this manifest. Directory entries are omitted because they are not files.
 
 ## Inventory counts
 
-- Tracked files: 268
+- Tracked files: 269
 - TypeScript files across source, tests, and scripts: 171
 - TypeScript source files under src/: 94
 - Vitest test files: 57
 - Script files under scripts/: 30
-- Documentation files under docs/: 17
+- Documentation files under docs/: 18
 - Desktop benchmark/app files: 52
 - Binary desktop icons: 14 PNG, 1 ICO, 1 ICNS. These receive path/reference/metadata checks, not source review.
 
 ## Review boundary
 
-- DBG-072 records the module-by-module review of 94 TypeScript source files and the high-risk paths covered by PR #15. The changed implementation and regression-test patches in PR #15 were inspected during this follow-up.
-- Tests and scripts were inventoried and the changed test/script patches were reviewed. A green CI result validates the CI commands, not real Docker, Crabbox, live model providers, human labels, or Tauri runtime behavior.
+- DBG-072 records the module-by-module review of the TypeScript source files and high-risk paths covered by PR #15. The changed implementation and regression-test patches in PR #15 were inspected during this follow-up.
+- Tests and scripts were inventoried and the changed test/script patches were reviewed. CI validates the configured commands, not real Docker, Crabbox, live model providers, human labels, or Tauri runtime behavior.
 - Historical phase/design docs are retained as history; current acceptance truth is in docs/AUDIT-CLOSEOUT.md, docs/status.md, and docs/BUILD-PLAN.md.
 - Binary icons are not decoded or visually inspected here. Third-party dependency source code is not vendored; lockfiles and package manifests are reviewed for dependency metadata, with production notice closure still open.
-- This is not a claim that every binary payload, every third-party dependency implementation, or every hardware-specific execution path has been dynamically tested.
+- The manifest establishes complete tracked-path inventory. It does not claim that every binary payload, every third-party dependency implementation, or every hardware-specific execution path has been dynamically tested.
 
 ## Tracked files
 
@@ -85,6 +85,7 @@ This manifest lists every tracked file in the Git tree at the snapshot. It inclu
 - `app/desktop/bench/results.csv`
 - `context.md`
 - `docs/AUDIT-CLOSEOUT.md`
+- `docs/AUDIT-FILE-MANIFEST.md`
 - `docs/BUILD-PLAN.md`
 - `docs/appflow.md`
 - `docs/architecture.md`

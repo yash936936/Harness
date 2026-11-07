@@ -150,3 +150,11 @@ Run each command on its own line. Replace angle-bracket placeholders locally; do
   ~~~
 - **1B.4 desktop product:** no acceptance command exists because the desktop shell, authenticated loopback RPC, screens, and replay product are not implemented. The hello-world benchmarks are not the product.
 
+
+## 2026-11-07 final audit validation
+
+- PR #15 merged as d07e191548c2fc3f6bc56192a27824af38a177d0.
+- Audit branch commit 0e9ad7a5585d73b96494d990b5be90e16dc4f036 passed npm ci, typecheck, lint and tests on both Ubuntu and Windows in Actions run #237.
+- The merge commit's own main-branch workflow run #238 was still running at documentation time; it must also pass before the audit is considered fully green on main.
+- S0 was not run. ARCH-01 remains BLOCKED-HARDWARE until the owner executes the exact PowerShell acceptance command in this document. S1 remains open because the host-sentinel test and orphan-lease reaper are not implemented.
+- All five automated review threads on PR #15 were replied to and resolved.
