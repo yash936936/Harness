@@ -35,6 +35,9 @@ const NAME = 'ollama'
 
 export function resolveBaseUrl(explicit?: string): string {
   let url = explicit ?? process.env['OLLAMA_HOST'] ?? 'http://localhost:11434'
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(url) && !/^https?:\/\//i.test(url)) {
+    throw new LLMError('config', 'ollama: baseUrl must use http:// or https://', NAME)
+  }
   if (!/^https?:\/\//i.test(url)) url = `http://${url}`
   return url.replace(/\/+$/, '')
 }
