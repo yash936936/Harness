@@ -242,7 +242,7 @@ export class RateLimiter {
     try {
       const raw = JSON.parse(readFileSync(this.statePath, 'utf8'))
       if (!raw || typeof raw !== 'object' || Array.isArray(raw) ||
-          typeof raw.day !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(raw.day) ||
+          !validDayKey(raw.day) ||
           !Number.isSafeInteger(raw.count) || raw.count < 0) {
         throw new Error('invalid counter shape')
       }
