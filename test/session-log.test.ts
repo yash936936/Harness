@@ -50,6 +50,14 @@ describe('bundle-session-log', () => {
 
 
 
+  it('refuses to append when corruption exists before a later valid JSON record', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'slog-middle-corrupt-'))
+    const ctx = await boot({ path: dir })
+    await ctx.log.append('middle', 'first')
+    await appendFile(join(dir, 'middle.jsonl'), 'not-json\n{"seq":2,"ts":"2026-11-07T00:00:00.000Z","sessionId":"middle","type":"later","data":null}\n')
+    await expect(ctx.log.append('middle', 'must-not-append')).rejects.toThrow(/Corrupt session log.*line 2/)
+  })
+
   it('repairs a torn final record before appending after restart', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'slog-repair-'))
     const first = await boot({ path: dir })
