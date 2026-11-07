@@ -54,21 +54,21 @@ export class JsonlEpisodeStore implements EpisodeStore {
       throw err
     }
     const lines = text.split('\n')
-    for (let i = lines.length - 1; i >= 0; i--) {
-      if (!lines[i]!.trim()) continue
+    let last = lines.length - 1
+    while (last >= 0 && !lines[last]!.trim()) last--
+    for (let i = 0; i <= last; i++) {
       try {
         JSON.parse(lines[i]!)
-        if (!text.endsWith('\n')) await appendFile(this.file, '\n', 'utf8')
-        return
       } catch {
-        if (lines.slice(i + 1).some((line) => line.trim())) {
-          throw new Error(`memory: corrupt episodic.jsonl at line ${i + 1}`)
-        }
+        if (i !== last) throw new Error(`memory: corrupt episodic.jsonl at line ${i + 1}`)
+        // Only a torn final record is recoverable. Do not append past corruption
+        // in the middle of the file, even when a later record is valid JSON.
         const end = lines.slice(0, i).join('\n').length + (i > 0 ? 1 : 0)
         await truncate(this.file, end)
         return
       }
     }
+    if (last >= 0 && !text.endsWith('\n')) await appendFile(this.file, '\n', 'utf8')
   }
 
   async all(): Promise<Episode[]> {
