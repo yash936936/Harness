@@ -94,6 +94,18 @@ describe('6.1 eval-runner core', () => {
     expect(() => scoreEvents('fx', GOOD, [scorer(1, 1.1)])).toThrow(/invalid result/)
   })
 
+  it('does not let scorer results override registered identity, required status or weight', () => {
+    const custom: Scorer = {
+      name: 'required-check',
+      required: true,
+      weight: 2,
+      run: () => ({ score: 1, pass: false, detail: 'failed', applicable: true, name: 'spoof', required: false, weight: 0 } as any),
+    }
+    const report = scoreEvents('fx', GOOD, [custom])
+    expect(report.results[0]).toMatchObject({ name: 'required-check', required: true, weight: 2, pass: false })
+    expect(report.passed).toBe(false)
+  })
+
   it('withinLimits and commandPassed read what they claim to', () => {
     expect(scoreEvents('fx', GOOD, [withinLimits({ maxModelCalls: 1 })]).results[0]).toMatchObject({ pass: false })
     expect(scoreEvents('fx', GOOD, [withinLimits({ maxModelCalls: 5, maxTokens: 1000 })]).results[0]).toMatchObject({ pass: true })
