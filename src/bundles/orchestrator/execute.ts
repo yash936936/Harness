@@ -81,9 +81,10 @@ export async function executePlan(deps: ExecutorDeps, plan: Plan, opts: ExecuteO
   if (!subagents) throw new OrchestratorError('orchestrator: executing needs the subagent-scope bundle (ctx.subagents)')
 
   const retries = opts.retries ?? 0
-  if (!Number.isInteger(retries) || retries < 0 || retries > deps.maxRetries) {
+  if (!Number.isSafeInteger(retries) || retries < 0 || retries > deps.maxRetries) {
     throw new OrchestratorError(`orchestrator: retries must be an integer from 0 to ${deps.maxRetries}`)
   }
+  if (opts.maxSteps !== undefined && (!Number.isSafeInteger(opts.maxSteps) || opts.maxSteps < 1)) throw new OrchestratorError('orchestrator: maxSteps must be a positive safe integer')
   const onFailure = opts.onFailure ?? 'abort'
   if (onFailure !== 'abort' && onFailure !== 'continue') throw new OrchestratorError(`orchestrator: onFailure must be "abort" or "continue"`)
   const runId = opts.runId ?? 'r' + Math.random().toString(36).slice(2, 8)
@@ -167,7 +168,7 @@ export async function executePlan(deps: ExecutorDeps, plan: Plan, opts: ExecuteO
           sessionId: sid,
           tools: st.tools,
           ...(opts.system ? { system: opts.system } : {}),
-          ...(opts.maxSteps ? { maxSteps: opts.maxSteps } : {}),
+          ...(opts.maxSteps !== undefined ? { maxSteps: opts.maxSteps } : {}),
           ...(opts.memory ? { memory: opts.memory } : {}),
         })
         for (;;) {
@@ -208,7 +209,7 @@ export async function executePlan(deps: ExecutorDeps, plan: Plan, opts: ExecuteO
         // spawn itself failed (e.g. a grant problem): this subtask failed, with the reason recorded.
         reason = err instanceof Error ? err.message : String(err)
       } finally {
-        await agent?.close().catch(() => {})
+        await agent?.close().catch(() => { auditMissing.push(`subagent.close:${agentId}`) })
       }
 
       if (ok) {
