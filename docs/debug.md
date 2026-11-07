@@ -3,6 +3,13 @@
 **Merged:** PR #15 merged to main as d07e191548c2fc3f6bc56192a27824af38a177d0 after the audit branch passed npm ci, typecheck, lint and tests on Ubuntu and Windows in workflow run #237. All five automated review threads were answered and resolved.
 
 **Remaining validation:** main workflow run #238 was still in progress when this entry was prepared. S0 was not run. No real Crabbox, Docker lease, live-provider or human-label evidence is inferred from CI.
+## DBG-085 — require TLS for OpenRouter API-key transport — 2026-11-07
+
+**Found:** the governed OpenRouter CLI accepted custom `http://` endpoints. The provider sends `OPENROUTER_API_KEY` in the authorization header, so a cleartext endpoint exposes the credential to network observers and intermediaries. User consent to remote disclosure does not provide transport confidentiality.
+
+**Fixed:** the OpenRouter CLI now requires HTTPS and rejects cleartext HTTP before requesting consent or booting the provider. Added a regression proving no confirmation prompt is issued for an HTTP endpoint. The lower-level OpenAI-compatible adapter remains HTTP-capable for explicitly configured local services such as Ollama-compatible gateways; this restriction is specific to the remote OpenRouter CLI path.
+
+**Validation:** fresh Ubuntu and Windows CI required.
 
 ## DBG-084 — reject symlinked persisted egress consent — 2026-11-07
 
