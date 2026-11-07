@@ -1,3 +1,11 @@
+## DBG-081 — hot-memory source metadata redaction — 2026-11-07
+
+**Found:** hot-memory text was redacted on write and read, but optional source metadata was persisted and returned by list() unchanged. A registered secret embedded in source metadata could therefore escape through the hot-memory API, including legacy records.
+
+**Fixed:** hot-memory source metadata is redacted on write and list/read. Added a regression for newly added and legacy persisted source metadata.
+
+**Validation:** fresh Ubuntu and Windows CI required.
+
 ## DBG-080 — retrieval-rank symlink race and bounded file reads — 2026-11-07
 
 **Found:** retrieval-rank resolved and statted a path before opening it, then compared the descriptor with that pre-open stat. A symlink swap between realpath/stat/open could make the pre-open stat and opened descriptor refer to the outside target. The subsequent readFileSync(fd) also read to EOF after a size check, so a concurrently growing file could exceed maxFileBytes.
