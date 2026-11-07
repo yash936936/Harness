@@ -167,6 +167,28 @@ describe('agent-loop: max_steps boundary', () => {
   it('rejects maxSteps < 1 at construction', async () => {
     await expect(boot({ maxSteps: 0 })).rejects.toBeInstanceOf(AgentLoopError)
   })
+
+  it('rejects non-integer and non-finite maxSteps at construction and per run', async () => {
+    for (const maxSteps of [1.5, Number.NaN, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1]) {
+      await expect(boot({ maxSteps })).rejects.toBeInstanceOf(AgentLoopError)
+    }
+    const { ctx, mocks } = await boot()
+    for (const maxSteps of [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+      await expect(ctx.agentLoop.run({ sessionId: 'bad-max', prompt: 'x', maxSteps })).rejects.toBeInstanceOf(AgentLoopError)
+    }
+    expect(mocks.get('mock')!.calls).toHaveLength(0)
+  })
+
+  it('rejects invalid retry budget configuration at construction', async () => {
+    for (const retry of [
+      { maxAttempts: -1 }, { maxAttempts: 1.5 }, { maxAttempts: Number.POSITIVE_INFINITY },
+      { baseDelayMs: -1 }, { baseDelayMs: Number.NaN },
+      { factor: 0.5 }, { factor: Number.POSITIVE_INFINITY },
+      { maxDelayMs: -1 }, { maxDelayMs: Number.NaN },
+    ]) {
+      await expect(boot({ retry })).rejects.toBeInstanceOf(AgentLoopError)
+    }
+  })
 })
 
 describe('agent-loop: retry policy follows LLMError.kind (D-023)', () => {
@@ -180,6 +202,16 @@ describe('agent-loop: retry policy follows LLMError.kind (D-023)', () => {
     expect(err.kind).toBe('quota')
     expect(mocks.get('mock')!.calls.length).toBe(1)
     expect(waits).toEqual([])
+  })
+
+  it('ignores a malformed retryAfterMs and uses the configured backoff', async () => {
+    const { sleep, waits } = fakeSleep()
+    const { ctx } = await boot({ sleep, retry: { maxAttempts: 1, baseDelayMs: 250 } }, [
+      { name: 'mock', default: true, script: [new LLMError('rate_limit', 'slow down', 'mock', 429, { retryAfterMs: Number.NaN }), { text: 'ok' }] },
+    ])
+    const result = await ctx.agentLoop.run({ sessionId: 'bad-retry-after', prompt: 'go' })
+    expect(result.finalText).toBe('ok')
+    expect(waits).toEqual([250])
   })
 
   it('a rate_limit error is retried once, honoring retryAfterMs, then succeeds', async () => {
