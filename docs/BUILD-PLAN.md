@@ -88,7 +88,7 @@ Record the full raw output, date/time, Windows build, Docker version, Crabbox ve
 
 ## 4. Locked decisions
 
-- Evaluation (D-109): at least 10 real model-driven sessions; use 20+ if already collected. The owner is the single labeler. The generating model may not label its session. Run `powershell -ExecutionPolicy Bypass -File scripts/commit-eval-labels.ps1 -LabelsPath <path-to-labels.json>` to hash and commit the exact labels file before scorer output is generated or viewed. Require both good and bad labels. Do not require 90% agreement. Report raw agreement, counts and confusion table as prototype-grade, not calibrated.
+- Evaluation (D-109): at least 10 real model-driven sessions; use 20+ if already collected. The owner is the single labeler. The generating model may not label its session. Run `powershell -ExecutionPolicy Bypass -File scripts/commit-eval-labels.ps1 -LabelsPath <path-to-labels.json>` to hash and commit the exact labels file before scorer output is generated or viewed. `scripts/eval-calibrate.ts` also verifies the committed labels, clean working copy, and SHA-256 sidecar before it emits any scorer output. Require both good and bad labels. Do not require 90% agreement. Report raw agreement, counts and confusion table as prototype-grade, not calibrated.
 - No host fallback: run_command fails closed when no sandbox is available. If Docker is missing, harness code says commands are disabled and file tools remain gated.
 - Qwen: no weights are bundled. The 7B model must be downloaded from upstream at a pinned revision and every artifact file checked against SHA-256. The 3B model stays excluded.
 - Policy gates: never disable policy gates in profile-coding or higher profiles.
