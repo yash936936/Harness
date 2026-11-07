@@ -163,7 +163,11 @@ export class PolicyGates extends Service {
   }
 
   private settleExternal(id: string, dec: ApprovalDecision): void {
-    this.pendingMap.get(id)?.settle(dec, dec.approve ? 'approved' : 'denied')
+    const valid = dec && typeof dec.approve === 'boolean' &&
+      (dec.by === undefined || (typeof dec.by === 'string' && dec.by.length <= 256)) &&
+      (dec.note === undefined || (typeof dec.note === 'string' && dec.note.length <= 2000))
+    const safe: ApprovalDecision = valid ? dec : { approve: false, note: 'approver gave an invalid answer' }
+    this.pendingMap.get(id)?.settle(safe, safe.approve ? 'approved' : 'denied')
   }
 
   /** Holds waiting for an answer. */
