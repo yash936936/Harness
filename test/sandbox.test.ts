@@ -51,7 +51,7 @@ describe('5.1 crabbox provider (fake CLI)', () => {
     expect(warm).toContain('--local-container-runtime'); expect(warm[warm.indexOf('--local-container-runtime') + 1]).toBe('docker')
   })
   it('forwards user config, cache, and state roots to the Crabbox CLI', async () => {
-    const keys = ['APPDATA', 'LOCALAPPDATA', 'XDG_STATE_HOME', 'XDG_CACHE_HOME'] as const
+    const keys = ['APPDATA', 'LOCALAPPDATA', 'XDG_STATE_HOME', 'XDG_CACHE_HOME', 'SystemRoot', 'WINDIR', 'COMSPEC', 'TEMP', 'TMP'] as const
     const previous = Object.fromEntries(keys.map((key) => [key, process.env[key]]))
     const expected = Object.fromEntries(keys.map((key) => [key, `harness-test-${key.toLowerCase()}`]))
     try {
