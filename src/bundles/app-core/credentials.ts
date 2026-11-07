@@ -1,5 +1,6 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto'
-import { chmod, mkdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, open, readFile, rename, writeFile } from 'node:fs/promises'
+import { withFileLock } from '../../util/filelock.js'
 import { dirname } from 'node:path'
 
 export interface CredentialStore {
@@ -100,23 +101,39 @@ export class FileCredentialStore implements CredentialStore {
   }
 
   private async loadOrCreateKey(): Promise<Buffer> {
-    try {
-      return await readFile(this.keyPath)
-    } catch (e: any) {
-      if (e?.code !== 'ENOENT') throw e
-      const key = randomBytes(32)
-      await mkdir(dirname(this.keyPath), { recursive: true })
-      await writeFile(this.keyPath, key, { mode: 0o600 })
-      await chmod(this.keyPath, 0o600).catch(() => {}) // best-effort; a no-op-ish permission model on Windows
-      return key
-    }
+    await mkdir(dirname(this.keyPath), { recursive: true })
+    return withFileLock(`${this.keyPath}.lock`, async () => {
+      try {
+        const key = await readFile(this.keyPath)
+        if (key.length !== 32) throw new Error(`credentials: encryption key ${this.keyPath} must contain exactly 32 bytes`)
+        return key
+      } catch (e: any) {
+        if (e?.code !== 'ENOENT') throw e
+        const key = randomBytes(32)
+        const fh = await open(this.keyPath, 'wx', 0o600)
+        try {
+          await fh.writeFile(key)
+          await fh.sync()
+        } finally {
+          await fh.close()
+        }
+        await chmod(this.keyPath, 0o600).catch(() => {}) // best-effort; a no-op-ish permission model on Windows
+        return key
+      }
+    })
   }
 
   private async readAll(): Promise<Record<string, string>> {
     try {
       const raw = await readFile(this.config.path, 'utf8')
       const parsed = JSON.parse(raw)
-      return parsed && typeof parsed === 'object' ? parsed : {}
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('credentials: data file must contain an object')
+      const all: Record<string, string> = Object.create(null)
+      for (const [key, value] of Object.entries(parsed)) {
+        if (typeof value !== 'string') throw new Error(`credentials: stored value for "${key}" is not a string`)
+        all[key] = value
+      }
+      return all
     } catch (e: any) {
       if (e?.code === 'ENOENT') return {}
       throw e
@@ -125,8 +142,8 @@ export class FileCredentialStore implements CredentialStore {
 
   private async writeAll(all: Record<string, string>): Promise<void> {
     await mkdir(dirname(this.config.path), { recursive: true })
-    const tmp = `${this.config.path}.tmp-${process.pid}-${Math.random().toString(36).slice(2)}`
-    await writeFile(tmp, JSON.stringify(all, null, 2), { mode: 0o600 })
+    const tmp = `${this.config.path}.tmp-${process.pid}-${randomBytes(6).toString('hex')}`
+    await writeFile(tmp, JSON.stringify(all, null, 2), { mode: 0o600, flag: 'wx' })
     await rename(tmp, this.config.path)
   }
 
@@ -140,16 +157,20 @@ export class FileCredentialStore implements CredentialStore {
 
   async set(key: string, value: string): Promise<void> {
     const keyBuf = await this.loadOrCreateKey()
-    const all = await this.readAll()
-    all[key] = encrypt(value, keyBuf)
-    await this.writeAll(all)
+    await withFileLock(`${this.config.path}.lock`, async () => {
+      const all = await this.readAll()
+      all[key] = encrypt(value, keyBuf)
+      await this.writeAll(all)
+    })
   }
 
   async delete(key: string): Promise<void> {
-    const all = await this.readAll()
-    if (!(key in all)) return
-    delete all[key]
-    await this.writeAll(all)
+    await withFileLock(`${this.config.path}.lock`, async () => {
+      const all = await this.readAll()
+      if (!(key in all)) return
+      delete all[key]
+      await this.writeAll(all)
+    })
   }
 }
 
