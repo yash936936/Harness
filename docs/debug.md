@@ -1,3 +1,11 @@
+## DBG-080 — retrieval-rank symlink race and bounded file reads — 2026-11-07
+
+**Found:** retrieval-rank resolved and statted a path before opening it, then compared the descriptor with that pre-open stat. A symlink swap between realpath/stat/open could make the pre-open stat and opened descriptor refer to the outside target. The subsequent readFileSync(fd) also read to EOF after a size check, so a concurrently growing file could exceed maxFileBytes.
+
+**Fixed:** retrieval-rank now opens with O_NOFOLLOW where supported, re-resolves the candidate after open and compares the open descriptor's device/inode with the resolved in-root path, rechecks the path before reading, and reads at most maxFileBytes + 1 bytes. Added an outside-root symlink regression; the existing large-file test covers static oversize input.
+
+**Validation:** fresh Ubuntu and Windows CI required. The race-hardening is defense in depth; it does not replace real-provider poisoning acceptance.
+
 ## DBG-079 — prevent scorer-only evaluation before D-109 labels — 2026-11-07
 
 **Found:** eval-calibrate.ts accepted an omitted labels argument and printed scorer output, which allowed the scorer to be viewed before human labels were committed. When labels were supplied, the minimum of 10 (or 20 when 20+ sessions were already collected) and both-class requirement was checked only after scoring, so an insufficient label set still exposed scorer output.
