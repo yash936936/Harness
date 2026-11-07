@@ -101,7 +101,7 @@ export class JsonlStore implements SessionStore {
         JSON.parse(lines[i]!)
         // A crash can leave a complete JSON object without its delimiter. Separate it
         // before the next append, or the next record would be concatenated onto this one.
-        if (!text.endsWith('\\n')) await appendFile(this.file(sessionId), '\\n', 'utf8')
+        if (!text.endsWith('\n')) await appendFile(this.file(sessionId), '\n', 'utf8')
         return
       } catch {
         const isFinal = lines.slice(i + 1).every((line) => !line.trim())
