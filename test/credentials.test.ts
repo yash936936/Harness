@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, lstatSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -54,6 +54,26 @@ describe('FileCredentialStore', () => {
     await new FileCredentialStore({ path }).set('k', 'v')
     const keyBytes = readFileSync(`${path}.key`)
     expect(keyBytes.length).toBe(32)
+  })
+
+  it('tightens permissions on an existing key file before using it', async () => {
+    if (process.platform === 'win32') return
+    const path = join(dir, 'creds.json')
+    const keyPath = `${path}.key`
+    const store = new FileCredentialStore({ path })
+    await store.set('k', 'v')
+    chmodSync(keyPath, 0o644)
+    expect(await store.get('k')).toBe('v')
+    expect(statSync(keyPath).mode & 0o777).toBe(0o600)
+  })
+
+  it.skipIf(process.platform === 'win32')('refuses an existing encryption key symlink', async () => {
+    const path = join(dir, 'creds.json')
+    const target = join(dir, 'other-key')
+    writeFileSync(target, Buffer.alloc(32, 7))
+    symlinkSync(target, `${path}.key`)
+    const store = new FileCredentialStore({ path })
+    await expect(store.get('k')).rejects.toThrow(/regular file, not a symlink/)
   })
 
   it('values are not stored as plaintext in the data file', async () => {
