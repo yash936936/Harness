@@ -166,6 +166,45 @@ describe('5.2 cubesandbox provider (fake E2B client)', () => {
     expect(r.released).toBe(false)
     expect(r.releaseNote).toMatch(/kill failed/)
   })
+  it('aborting a pending create kills the handle if the SDK returns it later', async () => {
+    let resolveCreate!: (handle: any) => void
+    let killed = false
+    const client: CubeClient = { create: () => new Promise((resolve) => { resolveCreate = resolve }) }
+    const ctx = await boot({ consent: true, hosts: ['cube.example.internal'] })
+    ctx.sandbox.register(new CubeSandboxProvider({ apiUrl: 'https://cube.example.internal', template: 't', client }))
+    const controller = new AbortController()
+    const running = ctx.sandbox.run({ command: ['true'], signal: controller.signal })
+    while (!resolveCreate) await Promise.resolve()
+    controller.abort(new Error('cancelled create'))
+    await expect(running).rejects.toThrow('cancelled create')
+    resolveCreate({ id: 'late', run: async () => ({ exitCode: 0, stdout: '', stderr: '' }), kill: async () => { killed = true } })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(killed).toBe(true)
+  })
+
+  it('aborting an in-flight command kills the remote sandbox', async () => {
+    let started!: () => void
+    const began = new Promise<void>((resolve) => { started = resolve })
+    let killed = false
+    const client: CubeClient = {
+      async create() {
+        return {
+          id: 'active',
+          async run() { started(); return new Promise(() => {}) },
+          async kill() { killed = true },
+        }
+      },
+    }
+    const ctx = await boot({ consent: true, hosts: ['cube.example.internal'] })
+    ctx.sandbox.register(new CubeSandboxProvider({ apiUrl: 'https://cube.example.internal', template: 't', client }))
+    const controller = new AbortController()
+    const running = ctx.sandbox.run({ command: ['true'], signal: controller.signal })
+    await began
+    controller.abort(new Error('cancelled run'))
+    await expect(running).rejects.toThrow('cancelled run')
+    expect(killed).toBe(true)
+  })
+
   it('server unreachable: clear error', async () => {
     const { client } = fakeClient({ failCreate: true }); const ctx = await boot({ consent: true, hosts: ['cube.example.internal'] })
     ctx.sandbox.register(new CubeSandboxProvider(cfg(client)))
@@ -183,6 +222,9 @@ describe('5.2 cubesandbox provider (fake E2B client)', () => {
   })
   it('rejects a bad apiUrl and shellQuote handles quotes', () => {
     expect(() => new CubeSandboxProvider({ apiUrl: 'nope', template: 't' })).toThrow(SandboxError)
+    expect(() => new CubeSandboxProvider({ apiUrl: 'http://cube.example.internal', template: 't' })).toThrow(/HTTPS/)
+    expect(() => new CubeSandboxProvider({ apiUrl: 'https://user:pass@cube.example.internal', template: 't' })).toThrow(/credentials/)
+    expect(() => new CubeSandboxProvider({ apiUrl: 'https://cube.example.internal', template: 't', bootBudgetMs: Infinity })).toThrow(/bootBudgetMs/)
     expect(shellQuote(['a b', "c'd"])).toBe(`'a b' 'c'\\''d'`)
   })
 })
