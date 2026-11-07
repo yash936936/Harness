@@ -57,8 +57,8 @@ export class OpenAICompatibleProvider implements LLMProvider {
     if (url.protocol !== 'https:' && url.protocol !== 'http:') {
       throw new LLMError('config', `${this.name}: baseUrl must use http:// or https://`, this.name)
     }
-    if (!url.hostname || url.username || url.password) {
-      throw new LLMError('config', `${this.name}: baseUrl must have a host and must not contain embedded credentials`, this.name)
+    if (!url.hostname || url.username || url.password || url.search || url.hash) {
+      throw new LLMError('config', `${this.name}: baseUrl must have a host and must not contain credentials, query or fragment`, this.name)
     }
     this.model = config.model
     this.baseUrl = config.baseUrl.replace(/\/+$/, '')
@@ -71,6 +71,9 @@ export class OpenAICompatibleProvider implements LLMProvider {
     const key = config.apiKey ?? fromEnv
     if (key) this.apiKey = key
     this.timeoutMs = config.timeoutMs ?? 120_000
+    if (!Number.isSafeInteger(this.timeoutMs) || this.timeoutMs < 1 || this.timeoutMs > 4_294_967_295) {
+      throw new LLMError('config', `${this.name}: `timeoutMs` must be an integer from 1 to 4294967295 milliseconds`, this.name)
+    }
     if (config.limiter) this.limiter = config.limiter
     this.doFetch = config.fetch ?? fetch
     this.allowInsecureHttp = config.allowInsecureHttp === true
