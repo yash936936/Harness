@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
 import { existsSync, lstatSync, readFileSync, realpathSync } from 'node:fs'
-import { basename, dirname, isAbsolute, relative, resolve, sep } from 'node:path'
+import { basename, dirname, isAbsolute, resolve } from 'node:path'
 
 function cleanGitEnv(): NodeJS.ProcessEnv {
   const env = { ...process.env }
@@ -37,9 +37,12 @@ export function verifyCommittedLabels(labelsPath: string): { sha256: string; com
   } catch {
     throw new Error('D-109: labels must be inside a Git repository')
   }
-  const labelsRelative = relative(root, absolute).split(sep).join('/')
+  // Ask Git for the repository-relative directory instead of comparing Windows
+  // real paths: runners may expose the same temp directory through 8.3 aliases.
+  const prefix = execFileSync('git', ['rev-parse', '--show-prefix'], { cwd: dirname(absolute), encoding: 'utf8', env: cleanGitEnv() }).trim().replace(/\\/g, '/')
+  const labelsRelative = [prefix.replace(/\/+$/, ''), basename(absolute)].filter(Boolean).join('/')
   const sidecarRelative = labelsRelative + '.sha256'
-  if (!labelsRelative || labelsRelative === '..' || labelsRelative.startsWith(`..${sep}`) || isAbsolute(labelsRelative)) {
+  if (!labelsRelative || labelsRelative.split('/').some((part) => part === '..') || isAbsolute(labelsRelative)) {
     throw new Error(`D-109: labels file must be inside the Git repository (root=${root}; relative=${labelsRelative})`)
   }
 
