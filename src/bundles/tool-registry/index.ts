@@ -107,6 +107,7 @@ export class ToolRegistry extends Service {
    */
   async call(name: string, input: unknown, tctx: ToolContext): Promise<ToolResult> {
     const { sessionId, actor } = tctx
+    tctx.signal?.throwIfAborted()
     const log = this.ctx.log
 
     await log.append(sessionId, 'tool.call', { name, input }, actor)
@@ -135,7 +136,7 @@ export class ToolRegistry extends Service {
 
     const tool = info(entry.def)
     const frozen = deepFreeze(structuredClone(input))
-    const callEv: ToolCallEvent = deepFreeze({ sessionId, ...(actor ? { actor } : {}), tool, input: frozen })
+    const callEv: ToolCallEvent = deepFreeze({ sessionId, ...(actor ? { actor } : {}), ...(tctx.signal ? { signal: tctx.signal } : {}), tool, input: frozen })
 
     try {
       await this.ctx.serial('tools/pre-execute', callEv)
@@ -145,9 +146,11 @@ export class ToolRegistry extends Service {
       return fail('denied', `Tool "${name}" was blocked because a pre-execute hook failed: ${why}`)
     }
 
+    tctx.signal?.throwIfAborted()
+
     let result: ToolResult
     try {
-      const out = await entry.def.execute(frozen, { sessionId, ...(actor ? { actor } : {}) })
+      const out = await entry.def.execute(frozen, { sessionId, ...(actor ? { actor } : {}), ...(tctx.signal ? { signal: tctx.signal } : {}) })
       result = { ok: true, content: this.render(out) }
     } catch (e: any) {
       result = { ok: false, errorKind: 'execution', content: this.truncate(`Tool "${name}" failed: ${e?.message ?? String(e)}`) }
@@ -184,6 +187,7 @@ function info(d: ToolDefinition): ToolInfo {
 }
 
 function deepFreeze<T>(v: T): T {
+  if (typeof AbortSignal !== 'undefined' && v instanceof AbortSignal) return v
   if (v && typeof v === 'object' && !Object.isFrozen(v)) {
     Object.freeze(v)
     for (const k of Object.keys(v as object)) deepFreeze((v as any)[k])
