@@ -170,7 +170,7 @@ describe.skipIf(!hasRg)('RetrievalGrep with real ripgrep', () => {
     base = realpathSync(mkdtempSync(join(tmpdir(), 'rgtest-')))
     root = join(base, 'root')
     outside = join(base, 'root-evil') // sibling whose name starts with root's name
-    for (const d of ['root/src', 'root/skip', 'root/node_modules/dep', 'root/.git', 'root/.aws', 'root/.ssh', 'root/.docker', 'root/.kube', 'root/.azure', 'root/.config/gh', 'root-evil']) mkdirSync(join(base, d), { recursive: true })
+    for (const d of ['root/src', 'root/skip', 'root/node_modules/dep', 'root/.git', 'root/.aws', 'root/.ssh', 'root/.docker', 'root/.kube', 'root/.azure', 'root/.config/gh', 'root/.config/gcloud', 'root/.cargo', 'root/.terraform.d', 'root/.gnupg', 'root/.AWS', 'root-evil']) mkdirSync(join(base, d), { recursive: true })
     const w = (rel: string, s: string | Buffer) => writeFileSync(join(base, rel), s)
     w('root/src/app.ts', `const a = "${Q}"\n`)
     w('root/skip/other.ts', `${Q}\n`)
@@ -187,6 +187,11 @@ describe.skipIf(!hasRg)('RetrievalGrep with real ripgrep', () => {
     w('root/secrets.yaml', `${Q}\n`)
     w('root/cert.p12', `${Q}\n`)
     w('root/.aws/credentials', `${Q}\n`)
+    w('root/.AWS/credentials', `${Q}\n`)
+    w('root/.cargo/credentials.toml', `${Q}\n`)
+    w('root/.terraform.d/credentials.tfrc.json', `${Q}\n`)
+    w('root/.config/gcloud/credentials.db', `${Q}\n`)
+    w('root/.gnupg/private-keys-v1.d/key.key', `${Q}\n`)
     w('root/.ssh/id_ed25519', `${Q}\n`)
     w('root/.npmrc', `${Q}\n`)
     w('root/.netrc', `${Q}\n`)
@@ -222,21 +227,21 @@ describe.skipIf(!hasRg)('RetrievalGrep with real ripgrep', () => {
 
   it('excludes secrets, .git, node_modules and binaries by default', async () => {
     const got = await files(Q)
-    for (const bad of ['.env', '.env.local', 'prod.env', 'key.pem', 'deploy.key', 'id_rsa', 'credentials.json', 'service-account-prod.json', 'kubeconfig', 'secrets.yaml', 'cert.p12', '.aws/credentials', '.ssh/id_ed25519', '.npmrc', '.netrc', '.pgpass', '.git-credentials', '.docker/config.json', '.kube/config', '.azure/profile', '.config/gh/hosts.yml', 'bin.dat']) expect(got).not.toContain(bad)
+    for (const bad of ['.env', '.env.local', 'prod.env', 'key.pem', 'deploy.key', 'id_rsa', 'credentials.json', 'service-account-prod.json', 'kubeconfig', 'secrets.yaml', 'cert.p12', '.aws/credentials', '.ssh/id_ed25519', '.npmrc', '.netrc', '.pgpass', '.git-credentials', '.docker/config.json', '.kube/config', '.azure/profile', '.config/gh/hosts.yml', '.AWS/credentials', '.cargo/credentials.toml', '.terraform.d/credentials.tfrc.json', '.config/gcloud/credentials.db', '.gnupg/private-keys-v1.d/key.key', 'bin.dat']) expect(got).not.toContain(bad)
     expect(got.some((f) => f.startsWith('node_modules') || f.startsWith('.git'))).toBe(false)
     expect(got).toContain('README.md') // positive control
   })
 
   it('includeSecrets searches secrets and hidden files but still never .git / node_modules', async () => {
     const got = await files(Q, { includeSecrets: true })
-    for (const good of ['.env', '.env.local', 'prod.env', 'key.pem', 'deploy.key', 'id_rsa', 'credentials.json', 'service-account-prod.json', 'kubeconfig', 'secrets.yaml', 'cert.p12', '.aws/credentials', '.ssh/id_ed25519', '.npmrc', '.netrc', '.pgpass', '.git-credentials', '.docker/config.json', '.kube/config', '.azure/profile', '.config/gh/hosts.yml']) expect(got).toContain(good)
+    for (const good of ['.env', '.env.local', 'prod.env', 'key.pem', 'deploy.key', 'id_rsa', 'credentials.json', 'service-account-prod.json', 'kubeconfig', 'secrets.yaml', 'cert.p12', '.aws/credentials', '.ssh/id_ed25519', '.npmrc', '.netrc', '.pgpass', '.git-credentials', '.docker/config.json', '.kube/config', '.azure/profile', '.config/gh/hosts.yml', '.AWS/credentials', '.cargo/credentials.toml', '.terraform.d/credentials.tfrc.json', '.config/gcloud/credentials.db', '.gnupg/private-keys-v1.d/key.key']) expect(got).toContain(good)
     expect(got.some((f) => f.startsWith('node_modules') || f.startsWith('.git'))).toBe(false)
   })
 
   it('extraArgs may include hidden source files but cannot expose hidden credential directories', async () => {
     const got = await files(Q, { extraArgs: ['--hidden'] })
     expect(got).toContain('README.md')
-    for (const bad of ['.aws/credentials', '.ssh/id_ed25519', '.npmrc', '.netrc', '.pgpass', '.git-credentials', '.docker/config.json', '.kube/config', '.azure/profile', '.config/gh/hosts.yml']) {
+    for (const bad of ['.aws/credentials', '.ssh/id_ed25519', '.npmrc', '.netrc', '.pgpass', '.git-credentials', '.docker/config.json', '.kube/config', '.azure/profile', '.config/gh/hosts.yml', '.AWS/credentials', '.cargo/credentials.toml', '.terraform.d/credentials.tfrc.json', '.config/gcloud/credentials.db', '.gnupg/private-keys-v1.d/key.key']) {
       expect(got).not.toContain(bad)
     }
   })
@@ -286,6 +291,16 @@ describe.skipIf(!hasRg)('RetrievalGrep with real ripgrep', () => {
     const got = await files(Q)
     expect(got).not.toContain('link-file.txt')
     expect(got.some((f) => f.startsWith('link-dir'))).toBe(false)
+    expect(got).toContain('README.md')
+  })
+
+  it('rejects outside symlink targets even when extraArgs enables --follow', async () => {
+    let linked = true
+    try { realpathSync(join(root, 'link-file.txt')) } catch { linked = false }
+    if (!linked) return
+    const got = await files(Q, { extraArgs: ['--follow'] })
+    expect(got).not.toContain('link-file.txt')
+    expect(got.some((f) => f.startsWith('link-dir/'))).toBe(false)
     expect(got).toContain('README.md')
   })
 
