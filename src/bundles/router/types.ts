@@ -36,8 +36,8 @@ export interface RouteDecision {
 export interface RouterBackend {
   readonly name: Exclude<Source, 'none'>
   /** Cheap availability check, never throws. `false` = skip silently (e.g. the Needle files are not there). */
-  available?(): Promise<{ ok: boolean; why?: string }>
-  decide(cls: DecisionClass, req: { task: string; candidates: Candidate[]; sessionId?: string }): Promise<string | null>
+  available?(signal?: AbortSignal): Promise<{ ok: boolean; why?: string }>
+  decide(cls: DecisionClass, req: { task: string; candidates: Candidate[]; sessionId?: string; signal?: AbortSignal }): Promise<string | null>
   /** Worker requests one `decide` call costs. Default 0. */
   readonly requestCost?: number
 }
