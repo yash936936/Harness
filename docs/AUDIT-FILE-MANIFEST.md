@@ -17,7 +17,7 @@ This manifest lists every tracked file in the Git tree at the snapshot. It inclu
 
 ## Review boundary
 
-- DBG-072 records the module-by-module review of 96 TypeScript source files and the high-risk paths covered by PR #15. The changed implementation and regression-test patches in PR #15 were inspected during this follow-up.
+- DBG-072 records the module-by-module review of 94 TypeScript source files and the high-risk paths covered by PR #15. The changed implementation and regression-test patches in PR #15 were inspected during this follow-up.
 - Tests and scripts were inventoried and the changed test/script patches were reviewed. A green CI result validates the CI commands, not real Docker, Crabbox, live model providers, human labels, or Tauri runtime behavior.
 - Historical phase/design docs are retained as history; current acceptance truth is in docs/AUDIT-CLOSEOUT.md, docs/status.md, and docs/BUILD-PLAN.md.
 - Binary icons are not decoded or visually inspected here. Third-party dependency source code is not vendored; lockfiles and package manifests are reviewed for dependency metadata, with production notice closure still open.
