@@ -1,3 +1,10 @@
+
+## DBG-073 — follow-up audit: strict rate-limit calendar validation — 2026-11-07
+
+**Found:** the persistent rate limiter used the strict calendar-date validator when it re-read the counter under the cross-process lock, but its constructor's initial load still used a shape-only regular expression. An impossible past date such as 2026-02-31 could therefore be treated as stale and silently reset to zero before the first request. The earlier regression covered an impossible future-like value only and missed this case.
+
+**Fixed:** constructor load now uses the same real-calendar-day validator as the locked read path. Added a regression for an impossible date that sorts before the current date. This is a static review correction; fresh CI is required before acceptance.
+
 ## DBG-072 — repository-wide reliability and security audit — 2026-11-07
 
 **Scope:** inspected the 96 TypeScript source files by bundle and reviewed the high-risk paths in persistence, local file access, retrieval, provider configuration, evaluation, subprocess execution, sandbox wiring, profile boot, and CLI. Static inventory also counted 60 test files, 28 scripts, 52 desktop benchmark/app assets, and 17 docs. This is a code review, not a claim that every runtime/platform behavior was exercised.
