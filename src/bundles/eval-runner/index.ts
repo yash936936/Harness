@@ -43,8 +43,13 @@ export function scoreEvents(sessionId: string, events: readonly SessionEvent[], 
     return { ...r, name: s.name, required: !!s.required, weight }
   })
   const live = results.filter((r) => r.applicable)
-  const wsum = live.reduce((n, r) => n + r.weight, 0)
-  const score = wsum > 0 ? live.reduce((n, r) => n + r.score * r.weight, 0) / wsum : 0
+  // Normalize by the largest weight before summing. Individually finite weights
+  // can still overflow when added directly (e.g. two Number.MAX_VALUE weights).
+  const maxWeight = live.reduce((n, r) => Math.max(n, r.weight), 0)
+  const normalizedWeights = maxWeight > 0 ? live.map((r) => r.weight / maxWeight) : []
+  const wsum = normalizedWeights.reduce((n, weight) => n + weight, 0)
+  const weightedScore = live.reduce((n, r, i) => n + r.score * (normalizedWeights[i] ?? 0), 0)
+  const score = wsum > 0 ? weightedScore / wsum : 0
   const failedReq = live.filter((r) => r.required && !r.pass)
   const failedOther = live.filter((r) => !r.required && !r.pass)
   const passed = failedReq.length === 0 && live.length > 0 && score >= threshold
