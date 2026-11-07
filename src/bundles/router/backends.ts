@@ -98,14 +98,14 @@ export class CommandBackend implements RouterBackend {
     if (signal?.aborted) throw signal.reason ?? new Error('aborted')
     if (this.verified) return this.verified
     const missing = (this.cfg.requiredFiles ?? []).filter((file) => !existsSync(file))
-    if (missing.length) return (this.verified = { ok: false, why: \`not installed (missing \${missing[0]})\` })
+    if (missing.length) return (this.verified = { ok: false, why: `not installed (missing ${missing[0]})` })
     if (this.cfg.expectedSha256 && this.cfg.requiredFiles?.[0]) {
       try {
         const got = await sha256File(this.cfg.requiredFiles[0], signal)
         if (got !== this.cfg.expectedSha256.toLowerCase()) return (this.verified = { ok: false, why: 'weights do not match the pinned sha256' })
       } catch (error: any) {
         if (signal?.aborted) throw error
-        return (this.verified = { ok: false, why: \`cannot read weights: \${String(error?.message ?? error).slice(0, 80)}\` })
+        return (this.verified = { ok: false, why: `cannot read weights: ${String(error?.message ?? error).slice(0, 80)}` })
       }
     }
     return (this.verified = { ok: true })
@@ -149,7 +149,7 @@ export class CommandBackend implements RouterBackend {
           try { process.kill(-child.pid, 'SIGKILL') } catch {}
         }
         finish(() => {
-          if (code !== 0) { reject(new Error(\`router backend exited with code \${code}\`)); return }
+          if (code !== 0) { reject(new Error(`router backend exited with code ${code}`)); return }
           try {
             const trimmed = output.trim()
             if (!trimmed || trimmed.includes('\n')) throw new Error('expected exactly one JSON line')
