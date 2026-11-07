@@ -21,6 +21,12 @@ export interface RateLimiterConfig {
   sleep?: (ms: number, signal?: AbortSignal) => Promise<void>
 }
 
+function validDayKey(value: unknown): value is string {
+  if (typeof value !== 'string' || !/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) return false
+  const parsed = new Date(`${value}T00:00:00.000Z`)
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value
+}
+
 interface DayState {
   day: string
   count: number
@@ -215,7 +221,7 @@ export class RateLimiter {
       throw new LLMError('config', `${this.provider}: daily request counter is corrupt; refusing to reset it automatically`, this.provider)
     }
     if (!raw || typeof raw !== 'object' || Array.isArray(raw) ||
-        typeof raw.day !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(raw.day) ||
+        !validDayKey(raw.day) ||
         !Number.isSafeInteger(raw.count) || raw.count < 0) {
       throw new LLMError('config', `${this.provider}: daily request counter has an invalid shape; refusing to reset it automatically`, this.provider)
     }
