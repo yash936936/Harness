@@ -111,6 +111,8 @@ describe('rate limiter: persistence', () => {
       expect(new RateLimiter({ perDay: 5, statePath: path, now: c.now }).remainingToday()).toBe(5)
       writeFileSync(path, JSON.stringify({ day: '2026-99-99', count: 0 }))
       expect(() => new RateLimiter({ perDay: 5, statePath: path, now: c.now })).toThrow(LLMError)
+      writeFileSync(path, JSON.stringify({ day: '2026-02-31', count: 0 }))
+      expect(() => new RateLimiter({ perDay: 5, statePath: path, now: c.now })).toThrow(LLMError)
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
