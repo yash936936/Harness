@@ -77,24 +77,30 @@ export async function testProviderConnection(
   // One shared deadline for the whole test, not per-call: a hung `/models` endpoint must not
   // be able to keep the probe call from ever running, and vice versa.
   const timeoutMs = opts.timeoutMs ?? defaultConnectionTimeoutMs(provider)
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 2_147_483_647) {
+    return { ok: false, error: { kind: 'config', message: 'timeoutMs must be a positive safe integer no greater than 2147483647' } }
+  }
   const timeout = AbortSignal.timeout(timeoutMs)
   const signal = opts.signal ? AbortSignal.any([opts.signal, timeout]) : timeout
 
+  const aborted = (phase: string): ProviderConnectionResult => opts.signal?.aborted
+    ? { ok: false, error: { kind: 'aborted', message: `connection test cancelled ${phase}` } }
+    : { ok: false, error: { kind: 'timeout', message: `no response within ${timeoutMs}ms${phase}` } }
+
   const models = provider.listModels ? await safeListModels(provider, signal) : undefined
   if (signal.aborted) {
-    return { ok: false, models, error: { kind: 'timeout', message: `no response within ${timeoutMs}ms (timed out while listing models)` } }
+    return aborted(provider.listModels ? ' (while listing models)' : '')
   }
 
   const start = Date.now()
   try {
     const res = await provider.complete(PROBE_REQUEST, signal)
+    if (signal.aborted) return { ...aborted(''), latencyMs: Date.now() - start, models }
     return { ok: true, latencyMs: Date.now() - start, model: res.model, models }
   } catch (e) {
     const latencyMs = Date.now() - start
     if (e instanceof LLMError) return { ok: false, latencyMs, models, error: { kind: e.kind, message: e.message } }
-    if (timeout.aborted && !opts.signal?.aborted) {
-      return { ok: false, latencyMs, models, error: { kind: 'timeout', message: `no response within ${timeoutMs}ms` } }
-    }
+    if (signal.aborted) return { ...aborted(''), latencyMs, models }
     const message = e instanceof Error ? e.message : String(e)
     return { ok: false, latencyMs, models, error: { kind: 'unknown', message } }
   }
