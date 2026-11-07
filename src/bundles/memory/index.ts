@@ -99,14 +99,14 @@ export class EpisodicMemory {
     const created = await this.store.add(episode)
     if (!created) {
       const existing = (await this.store.all()).find((e) => e.id === episode.id)!
-      return { episode: existing, created: false }
+      return { episode: this.ctx.egress.redactValue(existing), created: false }
     }
     return { episode, created: true }
   }
 
   async query(q: EpisodeQuery = {}): Promise<Episode[]> {
     const needle = q.task?.toLowerCase()
-    let items = (await this.store.all()).filter(
+    let items = (await this.store.all()).map((episode) => this.ctx.egress.redactValue(episode)).filter(
       (e) =>
         (q.sessionId === undefined || e.sessionId === q.sessionId) &&
         (q.agentId === undefined || e.agentId === q.agentId) &&
