@@ -1,5 +1,7 @@
 ## 2026-11-07 OpenRouter TLS enforcement (DBG-085)
 
+**CI verified:** GitHub Actions run #247 passed on Ubuntu and Windows at `2c846ee9b9dbbef9ef9a478d17b8f02f34c98587`. Both jobs passed typecheck, lint, and tests. The OpenRouter CLI HTTPS regression is covered. This does not verify a live OpenRouter request.
+
 - Governed OpenRouter CLI now rejects cleartext HTTP endpoints before consent or provider startup because the API key is sent in an authorization header.
 - Added a regression verifying HTTP is rejected before the consent prompt. Fresh CI required.
 
@@ -70,7 +72,7 @@
 ## 2026-11-07 repository-wide audit follow-up (DBG-073)
 
 - Found and fixed a remaining rate-limiter date-validation gap: constructor load now uses the same strict calendar-date validator as the locked persistent read. Added a regression for impossible past date 2026-02-31, which previously could be reset as stale state.
-- This is not accepted until fresh Ubuntu and Windows CI pass. No S0 hardware evidence is claimed.
+- CI acceptance is complete: run #247 passed on Ubuntu and Windows. No S0 hardware evidence is claimed. No S0 hardware evidence is claimed.
 
 ## 2026-11-07 — repository-wide code audit (DBG-072)
 
