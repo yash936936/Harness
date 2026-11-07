@@ -95,6 +95,11 @@ describe('hot tier: token cap and trimming (3.2)', () => {
     expect(r.dropped).toEqual(['second'])
   })
 
+  it('rejects non-positive and unsafe episode field limits', async () => {
+    await expect(boot([], { maxFieldChars: 0 })).rejects.toThrow(/maxFieldChars/)
+    await expect(boot([], { maxFieldChars: Number.POSITIVE_INFINITY })).rejects.toThrow(/maxFieldChars/)
+  })
+
   it('requires a finite token cap and a finite non-negative token estimate', async () => {
     await expect(boot([], { hotTokenCap: Number.POSITIVE_INFINITY })).rejects.toThrow(/finite positive/)
     const { ctx } = await boot([], { estimateTokens: () => Number.NaN })

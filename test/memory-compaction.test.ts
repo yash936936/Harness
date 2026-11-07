@@ -129,6 +129,15 @@ describe('compaction (3.4): promotes a recurring lesson', () => {
     expect(await ctx2.memory.hot.list()).toEqual([])
   })
 
+  it('does not treat a truthy non-boolean approval callback result as approval', async () => {
+    const { ctx } = await boot()
+    const s = await session(ctx, 'invalid-approval')
+    for (let i = 0; i < 3; i++) await turn(ctx, LESSON, s)
+    const result = await ctx.memory.compact({ approve: (() => 'yes') as never })
+    expect(result.promoted).toEqual([])
+    expect(result.skipped.approvalDenied).toBe(1)
+  })
+
   it('persisted: a restart does not promote it a second time', async () => {
     const dir = await tmp()
     const { ctx } = await boot({ path: dir })

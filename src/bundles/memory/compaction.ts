@@ -46,7 +46,7 @@ export class Compaction {
     private defaults: { minOccurrences: number; promotedPriority: number },
     private now: () => Date,
   ) {
-    if (!Number.isInteger(defaults.minOccurrences) || defaults.minOccurrences < 2) {
+    if (!Number.isSafeInteger(defaults.minOccurrences) || defaults.minOccurrences < 2) {
       throw new MemoryError('memory: compaction minOccurrences must be an integer >= 2 (a lesson seen once is not a pattern)')
     }
     if (!Number.isFinite(defaults.promotedPriority)) throw new MemoryError('memory: compaction promotedPriority must be finite')
@@ -70,7 +70,7 @@ export class Compaction {
 
   private async runNow(opts: { minOccurrences?: number; dryRun?: boolean; approve?: (c: PromotionCandidate) => boolean | Promise<boolean> }): Promise<CompactionResult> {
     const min = opts.minOccurrences ?? this.defaults.minOccurrences
-    if (!Number.isInteger(min) || min < 2) throw new MemoryError('memory: minOccurrences must be an integer >= 2')
+    if (!Number.isSafeInteger(min) || min < 2) throw new MemoryError('memory: minOccurrences must be an integer >= 2')
     const dryRun = opts.dryRun === true
     const episodes = await this.episodic.query({}) // oldest first
     // D-073: lessons are counted PER SUB-AGENT and promoted into that agent's scope only. Counting across agents and promoting
