@@ -9,6 +9,10 @@
 - Local file reads and retrieval did not share a complete credential-path denylist. Added cloud/SSH/CLI/Kubernetes/Docker/GCP/Cargo/Terraform and related credential locations; retrieval uses case-insensitive globs. Retrieval result parsing resolves existing paths to reject outside-root symlinks when `--follow` is enabled.
 - OpenAI-compatible provider accepted URL schemes other than HTTP(S) and URL userinfo. Constructor now rejects both; regression tests added.
 - Evaluation accepted custom scorer weights/results containing non-finite or out-of-range values. Scorer registration/execution now validates identity, finite non-negative weights, score range, and result field types.
+- Async persistence boundaries accepted mutable caller-owned objects. Session events, JSONL episodes, semantic fact metadata, and model completion requests are now snapshotted before queueing or awaiting consent, so logged prompts and persisted records cannot change after the call begins.
+- The persistent rate limiter failed for a nested state path because it attempted to create its lock before creating the parent directory. It now creates the directory, and the day-key validator checks a real ISO calendar date rather than only matching its shape.
+- Model artifact verification accepted mutable revision labels such as `main`. A shared provenance validator now requires a full 40- or 64-character Git commit hash and a SHA-256 digest.
+- CI exposed an existing policy-gate TypeScript declaration-order error and an unused day-key validator. Both were fixed; CI also exposed test-fixture issues in the abort-boundary and sandbox temporary-directory tests, which were corrected.
 
 **Validation status:** the code edits and regression tests are committed to the audit branch. No local `npm ci`, typecheck, lint, Vitest, real sandbox, or live-provider run is claimed. Run fresh CI on the PR before merging. S0/ARCH-01 remains a separate real Windows + Docker + Crabbox acceptance gate; this audit does not run S0.
 
