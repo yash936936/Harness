@@ -1,3 +1,14 @@
+## 2026-11-07 — repository-wide code audit (DBG-072)
+
+- Reviewed the 96 TypeScript source files by module and ran targeted security/reliability inspection across session logging, episodic/semantic memory, consent persistence, local file access, retrieval, model-provider configuration, evaluation, subprocess execution, sandbox adapters, orchestration, profile wiring, and CLI entry points.
+- Fixed JSONL recovery for a valid final record missing its newline in session logs and episodic memory. The next append now gets a delimiter rather than corrupting the following record. Regression tests cover both valid-no-newline and torn-tail recovery.
+- Fixed cross-process consent-store lost updates with a file lock and atomic rename. Added validation, defensive copies, special-key/prototype-safety handling, and concurrent-instance regression tests.
+- Expanded local secret-path exclusions to cloud, SSH, CLI, Kubernetes, Docker, GCP, Cargo, Terraform, and related credential locations. Aligned retrieval exclusions and made them case-insensitive. Retrieval parsing now resolves existing result paths to reject outside-root symlinks even when ripgrep is configured to follow links.
+- Added OpenAI-compatible endpoint validation for HTTP(S) only, rejecting embedded URL credentials. Added tests for invalid protocols and userinfo.
+- Hardened custom evaluation scorer output validation: names, finite non-negative weights, score range, and required result types are checked before scoring.
+- These are code changes on `audit/repository-wide-review-2026-11-07`; they are not yet accepted by CI. No local compiler/test run was available through the GitHub connector. A PR and fresh Ubuntu/Windows CI run are required before merge.
+- Static source inventory: 96 files. Repository inventory at audit start: 60 test files, 28 scripts, 52 desktop benchmark/app assets, and 17 documentation files. This review does not claim live Crabbox, Docker, Ollama, OpenRouter, real embeddings, or real model-quality acceptance.
+
 ## 2026-11-07 — evaluation/provenance evidence-template review (DBG-071)
 
 - Found that tracked labels.json contains only three good labels. It does not satisfy D-109's 10+ sessions and both-class requirements, so it is not accepted as evaluation evidence.
