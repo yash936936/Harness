@@ -98,6 +98,50 @@ describe('agent-loop: happy path and tool calls', () => {
   })
 })
 
+describe('agent-loop: cancellation', () => {
+  it('passes the AbortSignal into the provider and aborts an in-flight model call', async () => {
+    const { ctx } = await boot()
+    const controller = new AbortController()
+    let started!: () => void
+    const began = new Promise<void>((resolve) => { started = resolve })
+    ctx.llm.register('abort-aware', {
+      complete: async (_req, signal) => {
+        started()
+        return new Promise((_resolve, reject) => {
+          if (signal?.aborted) return reject(signal.reason)
+          signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
+        })
+      },
+    }, { default: true })
+    const running = ctx.agentLoop.run({ sessionId: 'cancel', prompt: 'wait', signal: controller.signal })
+    await began
+    controller.abort(new Error('cancelled by test'))
+    await expect(running).rejects.toThrow('cancelled by test')
+  })
+
+  it('does not execute a tool when cancellation arrives as the model response completes', async () => {
+    const { ctx } = await boot()
+    const controller = new AbortController()
+    let ran = false
+    ctx.tools.register(tool('must_not_run', () => { ran = true; return 'bad' }))
+    ctx.llm.register('late-abort', {
+      complete: async () => {
+        queueMicrotask(() => controller.abort(new Error('cancel before tool')))
+        return {
+          model: 'late-abort',
+          text: '',
+          content: [{ type: 'tool_use', id: 'c1', name: 'must_not_run', input: {} }],
+          toolCalls: [{ id: 'c1', name: 'must_not_run', input: {} }],
+          stopReason: 'tool_use',
+          usage: { inputTokens: 1, outputTokens: 1 },
+        }
+      },
+    }, { default: true })
+    await expect(ctx.agentLoop.run({ sessionId: 'cancel-tool', prompt: 'run it', signal: controller.signal })).rejects.toThrow('cancel before tool')
+    expect(ran).toBe(false)
+  })
+})
+
 describe('agent-loop: max_steps boundary', () => {
   it('a task that would loop forever is stopped at maxSteps, not left running', async () => {
     let n = 0
