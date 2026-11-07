@@ -51,18 +51,18 @@ export class JsonlEpisodeStore implements EpisodeStore {
       if (err?.code === 'ENOENT') return
       throw err
     }
-    const lines = text.split('\\n')
+    const lines = text.split('\n')
     for (let i = lines.length - 1; i >= 0; i--) {
       if (!lines[i]!.trim()) continue
       try {
         JSON.parse(lines[i]!)
-        if (!text.endsWith('\\n')) await appendFile(this.file, '\\n', 'utf8')
+        if (!text.endsWith('\n')) await appendFile(this.file, '\n', 'utf8')
         return
       } catch {
         if (lines.slice(i + 1).some((line) => line.trim())) {
           throw new Error(`memory: corrupt episodic.jsonl at line ${i + 1}`)
         }
-        const end = lines.slice(0, i).join('\\n').length + (i > 0 ? 1 : 0)
+        const end = lines.slice(0, i).join('\n').length + (i > 0 ? 1 : 0)
         await truncate(this.file, end)
         return
       }
