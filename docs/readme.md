@@ -83,10 +83,9 @@ usable is not yet known. Try it: `HARNESS_TEXT_TOOL_CALLS=1 HARNESS_OLLAMA_CHAT_
 Things to know before relying on Phase 3: nothing in the product writes lessons yet (they only arrive through
 `runTurn({ lesson })`), so compaction has nothing to promote in real use until something does. Lessons promoted by
 compaction and skills both become text in the system prompt, so a poisoned lesson or skill could steer the model; only
-partial protections exist until the policy gates in Phase 5 (see `docs/decisions.md` D-064, D-065). No profile enables
-memory or skills yet, and no real chat model has driven the loop.
+partial protections exist until the policy gates in Phase 5 (see `docs/decisions.md` D-064, D-065). The current `profile-coding` always loads episodic/hot memory and the governed retrieval stack. Skills are optional and load only when `skills.dirs` is configured. Semantic memory is optional and loads only when both an embedding provider and vector store are configured. Real-model quality and poisoning resistance remain open acceptance work; the scripted tests prove wiring, not model behavior.
 
-Not done: real-model runs of `profile-coding` at scale (it is tested with scripted models, D-081), a verified remote sandbox (5.1/5.2 pass only against fakes), a real sandbox-write or external-side-effect tool, labelled real-run calibration of the evals (Phase 6.2/6.4), the Langfuse export (6.3, deferred to Phase 8), the browser (Phase 7), multi-user scale (Phase 8). Concurrent processes sharing one data directory are now locked (the session log and the memory stores), but this is advisory, local-filesystem only, and tested here on Linux and Windows with a handful of processes. See `docs/phases.md` and `docs/status.md`.
+Not done: a verified real Crabbox sandbox lease/run/release (5.1), real model-driven end-to-end coding acceptance through `harness code`, labelled real-run calibration (Phase 6.2/6.4), real retrieval/poisoning acceptance, the Langfuse export (deferred), the browser, multi-user scale, and a production desktop client. Concurrent processes sharing one data directory are now locked (the session log and the memory stores), but this is advisory, local-filesystem only, and tested here on Linux and Windows with a handful of processes. See `docs/phases.md` and `docs/status.md`.
 
 ## What data leaves your machine
 The harness collects no telemetry. What leaves depends on how you set it up:
