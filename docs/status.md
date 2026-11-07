@@ -1,3 +1,8 @@
+## 2026-11-07 retrieval file-read hardening (DBG-080)
+
+- Hardened retrieval-rank against symlink swaps between path resolution and open, and bounded reads while the file is being consumed so concurrent growth cannot exceed maxFileBytes.
+- Added an outside-root symlink regression. Fresh Ubuntu/Windows CI required.
+
 ## 2026-11-07 D-109 pre-scoring gate follow-up (DBG-079)
 
 - The calibration command now requires committed labels and refuses to print scorer output until provenance, matched IDs, sample minimum (10 or 20 when 20+ sessions are present), and both label classes pass.
