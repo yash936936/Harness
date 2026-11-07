@@ -47,6 +47,19 @@ describe('egress: consent stores', () => {
       expect(await store.get('a')).toMatchObject({ consented: true })
       expect(await store.get('b')).toMatchObject({ consented: false })
     })
+
+    it('does not lose distinct project updates from concurrent store instances', async () => {
+      const path = join(dir, 'consent.json')
+      const a = new FileConsentStore(path)
+      const b = new FileConsentStore(path)
+      await Promise.all([
+        a.set({ projectId: 'project-a', consented: true, decidedAt: 'a' }),
+        b.set({ projectId: 'project-b', consented: false, decidedAt: 'b' }),
+      ])
+      const reopened = new FileConsentStore(path)
+      expect(await reopened.get('project-a')).toMatchObject({ consented: true })
+      expect(await reopened.get('project-b')).toMatchObject({ consented: false })
+    })
   })
 })
 
