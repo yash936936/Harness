@@ -244,7 +244,7 @@ describe.skipIf(!hasRg)('RetrievalGrep with real ripgrep', () => {
   it('includeSecrets searches secrets and hidden files but still never .git / node_modules', async () => {
     const got = await files(Q, { includeSecrets: true })
     for (const good of ['.env', '.env.local', 'prod.env', 'key.pem', 'deploy.key', 'id_rsa', 'credentials.json', 'service-account-prod.json', 'kubeconfig', 'secrets.yaml', 'cert.p12', '.aws/credentials', '.ssh/id_ed25519', '.npmrc', '.netrc', '.pgpass', '.git-credentials', '.docker/config.json', '.kube/config', '.azure/profile', '.config/gh/hosts.yml', ...(process.platform === 'win32' ? [] : ['.AWS/credentials']), '.cargo/credentials.toml', '.terraform.d/credentials.tfrc.json', '.config/gcloud/credentials.db', '.gnupg/private-keys-v1.d/key.key']) expect(got).toContain(good)
-    expect(got.some((f) => f.startsWith('node_modules') || f.startsWith('.git'))).toBe(false)
+    expect(got.some((f) => f.split('/').some((part) => ['.git', 'node_modules'].includes(part.toLowerCase())))).toBe(false)
   })
 
   it('extraArgs may include hidden source files but cannot expose hidden credential directories', async () => {
