@@ -29,7 +29,7 @@ export interface ModelRecord {
   notes?: string
 }
 
-export type ModelStoreErrorKind = 'unallowlisted_source' | 'digest_mismatch' | 'unknown_model' | 'duplicate'
+export type ModelStoreErrorKind = 'unallowlisted_source' | 'digest_mismatch' | 'unknown_model' | 'duplicate' | 'invalid_record' | 'invalid_binding' | 'invalid_digest'
 
 export class ModelStoreError extends Error {
   override name = 'ModelStoreError'
