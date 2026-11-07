@@ -110,9 +110,12 @@ export class Compaction {
         result.skipped.alreadyPromoted++
         continue
       }
-      if (opts.approve && !(await opts.approve(candidate))) {
-        result.skipped.rejected++
-        continue
+      if (opts.approve) {
+        const decision = await opts.approve(candidate)
+        if (decision !== true) {
+          result.skipped.rejected++
+          continue
+        }
       }
       if (dryRun) {
         result.promoted.push(candidate)

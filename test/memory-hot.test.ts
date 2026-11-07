@@ -126,6 +126,7 @@ describe('hot tier: token cap and trimming (3.2)', () => {
     second.ctx.egress.registerSecret('late', 'sk-late-secret')
     const rendered = await second.ctx.memory.hot.render()
     expect(rendered.text).not.toContain('sk-late-secret')
+    expect(JSON.stringify(await second.ctx.memory.hot.list())).not.toContain('sk-late-secret')
     expect(rendered.text).toContain('[redacted:late]')
   })
 

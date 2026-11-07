@@ -63,8 +63,11 @@ export class HotTier {
     if (this.measure(`${HOT_HEADER}\n${this.line({ text } as HotEntry)}`) > this.tokenCap) {
       throw new MemoryError(`memory: hot entry is too large for the ${this.tokenCap}-token hot tier; shorten it or store it in the semantic tier`)
     }
+    const id = input.id ?? randomUUID()
+    if (typeof id !== 'string' || !id.trim() || id.includes('\0')) throw new MemoryError('memory: hot entry id must be a non-empty string without NUL')
+    if (input.source !== undefined && typeof input.source !== 'string') throw new MemoryError('memory: hot source must be a string')
     const entry: HotEntry = {
-      id: input.id ?? randomUUID(),
+      id,
       text,
       priority,
       ts: this.now().toISOString(),
@@ -92,7 +95,7 @@ export class HotTier {
   }
 
   async list(): Promise<HotEntry[]> {
-    return structuredClone(await this.load())
+    return structuredClone((await this.load()).map((entry) => ({ ...entry, text: oneLine(this.ctx.egress.redactValue(entry.text)) })))
   }
 
   /** Highest priority first; among equals, newest first. Greedy: an entry too big for the room left is skipped, smaller ones may still fit. */
@@ -131,6 +134,7 @@ export class HotTier {
       try {
         const parsed = JSON.parse(await readFile(this.file, 'utf8'))
         if (!Array.isArray(parsed)) throw new Error('not an array')
+        const ids = new Set<string>()
         for (const [index, entry] of parsed.entries()) {
           if (!entry || typeof entry !== 'object' || Array.isArray(entry) ||
             typeof entry.id !== 'string' || !entry.id.trim() ||
@@ -141,6 +145,8 @@ export class HotTier {
             (entry.scope !== undefined && (typeof entry.scope !== 'string' || !isScopedActor(entry.scope)))) {
             throw new Error(`invalid entry at index ${index}`)
           }
+          if (ids.has(entry.id)) throw new Error(`duplicate entry id at index ${index}`)
+          ids.add(entry.id)
         }
         this.entries = parsed
       } catch (err: any) {
