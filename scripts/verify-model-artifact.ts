@@ -2,14 +2,17 @@
 import { createHash } from 'node:crypto'
 import { createReadStream, existsSync, readFileSync } from 'node:fs'
 import { basename } from 'node:path'
+import { validateModelArtifactProvenance } from './model-artifact-provenance.js'
 const [file, expectedFile] = process.argv.slice(2)
 if (!file || !expectedFile || !existsSync(file) || !existsSync(expectedFile)) {
   console.error('usage: npx tsx scripts/verify-model-artifact.ts <artifact-file> <provenance.json>')
   process.exit(2)
 }
-const provenance = JSON.parse(readFileSync(expectedFile, 'utf8')) as { model: string; revision: string; sha256: string; source: string }
-if (!provenance.model || !provenance.revision || !provenance.source || !/^[a-f0-9]{64}$/i.test(provenance.sha256 ?? '')) {
-  console.error('provenance must contain model, immutable revision, source, and 64-character SHA-256')
+let provenance: ReturnType<typeof validateModelArtifactProvenance>
+try {
+  provenance = validateModelArtifactProvenance(JSON.parse(readFileSync(expectedFile, 'utf8')))
+} catch (error) {
+  console.error(error instanceof Error ? error.message : String(error))
   process.exit(2)
 }
 const hash = createHash('sha256')
