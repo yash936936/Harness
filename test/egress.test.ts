@@ -145,6 +145,11 @@ describe('egress: EgressPolicy', () => {
       )
     })
 
+    it('redacts longer overlapping secrets before their prefixes', async () => {
+      const ctx = await bootPolicy({ secrets: { short: 'token-123', long: 'token-1234' } })
+      expect(ctx.egress.redact('first token-1234 second token-123')).toBe('first [redacted:long] second [redacted:short]')
+    })
+
     it('registerSecret() adds a secret after boot; an empty/undefined value is a no-op', async () => {
       const ctx = await bootPolicy()
       ctx.egress.registerSecret('later', 'shh-do-not-leak')
