@@ -72,7 +72,7 @@ export class OpenAICompatibleProvider implements LLMProvider {
     if (key) this.apiKey = key
     this.timeoutMs = config.timeoutMs ?? 120_000
     if (!Number.isSafeInteger(this.timeoutMs) || this.timeoutMs < 1 || this.timeoutMs > 4_294_967_295) {
-      throw new LLMError('config', `${this.name}: `timeoutMs` must be an integer from 1 to 4294967295 milliseconds`, this.name)
+      throw new LLMError('config', `${this.name}: timeoutMs must be an integer from 1 to 4294967295 milliseconds`, this.name)
     }
     if (config.limiter) this.limiter = config.limiter
     this.doFetch = config.fetch ?? fetch
