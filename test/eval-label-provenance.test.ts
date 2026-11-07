@@ -23,7 +23,7 @@ function repoWithCommittedLabels() {
   const root = mkdtempSync(join(tmpdir(), 'eval-label-provenance-'))
   roots.push(root)
   execFileSync('git', ['-c', 'init.defaultBranch=main', 'init', '-q'], { cwd: root, env: cleanGitEnv() })
-  execFileSync('git', ['config', 'user.name', 'Harness Test'], { cwd: root })
+  execFileSync('git', ['config', 'user.name', 'Harness Test'], { cwd: root, env: cleanGitEnv() })
   execFileSync('git', ['config', 'user.email', 'harness-test@example.invalid'], { cwd: root })
   const labelsPath = join(root, 'labels.json')
   const labels = Buffer.from(JSON.stringify({ session1: 'good', session2: 'bad' }, null, 2) + '\n')
