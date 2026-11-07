@@ -50,6 +50,13 @@ describe('Budgets.reserve / release / record', () => {
 })
 
 describe('LLMService enforces the budget before the call', () => {
+  it.each([0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1])('rejects invalid maxTokens %s before logging or calling a provider', async (maxTokens) => {
+    const { ctx, provider } = await boot({})
+    await expect(ctx.llm.complete(req({ maxTokens }))).rejects.toMatchObject({ kind: 'config' })
+    expect(provider.calls).toHaveLength(0)
+    expect(await types(ctx)).toEqual([])
+  })
+
   it('a call whose estimate cannot fit is refused: provider never called, nothing logged as sent, budget.blocked recorded', async () => {
     const { ctx, provider } = await boot({ budgets: { tokens: { session: { hard: 500 } } } })
     const err: any = await ctx.llm.complete(req({ messages: [{ role: 'user', content: 'x'.repeat(3000) }] })).catch((e) => e)
