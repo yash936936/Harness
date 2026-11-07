@@ -72,6 +72,11 @@ describe('FileCredentialStore', () => {
     for (let i = 0; i < 24; i++) expect(await reopened.get(`key-${i}`)).toBe(`value-${i}`)
   })
 
+  it('rejects using the same path for encrypted data and the encryption key', () => {
+    const path = join(dir, 'same-path.json')
+    expect(() => new FileCredentialStore({ path, keyPath: path })).toThrow(/distinct/)
+  })
+
   it('supports the literal __proto__ key without mutating the data object prototype', async () => {
     const store = new FileCredentialStore({ path: join(dir, 'proto.json') })
     await store.set('__proto__', 'safe-value')
@@ -176,6 +181,18 @@ describe('AutoCredentialStore', () => {
     await auto.set('k', 'v')
     expect(await auto.get('k')).toBe('v')
     expect(fallback.data.get('k')).toBe('v')
+  })
+
+  it('concurrent instances use distinct probe keys and both retain a working primary', async () => {
+    const primary = new MemoryStore()
+    const fallbackA = new MemoryStore()
+    const fallbackB = new MemoryStore()
+    const a = new AutoCredentialStore(primary, fallbackA)
+    const b = new AutoCredentialStore(primary, fallbackB)
+    await Promise.all([a.set('a', 'one'), b.set('b', 'two')])
+    expect(await a.get('a')).toBe('one')
+    expect(await b.get('b')).toBe('two')
+    expect(fallbackA.data.size + fallbackB.data.size).toBe(0)
   })
 
   it('probes the primary at most once, even across many calls', async () => {
