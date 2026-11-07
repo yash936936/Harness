@@ -1,3 +1,9 @@
+## 2026-11-07 audit merge status (DBG-085)
+
+- PR #15 merged to main as d07e191548c2fc3f6bc56192a27824af38a177d0.
+- Audit branch CI run #237 passed npm ci, typecheck, lint and tests on Ubuntu and Windows. Main merge CI run #238 was still in progress at the time of this update.
+- Five automated review threads resolved. S0 remains BLOCKED-HARDWARE and has not been run; S1 remains open for host-sentinel and orphan-reaper implementation/evidence.
+
 ## 2026-11-07 egress consent store symlink hardening (DBG-084)
 
 - FileConsentStore now fails closed on symlinked/non-regular consent files and validates file identity after open.
