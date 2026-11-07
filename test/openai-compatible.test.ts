@@ -470,7 +470,7 @@ describe('SEC-02 redirects and plaintext transport', () => {
       baseUrl: 'https://llm.example.com/private-path-token',
       fetch: (async () => { throw new Error('private-path-token transport detail') }) as typeof fetch,
     })
-    const error = await p.listModels().catch((value) => value as LLMError)
+    const error = await p.listModels().catch((value): LLMError => value as LLMError)
     expect(error).toBeInstanceOf(LLMError)
     expect(error.message).toContain('llm.example.com')
     expect(error.message).not.toContain('private-path-token')
