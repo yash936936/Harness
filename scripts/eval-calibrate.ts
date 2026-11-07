@@ -133,3 +133,4 @@ console.log('\n* = required scorer')
   console.log(`confusion (human label vs scorer): ${JSON.stringify(confusion)}`)
   for (const disagreement of disagreements) console.log(`  DISAGREE ${disagreement}`)
   process.exit(eligible ? 0 : 1)
+}
