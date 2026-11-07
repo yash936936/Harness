@@ -1,6 +1,7 @@
 import { readFileSync, realpathSync, statSync } from 'node:fs'
 import { isAbsolute, relative, resolve, sep } from 'node:path'
 import { Context, Service } from 'cordis'
+import { isGitInternal, isSecretPath } from '../tools-local/paths.js'
 import {
   chunkSource,
   looksBinary,
@@ -121,6 +122,9 @@ export class RetrievalRank extends Service {
       return { ok: false, reason: 'unreadable' }
     }
     if (!isInside(realRoot, real)) return { ok: false, reason: 'outside_root' }
+    const rootRelative = relative(realRoot, real).split(sep).join('/').toLowerCase()
+    if (isGitInternal(rootRelative) || rootRelative.split('/').includes('node_modules')) return { ok: false, reason: 'excluded' }
+    if (isSecretPath(rootRelative)) return { ok: false, reason: 'secret' }
     try {
       const st = statSync(real)
       if (!st.isFile()) return { ok: false, reason: 'not_a_file' }
@@ -337,7 +341,7 @@ export class RetrievalRank extends Service {
       const f = this.readFile(rel, realRoot)
       if (!f.ok) {
         skipped.push({ file: String(rel), reason: f.reason })
-        if (f.reason === 'unreadable' || f.reason === 'binary' || f.reason === 'too_large') gone.push(rel)
+        if (f.reason === 'unreadable' || f.reason === 'binary' || f.reason === 'too_large' || f.reason === 'secret' || f.reason === 'excluded') gone.push(rel)
         continue
       }
       prepared.push({ file: rel, chunks: await this.chunksOf(rel, f) })
