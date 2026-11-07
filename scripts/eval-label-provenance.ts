@@ -1,14 +1,14 @@
 import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
-import { existsSync, readFileSync } from 'node:fs'
-import { basename, dirname, relative, resolve, sep } from 'node:path'
+import { existsSync, readFileSync, realpathSync } from 'node:fs'
+import { basename, dirname, isAbsolute, relative, resolve, sep } from 'node:path'
 
 /**
  * D-109: refuse to emit scorer output for labels unless the exact labels and
  * SHA-256 sidecar are already committed and the working copies are clean.
  */
 export function verifyCommittedLabels(labelsPath: string): { sha256: string; commit: string } {
-  const absolute = resolve(labelsPath)
+  const absolute = realpathSync(resolve(labelsPath))
   const sidecar = absolute + '.sha256'
   if (!existsSync(absolute) || !existsSync(sidecar)) {
     throw new Error('D-109: labels file and its .sha256 sidecar must exist and be committed before scoring')
@@ -16,14 +16,14 @@ export function verifyCommittedLabels(labelsPath: string): { sha256: string; com
 
   let root: string
   try {
-    root = execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: dirname(absolute), encoding: 'utf8' }).trim()
+    root = realpathSync(execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: dirname(absolute), encoding: 'utf8' }).trim())
   } catch {
     throw new Error('D-109: labels must be inside a Git repository')
   }
   const labelsRelative = relative(root, absolute).split(sep).join('/')
   const sidecarRelative = labelsRelative + '.sha256'
-  if (!labelsRelative || labelsRelative === '..' || labelsRelative.startsWith('../') || labelsRelative.startsWith('/')) {
-    throw new Error('D-109: labels file must be inside the Git repository')
+  if (!labelsRelative || labelsRelative === '..' || labelsRelative.startsWith(`..${sep}`) || isAbsolute(labelsRelative)) {
+    throw new Error(`D-109: labels file must be inside the Git repository (root=${root}; relative=${labelsRelative})`)
   }
 
   const bytes = readFileSync(absolute)
