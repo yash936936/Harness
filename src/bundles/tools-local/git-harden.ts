@@ -29,8 +29,6 @@ const DIFFING = new Set(['diff', 'log', 'show'])
 export interface HardenedGit {
   /** Full argument list, with `-c` overrides in front and diff-driver switches after the subcommand. */
   args: string[]
-  /** Environment values to set in the child (their names must be allowlisted by the caller). */
-  env: Record<string, string>
 }
 
 /** Config keys a repository can use to make git run a program, as `filter.<driver>.<var>` keys. */
@@ -68,6 +66,7 @@ export function hardenGit(argv: readonly string[], filterDrivers: readonly strin
   if (sub === undefined || !GIT_READ_SUBCOMMANDS.has(sub)) return undefined
   const overrides: string[] = [
     'core.fsmonitor=false',
+    'credential.interactive=false',
     'core.pager=cat',
     'diff.external=',
     'diff.ignoreSubmodules=all',
@@ -80,10 +79,10 @@ export function hardenGit(argv: readonly string[], filterDrivers: readonly strin
     // An empty command means "no filter"; `required=false` stops git treating the missing filter as an error.
     overrides.push(`filter.${d}.clean=`, `filter.${d}.smudge=`, `filter.${d}.process=`, `filter.${d}.required=false`)
   }
-  const pre = overrides.flatMap((o) => ['-c', o])
+  // These are global Git options and must precede the subcommand. The sandbox
+  // API intentionally has no env override, so do not return environment settings
+  // that the caller cannot apply.
+  const pre = ['--no-pager', '--no-optional-locks', ...overrides.flatMap((o) => ['-c', o])]
   const post = DIFFING.has(sub) ? ['--no-ext-diff', '--no-textconv'] : []
-  return {
-    args: [...pre, sub, ...post, ...argv.slice(1)],
-    env: { GIT_PAGER: 'cat', GIT_OPTIONAL_LOCKS: '0', GIT_TERMINAL_PROMPT: '0' },
-  }
+  return { args: [...pre, sub, ...post, ...argv.slice(1)] }
 }
