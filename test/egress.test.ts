@@ -60,6 +60,16 @@ describe('egress: consent stores', () => {
       expect(await reopened.get('project-a')).toMatchObject({ consented: true })
       expect(await reopened.get('project-b')).toMatchObject({ consented: false })
     })
+
+    it('treats special object keys as ordinary project ids without prototype inheritance', async () => {
+      const path = join(dir, 'consent.json')
+      const store = new FileConsentStore(path)
+      await store.set({ projectId: '__proto__', consented: true, decidedAt: 'x' })
+      await store.set({ projectId: 'constructor', consented: false, decidedAt: 'y' })
+      expect(await store.get('__proto__')).toMatchObject({ projectId: '__proto__', consented: true })
+      expect(await store.get('constructor')).toMatchObject({ projectId: 'constructor', consented: false })
+      expect(await store.get('toString')).toBeUndefined()
+    })
   })
 })
 
