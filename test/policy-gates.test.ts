@@ -212,6 +212,15 @@ describe('evaluate: confidence scoring for real-fs-write (5.4)', () => {
     expect(score(10_000)).toBeGreaterThan(score(40_000))
     expect(score(500_000)).toBe(0.2)
   })
+  it('an invalid independent signal score can never auto-approve a write', async () => {
+    for (const score of [NaN, Infinity, -0.1, 1.1]) {
+      const { ctx } = await boot({ signals: [() => ({ name: 'broken-signal', score })] })
+      const d = ctx.policy.evaluate(w({ path: 'src/a.ts', content: 'x', confidence: 1 }))
+      expect(d.verdict, String(score)).toBe('hold')
+      expect(d.reason).toMatch(/invalid score/)
+    }
+  })
+
   it('a score exactly AT the threshold is allowed; just under it is held', async () => {
     const { ctx } = await boot()
     expect(ctx.policy.evaluate(w({ path: 'src/a.ts', content: 'x', confidence: 0.8 })).verdict).toBe('allow-logged')
@@ -322,6 +331,19 @@ describe('the gate through the registry: 5.4 holds and approvals', () => {
     expect((await events('approval.resolved'))[0]!.data).toMatchObject({ outcome: 'timeout' })
     expect(() => ctx.policy.resolve(id, { approve: true })).toThrow(PolicyError)
   })
+  it('resolve() refuses malformed decisions instead of treating truthy values as approval', async () => {
+    const { ctx, call, ran } = await boot()
+    const p = call('edit', lowConfidence)
+    await until(() => ctx.policy.pending().length === 1)
+    const id = ctx.policy.pending()[0]!.id
+    for (const bad of [null, {}, { approve: 'yes' }, { approve: true, by: {} }, { approve: true, note: 'x'.repeat(2001) }]) {
+      expect(() => ctx.policy.resolve(id, bad as any)).toThrow(PolicyError)
+    }
+    expect(ran).toEqual([])
+    ctx.policy.resolve(id, { approve: false })
+    expect(await p).toMatchObject({ ok: false, errorKind: 'denied' })
+  })
+
   it('resolve() refuses an unknown id and a second answer', async () => {
     const { ctx, call } = await boot()
     expect(() => ctx.policy.resolve('nope', { approve: true })).toThrow(/no pending approval/)
