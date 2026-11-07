@@ -1,3 +1,11 @@
+## DBG-083 — episodic-memory read-time secret redaction — 2026-11-07
+
+**Found:** episodic records were redacted on write, but query() and the duplicate-record return path returned stored records without applying the current redactor. Legacy records, or secrets registered after a record was written, could therefore be returned unchanged.
+
+**Fixed:** episodic query results and duplicate-record return values now pass through the current egress redactor. Added a regression that seeds a legacy JSONL record containing a subsequently registered secret and checks the query result.
+
+**Validation:** fresh Ubuntu and Windows CI required.
+
 ## DBG-082 — avoid echoing provider URL paths in network errors — 2026-11-07
 
 **Found:** Ollama network errors included the full configured base URL, and both provider adapters fell back to the raw fetch error message when no system error code existed. A base URL path or custom transport error could contain sensitive endpoint material and be copied into logs/session errors.
