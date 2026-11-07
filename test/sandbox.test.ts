@@ -270,7 +270,7 @@ describe('ctx.sandbox seam', () => {
   })
 })
 
-import { mkdirSync, realpathSync } from 'node:fs'
+import { realpathSync } from 'node:fs'
 import { Budgets } from '../src/bundles/app-core/budgets.js'
 import { AutoCredentialStore, type CredentialStore } from '../src/bundles/app-core/credentials.js'
 import { buildDoctorReport } from '../src/bundles/app-core/doctor.js'
