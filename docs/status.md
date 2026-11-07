@@ -1,3 +1,8 @@
+## 2026-11-07 model budget cancellation follow-up (DBG-077)
+
+- Fixed a budget accounting defect: cancellation while waiting for a rate-limiter slot, and a pre-dispatch request-log failure, now release reservations without charging a request.
+- Provider failures after dispatch still count as request attempts. Added regression tests for queued cancellation and failed request logging.
+
 ## 2026-11-07 credential-store audit follow-up (DBG-076)
 
 - Fixed fresh nested FileCredentialStore set/delete lock initialization by creating the data parent directory before acquiring the lock.
