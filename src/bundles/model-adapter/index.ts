@@ -121,7 +121,7 @@ export class LLMService extends Service {
     // differ from the request eventually sent to the provider.
     const request = structuredClone(req)
     if (request.maxTokens !== undefined && (!Number.isSafeInteger(request.maxTokens) || request.maxTokens <= 0)) {
-      throw new LLMError('config', 'model request: maxTokens must be a positive safe integer', request.provider ?? this.defaultName)
+      throw new LLMError('config', 'model request: maxTokens must be a positive safe integer', request.provider ?? this.defaultName ?? '(none)')
     }
     const name = request.provider ?? this.defaultName
     if (!name) throw new LLMError('config', 'no provider specified and no default configured', '(none)')
