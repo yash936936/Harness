@@ -25,6 +25,9 @@ export function verifyCommittedLabels(labelsPath: string): { sha256: string; com
   if (!existsSync(requested) || !existsSync(requestedSidecar)) {
     throw new Error('D-109: labels file and its .sha256 sidecar must exist and be committed before scoring')
   }
+  if (lstatSync(requested).isSymbolicLink() || !lstatSync(requested).isFile()) {
+    throw new Error('D-109: labels file must be a regular file, not a symlink')
+  }
   const absolute = realpathSync(requested)
   const sidecar = requestedSidecar
 
@@ -74,7 +77,7 @@ export function verifyCommittedLabels(labelsPath: string): { sha256: string; com
   try {
     committedLabels = execFileSync('git', ['show', `HEAD:${labelsRelative}`], { cwd: root, env: cleanGitEnv() })
     committedSidecar = execFileSync('git', ['show', `HEAD:${sidecarRelative}`], { cwd: root, encoding: 'utf8', env: cleanGitEnv() }).trim()
-    commit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim()
+    commit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8', env: cleanGitEnv() }).trim()
   } catch {
     throw new Error('D-109: labels and SHA-256 sidecar must exist in HEAD before scoring')
   }
