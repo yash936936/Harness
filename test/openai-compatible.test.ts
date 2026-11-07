@@ -474,7 +474,7 @@ describe('SEC-02 redirects and plaintext transport', () => {
     expect(error).toBeInstanceOf(LLMError)
     expect(error.message).toContain('llm.example.com')
     expect(error.message).not.toContain('private-path-token')
-    const completionError = await p.complete({ messages: [{ role: 'user', content: 'probe' }] }).catch((value) => value as LLMError)
+    const completionError = (await p.complete({ messages: [{ role: 'user', content: 'probe' }] }).catch((value) => value as LLMError)) as LLMError
     expect(completionError.message).not.toContain('private-path-token')
   })
 
