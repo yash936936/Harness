@@ -15,6 +15,33 @@ function cleanGitEnv(): NodeJS.ProcessEnv {
   return env
 }
 
+
+/** Hash the Git index blob after clean filters, not raw worktree bytes (core.autocrlf may normalize CRLF). */
+export function hashGitIndexLabels(labelsPath: string): string {
+  const requested = resolve(labelsPath)
+  if (!existsSync(requested) || lstatSync(requested).isSymbolicLink() || !lstatSync(requested).isFile()) {
+    throw new Error('D-109: labels file must be a regular file in the Git index')
+  }
+  const absolute = realpathSync(requested)
+  let root: string
+  try {
+    root = realpathSync(execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: dirname(absolute), encoding: 'utf8', env: cleanGitEnv() }).trim())
+  } catch {
+    throw new Error('D-109: labels must be inside a Git repository')
+  }
+  const prefix = execFileSync('git', ['rev-parse', '--show-prefix'], { cwd: dirname(absolute), encoding: 'utf8', env: cleanGitEnv() }).trim().replace(/\\/g, '/')
+  const relativePath = [prefix.replace(/\\/+$/, ''), basename(absolute)].filter(Boolean).join('/')
+  if (!relativePath || relativePath.split('/').some((part) => part === '..') || isAbsolute(relativePath)) {
+    throw new Error('D-109: labels file must be inside the Git repository')
+  }
+  try {
+    const staged = execFileSync('git', ['show', `:${relativePath}`], { cwd: root, env: cleanGitEnv() })
+    return createHash('sha256').update(staged).digest('hex')
+  } catch {
+    throw new Error('D-109: labels must be added to the Git index before hashing')
+  }
+}
+
 /**
  * D-109: refuse to emit scorer output for labels unless the exact labels and
  * SHA-256 sidecar are already committed and the working copies are clean.
@@ -49,8 +76,6 @@ export function verifyCommittedLabels(labelsPath: string): { sha256: string; com
   if (lstatSync(sidecar).isSymbolicLink() || !lstatSync(sidecar).isFile()) {
     throw new Error('D-109: labels SHA-256 sidecar must be a regular file, not a symlink')
   }
-  const bytes = readFileSync(absolute)
-  const sha256 = createHash('sha256').update(bytes).digest('hex')
   const sidecarText = readFileSync(sidecar, 'utf8').trim()
   if (sidecarText !== `${sha256}  ${basename(absolute)}`) {
     throw new Error('D-109: labels SHA-256 sidecar does not match the current labels file')
@@ -79,8 +104,19 @@ export function verifyCommittedLabels(labelsPath: string): { sha256: string; com
     throw new Error('D-109: labels and SHA-256 sidecar must exist in HEAD before scoring')
   }
   const committedHash = createHash('sha256').update(committedLabels).digest('hex')
-  if (committedHash !== sha256 || committedSidecar !== sidecarText) {
+  if (committedSidecar !== sidecarText || sidecarText !== `${committedHash}  ${basename(absolute)}`) {
     throw new Error('D-109: committed labels or SHA-256 sidecar differ from the working files')
   }
-  return { sha256, commit }
+  return { sha256: committedHash, commit }
+}
+
+if (process.argv[2] === '--hash-index') {
+  try {
+    const path = process.argv[3]
+    if (!path) throw new Error('usage: eval-label-provenance.ts --hash-index <labels.json>')
+    process.stdout.write(hashGitIndexLabels(path) + '\\n')
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error))
+    process.exitCode = 2
+  }
 }
