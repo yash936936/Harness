@@ -23,7 +23,7 @@ declare module 'cordis' {
 const MAX_LINE_CHARS = 300
 
 /** Never searched, regardless of config. */
-const ALWAYS_EXCLUDED = ['!.git', '!node_modules']
+const ALWAYS_EXCLUDED = ['!.git/**', '!**/.git/**', '!node_modules/**', '!**/node_modules/**']
 /** Likely-secret files; excluded unless `includeSecrets`. */
 const SECRET_EXCLUDES = [
   '!.env*', '!**/.env*', '!*.env', '!**/*.env',
