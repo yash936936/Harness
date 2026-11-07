@@ -8,6 +8,10 @@ const CHARS_PER_TOKEN = 3
 
 /** A cheap upper-ish estimate of the tokens a request will cost: the prompt as sent, plus the output it is allowed to produce. */
 export function estimateRequestTokens(req: Pick<CompletionRequest, 'messages' | 'system' | 'tools' | 'maxTokens'>, defaultOutput = DEFAULT_OUTPUT_TOKEN_RESERVE): number {
+  if (!Number.isSafeInteger(defaultOutput) || defaultOutput <= 0) throw new RangeError('budget gate: default output reserve must be a positive safe integer')
+  if (req.maxTokens !== undefined && (!Number.isSafeInteger(req.maxTokens) || req.maxTokens <= 0)) {
+    throw new RangeError('budget gate: maxTokens must be a positive safe integer when supplied')
+  }
   const prompt = JSON.stringify({ system: req.system, messages: req.messages, tools: req.tools }) ?? ''
   return Math.ceil(prompt.length / CHARS_PER_TOKEN) + (req.maxTokens ?? defaultOutput)
 }
