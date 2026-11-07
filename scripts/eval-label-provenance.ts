@@ -30,7 +30,8 @@ export function hashGitIndexLabels(labelsPath: string): string {
     throw new Error('D-109: labels must be inside a Git repository')
   }
   const prefix = execFileSync('git', ['rev-parse', '--show-prefix'], { cwd: dirname(absolute), encoding: 'utf8', env: cleanGitEnv() }).trim().replace(/\\/g, '/')
-  const relativePath = [prefix.replace(/\/+$/, ''), basename(absolute)].filter(Boolean).join('/')
+  const prefixPath = prefix.endsWith('/') ? prefix.slice(0, -1) : prefix
+  const relativePath = [prefixPath, basename(absolute)].filter(Boolean).join('/')
   if (!relativePath || relativePath.split('/').some((part) => part === '..') || isAbsolute(relativePath)) {
     throw new Error('D-109: labels file must be inside the Git repository')
   }
