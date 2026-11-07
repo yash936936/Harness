@@ -110,7 +110,7 @@ export interface IndexOptions {
 
 export interface IndexSkip {
   file: string
-  reason: 'binary' | 'too_large' | 'unreadable' | 'outside_root' | 'not_a_file' | 'invalid_path'
+  reason: 'binary' | 'too_large' | 'unreadable' | 'outside_root' | 'not_a_file' | 'invalid_path' | 'secret' | 'excluded'
 }
 
 export type IndexResult =
