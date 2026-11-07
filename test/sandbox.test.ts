@@ -55,7 +55,11 @@ describe('5.1 crabbox provider (fake CLI)', () => {
   it('forwards user config, cache, and state roots to the Crabbox CLI', async () => {
     const keys = ['APPDATA', 'LOCALAPPDATA', 'XDG_STATE_HOME', 'XDG_CACHE_HOME', 'SystemRoot', 'WINDIR', 'COMSPEC', 'TEMP', 'TMP'] as const
     const previous = Object.fromEntries(keys.map((key) => [key, process.env[key]]))
-    const expected = Object.fromEntries(keys.map((key) => [key, `harness-test-${key.toLowerCase()}`]))
+    const userDirs = new Set(['APPDATA', 'LOCALAPPDATA', 'XDG_STATE_HOME', 'XDG_CACHE_HOME'])
+    const expected = Object.fromEntries(keys.map((key) => [
+      key,
+      userDirs.has(key) ? `harness-test-${key.toLowerCase()}` : (previous[key] ?? `harness-test-${key.toLowerCase()}`),
+    ]))
     try {
       for (const key of keys) process.env[key] = expected[key]
       const s = state(); const ctx = await boot()
