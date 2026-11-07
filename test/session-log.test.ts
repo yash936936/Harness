@@ -1,5 +1,5 @@
 import { Context } from 'cordis'
-import { mkdtemp, readFile, appendFile } from 'node:fs/promises'
+import { mkdtemp, readFile, appendFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -65,6 +65,32 @@ describe('bundle-session-log', () => {
     const events = await resumed.log.read('repair')
     expect(events.map((event) => event.type)).toEqual(['first', 'second'])
     expect(events.map((event) => event.seq)).toEqual([1, 2])
+  })
+
+  it('separates a complete final JSON record that lost its trailing newline', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'slog-no-newline-'))
+    const first = await boot({ path: dir })
+    await first.log.append('no-newline', 'first', { ok: true })
+    const file = join(dir, 'no-newline.jsonl')
+    await writeFile(file, (await readFile(file, 'utf8')).trimEnd(), 'utf8')
+
+    const resumed = await boot({ path: dir })
+    expect(await resumed.log.resume('no-newline')).toEqual({ sessionId: 'no-newline', nextSeq: 2 })
+    const next = await resumed.log.append('no-newline', 'second', { ok: true })
+    expect(next.seq).toBe(2)
+    const raw = await readFile(file, 'utf8')
+    expect(raw.split('\\n').filter(Boolean)).toHaveLength(2)
+    expect((await resumed.log.read('no-newline')).map((event) => event.type)).toEqual(['first', 'second'])
+  })
+
+  it('refreshes a JSONL sequence after another process context appends', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'slog-stale-seq-'))
+    const writer = await boot({ path: dir })
+    const reader = await boot({ path: dir })
+    await writer.log.append('shared', 'first')
+    expect((await reader.log.resume('shared')).nextSeq).toBe(2)
+    await writer.log.append('shared', 'second')
+    expect((await reader.log.resume('shared')).nextSeq).toBe(3)
   })
 
   it('forks without modifying the original', async () => {
