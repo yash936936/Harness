@@ -3,7 +3,7 @@
 **CI verified:** GitHub Actions run #247 passed on Ubuntu and Windows at `2c846ee9b9dbbef9ef9a478d17b8f02f34c98587`. Both jobs passed typecheck, lint, and tests. The OpenRouter CLI HTTPS regression is covered. This does not verify a live OpenRouter request.
 
 - Governed OpenRouter CLI now rejects cleartext HTTP endpoints before consent or provider startup because the API key is sent in an authorization header.
-- Added a regression verifying HTTP is rejected before the consent prompt. Fresh CI required.
+- Added a regression verifying HTTP is rejected before the consent prompt. Run #247 passed on Ubuntu and Windows.
 
 ## 2026-11-07 repository-wide audit CI closeout
 
@@ -14,7 +14,7 @@
 ## 2026-11-07 egress consent store symlink hardening (DBG-084)
 
 - FileConsentStore now fails closed on symlinked/non-regular consent files and validates file identity after open.
-- Added a symlinked consent store regression on platforms that support unprivileged symlink creation. Fresh CI required.
+- Added a symlinked consent store regression on platforms that support unprivileged symlink creation. Run #247 passed on Ubuntu and Windows.
 
 ## 2026-11-07 episodic-memory read-time redaction (DBG-083)
 
