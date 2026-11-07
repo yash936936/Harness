@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { constants as fsConstants } from 'node:fs'
+import { lstat, mkdir, open, rename, rm, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { withFileLock } from '../../util/filelock.js'
 import type { ConsentRecord, ConsentStore } from './types.js'
@@ -51,8 +52,17 @@ export class FileConsentStore implements ConsentStore {
   }
 
   private async readAll(): Promise<Record<string, ConsentRecord>> {
+    let handle: Awaited<ReturnType<typeof open>> | undefined
     try {
-      const raw = await readFile(this.path, 'utf8')
+      const before = await lstat(this.path)
+      if (before.isSymbolicLink() || !before.isFile()) throw new Error('egress: consent store must be a regular non-symlink file')
+      handle = await open(this.path, fsConstants.O_RDONLY | (typeof fsConstants.O_NOFOLLOW === 'number' ? fsConstants.O_NOFOLLOW : 0))
+      const opened = await handle.stat()
+      const after = await lstat(this.path)
+      if (after.isSymbolicLink() || !after.isFile() || after.dev !== opened.dev || after.ino !== opened.ino) {
+        throw new Error('egress: consent store changed while opening; refusing to read it')
+      }
+      const raw = await handle.readFile({ encoding: 'utf8' })
       const parsed: unknown = JSON.parse(raw)
       if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
         throw new Error('egress: consent store must contain a JSON object keyed by project id')
@@ -74,6 +84,8 @@ export class FileConsentStore implements ConsentStore {
     } catch (e: any) {
       if (e?.code === 'ENOENT') return Object.create(null) as Record<string, ConsentRecord>
       throw e
+    } finally {
+      await handle?.close().catch(() => {})
     }
   }
 }
