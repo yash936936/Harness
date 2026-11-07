@@ -164,6 +164,7 @@ export class FileCredentialStore implements CredentialStore {
 
   async set(key: string, value: string): Promise<void> {
     const keyBuf = await this.loadOrCreateKey()
+    await mkdir(dirname(this.config.path), { recursive: true })
     await withFileLock(`${this.config.path}.lock`, async () => {
       const all = await this.readAll()
       all[key] = encrypt(value, keyBuf)
@@ -172,6 +173,7 @@ export class FileCredentialStore implements CredentialStore {
   }
 
   async delete(key: string): Promise<void> {
+    await mkdir(dirname(this.config.path), { recursive: true })
     await withFileLock(`${this.config.path}.lock`, async () => {
       const all = await this.readAll()
       if (!(key in all)) return
