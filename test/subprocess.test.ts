@@ -33,6 +33,21 @@ function expectChildEnv(actualJson: string, expected: Record<string, string>) {
   }
 }
 
+describe('subprocess: configuration validation', () => {
+  it('rejects non-finite or negative output, timeout and kill-grace limits', async () => {
+    await expect(boot({ maxOutputBytes: NaN })).rejects.toBeInstanceOf(SubprocessError)
+    await expect(boot({ timeoutMs: Infinity })).rejects.toBeInstanceOf(SubprocessError)
+    const ctx = await boot()
+    await expect(ctx.subprocess.run(NODE, ['-e', '0'], { maxOutputBytes: Infinity })).rejects.toBeInstanceOf(SubprocessError)
+    await expect(ctx.subprocess.run(NODE, ['-e', '0'], { timeoutMs: -1 })).rejects.toBeInstanceOf(SubprocessError)
+    await expect(ctx.subprocess.run(NODE, ['-e', '0'], { killGraceMs: NaN })).rejects.toBeInstanceOf(SubprocessError)
+  })
+
+  it('rejects malformed environment allowlists', async () => {
+    await expect(boot({ envAllowlist: ['BAD=NAME'] })).rejects.toBeInstanceOf(SubprocessError)
+  })
+})
+
 describe('subprocess: happy path', () => {
   it('captures stdout and a zero exit code', async () => {
     const ctx = await boot()
