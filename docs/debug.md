@@ -1,3 +1,11 @@
+## DBG-077 — release budget holds for pre-dispatch cancellation — 2026-11-07
+
+**Found:** LLMService charged a failed request for cancellation after the request was logged but before the provider callback ran (for example, while waiting for a shared rate-limiter slot). A failed request-log write also used the metered-failure path despite never dispatching. Repeated queued cancellations could consume the hard request budget without sending requests.
+
+**Fixed:** CallReservation now has an idempotent release() for non-dispatched calls. LLMService tracks the provider-dispatch boundary; it charges failed attempts only after dispatch begins and releases reservations for earlier cancellation or logging failure. Added queue-cancellation and log-failure regressions.
+
+**Validation:** fresh Ubuntu and Windows CI required.
+
 ## DBG-076 — credential-store lock directory initialization — 2026-11-07
 
 **Found:** FileCredentialStore.set() and delete() acquired the data-file lock before ensuring the data directory existed. A fresh nested store, or delete() on an absent key, could fail with ENOENT before reaching the no-op/write logic. loadOrCreateKey() created the key directory, but a custom keyPath could be in a different directory.
