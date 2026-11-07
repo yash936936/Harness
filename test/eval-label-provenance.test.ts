@@ -64,7 +64,7 @@ describe('D-109 committed label provenance', () => {
 
   it('rejects a mismatched committed sidecar', () => {
     const { root, labelsPath } = repoWithCommittedLabels()
-    writeFileSync(labelsPath + '.sha256', '0000000000000000000000000000000000000000000000000000000000000000  labels.json\\n')
+    writeFileSync(labelsPath + '.sha256', '0000000000000000000000000000000000000000000000000000000000000000  labels.json\n')
     execFileSync('git', ['add', '--', 'labels.json.sha256'], { cwd: root })
     execFileSync('git', ['commit', '-m', 'tampered sidecar'], { cwd: root, stdio: 'ignore', env: cleanGitEnv() })
     expect(() => verifyCommittedLabels(labelsPath)).toThrow(/committed labels or SHA-256 sidecar differ/)
