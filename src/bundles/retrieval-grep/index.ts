@@ -123,6 +123,9 @@ export class RetrievalGrep extends Service {
     this.root = config.root
     this.rgPath = config.rgPath ?? 'rg'
     this.extraArgs = config.extraArgs ?? []
+    if (this.extraArgs.some((arg) => arg === '--follow' || arg === '-L' || arg.startsWith('--follow='))) {
+      throw new RetrievalGrepConfigError('retrieval-grep: extraArgs must not enable symlink following; paths must remain inside the project root')
+    }
     this.maxResults = config.maxResults ?? 200
     this.maxMatchesPerFile = config.maxMatchesPerFile ?? 5
     this.includeSecrets = config.includeSecrets ?? false
