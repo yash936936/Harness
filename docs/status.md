@@ -1,3 +1,8 @@
+## 2026-11-07 credential-store audit follow-up (DBG-076)
+
+- Fixed fresh nested FileCredentialStore set/delete lock initialization by creating the data parent directory before acquiring the lock.
+- Added a regression that deletes a missing key before first set, then verifies a subsequent round trip.
+
 ## 2026-11-07 semantic-memory audit follow-up (DBG-075)
 
 - Fixed a metadata redaction gap: semantic fact source/tags are now redacted on write and when loaded, so legacy persisted metadata cannot leak through list/query.
