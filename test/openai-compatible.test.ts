@@ -153,6 +153,11 @@ describe('openai-compatible provider: config', () => {
     expect(() => new OpenAICompatibleProvider({ model: 'm', baseUrl: 'not a url' })).toThrow(/valid URL/)
     expect(() => new OpenAICompatibleProvider({ model: 'm', baseUrl: 'ftp://api.example.com/v1', allowInsecureHttp: true })).toThrow(/http:\/\/ or https:\/\//)
     expect(() => new OpenAICompatibleProvider({ model: 'm', baseUrl: 'https://user:pass@api.example.com/v1' })).toThrow(/embedded credentials/)
+    expect(() => new OpenAICompatibleProvider({ model: 'm', baseUrl: 'https://api.example.com/v1?token=x' })).toThrow(/query or fragment/)
+    expect(() => new OpenAICompatibleProvider({ model: 'm', baseUrl: 'https://api.example.com/v1#fragment' })).toThrow(/query or fragment/)
+    for (const timeoutMs of [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, 4_294_967_296]) {
+      expect(() => new OpenAICompatibleProvider({ model: 'm', baseUrl: BASE, timeoutMs })).toThrow(/timeoutMs must be an integer/)
+    }
   })
 
   it('fails clearly when apiKeyEnv points at an unset variable', () => {
