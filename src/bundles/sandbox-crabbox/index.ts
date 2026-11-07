@@ -1,6 +1,6 @@
 import { SandboxError, type SandboxDoctor, type SandboxProvider, type SandboxRunRequest, type SandboxRunResult } from '../sandbox/types.js'
 import type { Subprocess } from '../subprocess/index.js'
-import { randomUUID } from 'node:crypto'
+import { randomBytes } from 'node:crypto'
 
 export interface CrabboxConfig {
   /** Crabbox provider. D-024: direct, local-container or static-SSH only; the hosted broker is not available to this project. Default `local-container`. */
@@ -33,7 +33,7 @@ const BASE_ENV = ['PATH', 'HOME', 'USERPROFILE', 'SystemRoot', 'WINDIR', 'COMSPE
 const LOCAL = new Set(['local-container', 'docker', 'container', 'local-docker'])
 
 function slugId(): string {
-  return `harness-${randomUUID()}`
+  return `harness-${Date.now().toString(36)}-${randomBytes(6).toString('hex')}`
 }
 
 /**
@@ -95,7 +95,7 @@ export class CrabboxProvider implements SandboxProvider {
     const d = await this.cb(dargs, this.controlTimeout)
     // Crabbox prints the failing checks on stdout and only a summary on stderr: keep BOTH, or the real reason is hidden.
     const out = [d.stdout.trim(), d.stderr.trim()].filter(Boolean).join('\n').slice(0, 1500)
-    return { ok: d.exitCode === 0, detail: `${version}; provider ${this.provider}; ${d.exitCode === 0 ? 'doctor ok' : 'doctor failed:\n' + out}` }
+    return { ok: d.exitCode === 0, detail: `${version}; provider ${this.provider}; ${d.timedOut ? 'doctor timed out' : d.exitCode === 0 ? 'doctor ok' : 'doctor failed:\n' + out}` }
   }
 
   async run(req: SandboxRunRequest): Promise<SandboxRunResult> {
