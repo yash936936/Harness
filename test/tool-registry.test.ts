@@ -88,8 +88,7 @@ describe('bundle-tool-registry', () => {
   it('rejects unknown action classes and invalid output caps', async () => {
     const ctx = await boot()
     expect(() => ctx.tools.register(tool({ actionClass: 'unknown' as any }))).toThrow(ToolRegistrationError)
-    const other = new Context()
-    await expect(other.plugin(ToolRegistry, { maxOutputChars: Infinity })).rejects.toThrow(ToolRegistrationError)
+    await expect(boot({ maxOutputChars: Infinity })).rejects.toThrow(ToolRegistrationError)
   })
 
   it('list() output is directly usable as model-adapter ToolSpec[]', async () => {
