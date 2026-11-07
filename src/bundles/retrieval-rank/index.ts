@@ -1,4 +1,4 @@
-import { closeSync, fstatSync, openSync, readFileSync, realpathSync, statSync } from 'node:fs'
+import { closeSync, constants as fsConstants, fstatSync, openSync, readSync, realpathSync, statSync } from 'node:fs'
 import { isAbsolute, relative, resolve, sep } from 'node:path'
 import { Context, Service } from 'cordis'
 import { isGitInternal, isSecretPath } from '../tools-local/paths.js'
@@ -38,6 +38,21 @@ const MAX_QUERY_CHARS = 2000
 const MAX_K = 100
 
 type FileRead = { ok: true; text: string; lines: string[] } | { ok: false; reason: IndexSkip['reason'] }
+
+
+function readBoundedFd(fd: number, maxBytes: number): Buffer | undefined {
+  const chunks: Buffer[] = []
+  const chunk = Buffer.alloc(Math.min(64 * 1024, maxBytes + 1))
+  let total = 0
+  while (total <= maxBytes) {
+    const count = readSync(fd, chunk, 0, Math.min(chunk.length, maxBytes + 1 - total), null)
+    if (count === 0) break
+    total += count
+    if (total > maxBytes) return undefined
+    chunks.push(Buffer.from(chunk.subarray(0, count)))
+  }
+  return Buffer.concat(chunks, total)
+}
 
 function isInside(root: string, target: string): boolean {
   const rel = relative(root, target)
@@ -129,18 +144,32 @@ export class RetrievalRank extends Service {
     if (isGitInternal(rootRelative) || rootRelative.split('/').includes('node_modules')) return { ok: false, reason: 'excluded' }
     if (isSecretPath(rootRelative)) return { ok: false, reason: 'secret' }
     try {
-      const st = statSync(real)
-      if (!st.isFile()) return { ok: false, reason: 'not_a_file' }
-      if (st.size > this.maxFileBytes) return { ok: false, reason: 'too_large' }
-      // Open the resolved path and compare its identity with the pre-open stat.
-      // If an attacker swaps it for an outside symlink between realpath/stat/open,
-      // the descriptor's device/inode will differ and no bytes are read.
-      const fd = openSync(real, 'r')
+      const flags = fsConstants.O_RDONLY | (typeof fsConstants.O_NOFOLLOW === 'number' ? fsConstants.O_NOFOLLOW : 0)
+      const fd = openSync(real, flags)
       try {
         const opened = fstatSync(fd)
-        if (!opened.isFile() || opened.dev !== st.dev || opened.ino !== st.ino) return { ok: false, reason: 'outside_root' }
+        if (!opened.isFile()) return { ok: false, reason: 'not_a_file' }
         if (opened.size > this.maxFileBytes) return { ok: false, reason: 'too_large' }
-        const buf = readFileSync(fd)
+
+        // Re-resolve after open. A symlink can be swapped between the first
+        // realpath and open; the descriptor must still name the in-root file.
+        let currentReal: string
+        try {
+          currentReal = realpathSync(resolve(realRoot, rel))
+        } catch {
+          return { ok: false, reason: 'unreadable' }
+        }
+        if (!isInside(realRoot, currentReal)) return { ok: false, reason: 'outside_root' }
+        const currentStat = statSync(currentReal)
+        if (currentStat.dev !== opened.dev || currentStat.ino !== opened.ino) return { ok: false, reason: 'outside_root' }
+
+        // Check the path once more after stat; if it changed during validation,
+        // refuse rather than reading through a path whose identity is uncertain.
+        const finalReal = realpathSync(resolve(realRoot, rel))
+        if (!isInside(realRoot, finalReal) || finalReal !== currentReal) return { ok: false, reason: 'outside_root' }
+
+        const buf = readBoundedFd(fd, this.maxFileBytes)
+        if (!buf) return { ok: false, reason: 'too_large' }
         if (looksBinary(buf)) return { ok: false, reason: 'binary' }
         const text = buf.toString('utf8')
         return { ok: true, text, lines: splitLines(text) }
