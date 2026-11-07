@@ -69,6 +69,8 @@ describe('local file path protections', () => {
   it('blocks cloud, CLI, SSH, database and service-account credential locations', () => {
     const paths = [
       '.aws/credentials', '.aws/config', '.ssh/id_ed25519', 'id_rsa',
+      '.AWS/profiles/default', '.config/gcloud/credentials.db', '.cargo/credentials.toml',
+      '.terraform.d/credentials.tfrc.json', 'C:\\repo\\.AWS\\credentials',
       '.npmrc', '.netrc', '.pgpass', '.git-credentials',
       '.docker/config.json', '.kube/config', 'kubeconfig',
       'credentials', 'credentials.json', 'service-account-prod.json',
@@ -150,6 +152,7 @@ describe('read_file', () => {
     put(root, 'big.txt', 'y'.repeat(2000))
     put(root, '.git/config', '[core]')
     put(root, '.env', 'KEY=1')
+    put(root, '.aws/credentials', 'AWS_SECRET_ACCESS_KEY=hidden')
     put(root, 'server.pem', 'k')
     const bad = async (p: string, re: RegExp) => {
       const r = await call('read_file', { path: p })
@@ -164,6 +167,7 @@ describe('read_file', () => {
     await bad('/etc/hostname', /outside the project/)
     await bad('.git/config', /\.git/)
     await bad('.env', /secrets/)
+    await bad('.aws/credentials', /secrets/)
     await bad('server.pem', /secrets/)
   })
   it('allowSecretReads opens secrets', async () => {
