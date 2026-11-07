@@ -23,6 +23,7 @@ export function scoreEvents(sessionId: string, events: readonly SessionEvent[], 
   if (!(threshold >= 0 && threshold <= 1)) throw new EvalError(`eval: threshold must be between 0 and 1, got ${threshold}`)
   const names = new Set<string>()
   const results: ScorerOutcome[] = scorers.map((s) => {
+    if (typeof s.name !== 'string' || !s.name.trim()) throw new EvalError('eval: every scorer must have a non-empty name')
     if (names.has(s.name)) throw new EvalError(`eval: two scorers are named "${s.name}"`)
     names.add(s.name)
     let r
@@ -33,7 +34,12 @@ export function scoreEvents(sessionId: string, events: readonly SessionEvent[], 
       r = { score: 0, pass: false, detail: `scorer threw: ${e?.message ?? e}`, applicable: true }
     }
     const weight = s.weight ?? 1
-    if (!(weight >= 0)) throw new EvalError(`eval: scorer "${s.name}" has a negative weight`)
+    if (!Number.isFinite(weight) || weight < 0) throw new EvalError(`eval: scorer "${s.name}" weight must be a finite non-negative number`)
+    if (!r || typeof r !== 'object' ||
+      typeof r.score !== 'number' || !Number.isFinite(r.score) || r.score < 0 || r.score > 1 ||
+      typeof r.pass !== 'boolean' || typeof r.applicable !== 'boolean' || typeof r.detail !== 'string') {
+      throw new EvalError(`eval: scorer "${s.name}" returned an invalid result; score must be 0..1 and pass/applicable/detail must have the expected types`)
+    }
     return { name: s.name, required: !!s.required, weight, ...r }
   })
   const live = results.filter((r) => r.applicable)
