@@ -53,29 +53,29 @@ export function isGitInternal(rel: string): boolean {
 }
 
 const SECRET_PATTERNS = [
-  /(^|\\/)\\.env[^/]*$/i,
-  /(^|\\/)[^/]*\\.env$/i,
-  /(^|\\/)\\.aws\\/(credentials|config)(?:$|\\/)/i,
-  /(^|\\/)\\.ssh(?:\\/|$)/i,
-  /(^|\\/)id_(rsa|dsa|ecdsa|ed25519)(?!\\.pub)[^/]*$/i,
-  /(^|\\/)\\.(npmrc|netrc|pgpass|git-credentials)$/i,
-  /(^|\\/)\\.docker\\/config\\.json$/i,
-  /(^|\\/)\\.kube\\/config$/i,
-  /(^|\\/)kubeconfig$/i,
-  /(^|\\/)[^/]*\\.(pem|key|p12|pfx|jks|keystore)$/i,
-  /(^|\\/)credentials(?:\\.json)?$/i,
-  /(^|\\/)service[-_]account[^/]*\\.json$/i,
-  /(^|\\/)application_default_credentials\\.json$/i,
-  /(^|\\/)secrets?\\.(ya?ml|json|toml)$/i,
-  /(^|\\/)\\.azure(?:\\/|$)/i,
-  /(^|\\/)\\.config\\/gh\\/hosts\\.ya?ml$/i,
-  /(^|\\/)etc\\/shadow$/i,
-  /(^|\\/)proc\\/(self|[0-9]+)\\/environ$/i,
+  /(^|\/)\.env[^/]*$/i,
+  /(^|\/)[^/]*\.env$/i,
+  /(^|\/)\.aws\/(credentials|config)(?:$|\/)/i,
+  /(^|\/)\.ssh(?:\/|$)/i,
+  /(^|\/)id_(rsa|dsa|ecdsa|ed25519)(?!\.pub)[^/]*$/i,
+  /(^|\/)\.(npmrc|netrc|pgpass|git-credentials)$/i,
+  /(^|\/)\.docker\/config\.json$/i,
+  /(^|\/)\.kube\/config$/i,
+  /(^|\/)kubeconfig$/i,
+  /(^|\/)[^/]*\.(pem|key|p12|pfx|jks|keystore)$/i,
+  /(^|\/)credentials(?:\.json)?$/i,
+  /(^|\/)service[-_]account[^/]*\.json$/i,
+  /(^|\/)application_default_credentials\.json$/i,
+  /(^|\/)secrets?\.(ya?ml|json|toml)$/i,
+  /(^|\/)\.azure(?:\/|$)/i,
+  /(^|\/)\.config\/gh\/hosts\.ya?ml$/i,
+  /(^|\/)etc\/shadow$/i,
+  /(^|\/)proc\/(self|[0-9]+)\/environ$/i,
 ]
 
-/** Likely-secret files, mirroring what retrieval already refuses to show the model. */
+/** Likely-secret files are refused by the local read tool even when policy gates are disabled. */
 export function isSecretPath(rel: string): boolean {
-  const normalized = rel.replace(/\\\\/g, '/').toLowerCase()
+  const normalized = rel.replace(/\\/g, '/').toLowerCase()
   return SECRET_PATTERNS.some((pattern) => pattern.test(normalized))
 }
 
