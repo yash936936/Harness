@@ -85,6 +85,15 @@ describe('6.1 eval-runner core', () => {
     expect(scoreEvents('fx', GOOD, []).passed).toBe(false) // nothing applicable can never be a pass
   })
 
+  it('rejects non-finite weights and malformed custom scorer results', () => {
+    const scorer = (weight: number, score: number): Scorer => ({
+      name: 'custom', weight, run: () => ({ score, pass: true, detail: 'custom', applicable: true }),
+    })
+    expect(() => scoreEvents('fx', GOOD, [scorer(Number.POSITIVE_INFINITY, 1)])).toThrow(/finite non-negative/)
+    expect(() => scoreEvents('fx', GOOD, [scorer(1, Number.NaN)])).toThrow(/invalid result/)
+    expect(() => scoreEvents('fx', GOOD, [scorer(1, 1.1)])).toThrow(/invalid result/)
+  })
+
   it('withinLimits and commandPassed read what they claim to', () => {
     expect(scoreEvents('fx', GOOD, [withinLimits({ maxModelCalls: 1 })]).results[0]).toMatchObject({ pass: false })
     expect(scoreEvents('fx', GOOD, [withinLimits({ maxModelCalls: 5, maxTokens: 1000 })]).results[0]).toMatchObject({ pass: true })
