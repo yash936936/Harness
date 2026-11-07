@@ -34,6 +34,22 @@ async function boot(script: ConstructorParameters<typeof MockProvider>[0] = [], 
 }
 
 describe('hot tier: token cap and trimming (3.2)', () => {
+  it('redacts registered secrets from hot-memory source metadata on write and list', async () => {
+    const dir = await tmp()
+    const { ctx } = await boot([], { dir })
+    ctx.egress.registerSecret('hot-source', 'sk-hot-source-secret')
+    const added = await ctx.memory.hot.add({ text: 'safe hot fact', id: 'source-redaction', source: 'origin-sk-hot-source-secret' })
+    expect(JSON.stringify(added)).not.toContain('sk-hot-source-secret')
+    expect(JSON.stringify(await ctx.memory.hot.list())).not.toContain('sk-hot-source-secret')
+
+    const file = join(dir, 'hot.json')
+    const persisted = JSON.parse(await readFile(file, 'utf8'))
+    persisted[0].source = 'legacy-sk-hot-source-secret'
+    await writeFile(file, JSON.stringify(persisted), 'utf8')
+    expect(JSON.stringify(await ctx.memory.hot.list())).not.toContain('sk-hot-source-secret')
+  })
+
+
   it('filling it past the cap trims to fit: whole entries, lowest priority first, nothing stored is lost', async () => {
     const { ctx } = await boot([], { hotTokenCap: 120 })
     const ids: Record<string, string> = {}
