@@ -90,8 +90,8 @@ export class OllamaProvider implements LLMProvider {
     try {
       res = await this.doFetch(`${this.baseUrl}/api/tags`, { signal, ...NO_REDIRECT })
     } catch (e: any) {
-      const code = e?.cause?.code ?? e?.message ?? 'unknown'
-      throw new LLMError('network', `ollama: cannot reach ${this.baseUrl} (${code})`, NAME)
+      const code = e?.cause?.code ?? 'unknown'
+      throw new LLMError('network', `ollama: cannot reach ${this.egress.host} (${code})`, NAME)
     }
     if (isRedirect(res)) throw new LLMError('invalid_request', redirectMessage(NAME, res), NAME, res.status)
     if (!res.ok) throw new LLMError('server', `ollama: could not list models (HTTP ${res.status})`, NAME, res.status)
@@ -143,7 +143,7 @@ export class OllamaProvider implements LLMProvider {
       if (timeout.aborted) throw new LLMError('timeout', `ollama: no response within ${this.timeoutMs}ms (large model still loading?)`, NAME)
       if (outer?.aborted) throw e
       const code = e?.cause?.code ?? e?.message ?? 'unknown'
-      throw new LLMError('network', `ollama: cannot reach ${this.baseUrl} (${code}). Is Ollama running? Start it with \`ollama serve\`.`, NAME)
+      throw new LLMError('network', `ollama: cannot reach ${this.egress.host} (${code}). Is Ollama running? Start it with \`ollama serve\`.`, NAME)
     }
 
     if (isRedirect(res)) throw new LLMError('invalid_request', redirectMessage(NAME, res), NAME, res.status)
