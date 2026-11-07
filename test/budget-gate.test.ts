@@ -112,6 +112,13 @@ describe('LLMService enforces the budget before the call', () => {
     await expect(ctx.llm.complete(req())).resolves.toBeTruthy()
   })
 
+  it('estimateRequestTokens rejects zero, negative, fractional and unsafe output caps', () => {
+    for (const maxTokens of [0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
+      expect(() => estimateRequestTokens({ messages: [], maxTokens })).toThrow(/maxTokens/)
+    }
+    expect(() => estimateRequestTokens({ messages: [] }, 0)).toThrow(/default output reserve/)
+  })
+
   it('estimateRequestTokens covers prompt plus allowed output and is pessimistic for dense text', () => {
     expect(estimateRequestTokens({ messages: [{ role: 'user', content: 'a'.repeat(300) }], maxTokens: 50 })).toBeGreaterThanOrEqual(150)
   })
