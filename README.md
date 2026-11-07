@@ -7,7 +7,7 @@ A multi-agent orchestration harness for coding tasks, built on [Cordis](https://
 ```
 npm ci
 npm run check        # typecheck + tests
-npm run eval -- <logDir> [labels.json]   # score real session logs (Phase 6)
+npm run eval -- <logDir> <committed-labels.json> [checkCommandRegex]   # D-109 labels required before scoring
 ```
 
 Tests that need a local Ollama or a real sandbox skip themselves when it is absent. Original project code is licensed under Apache-2.0; third-party dependencies and model weights retain their own terms (see `LICENSE`, `THIRD_PARTY_LICENSES.md`, and `docs/status.md`).
