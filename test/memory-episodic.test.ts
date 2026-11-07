@@ -37,6 +37,20 @@ async function boot(script: ConstructorParameters<typeof MockProvider>[0], memor
 }
 
 describe('memory: JSONL tail recovery', () => {
+  it('snapshots an episode before it waits in the persistence queue', async () => {
+    const dir = await tmp()
+    const store = new JsonlEpisodeStore(dir)
+    const episode = {
+      id: 'snapshot', sessionId: 's', agentId: 'main', ts: '2026-11-07T00:00:00.000Z',
+      task: 'original', approach: 'none', result: 'ok', outcome: 'done' as const,
+      lesson: null, fromSeq: 1, toSeq: 1, steps: 1, toolCalls: 0,
+    }
+    const pending = store.add(episode)
+    episode.task = 'mutated'
+    await pending
+    expect((await store.all())[0]!.task).toBe('original')
+  })
+
   it('separates a valid final episode without a newline before appending', async () => {
     const dir = await tmp()
     const store = new JsonlEpisodeStore(dir)
