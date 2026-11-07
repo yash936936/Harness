@@ -1,3 +1,11 @@
+## DBG-075 — semantic-memory metadata redaction and input validation — 2026-11-07
+
+**Found:** semantic-memory text and rationale were redacted, but optional source and tag metadata were persisted and returned unchanged. Registered credentials embedded in those fields could be returned by list/query. A malformed non-array tags value also reached the spread operation before its intended validation and threw a native TypeError.
+
+**Fixed:** semantic facts now redact source and tag metadata on write and again when read, including legacy persisted records. Added object/string/array input checks before copying tags, and a regression for metadata redaction plus malformed tags.
+
+**Validation:** regression added on the audit branch; fresh Ubuntu and Windows CI is required. No real embedding or poisoning acceptance is claimed.
+
 ## DBG-074 — audit documentation and complete file inventory — 2026-11-07
 
 **Found:** S0 and S1 were conflated in the Phase 5.1 evidence template: S0 required a host sentinel check even though the build plan defines sentinel/orphan recovery as S1. The audit table also lacked one consolidated Windows PowerShell owner-command section and an exact tracked-file inventory.
