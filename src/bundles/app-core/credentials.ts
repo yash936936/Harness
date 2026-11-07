@@ -1,7 +1,7 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto'
 import { chmod, mkdir, open, readFile, rename, writeFile } from 'node:fs/promises'
 import { withFileLock } from '../../util/filelock.js'
-import { dirname } from 'node:path'
+import { dirname, resolve } from 'node:path'
 
 export interface CredentialStore {
   get(key: string): Promise<string | undefined>
@@ -94,7 +94,11 @@ export interface FileCredentialStoreConfig {
  * available, not as its equal.
  */
 export class FileCredentialStore implements CredentialStore {
-  constructor(private readonly config: FileCredentialStoreConfig) {}
+  constructor(private readonly config: FileCredentialStoreConfig) {
+    if (!config || typeof config.path !== 'string' || !config.path.trim()) throw new Error('credentials: encrypted data path is required')
+    const keyPath = config.keyPath ?? `${config.path}.key`
+    if (typeof keyPath !== 'string' || !keyPath.trim() || resolve(keyPath) === resolve(config.path)) throw new Error('credentials: encryption key path must be distinct from the data path')
+  }
 
   private get keyPath(): string {
     return this.config.keyPath ?? `${this.config.path}.key`
@@ -135,7 +139,7 @@ export class FileCredentialStore implements CredentialStore {
       }
       return all
     } catch (e: any) {
-      if (e?.code === 'ENOENT') return {}
+      if (e?.code === 'ENOENT') return Object.create(null) as Record<string, string>
       throw e
     }
   }
@@ -227,10 +231,11 @@ export class AutoCredentialStore implements CredentialStore {
 
   private async probe(): Promise<CredentialStore> {
     const probeValue = `probe-${randomBytes(8).toString('hex')}`
+    const probeKey = `${this.probeKey}:${randomBytes(8).toString('hex')}`
     try {
-      await this.primary.set(this.probeKey, probeValue)
-      const readBack = await this.primary.get(this.probeKey)
-      await this.primary.delete(this.probeKey).catch(() => {})
+      await this.primary.set(probeKey, probeValue)
+      const readBack = await this.primary.get(probeKey)
+      await this.primary.delete(probeKey).catch(() => {})
       return readBack === probeValue ? this.primary : this.fallback
     } catch {
       return this.fallback
