@@ -12,7 +12,7 @@ $env:HARNESS_REAL_CRABBOX="1"
 npm run test:real-sandbox 2>&1 | Tee-Object docs/evidence/PHASE-5.1.raw.txt
 ```
 
-Before the real test, reproduce the owner's stripped-environment ssh-keygen check from section 3 of docs/BUILD-PLAN.md. Record both full-environment and stripped-environment results. Then paste the full unedited output below. Record date/time, Windows build, Docker version, Crabbox version and exit code. Do not close until Harness creates the lease, commands exit 0 and 7 are reported correctly, the lease is released, docker ps -a is clean, and the host-only sentinel is absent inside the container.
+Before the real test, reproduce the owner's stripped-environment ssh-keygen check from section 3 of docs/BUILD-PLAN.md. Record both full-environment and stripped-environment results. Then paste the full unedited output below. Record date/time, Windows build, Docker version, Crabbox version and exit code. Do not close until Harness creates the lease, commands exit 0 and 7 are reported correctly, the lease is released, docker ps -a is clean, . Host-sentinel absence and orphan recovery are recorded separately under S1 in the audit closeout.
 
 ## Raw output
 
