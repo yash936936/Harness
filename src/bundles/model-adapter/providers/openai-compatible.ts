@@ -58,7 +58,7 @@ export class OpenAICompatibleProvider implements LLMProvider {
       throw new LLMError('config', `${this.name}: baseUrl must use http:// or https://`, this.name)
     }
     if (!url.hostname || url.username || url.password) {
-      throw new LLMError('config', `${this.name}: `baseUrl` must have a host and must not contain embedded credentials`, this.name)
+      throw new LLMError('config', `${this.name}: baseUrl must have a host and must not contain embedded credentials`, this.name)
     }
     this.model = config.model
     this.baseUrl = config.baseUrl.replace(/\/+$/, '')
