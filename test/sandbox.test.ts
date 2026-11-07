@@ -168,13 +168,15 @@ describe('5.2 cubesandbox provider (fake E2B client)', () => {
   })
   it('aborting a pending create kills the handle if the SDK returns it later', async () => {
     let resolveCreate!: (handle: any) => void
+    let ready!: () => void
+    const createStarted = new Promise<void>((resolve) => { ready = resolve })
     let killed = false
-    const client: CubeClient = { create: () => new Promise((resolve) => { resolveCreate = resolve }) }
+    const client: CubeClient = { create: () => new Promise((resolve) => { resolveCreate = resolve; ready() }) }
     const ctx = await boot({ consent: true, hosts: ['cube.example.internal'] })
     ctx.sandbox.register(new CubeSandboxProvider({ apiUrl: 'https://cube.example.internal', template: 't', client }))
     const controller = new AbortController()
     const running = ctx.sandbox.run({ command: ['true'], signal: controller.signal })
-    while (!resolveCreate) await Promise.resolve()
+    await createStarted
     controller.abort(new Error('cancelled create'))
     await expect(running).rejects.toThrow('cancelled create')
     resolveCreate({ id: 'late', run: async () => ({ exitCode: 0, stdout: '', stderr: '' }), kill: async () => { killed = true } })
