@@ -1,4 +1,4 @@
-import { appendFile, mkdir, readFile } from 'node:fs/promises'
+import { appendFile, mkdir, readFile, truncate } from 'node:fs/promises'
 import { withFileLock } from '../../util/filelock.js'
 import { join } from 'node:path'
 import type { Episode, EpisodeStore } from './types.js'
@@ -31,6 +31,7 @@ export class JsonlEpisodeStore implements EpisodeStore {
     const job = this.queue.then(async () => {
       await mkdir(this.dir, { recursive: true })
       return withFileLock(`${this.file}.lock`, async () => {
+        await this.repairTail()
         const ids = new Set((await this.all()).map((x) => x.id))
         if (ids.has(e.id)) return false
         await appendFile(this.file, JSON.stringify(e) + '\n', 'utf8')
@@ -39,6 +40,33 @@ export class JsonlEpisodeStore implements EpisodeStore {
     })
     this.queue = job.catch(() => {})
     return job
+  }
+
+  /** Repair only an incomplete final record while holding the store lock. */
+  private async repairTail(): Promise<void> {
+    let text: string
+    try {
+      text = await readFile(this.file, 'utf8')
+    } catch (err: any) {
+      if (err?.code === 'ENOENT') return
+      throw err
+    }
+    const lines = text.split('\\n')
+    for (let i = lines.length - 1; i >= 0; i--) {
+      if (!lines[i]!.trim()) continue
+      try {
+        JSON.parse(lines[i]!)
+        if (!text.endsWith('\\n')) await appendFile(this.file, '\\n', 'utf8')
+        return
+      } catch {
+        if (lines.slice(i + 1).some((line) => line.trim())) {
+          throw new Error(`memory: corrupt episodic.jsonl at line ${i + 1}`)
+        }
+        const end = lines.slice(0, i).join('\\n').length + (i > 0 ? 1 : 0)
+        await truncate(this.file, end)
+        return
+      }
+    }
   }
 
   async all(): Promise<Episode[]> {
