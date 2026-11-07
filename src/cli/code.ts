@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync } from 'node:fs'
+import { statSync } from 'node:fs'
 import { basename, join, resolve } from 'node:path'
 import type { Context } from 'cordis'
 import { bootProfileCoding, type ProfileCodingConfig } from '../profiles/profile-coding.js'
@@ -44,8 +44,16 @@ export function parseTimeoutMs(value: string | undefined): number | undefined {
 
 export async function runCodeTask(io: WizardIO, options: CodeTaskOptions): Promise<CodeTaskResult> {
   const projectRoot = resolve(options.projectRoot ?? process.cwd())
-  if (!existsSync(projectRoot)) {
-    const reason = `project root does not exist: ${projectRoot}`
+  let projectStat: ReturnType<typeof statSync>
+  try {
+    projectStat = statSync(projectRoot)
+  } catch {
+    const reason = `project root does not exist or cannot be accessed: ${projectRoot}`
+    io.print(reason)
+    return { ok: false, reason }
+  }
+  if (!projectStat.isDirectory()) {
+    const reason = `project root is not a directory: ${projectRoot}`
     io.print(reason)
     return { ok: false, reason }
   }
@@ -56,7 +64,6 @@ export async function runCodeTask(io: WizardIO, options: CodeTaskOptions): Promi
 
   const projectId = safeProjectId(options.projectId ?? basename(projectRoot))
   const stateDir = join(projectRoot, '.harness')
-  mkdirSync(stateDir, { recursive: true })
   const sessionDir = join(stateDir, 'sessions')
   const sandboxDetected = options.sandbox !== 'none' && (options.dockerAvailable ?? dockerEngineAvailable())
 
