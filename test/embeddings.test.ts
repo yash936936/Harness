@@ -302,6 +302,17 @@ const okHandler = (seen: Seen, res: ServerResponse) => {
   res.end(JSON.stringify({ model: 'm', embeddings: input.map((t, i) => [t.length, i, 1]) }))
 }
 
+describe('OllamaEmbeddingProvider configuration', () => {
+  it('rejects credentials, query strings, fragments, and invalid timeout values', () => {
+    expect(() => new OllamaEmbeddingProvider({ model: 'm', baseUrl: 'http://user:pass@localhost:11434' })).toThrow(/embedded credentials/)
+    expect(() => new OllamaEmbeddingProvider({ model: 'm', baseUrl: 'http://localhost:11434?token=x' })).toThrow(/query or fragment/)
+    expect(() => new OllamaEmbeddingProvider({ model: 'm', baseUrl: 'http://localhost:11434#fragment' })).toThrow(/query or fragment/)
+    for (const timeoutMs of [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, 4_294_967_296]) {
+      expect(() => new OllamaEmbeddingProvider({ model: 'm', timeoutMs })).toThrow(/timeoutMs must be an integer/)
+    }
+  })
+})
+
 describe('OllamaEmbeddingProvider over real HTTP', () => {
   it('POSTs /api/embed with the model and the whole batch as `input`, and parses `embeddings`', async () => {
     const s = await serve(okHandler)
