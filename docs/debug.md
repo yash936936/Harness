@@ -1,3 +1,11 @@
+## DBG-084 — reject symlinked persisted egress consent — 2026-11-07
+
+**Found:** FileConsentStore.readAll() followed a symlink. A project-controlled symlink under a consent-store path could make a consent lookup trust a different file, rather than fail closed. The store also had no post-open identity check against a symlink swap.
+
+**Fixed:** consent reads now require a regular non-symlink file, use O_NOFOLLOW where supported, and compare the opened descriptor with lstat after open. Added a symlinked-store regression (skipped on Windows where creating symlinks may require elevated privileges).
+
+**Validation:** fresh Ubuntu and Windows CI required. This hardens the persistent store; project consent remains explicit and opt-in.
+
 ## DBG-083 — episodic-memory read-time secret redaction — 2026-11-07
 
 **Found:** episodic records were redacted on write, but query() and the duplicate-record return path returned stored records without applying the current redactor. Legacy records, or secrets registered after a record was written, could therefore be returned unchanged.
