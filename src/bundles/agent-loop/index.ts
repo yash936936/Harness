@@ -190,6 +190,7 @@ export class AgentLoop extends Service {
       )
       retries += r
       steps++
+      opts.signal?.throwIfAborted()
       messages.push({ role: 'assistant', content: res.content })
       if (steps === 1 && routed.shadowChoice !== undefined) {
         const picked = res.toolCalls[0]?.name ?? null
@@ -211,6 +212,7 @@ export class AgentLoop extends Service {
 
       const resultBlocks: ContentBlock[] = []
       for (const call of res.toolCalls) {
+        opts.signal?.throwIfAborted()
         const result = await this.ctx.tools.call(call.name, call.input, { sessionId: opts.sessionId, ...(opts.actor ? { actor: opts.actor } : {}), allowedTools: toolNames })
         resultBlocks.push({ type: 'tool_result', toolUseId: call.id, content: result.content, isError: !result.ok })
       }
@@ -239,7 +241,7 @@ export class AgentLoop extends Service {
       let attempt = 0
       for (;;) {
         try {
-          const res = await this.ctx.llm.complete({ ...req, ...(providerName !== undefined ? { provider: providerName } : {}) })
+          const res = await this.ctx.llm.complete({ ...req, ...(providerName !== undefined ? { provider: providerName } : {}) }, signal)
           return { res, retries }
         } catch (e) {
           lastErr = e
