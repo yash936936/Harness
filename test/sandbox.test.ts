@@ -1,7 +1,7 @@
 import { Context } from 'cordis'
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { EgressPolicy } from '../src/bundles/egress/index.js'
 import { Subprocess } from '../src/bundles/subprocess/index.js'
@@ -14,7 +14,9 @@ const dirs: string[] = []
 afterEach(() => { for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true }) })
 
 function state(extra: Record<string, unknown> = {}) {
-  const d = mkdtempSync(join(tmpdir(), 'harness-sbx-'))
+  const tempRoot = resolve(tmpdir())
+  mkdirSync(tempRoot, { recursive: true })
+  const d = mkdtempSync(join(tempRoot, 'harness-sbx-'))
   dirs.push(d)
   const file = join(d, 'state.json')
   writeFileSync(file, JSON.stringify({ leases: [], calls: [], ...extra }))
@@ -253,7 +255,7 @@ describe('ctx.sandbox seam', () => {
     offList.sandbox.register(new CubeSandboxProvider({ apiUrl: 'https://cube.example.internal', template: 't', client }))
     const blocked = await offList.sandbox.doctor()
     expect(blocked.cubesandbox?.ok).toBe(false)
-    expect(blocked.cubesandbox?.detail).toMatch(/not allowlisted/)
+    expect(blocked.cubesandbox?.detail).toMatch(/not in the allowlist/)
     expect(events).toEqual([])
   })
 
