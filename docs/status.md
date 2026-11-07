@@ -1,3 +1,8 @@
+## 2026-11-07 repository-wide audit follow-up (DBG-073)
+
+- Found and fixed a remaining rate-limiter date-validation gap: constructor load now uses the same strict calendar-date validator as the locked persistent read. Added a regression for impossible past date 2026-02-31, which previously could be reset as stale state.
+- This is not accepted until fresh Ubuntu and Windows CI pass. No S0 hardware evidence is claimed.
+
 ## 2026-11-07 — repository-wide code audit (DBG-072)
 
 - Reviewed the 96 TypeScript source files by module and ran targeted security/reliability inspection across session logging, episodic/semantic memory, consent persistence, local file access, retrieval, model-provider configuration, evaluation, subprocess execution, sandbox adapters, orchestration, profile wiring, and CLI entry points.
