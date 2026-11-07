@@ -14,6 +14,16 @@ describe('egress: consent stores', () => {
     expect(await new MemoryConsentStore().get('p1')).toBeUndefined()
   })
 
+  it('MemoryConsentStore does not expose its stored record by reference', async () => {
+    const store = new MemoryConsentStore()
+    const input = { projectId: 'p', consented: false, decidedAt: 'x' }
+    await store.set(input)
+    input.consented = true
+    const returned = await store.get('p')!
+    returned!.consented = true
+    expect(await store.get('p')).toMatchObject({ consented: false })
+  })
+
   describe('FileConsentStore', () => {
     let dir: string
     beforeEach(async () => {
@@ -37,6 +47,15 @@ describe('egress: consent stores', () => {
       await new FileConsentStore(path).set({ projectId: 'proj', consented: true, decidedAt: 'x' })
       const reopened = new FileConsentStore(path)
       expect(await reopened.get('proj')).toMatchObject({ projectId: 'proj', consented: true })
+    })
+
+    it('returns a defensive copy of a persisted consent record', async () => {
+      const path = join(dir, 'consent.json')
+      const store = new FileConsentStore(path)
+      await store.set({ projectId: 'proj', consented: false, decidedAt: 'x' })
+      const returned = await store.get('proj')
+      returned!.consented = true
+      expect(await store.get('proj')).toMatchObject({ consented: false })
     })
 
     it('keeps other projects intact when one project is updated', async () => {
