@@ -33,10 +33,13 @@ export function verifyCommittedLabels(labelsPath: string): { sha256: string; com
     throw new Error('D-109: labels SHA-256 sidecar does not match the current labels file')
   }
 
+  let committedPaths: string[]
   try {
-    execFileSync('git', ['cat-file', '-e', `HEAD:${labelsRelative}`], { cwd: root, stdio: 'ignore' })
-    execFileSync('git', ['cat-file', '-e', `HEAD:${sidecarRelative}`], { cwd: root, stdio: 'ignore' })
+    committedPaths = execFileSync('git', ['ls-tree', '-r', '--name-only', 'HEAD'], { cwd: root, encoding: 'utf8' }).split(/\\r?\\n/)
   } catch {
+    throw new Error('D-109: could not inspect the committed Git tree for labels')
+  }
+  if (!committedPaths.includes(labelsRelative) || !committedPaths.includes(sidecarRelative)) {
     throw new Error('D-109: labels and SHA-256 sidecar must both be committed in HEAD')
   }
   const dirty = execFileSync('git', ['status', '--porcelain', '--', labelsRelative, sidecarRelative], { cwd: root, encoding: 'utf8' })
