@@ -64,6 +64,20 @@ describe('FileCredentialStore', () => {
     expect(raw).not.toContain(secret)
   })
 
+  it('concurrent writers preserve every credential and a fresh instance can decrypt them', async () => {
+    const path = join(dir, 'concurrent.json')
+    const stores = Array.from({ length: 4 }, () => new FileCredentialStore({ path }))
+    await Promise.all(Array.from({ length: 24 }, (_, i) => stores[i % stores.length]!.set(`key-${i}`, `value-${i}`)))
+    const reopened = new FileCredentialStore({ path })
+    for (let i = 0; i < 24; i++) expect(await reopened.get(`key-${i}`)).toBe(`value-${i}`)
+  })
+
+  it('supports the literal __proto__ key without mutating the data object prototype', async () => {
+    const store = new FileCredentialStore({ path: join(dir, 'proto.json') })
+    await store.set('__proto__', 'safe-value')
+    expect(await store.get('__proto__')).toBe('safe-value')
+  })
+
   it('a tampered ciphertext fails to decrypt (GCM auth tag catches it) rather than returning garbage silently', async () => {
     const path = join(dir, 'creds.json')
     await new FileCredentialStore({ path }).set('k', 'original-value')
