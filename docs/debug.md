@@ -4,7 +4,7 @@
 
 **Fixed:** the OpenRouter CLI now requires HTTPS and rejects cleartext HTTP before requesting consent or booting the provider. Added a regression proving no confirmation prompt is issued for an HTTP endpoint. The lower-level OpenAI-compatible adapter remains HTTP-capable for explicitly configured local services such as Ollama-compatible gateways; this restriction is specific to the remote OpenRouter CLI path.
 
-**Validation:** fresh Ubuntu and Windows CI required.
+**Validation:** GitHub Actions run #247 passed on Ubuntu and Windows (typecheck, lint, and tests). The HTTPS rejection regression passed; no live provider request is claimed.
 
 ## DBG-084 — reject symlinked persisted egress consent — 2026-11-07
 
@@ -12,7 +12,7 @@
 
 **Fixed:** consent reads now require a regular non-symlink file, use O_NOFOLLOW where supported, and compare the opened descriptor with lstat after open. Added a symlinked-store regression (skipped on Windows where creating symlinks may require elevated privileges).
 
-**Validation:** fresh Ubuntu and Windows CI required. This hardens the persistent store; project consent remains explicit and opt-in.
+**Validation:** GitHub Actions run #247 passed on Ubuntu and Windows (typecheck, lint, and tests). This hardens the persistent store; project consent remains explicit and opt-in.
 
 ## DBG-083 — episodic-memory read-time secret redaction — 2026-11-07
 
@@ -20,7 +20,7 @@
 
 **Fixed:** episodic query results and duplicate-record return values now pass through the current egress redactor. Added a regression that seeds a legacy JSONL record containing a subsequently registered secret and checks the query result.
 
-**Validation:** fresh Ubuntu and Windows CI required.
+**Validation:** GitHub Actions run #247 passed on Ubuntu and Windows (typecheck, lint, and tests).
 
 ## DBG-082 — avoid echoing provider URL paths in network errors — 2026-11-07
 
