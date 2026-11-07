@@ -215,7 +215,7 @@ export class RateLimiter {
       throw new LLMError('config', `${this.provider}: daily request counter is corrupt; refusing to reset it automatically`, this.provider)
     }
     if (!raw || typeof raw !== 'object' || Array.isArray(raw) ||
-        typeof raw.day !== 'string' || !/^\\d{4}-\\d{2}-\\d{2}$/.test(raw.day) ||
+        typeof raw.day !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(raw.day) ||
         !Number.isSafeInteger(raw.count) || raw.count < 0) {
       throw new LLMError('config', `${this.provider}: daily request counter has an invalid shape; refusing to reset it automatically`, this.provider)
     }
@@ -231,7 +231,7 @@ export class RateLimiter {
     try {
       const raw = JSON.parse(readFileSync(this.statePath, 'utf8'))
       if (!raw || typeof raw !== 'object' || Array.isArray(raw) ||
-          typeof raw.day !== 'string' || !/^\\d{4}-\\d{2}-\\d{2}$/.test(raw.day) ||
+          typeof raw.day !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(raw.day) ||
           !Number.isSafeInteger(raw.count) || raw.count < 0) {
         throw new Error('invalid counter shape')
       }
