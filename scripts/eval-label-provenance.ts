@@ -40,7 +40,7 @@ export function verifyCommittedLabels(labelsPath: string): { sha256: string; com
     throw new Error('D-109: could not inspect the committed Git tree for labels')
   }
   if (!committedPaths.includes(labelsRelative) || !committedPaths.includes(sidecarRelative)) {
-    throw new Error('D-109: labels and SHA-256 sidecar must both be committed in HEAD')
+    throw new Error(`D-109: labels and SHA-256 sidecar must both be committed in HEAD (labels=${labelsRelative}; sidecar=${sidecarRelative}; tree=${JSON.stringify(committedPaths)})`)
   }
   const dirty = execFileSync('git', ['status', '--porcelain', '--', labelsRelative, sidecarRelative], { cwd: root, encoding: 'utf8' })
   if (dirty.trim()) throw new Error('D-109: labels and SHA-256 sidecar must be committed with a clean working copy')
