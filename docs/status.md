@@ -1,3 +1,9 @@
+## 2026-11-07 semantic-memory audit follow-up (DBG-075)
+
+- Fixed a metadata redaction gap: semantic fact source/tags are now redacted on write and when loaded, so legacy persisted metadata cannot leak through list/query.
+- Added runtime input validation before tags are copied; regression tests cover secret metadata and malformed tags.
+- Fresh Ubuntu/Windows CI required. Real embedding and poisoning acceptance remain open.
+
 ## 2026-11-07 documentation audit follow-up (DBG-074)
 
 - Split S0 lease/run/release evidence from S1 host-sentinel and orphan-reaper evidence. The previous Phase 5.1 template incorrectly included an S1 requirement in S0.
