@@ -171,6 +171,16 @@ describe('command backend (Needle stand-in)', () => {
     await expect(cmd('invalid').decide('agent', { task: 'x', candidates: CANDS })).rejects.toThrow(/invalid JSON/)
     await expect(new CommandBackend({ command: process.execPath, args: [FAKE, 'hang'], timeoutMs: 150 }).decide('agent', { task: 'x', candidates: CANDS })).rejects.toThrow(/timed out/)
   })
+  it('rejects nonzero exits and more than one JSON response line', async () => {
+    await expect(cmd('nonzero').decide('agent', { task: 'x', candidates: CANDS })).rejects.toThrow(/exited with code 2/)
+    await expect(cmd('multiline').decide('agent', { task: 'x', candidates: CANDS })).rejects.toThrow(/invalid JSON/)
+  })
+
+  it('validates external backend timeout and digest configuration', () => {
+    expect(() => new CommandBackend({ command: process.execPath, timeoutMs: Infinity })).toThrow(/timeoutMs/)
+    expect(() => new CommandBackend({ command: process.execPath, expectedSha256: 'bad' })).toThrow(/expectedSha256/)
+  })
+
   it('missing files = unavailable, silently skipped by the router', async () => {
     const needle = cmd('last', { requiredFiles: [join(tmp(), 'needle2.cact')] })
     expect((await needle.available()).ok).toBe(false)
