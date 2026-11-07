@@ -34,6 +34,14 @@ describe('FileCredentialStore', () => {
     expect(await store.get('b')).toBe('value-b')
   })
 
+  it('delete on a fresh nested store is a no-op and creates its lock directory safely', async () => {
+    const path = join(dir, 'nested', 'fresh', 'creds.json')
+    const store = new FileCredentialStore({ path })
+    await expect(store.delete('missing')).resolves.toBeUndefined()
+    await store.set('present', 'value')
+    expect(await store.get('present')).toBe('value')
+  })
+
   it('delete removes a key; deleting an absent key is a no-op, not an error', async () => {
     const store = new FileCredentialStore({ path: join(dir, 'creds.json') })
     await store.set('k', 'v')
