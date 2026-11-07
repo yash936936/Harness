@@ -48,6 +48,27 @@ describe('ModelStore.register', () => {
     expect(store.get('dup')?.revision).toBe('v1') // the original registration is untouched
   })
 
+  it('rejects malformed records and non-SHA256 digests', async () => {
+    const store = await boot()
+    expect(() => store.register(record({ id: '' }))).toThrowError(expect.objectContaining({ kind: 'invalid_record' }))
+    expect(() => store.register(record({ sha256: 'not-a-digest' }))).toThrowError(expect.objectContaining({ kind: 'invalid_record' }))
+    expect(() => store.register(record({ sourceDigest: 'bad' }))).toThrowError(expect.objectContaining({ kind: 'invalid_record' }))
+    expect(() => store.register(record({ revision: '  ' }))).toThrowError(expect.objectContaining({ kind: 'invalid_record' }))
+    expect(() => store.verifyDigest('missing', 'bad')).toThrowError(expect.objectContaining({ kind: 'unknown_model' }))
+  })
+
+  it('keeps registered pins isolated from caller mutation and returns defensive copies', async () => {
+    const store = await boot()
+    const input = record({ id: 'immutable' })
+    store.register(input)
+    input.sha256 = REVISION_B
+    const fromGet = store.get('immutable')!
+    fromGet.sha256 = REVISION_B
+    const fromList = store.list()[0]!
+    fromList.sha256 = REVISION_B
+    expect(() => store.verifyDigest('immutable', REVISION_A)).not.toThrow()
+  })
+
   it('lowercases the stored digest regardless of the case it was registered in', async () => {
     const store = await boot()
     store.register(record({ id: 'm', sha256: REVISION_A.toUpperCase() }))
@@ -104,6 +125,19 @@ describe('ModelStore.resolve / resolveAll', () => {
     store.register(record({ id: 'fallback-2' }))
     store.setBinding({ name: 'worker', pinnedModelId: 'missing-pin', fallbackIds: ['fallback-1', 'fallback-2'] })
     expect(store.resolve('worker')).toEqual({ bindingName: 'worker', resolvedId: 'fallback-2', usedPin: false, unavailable: false })
+  })
+
+  it('validates bindings and protects their fallback arrays from caller mutation', async () => {
+    const store = await boot()
+    expect(() => store.setBinding({ name: '', pinnedModelId: 'pin', fallbackIds: [] })).toThrowError(expect.objectContaining({ kind: 'invalid_binding' }))
+    expect(() => store.setBinding({ name: 'worker', pinnedModelId: 'pin', fallbackIds: ['pin'] })).toThrowError(expect.objectContaining({ kind: 'invalid_binding' }))
+    expect(() => store.setBinding({ name: 'worker', pinnedModelId: 'pin', fallbackIds: ['a', 'a'] })).toThrowError(expect.objectContaining({ kind: 'invalid_binding' }))
+    const binding = { name: 'worker', pinnedModelId: 'pin', fallbackIds: ['fallback'] }
+    store.setBinding(binding)
+    binding.fallbackIds.push('mutated')
+    const returned = store.getBinding('worker')!
+    returned.fallbackIds.push('also-mutated')
+    expect(store.getBinding('worker')?.fallbackIds).toEqual(['fallback'])
   })
 
   it('is unavailable when neither the pin nor any fallback is registered', async () => {
