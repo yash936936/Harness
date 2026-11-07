@@ -57,6 +57,22 @@ describe('budgets: hard limits', () => {
     expect(b.status().requests.session.used).toBe(2)
   })
 
+  it('rejects NaN and Infinity for every spend/reservation API', () => {
+    const b = new Budgets()
+    for (const amount of [NaN, Infinity, -Infinity]) {
+      expect(() => b.spend('requests', amount)).toThrow(RangeError)
+      expect(() => b.reserve('requests', amount)).toThrow(RangeError)
+      expect(() => b.record('requests', amount)).toThrow(RangeError)
+    }
+  })
+
+  it('validates limit shapes and finite non-negative values', () => {
+    expect(() => new Budgets({ requests: { day: null as any } })).toThrow(RangeError)
+    expect(() => new Budgets({ requests: { day: { hard: Infinity } } })).toThrow(RangeError)
+    expect(() => new Budgets({ requests: { day: { soft: -1 } } })).toThrow(RangeError)
+    expect(() => new Budgets({ requests: { day: { soft: 10, hard: 5 } } })).toThrow(RangeError)
+  })
+
   it('rejects a negative spend amount', () => {
     const b = new Budgets()
     expect(() => b.spend('requests', -1)).toThrow(RangeError)
@@ -90,6 +106,14 @@ describe('budgets: requestsLeftToday', () => {
     expect(b.requestsLeftToday()).toBe(10)
     b.spend('requests', 4)
     expect(b.requestsLeftToday()).toBe(6)
+  })
+
+  it('subtracts in-flight request reservations from the reported remaining capacity', () => {
+    const b = new Budgets({ requests: { day: { hard: 3 } } })
+    const reservation = b.reserve('requests', 1)
+    expect(b.requestsLeftToday()).toBe(2)
+    b.release(reservation)
+    expect(b.requestsLeftToday()).toBe(3)
   })
 
   it('never goes negative even if somehow over (floors at 0)', () => {
