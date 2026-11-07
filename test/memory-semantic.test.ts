@@ -111,6 +111,8 @@ describe('semantic tier configuration and persisted data validation', () => {
     })
     expect(JSON.stringify(added.fact)).not.toContain('sk-metadata-secret')
     expect(JSON.stringify(await ctx.memorySemantic.list())).not.toContain('sk-metadata-secret')
+    const hits = await ctx.memorySemantic.query('safe searchable fact')
+    expect(JSON.stringify(hits)).not.toContain('sk-metadata-secret')
 
     // Older files may contain metadata written before the redaction fix.
     const file = join(dir, 'semantic.json')
