@@ -24,6 +24,14 @@ const MAX_LINE_CHARS = 300
 
 /** Never searched, regardless of config. */
 const ALWAYS_EXCLUDED = ['!.git/**', '!**/.git/**', '!node_modules/**', '!**/node_modules/**']
+
+/** Defense in depth: never return files inside VCS metadata or dependency trees. */
+function isAlwaysExcludedPath(path: string): boolean {
+  return path.replace(/\\/g, '/').split('/').some((part) => {
+    const name = part.toLowerCase()
+    return name === '.git' || name === 'node_modules'
+  })
+}
 /** Likely-secret files; excluded unless `includeSecrets`. */
 const SECRET_EXCLUDES = [
   '!.env*', '!**/.env*', '!*.env', '!**/*.env',
@@ -86,6 +94,7 @@ export function parseRgJson(
     }
     if (!isInside(root, real)) continue
     const file = relative(root, real).split(sep).join('/')
+    if (isAlwaysExcludedPath(file)) continue
     let entry = files.get(file)
     if (!entry) files.set(file, (entry = { matches: [], total: 0 }))
     entry.total++
@@ -229,7 +238,9 @@ export class RetrievalGrep extends Service {
       if (!raw) continue
       const abs = resolve(realRoot, raw)
       if (!isInside(realRoot, abs)) continue
-      files.push(relative(realRoot, abs).split(sep).join('/'))
+      const file = relative(realRoot, abs).split(sep).join('/')
+      if (isAlwaysExcludedPath(file)) continue
+      files.push(file)
     }
     files.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
     return { ok: true, files: files.slice(0, this.maxFiles), truncated: files.length > this.maxFiles || res.stdoutTruncated }
