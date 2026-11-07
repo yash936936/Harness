@@ -1,5 +1,5 @@
 import { Context } from 'cordis'
-import { mkdtemp, rm, appendFile, readFile } from 'node:fs/promises'
+import { mkdtemp, rm, appendFile, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -8,7 +8,7 @@ import { EgressPolicy } from '../src/bundles/egress/index.js'
 import { ToolRegistry } from '../src/bundles/tool-registry/index.js'
 import { LLMError, LLMService, MockProvider } from '../src/bundles/model-adapter/index.js'
 import { AgentLoop } from '../src/bundles/agent-loop/index.js'
-import { Memory, MemoryError, summariseApproach, type MemoryConfig } from '../src/bundles/memory/index.js'
+import { JsonlEpisodeStore, Memory, MemoryError, summariseApproach, type MemoryConfig } from '../src/bundles/memory/index.js'
 
 const dirs: string[] = []
 afterEach(async () => {
@@ -35,6 +35,37 @@ async function boot(script: ConstructorParameters<typeof MockProvider>[0], memor
   await ctx.plugin(Memory, memory)
   return ctx
 }
+
+describe('memory: JSONL tail recovery', () => {
+  it('separates a valid final episode without a newline before appending', async () => {
+    const dir = await tmp()
+    const store = new JsonlEpisodeStore(dir)
+    const episode = (id: string) => ({
+      id, sessionId: 's', agentId: 'main', ts: '2026-11-07T00:00:00.000Z',
+      task: id, approach: 'none', result: 'ok', outcome: 'done' as const,
+      lesson: null, fromSeq: 1, toSeq: 1, steps: 1, toolCalls: 0,
+    })
+    await store.add(episode('one'))
+    const file = join(dir, 'episodic.jsonl')
+    await writeFile(file, (await readFile(file, 'utf8')).trimEnd(), 'utf8')
+    await store.add(episode('two'))
+    expect((await store.all()).map((entry) => entry.id)).toEqual(['one', 'two'])
+  })
+
+  it('drops an incomplete final episode before the next append', async () => {
+    const dir = await tmp()
+    const store = new JsonlEpisodeStore(dir)
+    const episode = {
+      id: 'good', sessionId: 's', agentId: 'main', ts: '2026-11-07T00:00:00.000Z',
+      task: 'good', approach: 'none', result: 'ok', outcome: 'done' as const,
+      lesson: null, fromSeq: 1, toSeq: 1, steps: 1, toolCalls: 0,
+    }
+    await store.add(episode)
+    await appendFile(join(dir, 'episodic.jsonl'), '{"id":"torn"')
+    await store.add({ ...episode, id: 'next', task: 'next' })
+    expect((await store.all()).map((entry) => entry.id)).toEqual(['good', 'next'])
+  })
+})
 
 describe('memory: episodic tier (3.1)', () => {
   it('N turns produce exactly N entries, each linked to its own non-overlapping session-log range', async () => {
