@@ -88,25 +88,28 @@ try {
 
 let counted = 0
 let agree = 0
-const report: Array<{ sessionId: string; scorer: 'good' | 'bad'; label: 'good' | 'bad'; score: number; eventCount: number }> = []
+const report: Array<{ sessionId: string; scorer: 'good' | 'bad'; label?: 'good' | 'bad'; score: number; eventCount: number }> = []
 const disagreements: string[] = []
 const confusion = { humanGoodScorerGood: 0, humanGoodScorerBad: 0, humanBadScorerGood: 0, humanBadScorerBad: 0 }
 for (const id of ids.sort()) {
   const r = await ctx.eval.score(id)
   const label = labels[id]
   const verdict = r.passed ? 'PASS' : 'FAIL'
-  console.log(`\n${id}  ${verdict}  score ${r.score.toFixed(2)}  (${r.eventCount} events)  human label: ${label}`)
+  console.log(`\n${id}  ${verdict}  score ${r.score.toFixed(2)}  (${r.eventCount} events)${label ? `  human label: ${label}` : '  unlabelled'}`)
   for (const x of r.results) console.log(`  ${x.applicable ? (x.pass ? 'ok  ' : 'FAIL') : 'n/a '} ${x.name}${x.required ? '*' : ''}: ${x.detail}`)
-  report.push({ sessionId: id, scorer: r.passed ? 'good' : 'bad', label, score: r.score, eventCount: r.eventCount })
-  counted++
-  if (r.passed === (label === 'good')) agree++
-  else disagreements.push(`${id}: scorer says ${verdict}, you said ${label}`)
+  report.push({ sessionId: id, scorer: r.passed ? 'good' : 'bad', ...(label ? { label } : {}), score: r.score, eventCount: r.eventCount })
+  if (label) {
+    counted++
+    if (r.passed === (label === 'good')) agree++
+    else disagreements.push(`${id}: scorer says ${verdict}, you said ${label}`)
+  }
 }
 
 console.log('\n* = required scorer')
 {
   const rate = counted ? agree / counted : 0
   for (const item of report) {
+    if (!item.label) continue
     if (item.label === 'good' && item.scorer === 'good') confusion.humanGoodScorerGood++
     else if (item.label === 'good' && item.scorer === 'bad') confusion.humanGoodScorerBad++
     else if (item.label === 'bad' && item.scorer === 'good') confusion.humanBadScorerGood++
