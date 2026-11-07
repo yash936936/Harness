@@ -678,6 +678,24 @@ describe.skipIf(!hasRg)('indexing', () => {
     expect(r.ok && r.skipped.map((s) => s.reason).sort()).toEqual(['invalid_path', 'invalid_path', 'invalid_path', 'not_a_file', 'outside_root'])
   })
 
+  it('indexFiles cannot bypass secret, .git or node_modules exclusions', async () => {
+    mkdirSync(join(root, '.aws'), { recursive: true })
+    mkdirSync(join(root, '.ssh'), { recursive: true })
+    mkdirSync(join(root, '.git'), { recursive: true })
+    mkdirSync(join(root, 'node_modules', 'dep'), { recursive: true })
+    writeFileSync(join(root, 'credentials.json'), 'API_TOKEN=direct-index-secret\\n')
+    writeFileSync(join(root, '.aws', 'credentials'), 'aws_secret_access_key=direct-index-secret\\n')
+    writeFileSync(join(root, '.ssh', 'id_ed25519'), 'PRIVATE KEY direct-index-secret\\n')
+    writeFileSync(join(root, '.git', 'config'), 'direct-index-secret\\n')
+    writeFileSync(join(root, 'node_modules', 'dep', 'index.js'), 'direct-index-secret\\n')
+    const b = await boot({ provider: new HashingEmbeddingProvider({ dimensions: 64 }) })
+    const r = await b.rank.indexFiles(['.env', 'credentials.json', '.aws/credentials', '.ssh/id_ed25519', '.git/config', 'node_modules/dep/index.js'])
+    expect(r.ok && r.files).toBe(0)
+    expect(r.ok && r.skipped.map((x) => x.reason).sort()).toEqual(['excluded', 'excluded', 'excluded', 'secret', 'secret', 'secret'])
+    const search = okRes(await b.rank.search('direct-index-secret', { weight: 0 }))
+    expect(search.hits).toEqual([])
+  })
+
   it('indexProject skips secrets entirely: nothing from .env is stored', async () => {
     const b = await boot({ provider: new HashingEmbeddingProvider({ dimensions: 64 }) })
     const r = await b.rank.indexProject()
