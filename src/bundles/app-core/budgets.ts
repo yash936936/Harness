@@ -125,7 +125,11 @@ export class Budgets {
     this.now = config.now ?? Date.now
     for (const metric of METRICS) {
       for (const scope of SCOPES) {
-        const limit = config[metric]?.[scope]
+        const scopes = config[metric]
+        if (scopes !== undefined && (!scopes || typeof scopes !== 'object' || Array.isArray(scopes))) {
+          throw new RangeError(`budget: ${metric} scopes must be an object`)
+        }
+        const limit = scopes?.[scope]
         if (limit === undefined) continue
         if (!limit || typeof limit !== 'object' || Array.isArray(limit)) throw new RangeError(`budget: ${metric}/${scope} limit must be an object`)
         for (const [name, value] of [['soft', limit.soft], ['hard', limit.hard]] as const) {
