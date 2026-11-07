@@ -60,6 +60,20 @@ const req = (over: Partial<CompletionRequest> = {}): CompletionRequest => ({
 const events = async (ctx: Context) => ctx.log.read('s')
 
 describe('openai-compatible provider: wire format', () => {
+  it('snapshots a request before awaiting remote consent so logs match the sent prompt', async () => {
+    const { f, calls } = fakeFetch(() => json(200, okBody()))
+    const ctx = await boot(cfg(f), { egress: { consent: true } })
+    const request = req({ messages: [{ role: 'user', content: 'original prompt' }] })
+    const pending = ctx.llm.complete(request)
+    request.messages[0]!.content = 'mutated prompt'
+    await pending
+    expect(JSON.parse(calls[0]!.init.body as string).messages).toEqual([
+      { role: 'user', content: 'original prompt' },
+    ])
+    const logged = (await events(ctx)).find((event) => event.type === 'model.request')!
+    expect((logged.data as any).messages).toEqual([{ role: 'user', content: 'original prompt' }])
+  })
+
   it('sends the right request and maps text + usage', async () => {
     const { f, calls } = fakeFetch(() => json(200, okBody()))
     const ctx = await boot(cfg(f), { egress: { consent: true } })
