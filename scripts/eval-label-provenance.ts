@@ -35,7 +35,7 @@ export function verifyCommittedLabels(labelsPath: string): { sha256: string; com
 
   let committedPaths: string[]
   try {
-    committedPaths = execFileSync('git', ['ls-tree', '-r', '--name-only', 'HEAD'], { cwd: root, encoding: 'utf8' }).split(/\\r?\\n/)
+    committedPaths = execFileSync('git', ['ls-tree', '-r', '--name-only', 'HEAD'], { cwd: root, encoding: 'utf8' }).split(/\r?\n/)
   } catch {
     throw new Error('D-109: could not inspect the committed Git tree for labels')
   }
