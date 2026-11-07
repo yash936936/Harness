@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context, Service } from 'cordis'
@@ -375,6 +375,26 @@ describe('defence in depth when the grep stage misbehaves', () => {
     expect(r.stats.skippedFiles).toBe(6)
     expect(new Set(r.hits.map((h) => h.file))).toEqual(new Set(['src/config/parser.ts']))
     expect(JSON.stringify(r)).not.toContain('TOPSECRET')
+  })
+
+  it.skipIf(process.platform === 'win32')('rejects a symlink candidate that resolves outside the real root', async () => {
+    const outside = join(base, 'outside-symlink-secret.ts')
+    writeFileSync(outside, 'export const config = "TOPSECRET_SYMLINK"')
+    symlinkSync(outside, join(root, 'escape.ts'))
+    const ctx = new Context()
+    class StubGrep extends Service {
+      constructor(c: Context) { super(c, 'retrievalGrep') }
+      async search() {
+        return { ok: true as const, truncated: false, results: [{ file: 'escape.ts', matches: [], matchCount: 1 }] }
+      }
+    }
+    await ctx.plugin(StubGrep)
+    await ctx.plugin(RetrievalTreesitter)
+    await ctx.plugin(RetrievalRank, { root, weight: 0 })
+    const result = okRes(await ctx.retrievalRank.search('config'))
+    expect(result.stats.skippedFiles).toBe(1)
+    expect(result.hits).toHaveLength(0)
+    expect(JSON.stringify(result)).not.toContain('TOPSECRET_SYMLINK')
   })
 
   it('a grep failure is an error when nothing else can answer, with the cause', async () => {
