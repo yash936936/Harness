@@ -15,7 +15,7 @@
 
 ## DBG-072 — repository-wide reliability and security audit — 2026-11-07
 
-**Scope:** inspected the 96 TypeScript source files by bundle and reviewed the high-risk paths in persistence, local file access, retrieval, provider configuration, evaluation, subprocess execution, sandbox wiring, profile boot, and CLI. Static inventory also counted 60 test files, 28 scripts, 52 desktop benchmark/app assets, and 17 docs. This is a code review, not a claim that every runtime/platform behavior was exercised.
+**Scope:** inspected the 94 TypeScript source files under src/ by bundle and reviewed the high-risk paths in persistence, local file access, retrieval, provider configuration, evaluation, subprocess execution, sandbox wiring, profile boot, and CLI. Static inventory also counted 57 Vitest test files, 30 script files, 52 desktop benchmark/app assets, and 17 docs. This is a code review, not a claim that every runtime/platform behavior was exercised.
 
 **Found and fixed on branch `audit/repository-wide-review-2026-11-07`:**
 
