@@ -1,3 +1,11 @@
+## DBG-082 — avoid echoing provider URL paths in network errors — 2026-11-07
+
+**Found:** Ollama network errors included the full configured base URL, and both provider adapters fell back to the raw fetch error message when no system error code existed. A base URL path or custom transport error could contain sensitive endpoint material and be copied into logs/session errors.
+
+**Fixed:** network failures now report the host plus a stable system error code (or unknown), not the full URL path or arbitrary raw transport message. Added regression tests for both OpenAI-compatible and Ollama providers.
+
+**Validation:** fresh Ubuntu and Windows CI required.
+
 ## DBG-081 — hot-memory source metadata redaction — 2026-11-07
 
 **Found:** hot-memory text was redacted on write and read, but optional source metadata was persisted and returned by list() unchanged. A registered secret embedded in source metadata could therefore escape through the hot-memory API, including legacy records.
