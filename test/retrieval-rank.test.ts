@@ -691,7 +691,7 @@ describe.skipIf(!hasRg)('indexing', () => {
     const b = await boot({ provider: new HashingEmbeddingProvider({ dimensions: 64 }) })
     const r = await b.rank.indexFiles(['.env', 'credentials.json', '.aws/credentials', '.ssh/id_ed25519', '.git/config', 'node_modules/dep/index.js'])
     expect(r.ok && r.files).toBe(0)
-    expect(r.ok && r.skipped.map((x) => x.reason).sort()).toEqual(['excluded', 'excluded', 'excluded', 'secret', 'secret', 'secret'])
+    expect(r.ok && r.skipped.map((x) => x.reason).sort()).toEqual(['excluded', 'excluded', 'secret', 'secret', 'secret', 'secret'])
     const search = okRes(await b.rank.search('direct-index-secret', { weight: 0 }))
     expect(search.hits).toEqual([])
   })
