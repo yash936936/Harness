@@ -46,6 +46,7 @@ function defaultSleep(ms: number, signal?: AbortSignal): Promise<void> {
       reject(signal!.reason)
     }
     signal?.addEventListener('abort', onAbort, { once: true })
+    if (signal?.aborted) onAbort()
   })
 }
 
@@ -136,8 +137,11 @@ export class RateLimiter {
         reject(signal!.reason)
       }
       if (signal?.aborted) return reject(signal.reason)
-      signal?.addEventListener('abort', onAbort, { once: true })
+      // Queue before subscribing, then re-check: an abort between the first check and
+      // listener registration must not leave a waiter that can never acquire a slot.
       this.waiters.push(grant)
+      signal?.addEventListener('abort', onAbort, { once: true })
+      if (signal?.aborted) onAbort()
     })
     // The releasing request handed its slot straight to us; inFlight is unchanged.
   }

@@ -35,6 +35,7 @@ function defaultSleep(ms: number, signal?: AbortSignal): Promise<void> {
       reject(signal!.reason)
     }
     signal?.addEventListener('abort', onAbort, { once: true })
+    if (signal?.aborted) onAbort() // AbortSignal does not replay an earlier abort to a late listener.
   })
 }
 

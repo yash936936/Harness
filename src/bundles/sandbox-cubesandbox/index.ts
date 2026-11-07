@@ -36,6 +36,7 @@ function raceAbort<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
     const cleanup = () => signal.removeEventListener('abort', onAbort)
     const onAbort = () => { cleanup(); reject(signal.reason ?? new Error('aborted')) }
     signal.addEventListener('abort', onAbort, { once: true })
+    if (signal.aborted) onAbort()
     promise.then(
       (value) => { cleanup(); resolve(value) },
       (error) => { cleanup(); reject(error) },

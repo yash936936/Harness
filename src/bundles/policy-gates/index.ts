@@ -139,9 +139,13 @@ export class PolicyGates extends Service {
         done = true
         clearTimeout(timer)
         this.pendingMap.delete(req.id)
+        ev.signal?.removeEventListener('abort', onAbort)
         resolveAnswer({ d: dec, outcome })
       }
+      const onAbort = () => finish({ approve: false, note: 'tool call was cancelled' }, 'denied')
       this.pendingMap.set(req.id, { req, settle: finish })
+      ev.signal?.addEventListener('abort', onAbort, { once: true })
+      if (ev.signal?.aborted) onAbort()
     })
     // Pending is registered before it is logged or offered, so an approver or a UI can answer immediately.
     try {
