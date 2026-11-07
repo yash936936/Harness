@@ -97,7 +97,7 @@ export class Router extends Service {
         let timer: NodeJS.Timeout | undefined
         try {
           const ans = await Promise.race([
-            b.decide(cls, { task: req.task, candidates }),
+            b.decide(cls, { task: req.task, candidates, ...(req.sessionId ? { sessionId: req.sessionId } : {}) }),
             new Promise<never>((_, rej) => { timer = setTimeout(() => rej(new Error('timed out')), this.timeoutMs) }),
           ])
           if (ans === null || ans === undefined) { skipped.push({ source: b.name, why: 'abstained' }); continue }
