@@ -2,7 +2,7 @@
 
 A multi-agent orchestration harness for coding tasks, built on [Cordis](https://github.com/cordiverse/cordis). Every capability (model access, tools, retrieval, memory, sandboxing, evaluation) is a swappable plugin; profiles compose them into runnable stacks, from a single-agent kernel (`profile-minimal`) to a governed coding stack (`profile-coding`).
 
-**Status:** work in progress. See [`docs/readme.md`](docs/readme.md) for what exists and is tested, [`docs/status.md`](docs/status.md) for the current state and open items, and [`docs/decisions.md`](docs/decisions.md) for why things are the way they are.
+**Status:** working prototype, still under audit. See [`docs/readme.md`](docs/readme.md) for implemented capabilities, [`docs/status.md`](docs/status.md) for acceptance gates, [`docs/AUDIT-CLOSEOUT.md`](docs/AUDIT-CLOSEOUT.md) for evidence, [`docs/debug.md`](docs/debug.md) for defect history, and [`docs/decisions.md`](docs/decisions.md) for locked decisions.
 
 ```
 npm ci
