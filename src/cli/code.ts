@@ -75,8 +75,8 @@ export async function runCodeTask(io: WizardIO, options: CodeTaskOptions): Promi
     }
     try {
       const endpoint = new URL(options.baseUrl ?? 'https://openrouter.ai/api/v1')
-      if ((endpoint.protocol !== 'https:' && endpoint.protocol !== 'http:') || !endpoint.hostname || endpoint.username || endpoint.password) {
-        throw new Error('expected an HTTP(S) URL without embedded credentials')
+      if (endpoint.protocol !== 'https:' || !endpoint.hostname || endpoint.username || endpoint.password) {
+        throw new Error('expected an HTTPS URL without embedded credentials')
       }
       openRouterHost = endpoint.hostname
     } catch (error) {
