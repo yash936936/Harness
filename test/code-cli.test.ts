@@ -94,6 +94,32 @@ describe('governed profile code path', () => {
       if (prior !== undefined) process.env.OPENROUTER_API_KEY = prior
     }
   })
+
+  it('names the configured endpoint and API-key disclosure before requesting remote consent', async () => {
+    const prior = process.env.OPENROUTER_API_KEY
+    process.env.OPENROUTER_API_KEY = 'test-key'
+    const prompts: string[] = []
+    const output: string[] = []
+    try {
+      const { runCodeTask } = await import('../src/cli/code.js')
+      const io = {
+        print: (line: string) => output.push(line),
+        ask: async () => '',
+        confirm: async (prompt: string) => { prompts.push(prompt); return false },
+      }
+      const result = await runCodeTask(io, {
+        task: 'inspect', projectRoot: makeProject(), provider: 'openrouter', model: 'demo/model:free',
+        baseUrl: 'https://gateway.example.test/v1', dockerAvailable: false,
+      })
+      expect(result.ok).toBe(false)
+      expect(prompts[0]).toContain('gateway.example.test')
+      expect(prompts[0]).toContain('API key')
+      expect(output.join('\\n')).toContain('OPENROUTER_API_KEY to gateway.example.test')
+    } finally {
+      if (prior === undefined) delete process.env.OPENROUTER_API_KEY
+      else process.env.OPENROUTER_API_KEY = prior
+    }
+  })
 })
 
 
