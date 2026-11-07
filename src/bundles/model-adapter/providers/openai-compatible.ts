@@ -140,7 +140,7 @@ export class OpenAICompatibleProvider implements LLMProvider {
     } catch (e: any) {
       if (timeout.aborted) throw new LLMError('timeout', `${this.name}: no response within ${this.timeoutMs}ms`, this.name)
       if (outer?.aborted) throw e
-      const code = e?.cause?.code ?? e?.message ?? 'unknown'
+      const code = e?.cause?.code ?? 'unknown'
       throw new LLMError('network', this.scrub(`${this.name}: cannot reach ${this.egress.host} (${code})`), this.name)
     }
 
