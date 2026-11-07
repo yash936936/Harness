@@ -29,7 +29,7 @@ export class Sandbox extends Service {
     if (provider.destination !== 'local' && provider.destination !== 'remote') throw new SandboxError('config', `sandbox: provider "${provider.name}" must declare local or remote destination`)
     if (typeof provider.run !== 'function' || typeof provider.doctor !== 'function') throw new SandboxError('config', `sandbox: provider "${provider.name}" must implement run and doctor`)
     if (this.providers.has(provider.name)) throw new SandboxError('config', `sandbox: provider "${provider.name}" is already registered`)
-    if (provider.destination === 'remote' && !provider.host) {
+    if (provider.destination === 'remote' && (typeof provider.host !== 'string' || !provider.host.trim())) {
       throw new SandboxError('config', `sandbox: remote provider "${provider.name}" must declare the host it reaches, so egress can allowlist it`)
     }
     this.providers.set(provider.name, provider)
