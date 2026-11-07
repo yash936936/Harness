@@ -36,6 +36,14 @@ export class CallReservation {
     return out
   }
 
+  /** Release a reservation when the provider was never dispatched. No request or token usage is charged. */
+  release(): void {
+    if (this.finished) return
+    this.finished = true
+    this.budgets.release(this.requests)
+    this.budgets.release(this.tokens)
+  }
+
   /**
    * The call failed. The attempt still counts as a request (a metered provider bills attempts too, D-044); tokens are not
    * charged because the provider reported none. A provider that bills a failed call's tokens is under-counted here.
