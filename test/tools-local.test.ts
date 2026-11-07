@@ -13,6 +13,7 @@ import { Sandbox } from '../src/bundles/sandbox/index.js'
 import { PolicyGates, type ApprovalDecision, type PolicyConfig } from '../src/bundles/policy-gates/index.js'
 import { COMMAND_TOOL, LocalTools, commandRisk, type LocalToolsConfig } from '../src/bundles/tools-local/index.js'
 import type { ToolCallEvent } from '../src/bundles/tool-registry/index.js'
+import { isSecretPath } from '../src/bundles/tools-local/paths.js'
 
 const dirs: string[] = []
 afterEach(() => {
@@ -63,6 +64,22 @@ const put = (root: string, rel: string, text: string) => {
   writeFileSync(p, text)
 }
 const cat = (root: string, rel: string) => readFileSync(join(root, rel), 'utf8')
+
+describe('local file path protections', () => {
+  it('blocks cloud, CLI, SSH, database and service-account credential locations', () => {
+    const paths = [
+      '.aws/credentials', '.aws/config', '.ssh/id_ed25519', 'id_rsa',
+      '.npmrc', '.netrc', '.pgpass', '.git-credentials',
+      '.docker/config.json', '.kube/config', 'kubeconfig',
+      'credentials', 'credentials.json', 'service-account-prod.json',
+      'application_default_credentials.json', 'secrets.yaml',
+      'cert.p12', 'cert.pfx', 'cert.jks', 'cert.keystore',
+      '.azure/profile', '.config/gh/hosts.yml', 'etc/shadow', 'proc/self/environ',
+    ]
+    for (const path of paths) expect(isSecretPath(path), path).toBe(true)
+    for (const path of ['src/index.ts', 'README.md', 'package.json']) expect(isSecretPath(path), path).toBe(false)
+  })
+})
 
 describe('registration', () => {
   it('registers four tools with the classes the policy table needs', async () => {
