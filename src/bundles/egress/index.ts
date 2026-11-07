@@ -56,7 +56,7 @@ export class EgressPolicy extends Service {
 
   constructor(ctx: Context, config: EgressConfig) {
     super(ctx, 'egress')
-    if (!config?.projectId) {
+    if (typeof config?.projectId !== 'string' || !config.projectId.trim() || config.projectId.length > 256 || config.projectId.includes('\0')) {
       throw new EgressError('config', 'egress: `projectId` is required - consent is tracked per project, not globally')
     }
     this.projectId = config.projectId
@@ -78,7 +78,8 @@ export class EgressPolicy extends Service {
   /** Replace every occurrence of every registered secret value with `[redacted:<name>]`. */
   redact(text: string): string {
     let out = text
-    for (const [name, value] of this.secrets) out = out.split(value).join(`[redacted:${name}]`)
+    // Replace longer values first so a shorter registered prefix cannot expose the suffix of a longer secret.
+    for (const [name, value] of [...this.secrets].sort((a, b) => b[1].length - a[1].length)) out = out.split(value).join(`[redacted:${name}]`)
     return out
   }
 
@@ -91,7 +92,7 @@ export class EgressPolicy extends Service {
     }
     if (Array.isArray(value)) return value.map((v) => this.redactValue(v)) as unknown as T
     if (value && typeof value === 'object') {
-      return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, this.redactValue(v)])) as unknown as T
+      return Object.fromEntries(Object.entries(value).map(([k, v]) => [this.redact(k), this.redactValue(v)])) as unknown as T
     }
     return value
   }

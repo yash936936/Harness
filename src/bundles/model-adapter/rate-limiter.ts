@@ -1,5 +1,8 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises'
+import { readFileSync } from 'node:fs'
+import { randomBytes } from 'node:crypto'
 import { dirname } from 'node:path'
+import { withFileLock } from '../../util/filelock.js'
 import { LLMError } from './types.js'
 
 export interface RateLimiterConfig {
@@ -16,6 +19,12 @@ export interface RateLimiterConfig {
   /** Injectable for tests. */
   now?: () => number
   sleep?: (ms: number, signal?: AbortSignal) => Promise<void>
+}
+
+function validDayKey(value: unknown): value is string {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+  const parsed = new Date(`${value}T00:00:00.000Z`)
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value
 }
 
 interface DayState {
@@ -37,6 +46,7 @@ function defaultSleep(ms: number, signal?: AbortSignal): Promise<void> {
       reject(signal!.reason)
     }
     signal?.addEventListener('abort', onAbort, { once: true })
+    if (signal?.aborted) onAbort()
   })
 }
 
@@ -62,8 +72,6 @@ export class RateLimiter {
   private inFlight = 0
   private waiters: Array<() => void> = []
   private state: DayState
-  /** Set if the counter could not be written to disk. The in-memory count still applies. */
-  lastPersistError?: string
 
   constructor(config: RateLimiterConfig = {}) {
     this.perMinute = config.perMinute ?? 16
@@ -73,8 +81,9 @@ export class RateLimiter {
     this.provider = config.provider ?? 'provider'
     this.now = config.now ?? Date.now
     this.sleep = config.sleep ?? defaultSleep
-    if (!(this.perMinute >= 1)) throw new LLMError('config', 'rate limiter: perMinute must be at least 1', this.provider)
-    if (!(this.maxConcurrent >= 1)) throw new LLMError('config', 'rate limiter: maxConcurrent must be at least 1', this.provider)
+    if (!Number.isSafeInteger(this.perMinute) || this.perMinute < 1) throw new LLMError('config', 'rate limiter: perMinute must be a positive safe integer', this.provider)
+    if (!Number.isSafeInteger(this.maxConcurrent) || this.maxConcurrent < 1) throw new LLMError('config', 'rate limiter: maxConcurrent must be a positive safe integer', this.provider)
+    if (this.perDay !== undefined && (!Number.isSafeInteger(this.perDay) || this.perDay < 1)) throw new LLMError('config', 'rate limiter: perDay must be a positive safe integer', this.provider)
     this.state = this.load()
   }
 
@@ -92,7 +101,7 @@ export class RateLimiter {
     try {
       this.checkDaily()
       await this.waitForWindow(signal)
-      this.bumpDaily()
+      await this.bumpDaily()
       return await fn()
     } finally {
       this.releaseSlot()
@@ -128,8 +137,11 @@ export class RateLimiter {
         reject(signal!.reason)
       }
       if (signal?.aborted) return reject(signal.reason)
-      signal?.addEventListener('abort', onAbort, { once: true })
+      // Queue before subscribing, then re-check: an abort between the first check and
+      // listener registration must not leave a waiter that can never acquire a slot.
       this.waiters.push(grant)
+      signal?.addEventListener('abort', onAbort, { once: true })
+      if (signal?.aborted) onAbort()
     })
     // The releasing request handed its slot straight to us; inFlight is unchanged.
   }
@@ -162,10 +174,66 @@ export class RateLimiter {
     if (this.state.day !== day) this.state = { day, count: 0 }
   }
 
-  private bumpDaily() {
-    this.rollDay()
-    this.state.count++
-    this.save()
+  private async bumpDaily(): Promise<void> {
+    const day = this.dayKey()
+    if (!this.statePath) {
+      if (this.perDay !== undefined && this.state.count >= this.perDay) {
+        throw new LLMError('quota', `${this.provider}: daily request ceiling reached (${this.state.count}/${this.perDay}).`, this.provider)
+      }
+      this.state = { day, count: this.state.day === day ? this.state.count + 1 : 1 }
+      return
+    }
+
+    // The persistent ceiling is shared across processes. Read, check, increment and
+    // replace the state while holding one lock so concurrent Harness processes cannot
+    // each spend the same final request slot.
+    await mkdir(dirname(this.statePath), { recursive: true })
+    await withFileLock(`${this.statePath}.lock`, async () => {
+      const current = await this.readStateFile(day)
+      if (this.perDay !== undefined && current.count >= this.perDay) {
+        throw new LLMError(
+          'quota',
+          `${this.provider}: daily request ceiling reached (${current.count}/${this.perDay}). The local counter assumes a UTC day boundary; check the provider for its real reset time.`,
+          this.provider,
+        )
+      }
+      const next = { day, count: current.count + 1 }
+      await mkdir(dirname(this.statePath!), { recursive: true })
+      const tmp = `${this.statePath}.tmp-${process.pid}-${randomBytes(6).toString('hex')}`
+      try {
+        await writeFile(tmp, JSON.stringify(next), { encoding: 'utf8', mode: 0o600, flag: 'wx' })
+        await rename(tmp, this.statePath!)
+      } catch (err) {
+        await unlink(tmp).catch(() => {})
+        throw new LLMError('config', `${this.provider}: could not persist the daily request counter; refusing to send the request (${err instanceof Error ? err.message : String(err)})`, this.provider)
+      }
+      this.state = next
+    })
+  }
+
+  private async readStateFile(today: string): Promise<DayState> {
+    let rawText: string
+    try {
+      rawText = await readFile(this.statePath!, 'utf8')
+    } catch (err: any) {
+      if (err?.code === 'ENOENT') return { day: today, count: 0 }
+      throw new LLMError('config', `${this.provider}: could not read the daily request counter; refusing to send the request (${err?.message ?? String(err)})`, this.provider)
+    }
+    let raw: any
+    try {
+      raw = JSON.parse(rawText)
+    } catch {
+      throw new LLMError('config', `${this.provider}: daily request counter is corrupt; refusing to reset it automatically`, this.provider)
+    }
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw) ||
+        !validDayKey(raw.day) ||
+        !Number.isSafeInteger(raw.count) || raw.count < 0) {
+      throw new LLMError('config', `${this.provider}: daily request counter has an invalid shape; refusing to reset it automatically`, this.provider)
+    }
+    if (raw.day > today) {
+      throw new LLMError('config', `${this.provider}: daily request counter date is ahead of the system date; refusing to reset it automatically`, this.provider)
+    }
+    return raw.day === today ? { day: today, count: raw.count } : { day: today, count: 0 }
   }
 
   private load(): DayState {
@@ -173,22 +241,16 @@ export class RateLimiter {
     if (!this.statePath) return fresh
     try {
       const raw = JSON.parse(readFileSync(this.statePath, 'utf8'))
-      if (raw && raw.day === fresh.day && Number.isInteger(raw.count) && raw.count >= 0) return { day: raw.day, count: raw.count }
-    } catch {
-      // No file yet, or unreadable: start from zero.
-    }
-    return fresh
-  }
-
-  private save() {
-    if (!this.statePath) return
-    try {
-      mkdirSync(dirname(this.statePath), { recursive: true })
-      const tmp = `${this.statePath}.tmp`
-      writeFileSync(tmp, JSON.stringify(this.state))
-      renameSync(tmp, this.statePath)
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw) ||
+          !validDayKey(raw.day) ||
+          !Number.isSafeInteger(raw.count) || raw.count < 0) {
+        throw new Error('invalid counter shape')
+      }
+      if (raw.day > fresh.day) throw new Error('counter date is ahead of the system date')
+      return raw.day === fresh.day ? { day: raw.day, count: raw.count } : fresh
     } catch (e: any) {
-      this.lastPersistError = e?.message ?? String(e)
+      if (e?.code === 'ENOENT') return fresh
+      throw new LLMError('config', `${this.provider}: could not load daily request counter: ${e?.message ?? String(e)}`, this.provider)
     }
   }
 }

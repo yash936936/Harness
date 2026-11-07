@@ -17,6 +17,19 @@ const reply = (v: unknown) => ({ text: typeof v === 'string' ? v : JSON.stringif
 const plan = reply({ subtasks: [{ id: 'readme', goal: 'Read README.md', tools: ['read_file'], dependsOn: [] }] })
 
 describe('governed profile code path', () => {
+  it('returns a clear failure when projectRoot is a file rather than a directory', async () => {
+    const root = makeProject()
+    const { runCodeTask } = await import('../src/cli/code.js')
+    const output: string[] = []
+    const io = { print: (line: string) => output.push(line), ask: async () => '', confirm: async () => false }
+    const result = await runCodeTask(io, {
+      task: 'inspect', projectRoot: join(root, 'README.md'), provider: 'ollama', model: 'demo', dockerAvailable: false,
+    })
+    expect(result.ok).toBe(false)
+    expect(result.reason).toMatch(/not a directory/)
+    expect(output.join('\n')).toContain('not a directory')
+  })
+
   it('runs planner and sub-agent against a scripted provider, recording the session', async () => {
     const root = makeProject()
     const ctx = await bootProfileCoding({
@@ -79,6 +92,32 @@ describe('governed profile code path', () => {
       expect(output.join('\n')).toContain('BLOCKED-KEY')
     } finally {
       if (prior !== undefined) process.env.OPENROUTER_API_KEY = prior
+    }
+  })
+
+  it('names the configured endpoint and API-key disclosure before requesting remote consent', async () => {
+    const prior = process.env.OPENROUTER_API_KEY
+    process.env.OPENROUTER_API_KEY = 'test-key'
+    const prompts: string[] = []
+    const output: string[] = []
+    try {
+      const { runCodeTask } = await import('../src/cli/code.js')
+      const io = {
+        print: (line: string) => output.push(line),
+        ask: async () => '',
+        confirm: async (prompt: string) => { prompts.push(prompt); return false },
+      }
+      const result = await runCodeTask(io, {
+        task: 'inspect', projectRoot: makeProject(), provider: 'openrouter', model: 'demo/model:free',
+        baseUrl: 'https://gateway.example.test/v1', dockerAvailable: false,
+      })
+      expect(result.ok).toBe(false)
+      expect(prompts[0]).toContain('gateway.example.test')
+      expect(prompts[0]).toContain('API key')
+      expect(output.join('\\n')).toContain('OPENROUTER_API_KEY to gateway.example.test')
+    } finally {
+      if (prior === undefined) delete process.env.OPENROUTER_API_KEY
+      else process.env.OPENROUTER_API_KEY = prior
     }
   })
 })

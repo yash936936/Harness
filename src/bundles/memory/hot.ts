@@ -38,7 +38,7 @@ export class HotTier {
     private estimate: (text: string) => number,
     private now: () => Date,
   ) {
-    if (!(tokenCap > 0)) throw new MemoryError('memory: hotTokenCap must be positive')
+    if (!Number.isFinite(tokenCap) || !(tokenCap > 0)) throw new MemoryError('memory: hotTokenCap must be a finite positive number')
   }
 
   private line(e: HotEntry) {
@@ -47,7 +47,7 @@ export class HotTier {
 
   /** Estimated tokens one entry costs once rendered (its line, plus the newline). */
   cost(text: string): number {
-    return this.estimate(`${this.line({ text } as HotEntry)}\n`)
+    return this.measure(`${this.line({ text } as HotEntry)}\n`)
   }
 
   async add(input: { text: string; priority?: number; id?: string; source?: string; scope?: string }): Promise<HotEntry> {
@@ -60,15 +60,19 @@ export class HotTier {
     if (!text) throw new MemoryError('memory: hot entry text is empty')
     text = this.ctx.egress.redactValue(text)
     // An entry that can never fit is refused now, loudly, rather than stored and never shown.
-    if (this.estimate(HOT_HEADER + '\n') + this.cost(text) > this.tokenCap) {
+    if (this.measure(`${HOT_HEADER}\n${this.line({ text } as HotEntry)}`) > this.tokenCap) {
       throw new MemoryError(`memory: hot entry is too large for the ${this.tokenCap}-token hot tier; shorten it or store it in the semantic tier`)
     }
+    const id = input.id ?? randomUUID()
+    if (typeof id !== 'string' || !id.trim() || id.includes('\0')) throw new MemoryError('memory: hot entry id must be a non-empty string without NUL')
+    if (input.source !== undefined && typeof input.source !== 'string') throw new MemoryError('memory: hot source must be a string')
+    const source = input.source === undefined ? undefined : oneLine(this.ctx.egress.redactValue(input.source))
     const entry: HotEntry = {
-      id: input.id ?? randomUUID(),
+      id,
       text,
       priority,
       ts: this.now().toISOString(),
-      ...(input.source ? { source: input.source } : {}),
+      ...(source ? { source } : {}),
       ...(input.scope ? { scope: input.scope } : {}),
     }
     await this.mutate((list) => {
@@ -92,30 +96,34 @@ export class HotTier {
   }
 
   async list(): Promise<HotEntry[]> {
-    return structuredClone(await this.load())
+    return structuredClone((await this.load()).map((entry) => ({
+      ...entry,
+      text: oneLine(this.ctx.egress.redactValue(entry.text)),
+      ...(entry.source !== undefined ? { source: oneLine(this.ctx.egress.redactValue(entry.source)) } : {}),
+    })))
   }
 
   /** Highest priority first; among equals, newest first. Greedy: an entry too big for the room left is skipped, smaller ones may still fit. */
   async render(view: HotView = {}): Promise<HotRender> {
     const all = await this.load()
-    // Filter to what THIS viewer may see first: the cap is spent only on visible entries, so another agent's rules cannot crowd mine out.
+    // Filter to what THIS viewer may see first: the cap is spent only on visible entries.
     const visible = view.none ? [] : all.filter((e) => (e.scope === undefined ? view.globals !== false : e.scope === view.scope))
     if (visible.length === 0) return { text: '', tokens: 0, included: [], dropped: [] }
     const ranked = [...visible].sort((a, b) => b.priority - a.priority || (a.ts < b.ts ? 1 : a.ts > b.ts ? -1 : 0))
-    let used = this.estimate(HOT_HEADER + '\n')
     const included: HotEntry[] = []
     const dropped: string[] = []
-    for (const e of ranked) {
-      const c = this.estimate(`${this.line(e)}\n`)
-      if (used + c <= this.tokenCap) {
-        included.push(e)
-        used += c
-      } else dropped.push(e.id)
+    for (const entry of ranked) {
+      // Redact at read time too: credentials can be registered after an entry was persisted.
+      const safeEntry = { ...entry, text: oneLine(this.ctx.egress.redactValue(entry.text)) }
+      const candidate = [...included, safeEntry]
+      const candidateText = `${HOT_HEADER}\n${candidate.map((e) => this.line(e)).join('\n')}`
+      // Measure the complete prompt because custom estimators may be non-additive.
+      if (this.measure(candidateText) <= this.tokenCap) included.push(safeEntry)
+      else dropped.push(entry.id)
     }
     if (included.length === 0) return { text: '', tokens: 0, included: [], dropped }
     const text = `${HOT_HEADER}\n${included.map((e) => this.line(e)).join('\n')}`
-    // The text we hand over is re-measured as one string, so a non-additive estimator cannot sneak past the cap.
-    return { text, tokens: this.estimate(text), included: included.map((e) => e.id), dropped }
+    return { text, tokens: this.measure(text), included: included.map((e) => e.id), dropped }
   }
 
   private get file() {
@@ -131,6 +139,20 @@ export class HotTier {
       try {
         const parsed = JSON.parse(await readFile(this.file, 'utf8'))
         if (!Array.isArray(parsed)) throw new Error('not an array')
+        const ids = new Set<string>()
+        for (const [index, entry] of parsed.entries()) {
+          if (!entry || typeof entry !== 'object' || Array.isArray(entry) ||
+            typeof entry.id !== 'string' || !entry.id.trim() ||
+            typeof entry.text !== 'string' || !entry.text.trim() ||
+            typeof entry.priority !== 'number' || !Number.isFinite(entry.priority) ||
+            typeof entry.ts !== 'string' || !Number.isFinite(Date.parse(entry.ts)) ||
+            (entry.source !== undefined && typeof entry.source !== 'string') ||
+            (entry.scope !== undefined && (typeof entry.scope !== 'string' || !isScopedActor(entry.scope)))) {
+            throw new Error(`invalid entry at index ${index}`)
+          }
+          if (ids.has(entry.id)) throw new Error(`duplicate entry id at index ${index}`)
+          ids.add(entry.id)
+        }
         this.entries = parsed
       } catch (err: any) {
         if (err?.code !== 'ENOENT') {
@@ -142,6 +164,12 @@ export class HotTier {
     return this.entries!
   }
 
+  private measure(text: string): number {
+    const tokens = this.estimate(text)
+    if (!Number.isFinite(tokens) || tokens < 0) throw new MemoryError('memory: estimateTokens must return a finite non-negative number')
+    return tokens
+  }
+
   /** Serialised read-modify-write; the file is replaced atomically (temp file + rename). */
   private mutate(fn: (list: HotEntry[]) => void): Promise<void> {
     const work = async () => {
@@ -149,7 +177,7 @@ export class HotTier {
       fn(list)
       if (this.dir) {
         await mkdir(this.dir, { recursive: true })
-        const tmp = `${this.file}.${process.pid}.tmp`
+        const tmp = `${this.file}.${process.pid}.${randomUUID()}.tmp`
         await writeFile(tmp, JSON.stringify(list, null, 2), 'utf8')
         await rename(tmp, this.file)
       }

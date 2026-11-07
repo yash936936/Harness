@@ -1,3 +1,80 @@
+## 2026-11-07 egress consent store symlink hardening (DBG-084)
+
+- FileConsentStore now fails closed on symlinked/non-regular consent files and validates file identity after open.
+- Added a symlinked consent store regression on platforms that support unprivileged symlink creation. Fresh CI required.
+
+## 2026-11-07 episodic-memory read-time redaction (DBG-083)
+
+- Episodic query and duplicate-record return paths now redact persisted records using the current egress secret registry.
+- Added a legacy JSONL regression. Fresh CI required.
+
+## 2026-11-07 provider error redaction (DBG-082)
+
+- Provider network errors now expose only the endpoint host and a stable system error code, not URL paths or arbitrary raw fetch errors.
+- Added OpenAI-compatible and Ollama regressions for path-bearing endpoint strings. Fresh CI required.
+
+## 2026-11-07 hot-memory metadata redaction (DBG-081)
+
+- Fixed source metadata redaction in hot memory on write and list/read, including legacy persisted records.
+- Added a regression for registered secrets in source metadata. Fresh CI required.
+
+## 2026-11-07 retrieval file-read hardening (DBG-080)
+
+- Hardened retrieval-rank against symlink swaps between path resolution and open, and bounded reads while the file is being consumed so concurrent growth cannot exceed maxFileBytes.
+- Added an outside-root symlink regression. Fresh Ubuntu/Windows CI required.
+
+## 2026-11-07 D-109 pre-scoring gate follow-up (DBG-079)
+
+- The calibration command now requires committed labels and refuses to print scorer output until provenance, matched IDs, sample minimum (10 or 20 when 20+ sessions are present), and both label classes pass.
+- Removed the scorer-only output path and updated README usage. Root placeholder labels remain ineligible.
+
+## 2026-11-07 evaluation provenance cross-platform follow-up (DBG-078)
+
+- D-109 label hashing now uses Git-normalized index/commit blob bytes, avoiding false failures on Windows checkouts with core.autocrlf=true.
+- The PowerShell label commit script stages the labels before computing SHA-256, then commits the sidecar and verifies the staged/committed digest.
+- Added a CRLF regression. Fresh CI required.
+
+## 2026-11-07 model budget cancellation follow-up (DBG-077)
+
+- Fixed a budget accounting defect: cancellation while waiting for a rate-limiter slot, and a pre-dispatch request-log failure, now release reservations without charging a request.
+- Provider failures after dispatch still count as request attempts. Added regression tests for queued cancellation and failed request logging.
+
+## 2026-11-07 credential-store audit follow-up (DBG-076)
+
+- Fixed fresh nested FileCredentialStore set/delete lock initialization by creating the data parent directory before acquiring the lock.
+- Added a regression that deletes a missing key before first set, then verifies a subsequent round trip.
+
+## 2026-11-07 semantic-memory audit follow-up (DBG-075)
+
+- Fixed a metadata redaction gap: semantic fact source/tags are now redacted on write and when loaded, so legacy persisted metadata cannot leak through list/query.
+- Added runtime input validation before tags are copied; regression tests cover secret metadata and malformed tags.
+- Fresh Ubuntu/Windows CI required. Real embedding and poisoning acceptance remain open.
+
+## 2026-11-07 documentation audit follow-up (DBG-074)
+
+- Split S0 lease/run/release evidence from S1 host-sentinel and orphan-reaper evidence. The previous Phase 5.1 template incorrectly included an S1 requirement in S0.
+- Added a complete tracked-file inventory and a Windows PowerShell 5.1 command section. Missing implementations (orphan reaper, real poisoning acceptance, desktop product) are explicitly marked as having no valid acceptance command yet.
+- No S0 hardware run was performed.
+
+## 2026-11-07 repository-wide audit follow-up (DBG-073)
+
+- Found and fixed a remaining rate-limiter date-validation gap: constructor load now uses the same strict calendar-date validator as the locked persistent read. Added a regression for impossible past date 2026-02-31, which previously could be reset as stale state.
+- This is not accepted until fresh Ubuntu and Windows CI pass. No S0 hardware evidence is claimed.
+
+## 2026-11-07 — repository-wide code audit (DBG-072)
+
+- Reviewed the 94 TypeScript source files under src/ by module and ran targeted security/reliability inspection across session logging, episodic/semantic memory, consent persistence, local file access, retrieval, model-provider configuration, evaluation, subprocess execution, sandbox adapters, orchestration, profile wiring, and CLI entry points.
+- Fixed JSONL recovery for a valid final record missing its newline in session logs and episodic memory. The next append now gets a delimiter rather than corrupting the following record. Regression tests cover both valid-no-newline and torn-tail recovery.
+- Fixed cross-process consent-store lost updates with a file lock and atomic rename. Added validation, defensive copies, special-key/prototype-safety handling, and concurrent-instance regression tests.
+- Expanded local secret-path exclusions to cloud, SSH, CLI, Kubernetes, Docker, GCP, Cargo, Terraform, and related credential locations. Aligned retrieval exclusions and made them case-insensitive. Retrieval parsing now resolves existing result paths to reject outside-root symlinks even when ripgrep is configured to follow links.
+- Added OpenAI-compatible endpoint validation for HTTP(S) only, rejecting embedded URL credentials. Added tests for invalid protocols and userinfo.
+- Hardened custom evaluation scorer output validation: names, finite non-negative weights, score range, and required result types are checked before scoring.
+- Snapshotted session-log payloads, episodic episodes, semantic fact metadata, and model requests at API entry to prevent mutation while queued or awaiting remote consent. Added regression tests that compare persisted/logged/sent values with the original inputs.
+- Fixed the persistent rate limiter's missing parent-directory creation and tightened its persisted UTC day-key validation. The model-artifact verifier now rejects mutable revision labels and requires a full Git commit hash. Invalid model output caps are now rejected before budget reservation or provider calls, preventing negative Ollama caps from bypassing the estimate. Persisted budget state now rejects impossible and future dates instead of silently resetting; its per-process scope is documented.
+- CI found and fixed a policy-gate declaration-order compile error, an unused helper under the new lint step, and test-fixture mistakes in cancellation timing and sandbox temporary-directory setup. An intermediate Ubuntu run passed typecheck, lint, and tests; the latest head still requires both-platform CI.
+- These are code changes on `audit/repository-wide-review-2026-11-07`; they are not yet accepted by CI. No local compiler/test run was available through the GitHub connector. A PR and fresh Ubuntu/Windows CI run are required before merge.
+- Static source inventory: 96 files. Repository inventory at audit start: 60 test files, 28 scripts, 52 desktop benchmark/app assets, and 17 documentation files. This review does not claim live Crabbox, Docker, Ollama, OpenRouter, real embeddings, or real model-quality acceptance.
+
 ## 2026-11-07 — evaluation/provenance evidence-template review (DBG-071)
 
 - Found that tracked labels.json contains only three good labels. It does not satisfy D-109's 10+ sessions and both-class requirements, so it is not accepted as evaluation evidence.

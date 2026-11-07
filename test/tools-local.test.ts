@@ -13,6 +13,7 @@ import { Sandbox } from '../src/bundles/sandbox/index.js'
 import { PolicyGates, type ApprovalDecision, type PolicyConfig } from '../src/bundles/policy-gates/index.js'
 import { COMMAND_TOOL, LocalTools, commandRisk, type LocalToolsConfig } from '../src/bundles/tools-local/index.js'
 import type { ToolCallEvent } from '../src/bundles/tool-registry/index.js'
+import { isSecretPath } from '../src/bundles/tools-local/paths.js'
 
 const dirs: string[] = []
 afterEach(() => {
@@ -50,7 +51,7 @@ async function boot(config: LocalToolsConfig = {}, policy?: PolicyConfig | false
   await ctx.plugin(EgressPolicy, { projectId: 'tools-local-test' })
   await ctx.plugin(Sandbox)
   // Explicit test double only. Production run_command never invokes ctx.subprocess directly.
-  ctx.sandbox.register({ name: 'test-double', destination: 'local', doctor: async () => ({ ok: true, detail: 'test double' }), run: async (req) => { const r = await ctx.subprocess.run(req.command[0]!, req.command.slice(1), { timeoutMs: req.timeoutMs, cwd: root, envAllowlist: providerEnvAllowlist, maxOutputBytes: 100_000, signal: req.signal }); return { provider: 'test-double', leaseId: 'test-lease', exitCode: r.exitCode, ...(r.spawnError ? { spawnError: r.spawnError } : {}), stdout: r.stdout, stderr: r.stderr, timedOut: r.timedOut, durationMs: r.durationMs, released: true } } })
+  ctx.sandbox.register({ name: 'test-double', destination: 'local', doctor: async () => ({ ok: true, detail: 'test double' }), run: async (req) => { const r = await ctx.subprocess.run(req.command[0]!, req.command.slice(1), { timeoutMs: req.timeoutMs, cwd: root, envAllowlist: providerEnvAllowlist, maxOutputBytes: 100_000, signal: req.signal }); return { provider: 'test-double', leaseId: 'test-lease', exitCode: r.exitCode, ...(r.spawnError ? { spawnError: r.spawnError } : {}), stdout: r.stdout, stderr: r.stderr, timedOut: r.timedOut, aborted: r.aborted, durationMs: r.durationMs, released: true } } })
   await ctx.plugin(LocalTools, { ...config, root })
   if (policy !== false && policy !== undefined) await ctx.plugin(PolicyGates, { projectRoot: root, approvalTimeoutMs: 400, ...policy })
   const call = (name: string, input: unknown) => ctx.tools.call(name, input, { sessionId: 's' })
@@ -63,6 +64,24 @@ const put = (root: string, rel: string, text: string) => {
   writeFileSync(p, text)
 }
 const cat = (root: string, rel: string) => readFileSync(join(root, rel), 'utf8')
+
+describe('local file path protections', () => {
+  it('blocks cloud, CLI, SSH, database and service-account credential locations', () => {
+    const paths = [
+      '.aws/credentials', '.aws/config', '.ssh/id_ed25519', 'id_rsa',
+      '.AWS/profiles/default', '.config/gcloud/credentials.db', '.cargo/credentials.toml',
+      '.terraform.d/credentials.tfrc.json', 'C:\\repo\\.AWS\\credentials',
+      '.npmrc', '.netrc', '.pgpass', '.git-credentials',
+      '.docker/config.json', '.kube/config', 'kubeconfig',
+      'credentials', 'credentials.json', 'service-account-prod.json',
+      'application_default_credentials.json', 'secrets.yaml',
+      'cert.p12', 'cert.pfx', 'cert.jks', 'cert.keystore',
+      '.azure/profile', '.config/gh/hosts.yml', 'etc/shadow', 'proc/self/environ',
+    ]
+    for (const path of paths) expect(isSecretPath(path), path).toBe(true)
+    for (const path of ['src/index.ts', 'README.md', 'package.json']) expect(isSecretPath(path), path).toBe(false)
+  })
+})
 
 describe('registration', () => {
   it('registers four tools with the classes the policy table needs', async () => {
@@ -133,6 +152,7 @@ describe('read_file', () => {
     put(root, 'big.txt', 'y'.repeat(2000))
     put(root, '.git/config', '[core]')
     put(root, '.env', 'KEY=1')
+    put(root, '.aws/credentials', 'AWS_SECRET_ACCESS_KEY=hidden')
     put(root, 'server.pem', 'k')
     const bad = async (p: string, re: RegExp) => {
       const r = await call('read_file', { path: p })
@@ -147,6 +167,7 @@ describe('read_file', () => {
     await bad('/etc/hostname', /outside the project/)
     await bad('.git/config', /\.git/)
     await bad('.env', /secrets/)
+    await bad('.aws/credentials', /secrets/)
     await bad('server.pem', /secrets/)
   })
   it('allowSecretReads opens secrets', async () => {
@@ -378,6 +399,22 @@ describe('run_command', () => {
       delete process.env['HARNESS_TL_SECRET']
     }
   })
+  it('propagates cancellation into the sandbox command', async () => {
+    const { ctx } = await boot()
+    const controller = new AbortController()
+    const pending = ctx.tools.call(COMMAND_TOOL, node('setTimeout(()=>{}, 30000)'), { sessionId: 'cancel-command', signal: controller.signal })
+    setTimeout(() => controller.abort(new Error('cancel command')), 100)
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const result = await Promise.race([
+      pending,
+      new Promise<null>((resolve) => { timer = setTimeout(() => resolve(null), 3000) }),
+    ])
+    if (timer) clearTimeout(timer)
+    expect(result).not.toBeNull()
+    expect(result!.ok).toBe(false)
+    expect(result!.content).toContain('cancel command')
+  })
+
   it('kills a command at its timeout, and caps what a model may ask for', async () => {
     const { call } = await boot({ commandTimeoutSeconds: 2, maxCommandTimeoutSeconds: 5 })
     const r = await call(COMMAND_TOOL, { ...node('setTimeout(()=>{}, 30000)'), timeoutSeconds: 1 })

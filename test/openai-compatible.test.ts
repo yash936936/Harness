@@ -60,6 +60,20 @@ const req = (over: Partial<CompletionRequest> = {}): CompletionRequest => ({
 const events = async (ctx: Context) => ctx.log.read('s')
 
 describe('openai-compatible provider: wire format', () => {
+  it('snapshots a request before awaiting remote consent so logs match the sent prompt', async () => {
+    const { f, calls } = fakeFetch(() => json(200, okBody()))
+    const ctx = await boot(cfg(f), { egress: { consent: true } })
+    const request = req({ messages: [{ role: 'user', content: 'original prompt' }] })
+    const pending = ctx.llm.complete(request)
+    request.messages[0]!.content = 'mutated prompt'
+    await pending
+    expect(JSON.parse(calls[0]!.init.body as string).messages).toEqual([
+      { role: 'user', content: 'original prompt' },
+    ])
+    const logged = (await events(ctx)).find((event) => event.type === 'model.request')!
+    expect((logged.data as any).messages).toEqual([{ role: 'user', content: 'original prompt' }])
+  })
+
   it('sends the right request and maps text + usage', async () => {
     const { f, calls } = fakeFetch(() => json(200, okBody()))
     const ctx = await boot(cfg(f), { egress: { consent: true } })
@@ -137,6 +151,13 @@ describe('openai-compatible provider: config', () => {
     expect(() => new OpenAICompatibleProvider({ model: '', baseUrl: BASE })).toThrow(LLMError)
     expect(() => new OpenAICompatibleProvider({ model: 'm', baseUrl: '' })).toThrow(LLMError)
     expect(() => new OpenAICompatibleProvider({ model: 'm', baseUrl: 'not a url' })).toThrow(/valid URL/)
+    expect(() => new OpenAICompatibleProvider({ model: 'm', baseUrl: 'ftp://api.example.com/v1', allowInsecureHttp: true })).toThrow(/http:\/\/ or https:\/\//)
+    expect(() => new OpenAICompatibleProvider({ model: 'm', baseUrl: 'https://user:pass@api.example.com/v1' })).toThrow(/embedded credentials/)
+    expect(() => new OpenAICompatibleProvider({ model: 'm', baseUrl: 'https://api.example.com/v1?token=x' })).toThrow(/query or fragment/)
+    expect(() => new OpenAICompatibleProvider({ model: 'm', baseUrl: 'https://api.example.com/v1#fragment' })).toThrow(/query or fragment/)
+    for (const timeoutMs of [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, 4_294_967_296]) {
+      expect(() => new OpenAICompatibleProvider({ model: 'm', baseUrl: BASE, timeoutMs })).toThrow(/timeoutMs must be an integer/)
+    }
   })
 
   it('fails clearly when apiKeyEnv points at an unset variable', () => {
@@ -441,6 +462,20 @@ describe('SEC-02 redirects and plaintext transport', () => {
     expect(calls).toHaveLength(1)
     expect(calls[0]!.url.startsWith(BASE)).toBe(true)
     expect((calls[0]!.init as any).redirect).toBe('manual')
+  })
+
+  it('does not echo a path-bearing endpoint or raw fetch error on network failure', async () => {
+    const p = new OpenAICompatibleProvider({
+      model: 'm',
+      baseUrl: 'https://llm.example.com/private-path-token',
+      fetch: (async () => { throw new Error('private-path-token transport detail') }) as typeof fetch,
+    })
+    const error = (await p.listModels().catch((value) => value as LLMError)) as LLMError
+    expect(error).toBeInstanceOf(LLMError)
+    expect(error.message).toContain('llm.example.com')
+    expect(error.message).not.toContain('private-path-token')
+    const completionError = (await p.complete({ messages: [{ role: 'user', content: 'probe' }] }).catch((value) => value as LLMError)) as LLMError
+    expect(completionError.message).not.toContain('private-path-token')
   })
 
   it('listModels also refuses redirects', async () => {

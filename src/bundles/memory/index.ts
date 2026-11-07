@@ -99,14 +99,14 @@ export class EpisodicMemory {
     const created = await this.store.add(episode)
     if (!created) {
       const existing = (await this.store.all()).find((e) => e.id === episode.id)!
-      return { episode: existing, created: false }
+      return { episode: this.ctx.egress.redactValue(existing), created: false }
     }
     return { episode, created: true }
   }
 
   async query(q: EpisodeQuery = {}): Promise<Episode[]> {
     const needle = q.task?.toLowerCase()
-    let items = (await this.store.all()).filter(
+    let items = (await this.store.all()).map((episode) => this.ctx.egress.redactValue(episode)).filter(
       (e) =>
         (q.sessionId === undefined || e.sessionId === q.sessionId) &&
         (q.agentId === undefined || e.agentId === q.agentId) &&
@@ -155,11 +155,13 @@ export class Memory extends Service {
     super(ctx, 'memory')
     const store = config.path ? new JsonlEpisodeStore(config.path) : new MemoryEpisodeStore()
     const now = config.now ?? (() => new Date())
-    this.episodic = new EpisodicMemory(store, ctx, config.maxFieldChars ?? DEFAULT_MAX_CHARS, now)
+    const maxFieldChars = config.maxFieldChars ?? DEFAULT_MAX_CHARS
+    if (!Number.isSafeInteger(maxFieldChars) || maxFieldChars < 1) throw new MemoryError('memory: maxFieldChars must be a positive safe integer')
+    this.episodic = new EpisodicMemory(store, ctx, maxFieldChars, now)
     this.hot = new HotTier(ctx, config.path, config.hotTokenCap ?? DEFAULT_HOT_CAP, config.estimateTokens ?? defaultEstimateTokens, now)
     this.everyTurns = config.compaction?.everyTurns
     this.deriveLessons = config.deriveLessons ?? false
-    if (this.everyTurns !== undefined && (!Number.isInteger(this.everyTurns) || this.everyTurns < 1)) throw new MemoryError('memory: compaction.everyTurns must be a positive integer')
+    if (this.everyTurns !== undefined && (!Number.isSafeInteger(this.everyTurns) || this.everyTurns < 1)) throw new MemoryError('memory: compaction.everyTurns must be a positive safe integer')
     this.compaction = new Compaction(
       this.episodic,
       this.hot,

@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync } from 'node:fs'
+import { statSync } from 'node:fs'
 import { basename, join, resolve } from 'node:path'
 import type { Context } from 'cordis'
 import { bootProfileCoding, type ProfileCodingConfig } from '../profiles/profile-coding.js'
@@ -44,8 +44,16 @@ export function parseTimeoutMs(value: string | undefined): number | undefined {
 
 export async function runCodeTask(io: WizardIO, options: CodeTaskOptions): Promise<CodeTaskResult> {
   const projectRoot = resolve(options.projectRoot ?? process.cwd())
-  if (!existsSync(projectRoot)) {
-    const reason = `project root does not exist: ${projectRoot}`
+  let projectStat: ReturnType<typeof statSync>
+  try {
+    projectStat = statSync(projectRoot)
+  } catch {
+    const reason = `project root does not exist or cannot be accessed: ${projectRoot}`
+    io.print(reason)
+    return { ok: false, reason }
+  }
+  if (!projectStat.isDirectory()) {
+    const reason = `project root is not a directory: ${projectRoot}`
     io.print(reason)
     return { ok: false, reason }
   }
@@ -56,17 +64,28 @@ export async function runCodeTask(io: WizardIO, options: CodeTaskOptions): Promi
 
   const projectId = safeProjectId(options.projectId ?? basename(projectRoot))
   const stateDir = join(projectRoot, '.harness')
-  mkdirSync(stateDir, { recursive: true })
   const sessionDir = join(stateDir, 'sessions')
   const sandboxDetected = options.sandbox !== 'none' && (options.dockerAvailable ?? dockerEngineAvailable())
 
+  let openRouterHost: string | undefined
   if (options.provider === 'openrouter') {
     if (!process.env.OPENROUTER_API_KEY) {
       io.print('BLOCKED-KEY: OPENROUTER_API_KEY is not set. Set it in the environment; never pass it as a CLI argument.')
       return { ok: false, reason: 'OPENROUTER_API_KEY is not set' }
     }
-    io.print('OpenRouter sends prompts and selected project content to openrouter.ai.')
-    if (!(await io.confirm('Allow this project to send data to OpenRouter?', { default: false }))) {
+    try {
+      const endpoint = new URL(options.baseUrl ?? 'https://openrouter.ai/api/v1')
+      if ((endpoint.protocol !== 'https:' && endpoint.protocol !== 'http:') || !endpoint.hostname || endpoint.username || endpoint.password) {
+        throw new Error('expected an HTTP(S) URL without embedded credentials')
+      }
+      openRouterHost = endpoint.hostname
+    } catch (error) {
+      const reason = `invalid OpenRouter endpoint: ${error instanceof Error ? error.message : String(error)}`
+      io.print(reason)
+      return { ok: false, reason }
+    }
+    io.print(`This run sends prompts, selected project content, and OPENROUTER_API_KEY to ${openRouterHost}.`)
+    if (!(await io.confirm(`Allow this project to send data and its OpenRouter API key to ${openRouterHost}?`, { default: false }))) {
       io.print('Remote provider consent was not granted; no request was sent.')
       return { ok: false, reason: 'remote egress consent declined' }
     }
@@ -109,7 +128,7 @@ export async function runCodeTask(io: WizardIO, options: CodeTaskOptions): Promi
     sessionLog: { path: sessionDir },
     modelAdapter,
     egress: {
-      allowedHosts: options.provider === 'openrouter' ? ['openrouter.ai'] : [],
+      allowedHosts: openRouterHost ? [openRouterHost] : [],
       consentStore: new FileConsentStore(join(stateDir, 'consent.json')),
     },
     agentLoop: { maxSteps: 8, reflection: false },

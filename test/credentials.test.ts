@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -34,6 +34,14 @@ describe('FileCredentialStore', () => {
     expect(await store.get('b')).toBe('value-b')
   })
 
+  it('delete on a fresh nested store is a no-op and creates its lock directory safely', async () => {
+    const path = join(dir, 'nested', 'fresh', 'creds.json')
+    const store = new FileCredentialStore({ path })
+    await expect(store.delete('missing')).resolves.toBeUndefined()
+    await store.set('present', 'value')
+    expect(await store.get('present')).toBe('value')
+  })
+
   it('delete removes a key; deleting an absent key is a no-op, not an error', async () => {
     const store = new FileCredentialStore({ path: join(dir, 'creds.json') })
     await store.set('k', 'v')
@@ -56,12 +64,51 @@ describe('FileCredentialStore', () => {
     expect(keyBytes.length).toBe(32)
   })
 
+  it('tightens permissions on an existing key file before using it', async () => {
+    if (process.platform === 'win32') return
+    const path = join(dir, 'creds.json')
+    const keyPath = `${path}.key`
+    const store = new FileCredentialStore({ path })
+    await store.set('k', 'v')
+    chmodSync(keyPath, 0o644)
+    expect(await store.get('k')).toBe('v')
+    expect(statSync(keyPath).mode & 0o777).toBe(0o600)
+  })
+
+  it.skipIf(process.platform === 'win32')('refuses an existing encryption key symlink', async () => {
+    const path = join(dir, 'creds.json')
+    const target = join(dir, 'other-key')
+    writeFileSync(target, Buffer.alloc(32, 7))
+    symlinkSync(target, `${path}.key`)
+    const store = new FileCredentialStore({ path })
+    await expect(store.set('k', 'v')).rejects.toThrow(/regular file, not a symlink/)
+  })
+
   it('values are not stored as plaintext in the data file', async () => {
     const path = join(dir, 'creds.json')
     const secret = 'sk-super-secret-value-should-not-appear-raw'
     await new FileCredentialStore({ path }).set('k', secret)
     const raw = readFileSync(path, 'utf8')
     expect(raw).not.toContain(secret)
+  })
+
+  it('concurrent writers preserve every credential and a fresh instance can decrypt them', async () => {
+    const path = join(dir, 'concurrent.json')
+    const stores = Array.from({ length: 4 }, () => new FileCredentialStore({ path }))
+    await Promise.all(Array.from({ length: 24 }, (_, i) => stores[i % stores.length]!.set(`key-${i}`, `value-${i}`)))
+    const reopened = new FileCredentialStore({ path })
+    for (let i = 0; i < 24; i++) expect(await reopened.get(`key-${i}`)).toBe(`value-${i}`)
+  })
+
+  it('rejects using the same path for encrypted data and the encryption key', () => {
+    const path = join(dir, 'same-path.json')
+    expect(() => new FileCredentialStore({ path, keyPath: path })).toThrow(/distinct/)
+  })
+
+  it('supports the literal __proto__ key without mutating the data object prototype', async () => {
+    const store = new FileCredentialStore({ path: join(dir, 'proto.json') })
+    await store.set('__proto__', 'safe-value')
+    expect(await store.get('__proto__')).toBe('safe-value')
   })
 
   it('a tampered ciphertext fails to decrypt (GCM auth tag catches it) rather than returning garbage silently', async () => {
@@ -162,6 +209,18 @@ describe('AutoCredentialStore', () => {
     await auto.set('k', 'v')
     expect(await auto.get('k')).toBe('v')
     expect(fallback.data.get('k')).toBe('v')
+  })
+
+  it('concurrent instances use distinct probe keys and both retain a working primary', async () => {
+    const primary = new MemoryStore()
+    const fallbackA = new MemoryStore()
+    const fallbackB = new MemoryStore()
+    const a = new AutoCredentialStore(primary, fallbackA)
+    const b = new AutoCredentialStore(primary, fallbackB)
+    await Promise.all([a.set('a', 'one'), b.set('b', 'two')])
+    expect(await a.get('a')).toBe('one')
+    expect(await b.get('b')).toBe('two')
+    expect(fallbackA.data.size + fallbackB.data.size).toBe(0)
   })
 
   it('probes the primary at most once, even across many calls', async () => {

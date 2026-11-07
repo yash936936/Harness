@@ -68,6 +68,14 @@ describe('Embeddings service', () => {
     expect(r.vectors).toHaveLength(5)
   })
 
+  it('returns independent vector buffers for duplicate inputs', async () => {
+    const { provider } = stub()
+    const { svc } = await boot({ normalize: false }, provider)
+    const r = ok(await svc.embed(['same', 'same']))
+    ;(r.vectors[0] as Float32Array)[0] = 999
+    expect((r.vectors[1] as Float32Array)[0]).not.toBe(999)
+  })
+
   it('batches by count: 100 texts at maxBatchSize 32 is 4 calls, not 100', async () => {
     const { provider, calls } = stub()
     const { svc } = await boot({ maxBatchSize: 32 }, provider)
@@ -181,6 +189,19 @@ describe('Embeddings service', () => {
       }
     })
 
+    it('rejects zero, unconvertible and numerically extreme vectors safely', async () => {
+      const zero = await boot({}, stub({ answer: () => [[0, 0]] }).provider)
+      expect(kind(await zero.svc.embed(['x']))).toBe('malformed')
+
+      const invalid = await boot({}, stub({ embed: async () => [null] as unknown as ReadonlyArray<ArrayLike<number>> }).provider)
+      expect(kind(await invalid.svc.embed(['x']))).toBe('malformed')
+
+      const large = await boot({}, stub({ answer: () => [[3e38, 3e38]] }).provider)
+      const normalized = ok(await large.svc.embed(['x']))
+      expect(normalized.vectors[0]![0]).toBeCloseTo(Math.SQRT1_2, 5)
+      expect(normalized.vectors[0]![1]).toBeCloseTo(Math.SQRT1_2, 5)
+    })
+
     it('a different dimension on a later call is dimension_mismatch, and info() carries the fingerprint', async () => {
       let dims = 4
       const { svc } = await boot({}, stub({ answer: (t) => t.map(() => new Array<number>(dims).fill(1)) }).provider)
@@ -280,6 +301,17 @@ const okHandler = (seen: Seen, res: ServerResponse) => {
   res.setHeader('content-type', 'application/json')
   res.end(JSON.stringify({ model: 'm', embeddings: input.map((t, i) => [t.length, i, 1]) }))
 }
+
+describe('OllamaEmbeddingProvider configuration', () => {
+  it('rejects credentials, query strings, fragments, and invalid timeout values', () => {
+    expect(() => new OllamaEmbeddingProvider({ model: 'm', baseUrl: 'http://user:pass@localhost:11434' })).toThrow(/embedded credentials/)
+    expect(() => new OllamaEmbeddingProvider({ model: 'm', baseUrl: 'http://localhost:11434?token=x' })).toThrow(/query or fragment/)
+    expect(() => new OllamaEmbeddingProvider({ model: 'm', baseUrl: 'http://localhost:11434#fragment' })).toThrow(/query or fragment/)
+    for (const timeoutMs of [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, 4_294_967_296]) {
+      expect(() => new OllamaEmbeddingProvider({ model: 'm', timeoutMs })).toThrow(/timeoutMs must be an integer/)
+    }
+  })
+})
 
 describe('OllamaEmbeddingProvider over real HTTP', () => {
   it('POSTs /api/embed with the model and the whole batch as `input`, and parses `embeddings`', async () => {

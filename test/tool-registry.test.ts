@@ -72,6 +72,25 @@ describe('bundle-tool-registry', () => {
     expect(ctx.tools.list()).toEqual([])
   })
 
+  it('registered action class and schema cannot be changed by mutating the caller definition or list output', async () => {
+    const ctx = await boot()
+    const def = tool()
+    ctx.tools.register(def)
+    ;(def as any).actionClass = 'external-side-effect'
+    ;(def as any).inputSchema.required = []
+    ;(def as any).execute = () => 'mutated'
+    expect(ctx.tools.list()[0]!.actionClass).toBe('read-only')
+    expect(await ctx.tools.call('echo', {}, S)).toMatchObject({ ok: false, errorKind: 'invalid_input' })
+    expect(await ctx.tools.call('echo', { text: 'still-original' }, S)).toEqual({ ok: true, content: 'still-original' })
+    expect(() => { (ctx.tools.list()[0] as any).actionClass = 'external-side-effect' }).toThrow()
+  })
+
+  it('rejects unknown action classes and invalid output caps', async () => {
+    const ctx = await boot()
+    expect(() => ctx.tools.register(tool({ actionClass: 'unknown' as any }))).toThrow(ToolRegistrationError)
+    await expect(boot({ maxOutputChars: Infinity })).rejects.toThrow(ToolRegistrationError)
+  })
+
   it('list() output is directly usable as model-adapter ToolSpec[]', async () => {
     const ctx = await boot()
     ctx.tools.register(tool())

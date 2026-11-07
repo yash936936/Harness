@@ -60,7 +60,7 @@ function flexMatches(text: string, needle: string): { index: number; length: num
 }
 
 function posInt(name: string, v: number): void {
-  if (!Number.isInteger(v) || v < 1) throw new LocalToolsConfigError(`tools-local: ${name} must be a positive integer`)
+  if (!Number.isSafeInteger(v) || v < 1) throw new LocalToolsConfigError(`tools-local: ${name} must be a positive integer`)
 }
 
 /**
@@ -330,14 +330,14 @@ export class LocalTools extends Service {
   }
 
   /** Hardened argv/env when `command` is a bare read-only `git` invocation, else undefined (left as given). */
-  private async hardenedGit(command: string, args: string[]): Promise<HardenedGit | undefined> {
+  private async hardenedGit(command: string, args: string[], signal?: AbortSignal): Promise<HardenedGit | undefined> {
     if (command.trim().toLowerCase().replace(/\.(exe|cmd|bat|com)$/, '') !== 'git') return undefined
     if (!args.every((a) => typeof a === 'string') || !GIT_READ_SUBCOMMANDS.has(args[0] ?? '')) return undefined
 
     // Inspect repository config through the same sandbox as the command itself.
     // A host-side subprocess here would be an execution side door in run_command.
     const probe = async (extra: string[]) => {
-      const result = await this.ctx.sandbox.run({ command: ['git', 'config', ...extra, '--list', '-z'], timeoutMs: 10_000 })
+      const result = await this.ctx.sandbox.run({ command: ['git', 'config', ...extra, '--list', '-z'], timeoutMs: 10_000, ...(signal ? { signal } : {}) })
       if (!result.released) throw new Error(`sandbox lease ${result.leaseId} may not have been released while inspecting git config`)
       return result
     }
@@ -371,13 +371,14 @@ export class LocalTools extends Service {
         required: ['command'],
         additionalProperties: false,
       },
-      execute: async (input) => {
+      execute: async (input, tctx) => {
         const seconds = Math.min(input.timeoutSeconds ?? this.cmdTimeout, this.cmdTimeoutMax)
-        const hardened = await this.hardenedGit(input.command, input.args ?? [])
+        const hardened = await this.hardenedGit(input.command, input.args ?? [], tctx.signal)
         const command = [input.command, ...(hardened?.args ?? input.args ?? [])]
-        const r = await this.ctx.sandbox.run({ command, timeoutMs: seconds * 1000 })
+        const r = await this.ctx.sandbox.run({ command, timeoutMs: seconds * 1000, ...(tctx.signal ? { signal: tctx.signal } : {}) })
         if (!r.released) throw new Error(`sandbox lease ${r.leaseId} may not have been released: ${r.releaseNote ?? 'provider did not confirm release'}`)
         if (r.spawnError) throw new Error(`could not start ${input.command}: ${r.spawnError}`)
+        if (r.aborted || tctx.signal?.aborted) throw tctx.signal?.reason ?? new Error(`command ${input.command} was cancelled`)
         if (r.exitCode === null && !r.timedOut) {
           throw new Error(`command ${input.command} did not return an exit code${r.stderr ? ` (${r.stderr})` : ''}`)
         }

@@ -267,9 +267,15 @@ describe('executor: cancellation and infrastructure failure', () => {
     expect(r.aborted).toBe(true)
     expect(mock.calls.length).toBe(0)
   })
-  it('a signal that fires mid-run stops the run between subtasks', async () => {
+  it('a signal that fires after one subtask completes stops the run between subtasks', async () => {
     const ac = new AbortController()
-    const { ctx } = await boot({ s1: [text('one')] }, { hook: () => ac.abort() })
+    const { ctx } = await boot({ s1: [text('one')] })
+    const append = ctx.log.append.bind(ctx.log)
+    ;(ctx.log as any).append = async (sid: string, type: string, data: any, actor?: string) => {
+      const event = await append(sid, type, data, actor)
+      if (type === 'subtask.completed' && data.id === 's1') ac.abort()
+      return event
+    }
     const r = await ctx.orchestrator.execute(chain, opts({ signal: ac.signal }))
     expect(statuses(r)).toEqual(['s1:completed', 's2:not-run', 's3:not-run'])
     expect(r.aborted).toBe(true)

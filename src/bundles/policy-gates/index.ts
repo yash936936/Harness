@@ -55,7 +55,7 @@ export class PolicyGates extends Service {
     this.threshold = config.confidenceThreshold ?? 0.8
     if (!(this.threshold >= 0 && this.threshold <= 1)) throw new PolicyError('policy: confidenceThreshold must be between 0 and 1')
     this.timeoutMs = config.approvalTimeoutMs ?? 120_000
-    if (!(this.timeoutMs > 0)) throw new PolicyError('policy: approvalTimeoutMs must be positive')
+    if (!Number.isSafeInteger(this.timeoutMs) || this.timeoutMs < 1) throw new PolicyError('policy: approvalTimeoutMs must be a positive safe integer')
     this.signals = [...BUILTIN_SIGNALS, ...(config.signals ?? [])]
     this.rules = [...BUILTIN_DENY_RULES, ...(config.extraDenyRules ?? [])]
     ctx.on('tools/pre-execute', (ev: ToolCallEvent) => this.gate(ev))
@@ -92,11 +92,17 @@ export class PolicyGates extends Service {
     const raw = (ev.input as Record<string, unknown> | null)?.[CONFIDENCE_FIELD]
     const self = typeof raw === 'number' && Number.isFinite(raw) && raw >= 0 && raw <= 1 ? raw : null
     const signals: SignalResult[] = []
+    // Keep the same mutable signal array in the decision snapshot while it is built.
+    const base = { class: cls, self, signals } as const
     for (const s of this.signals) {
       const r = s(ev, { projectRoot: this.root })
-      if (r) signals.push(r)
+      if (r) {
+        if (!r || typeof r.name !== 'string' || !r.name.trim() || !Number.isFinite(r.score) || r.score < 0 || r.score > 1) {
+          return { ...base, verdict: 'hold', reason: `${subject} held: an independent signal returned an invalid score; only finite values from 0 to 1 are accepted` }
+        }
+        signals.push(r)
+      }
     }
-    const base = { class: cls, self, signals } as const
     if (!signals.length) return { ...base, verdict: 'hold', reason: `${subject} held: no independent signal is available for this call, and a self-reported confidence is never enough on its own` }
     if (self === null) return { ...base, verdict: 'hold', reason: `${subject} held: no valid self-reported confidence (a number from 0 to 1) in the call` }
     const score = Math.min(self, ...signals.map((s) => s.score))
@@ -113,7 +119,7 @@ export class PolicyGates extends Service {
     if (d.verdict === 'deny') throw new ToolDeniedError(d.reason)
     if (d.verdict !== 'hold') return
 
-    const req: ApprovalRequest = {
+    const req: ApprovalRequest = Object.freeze({
       id: `ap-${Date.now().toString(36)}-${++this.seq}`,
       sessionId: sid,
       ...(ev.actor ? { actor: ev.actor } : {}),
@@ -123,7 +129,7 @@ export class PolicyGates extends Service {
       input: ev.input,
       ...(d.score !== undefined ? { score: d.score } : {}),
       requestedAt: new Date().toISOString(),
-    }
+    })
     const answer = new Promise<{ d: ApprovalDecision; outcome: 'approved' | 'denied' | 'timeout' }>((resolveAnswer) => {
       let done = false
       const timer = setTimeout(() => finish({ approve: false, note: `no answer within ${this.timeoutMs} ms` }, 'timeout'), this.timeoutMs)
@@ -133,9 +139,13 @@ export class PolicyGates extends Service {
         done = true
         clearTimeout(timer)
         this.pendingMap.delete(req.id)
+        ev.signal?.removeEventListener('abort', onAbort)
         resolveAnswer({ d: dec, outcome })
       }
+      const onAbort = () => finish({ approve: false, note: 'tool call was cancelled' }, 'denied')
       this.pendingMap.set(req.id, { req, settle: finish })
+      ev.signal?.addEventListener('abort', onAbort, { once: true })
+      if (ev.signal?.aborted) onAbort()
     })
     // Pending is registered before it is logged or offered, so an approver or a UI can answer immediately.
     try {
@@ -158,18 +168,29 @@ export class PolicyGates extends Service {
   }
 
   private settleExternal(id: string, dec: ApprovalDecision): void {
-    this.pendingMap.get(id)?.settle(dec, dec.approve ? 'approved' : 'denied')
+    const valid = dec && typeof dec.approve === 'boolean' &&
+      (dec.by === undefined || (typeof dec.by === 'string' && dec.by.length <= 256)) &&
+      (dec.note === undefined || (typeof dec.note === 'string' && dec.note.length <= 2000))
+    const safe: ApprovalDecision = valid ? dec : { approve: false, note: 'approver gave an invalid answer' }
+    this.pendingMap.get(id)?.settle(safe, safe.approve ? 'approved' : 'denied')
   }
 
   /** Holds waiting for an answer. */
   pending(): ApprovalRequest[] {
-    return [...this.pendingMap.values()].map((p) => p.req)
+    return [...this.pendingMap.values()].map((p) => Object.freeze(structuredClone(p.req)))
   }
 
   /** Answer a hold. Throws if there is no such pending hold (already answered, timed out, or unknown). */
   resolve(id: string, decision: ApprovalDecision): void {
     const p = this.pendingMap.get(id)
     if (!p) throw new PolicyError(`policy: no pending approval "${id}"`)
+    if (!decision || typeof decision.approve !== 'boolean' ||
+        (decision.by !== undefined && typeof decision.by !== 'string') ||
+        (decision.note !== undefined && typeof decision.note !== 'string') ||
+        (decision.by !== undefined && decision.by.length > 256) ||
+        (decision.note !== undefined && decision.note.length > 2000)) {
+      throw new PolicyError('policy: approval decision must contain a boolean approve and bounded optional by/note strings')
+    }
     p.settle(decision, decision.approve ? 'approved' : 'denied')
   }
 }

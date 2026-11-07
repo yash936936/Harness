@@ -1,5 +1,5 @@
 import { Context } from 'cordis'
-import { mkdtemp, readFile, appendFile } from 'node:fs/promises'
+import { mkdtemp, readFile, appendFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -50,6 +50,14 @@ describe('bundle-session-log', () => {
 
 
 
+  it('refuses to append when corruption exists before a later valid JSON record', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'slog-middle-corrupt-'))
+    const ctx = await boot({ path: dir })
+    await ctx.log.append('middle', 'first')
+    await appendFile(join(dir, 'middle.jsonl'), 'not-json\n{"seq":2,"ts":"2026-11-07T00:00:00.000Z","sessionId":"middle","type":"later","data":null}\n')
+    await expect(ctx.log.append('middle', 'must-not-append')).rejects.toThrow(/Corrupt session log.*line 2/)
+  })
+
   it('repairs a torn final record before appending after restart', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'slog-repair-'))
     const first = await boot({ path: dir })
@@ -65,6 +73,41 @@ describe('bundle-session-log', () => {
     const events = await resumed.log.read('repair')
     expect(events.map((event) => event.type)).toEqual(['first', 'second'])
     expect(events.map((event) => event.seq)).toEqual([1, 2])
+  })
+
+  it('separates a complete final JSON record that lost its trailing newline', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'slog-no-newline-'))
+    const first = await boot({ path: dir })
+    await first.log.append('no-newline', 'first', { ok: true })
+    const file = join(dir, 'no-newline.jsonl')
+    await writeFile(file, (await readFile(file, 'utf8')).trimEnd(), 'utf8')
+
+    const resumed = await boot({ path: dir })
+    expect(await resumed.log.resume('no-newline')).toEqual({ sessionId: 'no-newline', nextSeq: 2 })
+    const next = await resumed.log.append('no-newline', 'second', { ok: true })
+    expect(next.seq).toBe(2)
+    const raw = await readFile(file, 'utf8')
+    expect(raw.split('\n').filter(Boolean)).toHaveLength(2)
+    expect((await resumed.log.read('no-newline')).map((event) => event.type)).toEqual(['first', 'second'])
+  })
+
+  it('refreshes a JSONL sequence after another process context appends', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'slog-stale-seq-'))
+    const writer = await boot({ path: dir })
+    const reader = await boot({ path: dir })
+    await writer.log.append('shared', 'first')
+    expect((await reader.log.resume('shared')).nextSeq).toBe(2)
+    await writer.log.append('shared', 'second')
+    expect((await reader.log.resume('shared')).nextSeq).toBe(3)
+  })
+
+  it('snapshots caller payloads before waiting in the append queue', async () => {
+    const ctx = await boot({ memory: true })
+    const payload = { nested: { value: 'original' } }
+    const pending = ctx.log.append('snapshot', 'custom', payload)
+    payload.nested.value = 'mutated'
+    await pending
+    expect((await ctx.log.read('snapshot'))[0]!.data).toEqual({ nested: { value: 'original' } })
   })
 
   it('forks without modifying the original', async () => {

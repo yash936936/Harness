@@ -151,6 +151,22 @@ describe('testProviderConnection - ollama', () => {
 })
 
 describe('testProviderConnection - timeout', () => {
+  it.each([0, -1, 1.5, Infinity, 2_147_483_648])('returns a config error for invalid timeoutMs %s without throwing', async (timeoutMs) => {
+    const provider = new MockProvider([{ text: 'ok' }])
+    const result = await testProviderConnection(provider, { timeoutMs })
+    expect(result.ok).toBe(false)
+    expect(result.error?.kind).toBe('config')
+  })
+
+  it('classifies an already-aborted caller signal as cancellation, not timeout', async () => {
+    const controller = new AbortController()
+    controller.abort()
+    const provider = new MockProvider([{ text: 'ok' }])
+    const result = await testProviderConnection(provider, { signal: controller.signal })
+    expect(result.ok).toBe(false)
+    expect(result.error?.kind).toBe('aborted')
+  })
+
   it('reports kind "timeout" when the provider never responds within timeoutMs', async () => {
     // Mirrors what real fetch does: never resolve on its own, but reject once the signal aborts.
     const never = ((_url: any, init: any) =>

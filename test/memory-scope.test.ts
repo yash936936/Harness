@@ -100,6 +100,17 @@ describe('hot tier visibility', () => {
     expect(r.text).toContain('MINE')
     expect(r.dropped).toEqual([])
   })
+  it('semantic memory is granted only when explicitly requested', async () => {
+    const { ctx } = await boot()
+    const ordinary = await ctx.subagents.spawn({ id: 'ordinary', sessionId: 's', tools: ['search'] })
+    const semantic = await ctx.subagents.spawn({ id: 'semantic', sessionId: 's', tools: ['search'], memory: { hot: 'none', semantic: true } })
+    expect(ctx.memory.access.canQuerySemantic(ordinary.actor)).toBe(false)
+    expect(ctx.memory.access.canQuerySemantic(semantic.actor)).toBe(true)
+    expect(ctx.memory.access.get(semantic.actor)).toEqual({ hot: 'none', semantic: true })
+    await semantic.close()
+    expect(ctx.memory.access.canQuerySemantic(semantic.actor)).toBe(false)
+  })
+
   it('a scope must be a sub-agent actor', async () => {
     const { ctx } = await boot()
     await expect(ctx.memory.hot.add({ text: 't', scope: 'main' })).rejects.toBeInstanceOf(MemoryError)

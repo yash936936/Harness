@@ -1,5 +1,5 @@
 import { Context } from 'cordis'
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -12,6 +12,16 @@ describe('egress: consent stores', () => {
     await store.set({ projectId: 'p1', consented: true, decidedAt: 'now' })
     expect(await store.get('p1')).toMatchObject({ consented: true })
     expect(await new MemoryConsentStore().get('p1')).toBeUndefined()
+  })
+
+  it('MemoryConsentStore does not expose its stored record by reference', async () => {
+    const store = new MemoryConsentStore()
+    const input = { projectId: 'p', consented: false, decidedAt: 'x' }
+    await store.set(input)
+    input.consented = true
+    const returned = await store.get('p')!
+    returned!.consented = true
+    expect(await store.get('p')).toMatchObject({ consented: false })
   })
 
   describe('FileConsentStore', () => {
@@ -39,6 +49,15 @@ describe('egress: consent stores', () => {
       expect(await reopened.get('proj')).toMatchObject({ projectId: 'proj', consented: true })
     })
 
+    it('returns a defensive copy of a persisted consent record', async () => {
+      const path = join(dir, 'consent.json')
+      const store = new FileConsentStore(path)
+      await store.set({ projectId: 'proj', consented: false, decidedAt: 'x' })
+      const returned = await store.get('proj')
+      returned!.consented = true
+      expect(await store.get('proj')).toMatchObject({ consented: false })
+    })
+
     it('keeps other projects intact when one project is updated', async () => {
       const path = join(dir, 'consent.json')
       const store = new FileConsentStore(path)
@@ -46,6 +65,38 @@ describe('egress: consent stores', () => {
       await store.set({ projectId: 'b', consented: false, decidedAt: 'y' })
       expect(await store.get('a')).toMatchObject({ consented: true })
       expect(await store.get('b')).toMatchObject({ consented: false })
+    })
+
+    it('does not lose distinct project updates from concurrent store instances', async () => {
+      const path = join(dir, 'consent.json')
+      const a = new FileConsentStore(path)
+      const b = new FileConsentStore(path)
+      await Promise.all([
+        a.set({ projectId: 'project-a', consented: true, decidedAt: 'a' }),
+        b.set({ projectId: 'project-b', consented: false, decidedAt: 'b' }),
+      ])
+      const reopened = new FileConsentStore(path)
+      expect(await reopened.get('project-a')).toMatchObject({ consented: true })
+      expect(await reopened.get('project-b')).toMatchObject({ consented: false })
+    })
+
+    it.skipIf(process.platform === 'win32')('rejects a symlinked consent store instead of trusting its target', async () => {
+      const target = join(dir, 'attacker-controlled.json')
+      const link = join(dir, 'consent-link.json')
+      await writeFile(target, JSON.stringify({ project: { projectId: 'project', consented: true, decidedAt: 'now' } }))
+      await symlink(target, link)
+      const store = new FileConsentStore(link)
+      await expect(store.get('project')).rejects.toThrow(/regular non-symlink file/)
+    })
+
+    it('treats special object keys as ordinary project ids without prototype inheritance', async () => {
+      const path = join(dir, 'consent.json')
+      const store = new FileConsentStore(path)
+      await store.set({ projectId: '__proto__', consented: true, decidedAt: 'x' })
+      await store.set({ projectId: 'constructor', consented: false, decidedAt: 'y' })
+      expect(await store.get('__proto__')).toMatchObject({ projectId: '__proto__', consented: true })
+      expect(await store.get('constructor')).toMatchObject({ projectId: 'constructor', consented: false })
+      expect(await store.get('toString')).toBeUndefined()
     })
   })
 })
@@ -103,6 +154,11 @@ describe('egress: EgressPolicy', () => {
       )
     })
 
+    it('redacts longer overlapping secrets before their prefixes', async () => {
+      const ctx = await bootPolicy({ secrets: { short: 'token-123', long: 'token-1234' } })
+      expect(ctx.egress.redact('first token-1234 second token-123')).toBe('first [redacted:long] second [redacted:short]')
+    })
+
     it('registerSecret() adds a secret after boot; an empty/undefined value is a no-op', async () => {
       const ctx = await bootPolicy()
       ctx.egress.registerSecret('later', 'shh-do-not-leak')
@@ -123,6 +179,13 @@ describe('egress: EgressPolicy', () => {
         messages: [{ role: 'user', content: 'here is [redacted:s] data' }],
         nested: { list: ['a', '[redacted:s]', 3, null, true] },
         count: 5,
+      })
+    })
+
+    it('redacts secret values used as object keys as well as string leaves', async () => {
+      const ctx = await bootPolicy({ secrets: { key: 'topsecret' } })
+      expect(ctx.egress.redactValue({ topsecret: 'ordinary value' })).toEqual({
+        '[redacted:key]': 'ordinary value',
       })
     })
 

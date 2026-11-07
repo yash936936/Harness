@@ -4,7 +4,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 const [, , stateFile, ...args] = process.argv
 const st = JSON.parse(readFileSync(stateFile, 'utf8'))
 st.calls.push(args)
-st.forwardedUserDirs = Object.fromEntries(['APPDATA', 'LOCALAPPDATA', 'XDG_STATE_HOME', 'XDG_CACHE_HOME'].filter((key) => process.env[key] !== undefined).map((key) => [key, process.env[key]]))
+st.forwardedUserDirs = Object.fromEntries(['APPDATA', 'LOCALAPPDATA', 'XDG_STATE_HOME', 'XDG_CACHE_HOME', 'SystemRoot', 'WINDIR', 'COMSPEC', 'TEMP', 'TMP'].filter((key) => process.env[key] !== undefined).map((key) => [key, process.env[key]]))
 const save = () => writeFileSync(stateFile, JSON.stringify(st))
 const sub = args[0]
 const flag = (n) => args[args.indexOf(n) + 1]

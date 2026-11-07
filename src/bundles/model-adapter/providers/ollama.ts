@@ -35,6 +35,9 @@ const NAME = 'ollama'
 
 export function resolveBaseUrl(explicit?: string): string {
   let url = explicit ?? process.env['OLLAMA_HOST'] ?? 'http://localhost:11434'
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(url) && !/^https?:\/\//i.test(url)) {
+    throw new LLMError('config', 'ollama: baseUrl must be an HTTP(S) URL (http:// or https://)', NAME)
+  }
   if (!/^https?:\/\//i.test(url)) url = `http://${url}`
   return url.replace(/\/+$/, '')
 }
@@ -52,9 +55,23 @@ export class OllamaProvider implements LLMProvider {
     if (!config.model) throw new LLMError('config', 'ollama: `model` is required in config', NAME)
     this.model = config.model
     this.baseUrl = resolveBaseUrl(config.baseUrl)
-    const host = new URL(this.baseUrl).hostname
+    let endpoint: URL
+    try {
+      endpoint = new URL(this.baseUrl)
+    } catch {
+      throw new LLMError('config', 'ollama: `baseUrl` is not a valid URL', NAME)
+    }
+    if ((endpoint.protocol !== 'http:' && endpoint.protocol !== 'https:') || !endpoint.hostname) {
+      throw new LLMError('config', 'ollama: `baseUrl` must be an HTTP(S) URL with a host', NAME)
+    }
+    if (endpoint.username || endpoint.password) throw new LLMError('config', 'ollama: `baseUrl` must not contain embedded credentials', NAME)
+    if (endpoint.search || endpoint.hash) throw new LLMError('config', 'ollama: `baseUrl` must not contain a query or fragment', NAME)
+    const host = endpoint.hostname
     this.egress = { host, remote: !/^(localhost|127(\.\d{1,3}){3}|\[?::1\]?)$/i.test(host) }
     this.timeoutMs = config.timeoutMs ?? 120_000
+    if (!Number.isSafeInteger(this.timeoutMs) || this.timeoutMs < 1 || this.timeoutMs > 4_294_967_295) {
+      throw new LLMError('config', 'ollama: timeoutMs must be an integer from 1 to 4294967295 milliseconds', NAME)
+    }
     this.doFetch = config.fetch ?? fetch
     this.textToolCalls = config.textToolCalls === true
     this.allowInsecureHttp = config.allowInsecureHttp === true
@@ -73,8 +90,8 @@ export class OllamaProvider implements LLMProvider {
     try {
       res = await this.doFetch(`${this.baseUrl}/api/tags`, { signal, ...NO_REDIRECT })
     } catch (e: any) {
-      const code = e?.cause?.code ?? e?.message ?? 'unknown'
-      throw new LLMError('network', `ollama: cannot reach ${this.baseUrl} (${code})`, NAME)
+      const code = e?.cause?.code ?? 'unknown'
+      throw new LLMError('network', `ollama: cannot reach ${this.egress.host} (${code})`, NAME)
     }
     if (isRedirect(res)) throw new LLMError('invalid_request', redirectMessage(NAME, res), NAME, res.status)
     if (!res.ok) throw new LLMError('server', `ollama: could not list models (HTTP ${res.status})`, NAME, res.status)
@@ -125,8 +142,8 @@ export class OllamaProvider implements LLMProvider {
     } catch (e: any) {
       if (timeout.aborted) throw new LLMError('timeout', `ollama: no response within ${this.timeoutMs}ms (large model still loading?)`, NAME)
       if (outer?.aborted) throw e
-      const code = e?.cause?.code ?? e?.message ?? 'unknown'
-      throw new LLMError('network', `ollama: cannot reach ${this.baseUrl} (${code}). Is Ollama running? Start it with \`ollama serve\`.`, NAME)
+      const code = e?.cause?.code ?? 'unknown'
+      throw new LLMError('network', `ollama: cannot reach ${this.egress.host} (${code}). Is Ollama running? Start it with \`ollama serve\`.`, NAME)
     }
 
     if (isRedirect(res)) throw new LLMError('invalid_request', redirectMessage(NAME, res), NAME, res.status)

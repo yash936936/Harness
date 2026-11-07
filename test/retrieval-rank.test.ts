@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context, Service } from 'cordis'
@@ -377,6 +377,26 @@ describe('defence in depth when the grep stage misbehaves', () => {
     expect(JSON.stringify(r)).not.toContain('TOPSECRET')
   })
 
+  it.skipIf(process.platform === 'win32')('rejects a symlink candidate that resolves outside the real root', async () => {
+    const outside = join(base, 'outside-symlink-secret.ts')
+    writeFileSync(outside, 'export const config = "TOPSECRET_SYMLINK"')
+    symlinkSync(outside, join(root, 'escape.ts'))
+    const ctx = new Context()
+    class StubGrep extends Service {
+      constructor(c: Context) { super(c, 'retrievalGrep') }
+      async search() {
+        return { ok: true as const, truncated: false, results: [{ file: 'escape.ts', matches: [], matchCount: 1 }] }
+      }
+    }
+    await ctx.plugin(StubGrep)
+    await ctx.plugin(RetrievalTreesitter)
+    await ctx.plugin(RetrievalRank, { root, weight: 0 })
+    const result = okRes(await ctx.retrievalRank.search('config'))
+    expect(result.stats.skippedFiles).toBe(1)
+    expect(result.hits).toHaveLength(0)
+    expect(JSON.stringify(result)).not.toContain('TOPSECRET_SYMLINK')
+  })
+
   it('a grep failure is an error when nothing else can answer, with the cause', async () => {
     const ctx = new Context()
     class StubGrep extends Service {
@@ -676,6 +696,24 @@ describe.skipIf(!hasRg)('indexing', () => {
     const r = await b.rank.indexFiles(['../repo-outside.ts', join(base, 'repo-outside.ts'), 'src', 'a\0b', ''])
     expect(r.ok && r.files).toBe(0)
     expect(r.ok && r.skipped.map((s) => s.reason).sort()).toEqual(['invalid_path', 'invalid_path', 'invalid_path', 'not_a_file', 'outside_root'])
+  })
+
+  it('indexFiles cannot bypass secret, .git or node_modules exclusions', async () => {
+    mkdirSync(join(root, '.aws'), { recursive: true })
+    mkdirSync(join(root, '.ssh'), { recursive: true })
+    mkdirSync(join(root, '.git'), { recursive: true })
+    mkdirSync(join(root, 'node_modules', 'dep'), { recursive: true })
+    writeFileSync(join(root, 'credentials.json'), 'API_TOKEN=direct-index-secret\\n')
+    writeFileSync(join(root, '.aws', 'credentials'), 'aws_secret_access_key=direct-index-secret\\n')
+    writeFileSync(join(root, '.ssh', 'id_ed25519'), 'PRIVATE KEY direct-index-secret\\n')
+    writeFileSync(join(root, '.git', 'config'), 'direct-index-secret\\n')
+    writeFileSync(join(root, 'node_modules', 'dep', 'index.js'), 'direct-index-secret\\n')
+    const b = await boot({ provider: new HashingEmbeddingProvider({ dimensions: 64 }) })
+    const r = await b.rank.indexFiles(['.env', 'credentials.json', '.aws/credentials', '.ssh/id_ed25519', '.git/config', 'node_modules/dep/index.js'])
+    expect(r.ok && r.files).toBe(0)
+    expect(r.ok && r.skipped.map((x) => x.reason).sort()).toEqual(['excluded', 'excluded', 'secret', 'secret', 'secret', 'secret'])
+    const search = okRes(await b.rank.search('direct-index-secret', { weight: 0 }))
+    expect(search.hits).toEqual([])
   })
 
   it('indexProject skips secrets entirely: nothing from .env is stored', async () => {

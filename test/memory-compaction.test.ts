@@ -129,6 +129,15 @@ describe('compaction (3.4): promotes a recurring lesson', () => {
     expect(await ctx2.memory.hot.list()).toEqual([])
   })
 
+  it('does not treat a truthy non-boolean approval callback result as approval', async () => {
+    const { ctx } = await boot()
+    const s = await session(ctx, 'invalid-approval')
+    for (let i = 0; i < 3; i++) await turn(ctx, LESSON, s)
+    const result = await ctx.memory.compact({ approve: (() => 'yes') as never })
+    expect(result.promoted).toEqual([])
+    expect(result.skipped.rejected).toBe(1)
+  })
+
   it('persisted: a restart does not promote it a second time', async () => {
     const dir = await tmp()
     const { ctx } = await boot({ path: dir })
@@ -138,6 +147,28 @@ describe('compaction (3.4): promotes a recurring lesson', () => {
     const { ctx: ctx2 } = await boot({ path: dir })
     expect((await ctx2.memory.compact()).promoted).toEqual([])
     expect(await ctx2.memory.hot.list()).toHaveLength(1)
+  })
+
+  it('serializes compaction across independent contexts sharing one persistence directory', async () => {
+    const dir = await tmp()
+    const { ctx: first } = await boot({ path: dir })
+    const s = await session(first, 'shared')
+    for (let i = 0; i < 3; i++) await turn(first, LESSON, s)
+    const { ctx: second } = await boot({ path: dir })
+    const results = await Promise.all([first.memory.compact(), second.memory.compact()])
+    expect(results.reduce((n, result) => n + result.promoted.length, 0)).toBe(1)
+    expect(results.reduce((n, result) => n + result.skipped.alreadyPromoted, 0)).toBe(1)
+    expect(await second.memory.hot.list()).toHaveLength(1)
+  })
+
+  it('does not treat a lesson named __proto__ as already promoted', async () => {
+    const dir = await tmp()
+    const { ctx } = await boot({ path: dir })
+    const s = await session(ctx, 'proto')
+    for (let i = 0; i < 3; i++) await turn(ctx, '__proto__', s)
+    const result = await ctx.memory.compact()
+    expect(result.promoted).toHaveLength(1)
+    expect(await ctx.memory.hot.list()).toHaveLength(1)
   })
 
   it('a promoted rule reaches the model on the next run (3.2 + 3.4 together)', async () => {

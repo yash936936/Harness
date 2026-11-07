@@ -2,12 +2,12 @@
 
 A multi-agent orchestration harness for coding tasks, built on [Cordis](https://github.com/cordiverse/cordis). Every capability (model access, tools, retrieval, memory, sandboxing, evaluation) is a swappable plugin; profiles compose them into runnable stacks, from a single-agent kernel (`profile-minimal`) to a governed coding stack (`profile-coding`).
 
-**Status:** work in progress. See [`docs/readme.md`](docs/readme.md) for what exists and is tested, [`docs/status.md`](docs/status.md) for the current state and open items, and [`docs/decisions.md`](docs/decisions.md) for why things are the way they are.
+**Status:** working prototype, still under audit. See [`docs/readme.md`](docs/readme.md) for implemented capabilities, [`docs/status.md`](docs/status.md) for acceptance gates, [`docs/AUDIT-CLOSEOUT.md`](docs/AUDIT-CLOSEOUT.md) for evidence, [`docs/debug.md`](docs/debug.md) for defect history, and [`docs/decisions.md`](docs/decisions.md) for locked decisions.
 
 ```
 npm ci
 npm run check        # typecheck + tests
-npm run eval -- <logDir> [labels.json]   # score real session logs (Phase 6)
+npm run eval -- <logDir> <committed-labels.json> [checkCommandRegex]   # D-109 labels required before scoring
 ```
 
 Tests that need a local Ollama or a real sandbox skip themselves when it is absent. Original project code is licensed under Apache-2.0; third-party dependencies and model weights retain their own terms (see `LICENSE`, `THIRD_PARTY_LICENSES.md`, and `docs/status.md`).

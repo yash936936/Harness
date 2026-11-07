@@ -14,6 +14,8 @@ export interface ToolContext {
    * the list still runs. Absent means no restriction, as before.
    */
   allowedTools?: readonly string[]
+  /** Cancellation signal from the owning agent turn. */
+  signal?: AbortSignal
 }
 
 export interface ToolDefinition<I = any> {
@@ -49,6 +51,7 @@ export interface ToolCallEvent {
   tool: ToolInfo
   /** Deep-frozen copy: hooks can read but not alter what will execute. */
   input: unknown
+  signal?: AbortSignal
 }
 
 export interface ToolResultEvent extends ToolCallEvent {

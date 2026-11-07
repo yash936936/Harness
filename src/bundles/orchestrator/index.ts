@@ -47,7 +47,13 @@ export class Orchestrator extends Service {
       maxGoalChars: config.maxGoalChars ?? DEFAULT_LIMITS.maxGoalChars,
       maxIdChars: config.maxIdChars ?? DEFAULT_LIMITS.maxIdChars,
     }
-    if (this.limits.maxSubtasks < 1 || this.limits.maxToolsPerSubtask < 0) throw new OrchestratorError('orchestrator: invalid planner limits')
+    if (!Number.isSafeInteger(this.limits.maxSubtasks) || this.limits.maxSubtasks < 1 ||
+      !Number.isSafeInteger(this.limits.maxToolsPerSubtask) || this.limits.maxToolsPerSubtask < 0 ||
+      !Number.isSafeInteger(this.limits.maxGoalChars) || this.limits.maxGoalChars < 1 ||
+      !Number.isSafeInteger(this.limits.maxIdChars) || this.limits.maxIdChars < 1) throw new OrchestratorError('orchestrator: planner limits must be positive safe integers (maxToolsPerSubtask may be zero)')
+    if (!Number.isSafeInteger(this.maxRetries) || this.maxRetries < 0) throw new OrchestratorError('orchestrator: maxRetries must be a non-negative safe integer')
+    if (!Number.isSafeInteger(this.maxResultChars) || this.maxResultChars < 1) throw new OrchestratorError('orchestrator: maxResultChars must be a positive safe integer')
+    if (config.maxRepairs !== undefined && (!Number.isSafeInteger(config.maxRepairs) || config.maxRepairs < 0)) throw new OrchestratorError('orchestrator: maxRepairs must be a non-negative safe integer')
   }
 
   /**
@@ -66,6 +72,7 @@ export class Orchestrator extends Service {
     const registered = new Set(offered)
     const system = plannerSystem(info, this.limits)
     const maxRepairs = opts.maxRepairs ?? this.cfg.maxRepairs ?? 1
+    if (!Number.isSafeInteger(maxRepairs) || maxRepairs < 0) throw new OrchestratorError('orchestrator: maxRepairs must be a non-negative safe integer')
     const provider = opts.provider ?? this.cfg.provider
     const model = opts.model ?? this.cfg.model
     const schema = (opts.structured ?? this.cfg.structured ?? true) ? planSchema(offered, (this.cfg.schemaLimits ?? true) ? this.limits : undefined) : undefined

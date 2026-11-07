@@ -57,19 +57,23 @@ export class SessionLog extends Service {
   async append(sessionId: string, type: string, data: unknown = null, actor?: string): Promise<SessionEvent> {
     assertValidSessionId(sessionId)
     const store = this.store
+    // Snapshot before queueing or waiting for a cross-process lock. Otherwise
+    // callers could mutate an object after append() and change the audit record.
+    const payload = data === undefined || data === null ? data : structuredClone(data)
     const job = async () => {
       // A store shared between processes (BUG-07) is asked for the real last seq under its lock; the in-process cache is only trusted when it is not.
       const last = store.lastSeq ? await store.lastSeq(sessionId) : await this.lastSeq(sessionId)
       // SEC-01: the one place every event passes through, so redaction here covers tool.call,
       // tool.result, approval.pending, model.* and anything a later bundle adds.
-      if (data !== undefined && data !== null) for (const r of this.redactors) data = r(data)
+      let stored = payload
+      if (stored !== undefined && stored !== null) for (const r of this.redactors) stored = r(stored)
       const event: SessionEvent = {
         seq: last + 1,
         ts: new Date().toISOString(),
         sessionId,
         type,
         ...(actor ? { actor } : {}),
-        data: data === undefined ? null : data,
+        data: stored === undefined ? null : stored,
       }
       // Fail loudly on non-serialisable payloads instead of silently dropping fields.
       JSON.stringify(event)
@@ -121,6 +125,12 @@ export class SessionLog extends Service {
   }
 
   private async lastSeq(sessionId: string): Promise<number> {
+    // A JSONL store may be shared by several processes. Never trust this
+    // instance's cache for it, and hold its lock while repairing/reading the tail.
+    if (this.store.lastSeq) {
+      const read = () => this.store.lastSeq!(sessionId)
+      return this.store.withLock ? this.store.withLock(sessionId, read) : read()
+    }
     const cached = this.seqs.get(sessionId)
     if (cached !== undefined) return cached
     const events = await this.store.read(sessionId)

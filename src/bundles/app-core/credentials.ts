@@ -1,6 +1,7 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto'
-import { chmod, mkdir, readFile, rename, writeFile } from 'node:fs/promises'
-import { dirname } from 'node:path'
+import { chmod, lstat, mkdir, open, readFile, rename, writeFile } from 'node:fs/promises'
+import { withFileLock } from '../../util/filelock.js'
+import { dirname, resolve } from 'node:path'
 
 export interface CredentialStore {
   get(key: string): Promise<string | undefined>
@@ -93,40 +94,63 @@ export interface FileCredentialStoreConfig {
  * available, not as its equal.
  */
 export class FileCredentialStore implements CredentialStore {
-  constructor(private readonly config: FileCredentialStoreConfig) {}
+  constructor(private readonly config: FileCredentialStoreConfig) {
+    if (!config || typeof config.path !== 'string' || !config.path.trim()) throw new Error('credentials: encrypted data path is required')
+    const keyPath = config.keyPath ?? `${config.path}.key`
+    if (typeof keyPath !== 'string' || !keyPath.trim() || resolve(keyPath) === resolve(config.path)) throw new Error('credentials: encryption key path must be distinct from the data path')
+  }
 
   private get keyPath(): string {
     return this.config.keyPath ?? `${this.config.path}.key`
   }
 
   private async loadOrCreateKey(): Promise<Buffer> {
-    try {
-      return await readFile(this.keyPath)
-    } catch (e: any) {
-      if (e?.code !== 'ENOENT') throw e
-      const key = randomBytes(32)
-      await mkdir(dirname(this.keyPath), { recursive: true })
-      await writeFile(this.keyPath, key, { mode: 0o600 })
-      await chmod(this.keyPath, 0o600).catch(() => {}) // best-effort; a no-op-ish permission model on Windows
-      return key
-    }
+    await mkdir(dirname(this.keyPath), { recursive: true })
+    return withFileLock(`${this.keyPath}.lock`, async () => {
+      try {
+        const stat = await lstat(this.keyPath)
+        if (!stat.isFile() || stat.isSymbolicLink()) throw new Error('credentials: encryption key path must be a regular file, not a symlink')
+        const key = await readFile(this.keyPath)
+        if (key.length !== 32) throw new Error(`credentials: encryption key ${this.keyPath} must contain exactly 32 bytes`)
+        if (process.platform !== 'win32') await chmod(this.keyPath, 0o600)
+        return key
+      } catch (e: any) {
+        if (e?.code !== 'ENOENT') throw e
+        const key = randomBytes(32)
+        const fh = await open(this.keyPath, 'wx', 0o600)
+        try {
+          await fh.writeFile(key)
+          await fh.sync()
+        } finally {
+          await fh.close()
+        }
+        await chmod(this.keyPath, 0o600).catch(() => {}) // best-effort; a no-op-ish permission model on Windows
+        return key
+      }
+    })
   }
 
   private async readAll(): Promise<Record<string, string>> {
     try {
       const raw = await readFile(this.config.path, 'utf8')
       const parsed = JSON.parse(raw)
-      return parsed && typeof parsed === 'object' ? parsed : {}
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('credentials: data file must contain an object')
+      const all: Record<string, string> = Object.create(null)
+      for (const [key, value] of Object.entries(parsed)) {
+        if (typeof value !== 'string') throw new Error(`credentials: stored value for "${key}" is not a string`)
+        all[key] = value
+      }
+      return all
     } catch (e: any) {
-      if (e?.code === 'ENOENT') return {}
+      if (e?.code === 'ENOENT') return Object.create(null) as Record<string, string>
       throw e
     }
   }
 
   private async writeAll(all: Record<string, string>): Promise<void> {
     await mkdir(dirname(this.config.path), { recursive: true })
-    const tmp = `${this.config.path}.tmp-${process.pid}-${Math.random().toString(36).slice(2)}`
-    await writeFile(tmp, JSON.stringify(all, null, 2), { mode: 0o600 })
+    const tmp = `${this.config.path}.tmp-${process.pid}-${randomBytes(6).toString('hex')}`
+    await writeFile(tmp, JSON.stringify(all, null, 2), { mode: 0o600, flag: 'wx' })
     await rename(tmp, this.config.path)
   }
 
@@ -140,16 +164,22 @@ export class FileCredentialStore implements CredentialStore {
 
   async set(key: string, value: string): Promise<void> {
     const keyBuf = await this.loadOrCreateKey()
-    const all = await this.readAll()
-    all[key] = encrypt(value, keyBuf)
-    await this.writeAll(all)
+    await mkdir(dirname(this.config.path), { recursive: true })
+    await withFileLock(`${this.config.path}.lock`, async () => {
+      const all = await this.readAll()
+      all[key] = encrypt(value, keyBuf)
+      await this.writeAll(all)
+    })
   }
 
   async delete(key: string): Promise<void> {
-    const all = await this.readAll()
-    if (!(key in all)) return
-    delete all[key]
-    await this.writeAll(all)
+    await mkdir(dirname(this.config.path), { recursive: true })
+    await withFileLock(`${this.config.path}.lock`, async () => {
+      const all = await this.readAll()
+      if (!(key in all)) return
+      delete all[key]
+      await this.writeAll(all)
+    })
   }
 }
 
@@ -206,10 +236,11 @@ export class AutoCredentialStore implements CredentialStore {
 
   private async probe(): Promise<CredentialStore> {
     const probeValue = `probe-${randomBytes(8).toString('hex')}`
+    const probeKey = `${this.probeKey}:${randomBytes(8).toString('hex')}`
     try {
-      await this.primary.set(this.probeKey, probeValue)
-      const readBack = await this.primary.get(this.probeKey)
-      await this.primary.delete(this.probeKey).catch(() => {})
+      await this.primary.set(probeKey, probeValue)
+      const readBack = await this.primary.get(probeKey)
+      await this.primary.delete(probeKey).catch(() => {})
       return readBack === probeValue ? this.primary : this.fallback
     } catch {
       return this.fallback

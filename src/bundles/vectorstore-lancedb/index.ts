@@ -55,14 +55,19 @@ function checkText(what: string, s: unknown, max: number): string | undefined {
 /** Returns an error message, or a validated Float32Array. */
 function checkVector(v: ArrayLike<number>, dimensions: number, what: string): string | Float32Array {
   if (v === null || v === undefined || typeof v.length !== 'number') return `${what} is not a vector`
-  const out = Float32Array.from(v)
+  let out: Float32Array
+  try {
+    out = Float32Array.from(v)
+  } catch {
+    return `${what} is not a valid numeric vector`
+  }
   if (out.length !== dimensions) return `${what} has ${out.length} dimensions, the collection has ${dimensions}`
-  let norm = 0
+  let nonZero = false
   for (const x of out) {
     if (!Number.isFinite(x)) return `${what} contains a non-finite number`
-    norm += x * x
+    if (x !== 0) nonZero = true
   }
-  if (norm === 0) return `${what} is all zeros, so its cosine similarity is undefined`
+  if (!nonZero) return `${what} is all zeros, so its cosine similarity is undefined`
   return out
 }
 

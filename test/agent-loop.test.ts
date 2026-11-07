@@ -98,6 +98,50 @@ describe('agent-loop: happy path and tool calls', () => {
   })
 })
 
+describe('agent-loop: cancellation', () => {
+  it('passes the AbortSignal into the provider and aborts an in-flight model call', async () => {
+    const { ctx } = await boot()
+    const controller = new AbortController()
+    let started!: () => void
+    const began = new Promise<void>((resolve) => { started = resolve })
+    ctx.llm.register('abort-aware', {
+      complete: async (_req, signal) => {
+        started()
+        return new Promise((_resolve, reject) => {
+          if (signal?.aborted) return reject(signal.reason)
+          signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
+        })
+      },
+    }, { default: true })
+    const running = ctx.agentLoop.run({ sessionId: 'cancel', prompt: 'wait', signal: controller.signal })
+    await began
+    controller.abort(new Error('cancelled by test'))
+    await expect(running).rejects.toThrow('cancelled by test')
+  })
+
+  it('does not execute a tool when cancellation arrives as the model response completes', async () => {
+    const { ctx } = await boot()
+    const controller = new AbortController()
+    let ran = false
+    ctx.tools.register(tool('must_not_run', () => { ran = true; return 'bad' }))
+    ctx.llm.register('late-abort', {
+      complete: async () => {
+        queueMicrotask(() => controller.abort(new Error('cancel before tool')))
+        return {
+          model: 'late-abort',
+          text: '',
+          content: [{ type: 'tool_use', id: 'c1', name: 'must_not_run', input: {} }],
+          toolCalls: [{ id: 'c1', name: 'must_not_run', input: {} }],
+          stopReason: 'tool_use',
+          usage: { inputTokens: 1, outputTokens: 1 },
+        }
+      },
+    }, { default: true })
+    await expect(ctx.agentLoop.run({ sessionId: 'cancel-tool', prompt: 'run it', signal: controller.signal })).rejects.toThrow('cancel before tool')
+    expect(ran).toBe(false)
+  })
+})
+
 describe('agent-loop: max_steps boundary', () => {
   it('a task that would loop forever is stopped at maxSteps, not left running', async () => {
     let n = 0
@@ -123,6 +167,28 @@ describe('agent-loop: max_steps boundary', () => {
   it('rejects maxSteps < 1 at construction', async () => {
     await expect(boot({ maxSteps: 0 })).rejects.toBeInstanceOf(AgentLoopError)
   })
+
+  it('rejects non-integer and non-finite maxSteps at construction and per run', async () => {
+    for (const maxSteps of [1.5, Number.NaN, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1]) {
+      await expect(boot({ maxSteps })).rejects.toBeInstanceOf(AgentLoopError)
+    }
+    const { ctx, mocks } = await boot()
+    for (const maxSteps of [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+      await expect(ctx.agentLoop.run({ sessionId: 'bad-max', prompt: 'x', maxSteps })).rejects.toBeInstanceOf(AgentLoopError)
+    }
+    expect(mocks.get('mock')!.calls).toHaveLength(0)
+  })
+
+  it('rejects invalid retry budget configuration at construction', async () => {
+    for (const retry of [
+      { maxAttempts: -1 }, { maxAttempts: 1.5 }, { maxAttempts: Number.POSITIVE_INFINITY },
+      { baseDelayMs: -1 }, { baseDelayMs: Number.NaN },
+      { factor: 0.5 }, { factor: Number.POSITIVE_INFINITY },
+      { maxDelayMs: -1 }, { maxDelayMs: Number.NaN },
+    ]) {
+      await expect(boot({ retry })).rejects.toBeInstanceOf(AgentLoopError)
+    }
+  })
 })
 
 describe('agent-loop: retry policy follows LLMError.kind (D-023)', () => {
@@ -136,6 +202,16 @@ describe('agent-loop: retry policy follows LLMError.kind (D-023)', () => {
     expect(err.kind).toBe('quota')
     expect(mocks.get('mock')!.calls.length).toBe(1)
     expect(waits).toEqual([])
+  })
+
+  it('ignores a malformed retryAfterMs and uses the configured backoff', async () => {
+    const { sleep, waits } = fakeSleep()
+    const { ctx } = await boot({ sleep, retry: { maxAttempts: 1, baseDelayMs: 250 } }, [
+      { name: 'mock', default: true, script: [new LLMError('rate_limit', 'slow down', 'mock', 429, { retryAfterMs: Number.NaN }), { text: 'ok' }] },
+    ])
+    const result = await ctx.agentLoop.run({ sessionId: 'bad-retry-after', prompt: 'go' })
+    expect(result.finalText).toBe('ok')
+    expect(waits).toEqual([250])
   })
 
   it('a rate_limit error is retried once, honoring retryAfterMs, then succeeds', async () => {

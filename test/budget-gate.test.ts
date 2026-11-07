@@ -50,6 +50,13 @@ describe('Budgets.reserve / release / record', () => {
 })
 
 describe('LLMService enforces the budget before the call', () => {
+  it.each([0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1])('rejects invalid maxTokens %s before logging or calling a provider', async (maxTokens) => {
+    const { ctx, provider } = await boot({})
+    await expect(ctx.llm.complete(req({ maxTokens }))).rejects.toMatchObject({ kind: 'config' })
+    expect(provider.calls).toHaveLength(0)
+    expect(await types(ctx)).toEqual([])
+  })
+
   it('a call whose estimate cannot fit is refused: provider never called, nothing logged as sent, budget.blocked recorded', async () => {
     const { ctx, provider } = await boot({ budgets: { tokens: { session: { hard: 500 } } } })
     const err: any = await ctx.llm.complete(req({ messages: [{ role: 'user', content: 'x'.repeat(3000) }] })).catch((e) => e)
@@ -112,10 +119,70 @@ describe('LLMService enforces the budget before the call', () => {
     await expect(ctx.llm.complete(req())).resolves.toBeTruthy()
   })
 
+  it('estimateRequestTokens rejects zero, negative, fractional and unsafe output caps', () => {
+    for (const maxTokens of [0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
+      expect(() => estimateRequestTokens({ messages: [], maxTokens })).toThrow(/maxTokens/)
+    }
+    expect(() => estimateRequestTokens({ messages: [] }, 0)).toThrow(/default output reserve/)
+  })
+
   it('estimateRequestTokens covers prompt plus allowed output and is pessimistic for dense text', () => {
     expect(estimateRequestTokens({ messages: [{ role: 'user', content: 'a'.repeat(300) }], maxTokens: 50 })).toBeGreaterThanOrEqual(150)
   })
 })
+
+
+  it('does not charge or retain a budget reservation when cancellation occurs while waiting for a limiter slot', async () => {
+    let started!: () => void
+    let release!: () => void
+    const firstStarted = new Promise<void>((resolve) => { started = resolve })
+    const firstGate = new Promise<void>((resolve) => { release = resolve })
+    const provider = new MockProvider()
+    const complete = provider.complete.bind(provider)
+    provider.complete = async (request) => {
+      if (provider.calls.length === 0) {
+        started()
+        await firstGate
+      }
+      return complete(request)
+    }
+    const { ctx } = await boot({
+      budgets: { requests: { session: { hard: 2 } }, tokens: { session: { hard: 10_000 } } },
+      rateLimit: { maxConcurrent: 1 },
+    }, provider)
+
+    const first = ctx.llm.complete(req({ sessionId: 'first' }))
+    await firstStarted
+    const controller = new AbortController()
+    const queued = ctx.llm.complete(req({ sessionId: 'queued' }), controller.signal).catch((error) => error)
+    for (let i = 0; i < 100 && (await ctx.log.read('queued')).length === 0; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 5))
+    }
+    expect((await ctx.log.read('queued')).some((event) => event.type === 'model.request')).toBe(true)
+    controller.abort(new Error('cancelled while queued'))
+    await expect(queued).resolves.toBeInstanceOf(LLMError)
+
+    release()
+    await first
+    expect(ctx.llm.budget!.status().requests.session.used).toBe(1)
+    await expect(ctx.llm.complete(req({ sessionId: 'third' }))).resolves.toBeTruthy()
+    expect(ctx.llm.budget!.status().requests.session.used).toBe(2)
+    expect(provider.calls).toHaveLength(2)
+  })
+
+  it('releases a reservation when the request log fails before provider dispatch', async () => {
+    const { ctx, provider } = await boot({ budgets: { requests: { session: { hard: 1 } } } })
+    const append = ctx.log.append.bind(ctx.log)
+    ;(ctx.log as any).append = async (sessionId: string, type: string, data: unknown, actor?: string) => {
+      if (type === 'model.request') throw new Error('log unavailable')
+      return append(sessionId, type, data, actor)
+    }
+    await expect(ctx.llm.complete(req())).rejects.toThrow('log unavailable')
+    expect(ctx.llm.budget!.status().requests.session.used).toBe(0)
+    ;(ctx.log as any).append = append
+    await expect(ctx.llm.complete(req())).resolves.toBeTruthy()
+    expect(provider.calls).toHaveLength(1)
+  })
 
 describe('the agent loop and its provider chain', () => {
   it('a budget stop ends the chain instead of trying the next provider', async () => {

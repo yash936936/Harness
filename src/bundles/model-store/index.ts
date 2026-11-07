@@ -55,30 +55,41 @@ export class ModelStore extends Service {
 
   /** Refuses a source outside the allowlist (D-027) and refuses to silently overwrite an existing id - re-pinning under the same id defeats the point of pinning. */
   register(record: ModelRecord): void {
+    if (!record || typeof record !== 'object') throw new ModelStoreError('model record must be an object', 'invalid_record')
     if (!ALLOWLISTED_SOURCES.has(record.source)) {
       throw new ModelStoreError(
-        `model "${record.id}": source "${record.source}" is not allowlisted (allowed: ${[...ALLOWLISTED_SOURCES].join(', ')})`,
+        `model "${String(record.id)}": source "${String(record.source)}" is not allowlisted (allowed: ${[...ALLOWLISTED_SOURCES].join(', ')})`,
         'unallowlisted_source',
       )
+    }
+    const nonEmpty = (value: unknown, max: number): value is string =>
+      typeof value === 'string' && value.trim().length > 0 && value.length <= max && !value.includes('\\0')
+    if (!nonEmpty(record.id, 256) || !nonEmpty(record.revision, 512) || !nonEmpty(record.license, 1024) ||
+        typeof record.sha256 !== 'string' || !/^[a-f0-9]{64}$/i.test(record.sha256) ||
+        (record.sourceDigest !== undefined && (typeof record.sourceDigest !== 'string' || !/^[a-f0-9]{64}$/i.test(record.sourceDigest))) ||
+        (record.notes !== undefined && typeof record.notes !== 'string')) {
+      throw new ModelStoreError('model record requires a bounded id, revision, license and valid 64-character SHA-256 digests', 'invalid_record')
     }
     if (this.records.has(record.id)) {
       throw new ModelStoreError(`model "${record.id}" is already registered - use a different id for a different revision`, 'duplicate')
     }
-    this.records.set(record.id, { ...record, sha256: record.sha256.toLowerCase() })
+    this.records.set(record.id, Object.freeze({ ...record, sha256: record.sha256.toLowerCase() }))
   }
 
   get(id: string): ModelRecord | undefined {
-    return this.records.get(id)
+    const record = this.records.get(id)
+    return record ? { ...record } : undefined
   }
 
   list(): ModelRecord[] {
-    return [...this.records.values()]
+    return [...this.records.values()].map((record) => ({ ...record }))
   }
 
   /** Throws `ModelStoreError('digest_mismatch')` on any mismatch - never silently accepts a changed artifact under a pinned id. Comparison is case-insensitive. */
   verifyDigest(id: string, actualSha256: string): void {
     const record = this.records.get(id)
     if (!record) throw new ModelStoreError(`model "${id}" is not registered - nothing to verify its digest against`, 'unknown_model')
+    if (typeof actualSha256 !== 'string' || !/^[a-f0-9]{64}$/i.test(actualSha256)) throw new ModelStoreError('actual digest must be a 64-character SHA-256 hex string', 'invalid_digest')
     const actual = actualSha256.toLowerCase()
     if (actual !== record.sha256) {
       throw new ModelStoreError(`model "${id}": digest mismatch - pinned ${record.sha256}, got ${actual}`, 'digest_mismatch')
@@ -107,15 +118,25 @@ export class ModelStore extends Service {
   }
 
   setBinding(binding: Binding): void {
-    this.bindings.set(binding.name, { ...binding, fallbackIds: [...binding.fallbackIds] })
+    if (!binding || typeof binding !== 'object' ||
+        typeof binding.name !== 'string' || !binding.name.trim() || binding.name.length > 128 ||
+        typeof binding.pinnedModelId !== 'string' || !binding.pinnedModelId.trim() || binding.pinnedModelId.length > 256 ||
+        !Array.isArray(binding.fallbackIds) ||
+        binding.fallbackIds.some((id) => typeof id !== 'string' || !id.trim() || id.length > 256) ||
+        new Set(binding.fallbackIds).size !== binding.fallbackIds.length ||
+        binding.fallbackIds.includes(binding.pinnedModelId)) {
+      throw new ModelStoreError('binding requires a name, pinned model id, and unique fallback ids distinct from the pin', 'invalid_binding')
+    }
+    this.bindings.set(binding.name, Object.freeze({ ...binding, fallbackIds: Object.freeze([...binding.fallbackIds]) as unknown as string[] }))
   }
 
   getBinding(name: string): Binding | undefined {
-    return this.bindings.get(name)
+    const binding = this.bindings.get(name)
+    return binding ? { ...binding, fallbackIds: [...binding.fallbackIds] } : undefined
   }
 
   listBindings(): Binding[] {
-    return [...this.bindings.values()]
+    return [...this.bindings.values()].map((binding) => ({ ...binding, fallbackIds: [...binding.fallbackIds] }))
   }
 
   /** One binding's availability: the pin if registered, else the first *registered* fallback in order, else unavailable. Read-only - never registers or mutates anything. */

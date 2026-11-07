@@ -96,7 +96,68 @@ async function seed(ctx: Context) {
   }
 }
 
+describe('semantic tier configuration and persisted data validation', () => {
+
+  it('redacts secrets from source and tags on write and when reading legacy persisted metadata', async () => {
+    const dir = await tmp()
+    const { ctx } = await boot({ sem: { path: dir } })
+    ctx.egress.registerSecret('metadata', 'sk-metadata-secret')
+    const added = await ctx.memorySemantic.add({
+      text: 'A safe searchable fact',
+      why: WHY,
+      id: 'metadata-redaction',
+      source: 'source-sk-metadata-secret',
+      tags: ['tag-sk-metadata-secret'],
+    })
+    expect(JSON.stringify(added.fact)).not.toContain('sk-metadata-secret')
+    expect(JSON.stringify(await ctx.memorySemantic.list())).not.toContain('sk-metadata-secret')
+    const hits = await ctx.memorySemantic.query('safe searchable fact')
+    expect(JSON.stringify(hits)).not.toContain('sk-metadata-secret')
+
+    // Older files may contain metadata written before the redaction fix.
+    const file = join(dir, 'semantic.json')
+    const persisted = JSON.parse(await readFile(file, 'utf8'))
+    persisted[0].source = 'legacy-sk-metadata-secret'
+    persisted[0].tags = ['legacy-tag-sk-metadata-secret']
+    await writeFile(file, JSON.stringify(persisted), 'utf8')
+    expect(JSON.stringify(await ctx.memorySemantic.list())).not.toContain('sk-metadata-secret')
+  })
+
+  it('rejects malformed tags before attempting to copy them', async () => {
+    const { ctx } = await boot()
+    await expect(ctx.memorySemantic.add({ text: 'x', why: WHY, tags: {} as any })).rejects.toThrow(/tags must be an array/)
+  })
+
+  it('rejects invalid size limits and query thresholds', async () => {
+    await expect(boot({ sem: { maxTextChars: 0 } })).rejects.toThrow(/positive safe integers/)
+    await expect(boot({ sem: { maxWhyChars: Number.POSITIVE_INFINITY } })).rejects.toThrow(/positive safe integers/)
+    const { ctx } = await boot()
+    await expect(ctx.memorySemantic.query('query', { minScore: Number.NaN })).rejects.toThrow(/minScore/)
+    await expect(ctx.memorySemantic.query('query', { minScore: 1.1 })).rejects.toThrow(/minScore/)
+  })
+
+  it('rejects malformed persisted facts rather than returning them to callers', async () => {
+    const dir = await tmp()
+    const { ctx } = await boot({ sem: { path: dir } })
+    await writeFile(join(dir, 'semantic.json'), JSON.stringify([{ tier: 'semantic', id: 'bad', text: 'fact', why: 'reason', ts: 'not-a-date' }]))
+    await expect(ctx.memorySemantic.list()).rejects.toThrow(/semantic.json is unreadable/)
+  })
+})
+
 describe('semantic tier (3.3): write, retrieve by meaning', () => {
+  it('snapshots fact metadata before waiting for persistence and indexing', async () => {
+    const { ctx } = await boot({ sem: { path: await tmp() } })
+    const tags = ['original']
+    const input = { text: 'A stable fact', why: WHY, id: 'snapshot-id', tags, source: 'original-source' }
+    const pending = ctx.memorySemantic.add(input)
+    tags[0] = 'mutated'
+    input.id = 'mutated-id'
+    input.source = 'mutated-source'
+    await pending
+    const fact = (await ctx.memorySemantic.list())[0]!
+    expect(fact).toMatchObject({ id: 'snapshot-id', tags: ['original'], source: 'original-source' })
+  })
+
   it('finds a fact by a query that shares NO words with it, and ranks it first among unrelated facts', async () => {
     const { ctx } = await boot()
     await seed(ctx)

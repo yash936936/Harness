@@ -33,6 +33,24 @@ function expectChildEnv(actualJson: string, expected: Record<string, string>) {
   }
 }
 
+describe('subprocess: configuration validation', () => {
+  it('rejects non-finite or negative output, timeout and kill-grace limits', async () => {
+    await expect(boot({ maxOutputBytes: NaN })).rejects.toBeInstanceOf(SubprocessError)
+    await expect(boot({ timeoutMs: Infinity })).rejects.toBeInstanceOf(SubprocessError)
+    const ctx = await boot()
+    await expect(ctx.subprocess.run(NODE, ['-e', '0'], { maxOutputBytes: Infinity })).rejects.toBeInstanceOf(SubprocessError)
+    await expect(ctx.subprocess.run(NODE, ['-e', '0'], { timeoutMs: -1 })).rejects.toBeInstanceOf(SubprocessError)
+    await expect(ctx.subprocess.run(NODE, ['-e', '0'], { killGraceMs: NaN })).rejects.toBeInstanceOf(SubprocessError)
+  })
+
+  it('rejects malformed environment allowlists', async () => {
+    await expect(boot({ envAllowlist: ['BAD=NAME'] })).rejects.toBeInstanceOf(SubprocessError)
+    const ctx = await boot()
+    await expect(ctx.subprocess.run(NODE, ['-e', '0'], { envAllowlist: ['BAD=NAME'] })).rejects.toBeInstanceOf(SubprocessError)
+    await expect(ctx.subprocess.run(NODE, ['-e', '0'], { envAllowlist: ['OK'], env: { OK: 42 as any } })).rejects.toBeInstanceOf(SubprocessError)
+  })
+})
+
 describe('subprocess: happy path', () => {
   it('captures stdout and a zero exit code', async () => {
     const ctx = await boot()
@@ -178,6 +196,21 @@ describe('subprocess: timeout and abort', () => {
     expect(res.aborted).toBe(true)
     expect(res.timedOut).toBe(false)
   }, 10_000)
+
+  it('catches an abort between the initial check and listener registration', async () => {
+    const ctx = await boot()
+    let reads = 0
+    const signal = {
+      get aborted() { reads++; return reads >= 2 },
+      reason: new Error('late abort'),
+      addEventListener() {},
+      removeEventListener() {},
+    } as unknown as AbortSignal
+    const res = await ctx.subprocess.run(NODE, ['-e', 'setTimeout(() => {}, 30000)'], { signal, killGraceMs: 0 })
+    expect(reads).toBeGreaterThanOrEqual(2)
+    expect(res.aborted).toBe(true)
+    expect(res.timedOut).toBe(false)
+  })
 
   it('a fast run under an abort signal that never fires completes normally', async () => {
     const ctx = await boot()

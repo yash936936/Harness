@@ -208,7 +208,7 @@ export async function bootProfileCoding(config: ProfileCodingConfig): Promise<Co
     await ctx.plugin(Subprocess, config.subprocess)
     await ctx.plugin(Sandbox)
     await ctx.plugin(Router, {
-      worker: new WorkerBackend({ complete: (r) => ctx.llm.complete(r as any) }),
+      worker: new WorkerBackend({ complete: (r, signal) => ctx.llm.complete(r as any, signal) }),
       needle: config.router?.needle ? new CommandBackend({ expectedSha256: NEEDLE_PIN.sha256, ...config.router.needle }) : undefined,
       owned: config.router?.owned,
       ...(config.router?.shadowTool ? { shadowTool: true } : {}),

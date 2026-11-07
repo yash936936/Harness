@@ -34,6 +34,22 @@ async function boot(script: ConstructorParameters<typeof MockProvider>[0] = [], 
 }
 
 describe('hot tier: token cap and trimming (3.2)', () => {
+  it('redacts registered secrets from hot-memory source metadata on write and list', async () => {
+    const dir = await tmp()
+    const { ctx } = await boot([], { path: dir })
+    ctx.egress.registerSecret('hot-source', 'sk-hot-source-secret')
+    const added = await ctx.memory.hot.add({ text: 'safe hot fact', id: 'source-redaction', source: 'origin-sk-hot-source-secret' })
+    expect(JSON.stringify(added)).not.toContain('sk-hot-source-secret')
+    expect(JSON.stringify(await ctx.memory.hot.list())).not.toContain('sk-hot-source-secret')
+
+    const file = join(dir, 'hot.json')
+    const persisted = JSON.parse(await readFile(file, 'utf8'))
+    persisted[0].source = 'legacy-sk-hot-source-secret'
+    await writeFile(file, JSON.stringify(persisted), 'utf8')
+    expect(JSON.stringify(await ctx.memory.hot.list())).not.toContain('sk-hot-source-secret')
+  })
+
+
   it('filling it past the cap trims to fit: whole entries, lowest priority first, nothing stored is lost', async () => {
     const { ctx } = await boot([], { hotTokenCap: 120 })
     const ids: Record<string, string> = {}
@@ -95,6 +111,47 @@ describe('hot tier: token cap and trimming (3.2)', () => {
     expect(r.dropped).toEqual(['second'])
   })
 
+  it('rejects non-positive and unsafe episode field limits', async () => {
+    await expect(boot([], { maxFieldChars: 0 })).rejects.toThrow(/maxFieldChars/)
+    await expect(boot([], { maxFieldChars: Number.POSITIVE_INFINITY })).rejects.toThrow(/maxFieldChars/)
+  })
+
+  it('requires a finite token cap and a finite non-negative token estimate', async () => {
+    await expect(boot([], { hotTokenCap: Number.POSITIVE_INFINITY })).rejects.toThrow(/finite positive/)
+    const { ctx } = await boot([], { estimateTokens: () => Number.NaN })
+    await expect(ctx.memory.hot.add({ text: 'rule' })).rejects.toThrow(/finite non-negative/)
+  })
+
+  it('enforces the cap using the complete rendered text for non-additive estimators', async () => {
+    const estimateTokens = (text: string) => Math.ceil(text.length / 3) + (text.includes('alpha') && text.includes('beta') ? 100 : 0)
+    const { ctx } = await boot([], { hotTokenCap: 80, estimateTokens })
+    await ctx.memory.hot.add({ id: 'alpha', text: 'alpha' })
+    await ctx.memory.hot.add({ id: 'beta', text: 'beta' })
+    const rendered = await ctx.memory.hot.render()
+    expect(rendered.included).toHaveLength(1)
+    expect(rendered.dropped).toHaveLength(1)
+    expect(rendered.tokens).toBeLessThanOrEqual(80)
+    expect(estimateTokens(rendered.text)).toBeLessThanOrEqual(80)
+  })
+
+  it('redacts secrets registered after a persisted entry was written', async () => {
+    const dir = await tmp()
+    const first = await boot([], { path: dir })
+    await first.ctx.memory.hot.add({ id: 'persisted', text: 'credential sk-late-secret' })
+    const second = await boot([], { path: dir })
+    second.ctx.egress.registerSecret('late', 'sk-late-secret')
+    const rendered = await second.ctx.memory.hot.render()
+    expect(rendered.text).not.toContain('sk-late-secret')
+    expect(JSON.stringify(await second.ctx.memory.hot.list())).not.toContain('sk-late-secret')
+    expect(rendered.text).toContain('[redacted:late]')
+  })
+
+  it('rejects malformed persisted entries instead of injecting them', async () => {
+    const dir = await tmp()
+    await writeFile(join(dir, 'hot.json'), JSON.stringify([{ id: 'bad', text: 'rule', priority: 'high', ts: 'yesterday' }]))
+    const { ctx } = await boot([], { path: dir })
+    await expect(ctx.memory.hot.render()).rejects.toThrow(/hot.json is unreadable/)
+  })
   it('an entry that could never fit is refused at add(), not stored silently', async () => {
     const { ctx } = await boot([], { hotTokenCap: 50 })
     await expect(ctx.memory.hot.add({ text: 'y'.repeat(500) })).rejects.toThrow(MemoryError)

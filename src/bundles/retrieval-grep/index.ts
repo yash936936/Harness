@@ -1,5 +1,5 @@
 import { isAbsolute, relative, resolve, sep } from 'node:path'
-import { realpathSync } from 'node:fs'
+import { existsSync, realpathSync } from 'node:fs'
 import { Context, Service } from 'cordis'
 import {
   RetrievalGrepConfigError,
@@ -25,7 +25,19 @@ const MAX_LINE_CHARS = 300
 /** Never searched, regardless of config. */
 const ALWAYS_EXCLUDED = ['!.git', '!node_modules']
 /** Likely-secret files; excluded unless `includeSecrets`. */
-const SECRET_EXCLUDES = ['!.env*', '!*.env', '!*.pem', '!*.key', '!id_rsa*']
+const SECRET_EXCLUDES = [
+  '!.env*', '!**/.env*', '!*.env', '!**/*.env',
+  '!*.pem', '!**/*.pem', '!*.key', '!**/*.key',
+  '!*.p12', '!**/*.p12', '!*.pfx', '!**/*.pfx', '!*.jks', '!**/*.jks', '!*.keystore', '!**/*.keystore',
+  '!id_rsa*', '!**/id_rsa*', '!**/id_dsa*', '!**/id_ecdsa*', '!**/id_ed25519*',
+  '!**/.aws/**', '!**/.ssh/**', '!**/.azure/**', '!**/.docker/**', '!**/.kube/**', '!**/.gnupg/**',
+  '!**/.config/gcloud/**', '!**/.config/gh/**',
+  '!**/.npmrc', '!**/.netrc', '!**/.pgpass', '!**/.git-credentials', '!**/.pypirc', '!**/.terraformrc',
+  '!**/.cargo/credentials', '!**/.cargo/credentials.toml', '!**/.terraform.d/credentials.tfrc.json',
+  '!**/credentials', '!**/credentials.json', '!**/service-account*.json', '!**/service_account*.json',
+  '!**/application_default_credentials.json', '!**/kubeconfig', '!**/secrets.yml', '!**/secrets.yaml',
+  '!**/secrets.json', '!**/secrets.toml', '!**/etc/shadow', '!**/proc/self/environ',
+]
 
 /** True if `target` is `root` or lies under it. Both must already be real, absolute paths. */
 function isInside(root: string, target: string): boolean {
@@ -61,7 +73,19 @@ export function parseRgJson(
     if (typeof path !== 'string' || typeof text !== 'string' || typeof line !== 'number') continue
     const abs = resolve(root, path)
     if (!isInside(root, abs)) continue
-    const file = relative(root, abs).split(sep).join('/')
+    // A configured --follow must not let an in-root symlink reveal an outside file.
+    // rg emitted a real match, so the path should exist. Keep the parser usable
+    // with synthetic event fixtures, but resolve every existing path to catch symlinks.
+    let real = abs
+    if (existsSync(abs)) {
+      try {
+        real = realpathSync(abs)
+      } catch {
+        continue
+      }
+    }
+    if (!isInside(root, real)) continue
+    const file = relative(root, real).split(sep).join('/')
     let entry = files.get(file)
     if (!entry) files.set(file, (entry = { matches: [], total: 0 }))
     entry.total++
@@ -98,17 +122,26 @@ export class RetrievalGrep extends Service {
     }
     this.root = config.root
     this.rgPath = config.rgPath ?? 'rg'
+    if (typeof this.rgPath !== 'string' || !this.rgPath.trim()) throw new RetrievalGrepConfigError('retrieval-grep: rgPath must be a non-empty executable')
     this.extraArgs = config.extraArgs ?? []
+    if (!Array.isArray(this.extraArgs) || this.extraArgs.some((arg) => typeof arg !== 'string')) throw new RetrievalGrepConfigError('retrieval-grep: extraArgs must be strings')
+    if (typeof config.includeSecrets !== 'undefined' && typeof config.includeSecrets !== 'boolean') throw new RetrievalGrepConfigError('retrieval-grep: includeSecrets must be boolean')
+    if (this.extraArgs.some((arg) => arg === '--follow' || arg === '-L' || arg.startsWith('--follow='))) {
+      throw new RetrievalGrepConfigError('retrieval-grep: extraArgs must not enable symlink following; paths must remain inside the project root')
+    }
     this.maxResults = config.maxResults ?? 200
     this.maxMatchesPerFile = config.maxMatchesPerFile ?? 5
     this.includeSecrets = config.includeSecrets ?? false
     this.timeoutMs = config.timeoutMs ?? 10_000
     this.maxFiles = config.maxFiles ?? 20_000
+    for (const [name, value] of [['maxResults', this.maxResults], ['maxMatchesPerFile', this.maxMatchesPerFile], ['timeoutMs', this.timeoutMs], ['maxFiles', this.maxFiles]] as const) {
+      if (!Number.isSafeInteger(value) || value < 1) throw new RetrievalGrepConfigError(`retrieval-grep: ${name} must be a positive safe integer`)
+    }
   }
 
   async search(query: string, opts: SearchOptions = {}): Promise<RetrievalGrepResult> {
-    if (query === '' || query.includes('\0')) {
-      return { ok: false, error: { kind: 'bad_pattern', detail: 'empty query or NUL byte' } }
+    if (typeof query !== 'string' || query.trim() === '' || query.includes('\0') || query.length > 2000) {
+      return { ok: false, error: { kind: 'bad_pattern', detail: 'query must be non-empty, at most 2000 characters, and contain no NUL byte' } }
     }
 
     const where = this.resolveTarget(opts.path)
@@ -123,8 +156,9 @@ export class RetrievalGrep extends Service {
     args.push(...this.excludeArgs())
     args.push('-e', query, '--', target)
 
-    const res = await this.ctx.subprocess.run(this.rgPath, args, { cwd: realRoot, timeoutMs: this.timeoutMs })
+    const res = await this.ctx.subprocess.run(this.rgPath, args, { cwd: realRoot, timeoutMs: this.timeoutMs, ...(opts.signal ? { signal: opts.signal } : {}) })
 
+    opts.signal?.throwIfAborted()
     if (res.spawnError) return { ok: false, error: { kind: 'rg_missing', detail: res.spawnError } }
     if (res.timedOut) return { ok: false, error: { kind: 'timeout' } }
 
@@ -165,8 +199,8 @@ export class RetrievalGrep extends Service {
   /** The exclude globs shared by `search` and `listFiles`. They come after `extraArgs` (a later --glob wins). */
   private excludeArgs(): string[] {
     const out: string[] = []
-    for (const g of ALWAYS_EXCLUDED) out.push('--glob', g)
-    if (!this.includeSecrets) for (const g of SECRET_EXCLUDES) out.push('--glob', g)
+    for (const g of ALWAYS_EXCLUDED) out.push('--iglob', g)
+    if (!this.includeSecrets) for (const g of SECRET_EXCLUDES) out.push('--iglob', g)
     return out
   }
 
@@ -183,7 +217,8 @@ export class RetrievalGrep extends Service {
     if (this.includeSecrets) args.push('--hidden')
     args.push(...this.extraArgs, ...this.excludeArgs(), '--', target)
 
-    const res = await this.ctx.subprocess.run(this.rgPath, args, { cwd: realRoot, timeoutMs: this.timeoutMs })
+    const res = await this.ctx.subprocess.run(this.rgPath, args, { cwd: realRoot, timeoutMs: this.timeoutMs, ...(opts.signal ? { signal: opts.signal } : {}) })
+    opts.signal?.throwIfAborted()
     if (res.spawnError) return { ok: false, error: { kind: 'rg_missing', detail: res.spawnError } }
     if (res.timedOut) return { ok: false, error: { kind: 'timeout' } }
     if (res.exitCode !== 0 && res.exitCode !== 1) {

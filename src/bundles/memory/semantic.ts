@@ -57,6 +57,9 @@ export class MemorySemantic extends Service {
     this.collectionName = config.collection ?? 'memory-semantic'
     this.maxText = config.maxTextChars ?? 1000
     this.maxWhy = config.maxWhyChars ?? 500
+    if (!Number.isSafeInteger(this.maxText) || this.maxText < 1 || !Number.isSafeInteger(this.maxWhy) || this.maxWhy < 1) {
+      throw new MemoryError('memory: semantic maxTextChars and maxWhyChars must be positive safe integers')
+    }
     this.now = config.now ?? (() => new Date())
   }
 
@@ -67,30 +70,38 @@ export class MemorySemantic extends Service {
    * indexed, so an embedding outage loses nothing (`indexed: false`).
    */
   async add(input: { text: string; why: string; id?: string; tags?: string[]; source?: string }): Promise<AddResult> {
-    let text = oneLine(input.text ?? '')
-    let why = oneLine(input.why ?? '')
+    if (!input || typeof input !== 'object' || Array.isArray(input)) throw new MemoryError('memory: semantic fact must be an object')
+    if (typeof input.text !== 'string') throw new MemoryError('memory: semantic fact text must be a string')
+    if (typeof input.why !== 'string') throw new MemoryError('memory: semantic fact why must be a string')
+    if (input.id !== undefined && (typeof input.id !== 'string' || !input.id.trim() || input.id.includes('\0'))) throw new MemoryError('memory: semantic fact id must be a non-empty string without NUL')
+    if (input.source !== undefined && typeof input.source !== 'string') throw new MemoryError('memory: semantic source must be a string')
+    if (input.tags !== undefined && (!Array.isArray(input.tags) || input.tags.some((tag) => typeof tag !== 'string'))) throw new MemoryError('memory: semantic tags must be an array of strings')
+
+    const egress = this.ctx.egress
+    const id = input.id
+    let text = clip(egress.redactValue(oneLine(input.text)), this.maxText)
+    let why = clip(egress.redactValue(oneLine(input.why)), this.maxWhy)
+    const source = input.source === undefined ? undefined : clip(oneLine(egress.redactValue(input.source)), this.maxWhy)
+    const tags = input.tags?.map((tag) => clip(oneLine(egress.redactValue(tag)), 200)).filter(Boolean)
     if (!text) throw new MemoryError('memory: semantic fact text is empty')
     if (!why) throw new MemoryError('memory: semantic fact needs a `why`: what makes it non-trivial to reconstruct from the code')
-    const egress = this.ctx.egress
-    text = clip(egress.redactValue(text), this.maxText)
-    why = clip(egress.redactValue(why), this.maxWhy)
 
     let result!: { fact: SemanticFact; created: boolean }
     await this.mutate((list) => {
-      const dup = list.find((f) => sameText(f.text, text) && f.id !== input.id)
+      const dup = list.find((f) => sameText(f.text, text) && f.id !== id)
       if (dup) {
-        result = { fact: dup, created: false }
+        result = { fact: this.safeFact(dup), created: false }
         return false
       }
-      const i = input.id ? list.findIndex((f) => f.id === input.id) : -1
+      const i = id ? list.findIndex((f) => f.id === id) : -1
       const ts = this.now().toISOString()
       const fact: SemanticFact = {
         tier: 'semantic',
-        id: input.id ?? randomUUID(),
+        id: id ?? randomUUID(),
         text,
         why,
-        ...(input.tags?.length ? { tags: input.tags.map(oneLine).filter(Boolean) } : {}),
-        ...(input.source ? { source: input.source } : {}),
+        ...(tags?.length ? { tags: tags.map(oneLine).filter(Boolean) } : {}),
+        ...(source ? { source } : {}),
         ts: i >= 0 ? list[i]!.ts : ts,
         ...(i >= 0 ? { updatedTs: ts } : {}),
       }
@@ -115,8 +126,9 @@ export class MemorySemantic extends Service {
     opts: { k?: number; minScore?: number } = {},
   ): Promise<{ ok: true; hits: SemanticHit[]; stale: boolean } | SemanticFailure> {
     const k = opts.k ?? 5
+    if (opts.minScore !== undefined && (!Number.isFinite(opts.minScore) || opts.minScore < 0 || opts.minScore > 1)) throw new MemoryError('memory: query minScore must be between 0 and 1')
     if (!Number.isInteger(k) || k < 1 || k > 1000) throw new MemoryError('memory: query k must be an integer from 1 to 1000')
-    if (!oneLine(text ?? '')) throw new MemoryError('memory: query text is empty')
+    if (typeof text !== 'string' || !oneLine(text)) throw new MemoryError('memory: query text must be a non-empty string')
     const facts = await this.load()
     if (facts.length === 0) return { ok: true, hits: [], stale: false }
 
@@ -131,7 +143,7 @@ export class MemorySemantic extends Service {
     const hits: SemanticHit[] = []
     for (const h of found.hits) {
       const fact = byId.get(h.id) // a vector whose fact was removed is ignored, never returned
-      if (fact && (opts.minScore === undefined || h.score >= opts.minScore)) hits.push({ fact: structuredClone(fact), score: h.score })
+      if (fact && (opts.minScore === undefined || h.score >= opts.minScore)) hits.push({ fact: this.safeFact(fact), score: h.score })
     }
     return { ok: true, hits, stale: count.ok ? count.count !== facts.length : true }
   }
@@ -164,7 +176,19 @@ export class MemorySemantic extends Service {
   }
 
   async list(): Promise<SemanticFact[]> {
-    return structuredClone(await this.load())
+    return (await this.load()).map((fact) => this.safeFact(fact))
+  }
+
+  /** Redact every model-visible field, including metadata loaded from older persisted files. */
+  private safeFact(fact: SemanticFact): SemanticFact {
+    const redact = (value: string) => this.ctx.egress.redactValue(value)
+    return {
+      ...structuredClone(fact),
+      text: redact(fact.text),
+      why: redact(fact.why),
+      ...(fact.source !== undefined ? { source: redact(fact.source) } : {}),
+      ...(fact.tags !== undefined ? { tags: fact.tags.map(redact) } : {}),
+    }
   }
 
   // ---- index plumbing -------------------------------------------------------------------------
@@ -206,6 +230,18 @@ export class MemorySemantic extends Service {
       try {
         const parsed = JSON.parse(await readFile(this.file, 'utf8'))
         if (!Array.isArray(parsed)) throw new Error('not an array')
+        for (const [index, fact] of parsed.entries()) {
+          if (!fact || typeof fact !== 'object' || Array.isArray(fact) || fact.tier !== 'semantic' ||
+            typeof fact.id !== 'string' || !fact.id.trim() ||
+            typeof fact.text !== 'string' || !fact.text.trim() ||
+            typeof fact.why !== 'string' || !fact.why.trim() ||
+            typeof fact.ts !== 'string' || !Number.isFinite(Date.parse(fact.ts)) ||
+            (fact.updatedTs !== undefined && (typeof fact.updatedTs !== 'string' || !Number.isFinite(Date.parse(fact.updatedTs)))) ||
+            (fact.source !== undefined && typeof fact.source !== 'string') ||
+            (fact.tags !== undefined && (!Array.isArray(fact.tags) || fact.tags.some((tag: unknown) => typeof tag !== 'string')))) {
+            throw new Error(`invalid fact at index ${index}`)
+          }
+        }
         this.facts = parsed
       } catch (err: any) {
         if (err?.code !== 'ENOENT') {
@@ -224,7 +260,7 @@ export class MemorySemantic extends Service {
       if (!fn(list)) return
       if (this.dir) {
         await mkdir(this.dir, { recursive: true })
-        const tmp = `${this.file}.${process.pid}.tmp`
+        const tmp = `${this.file}.${process.pid}.${randomUUID()}.tmp`
         await writeFile(tmp, JSON.stringify(list, null, 2), 'utf8')
         await rename(tmp, this.file)
       }

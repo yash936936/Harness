@@ -94,21 +94,23 @@ export class JsonlStore implements SessionStore {
       throw e
     }
     const lines = text.split('\n')
-    let end = text.length
-    for (let i = lines.length - 1; i >= 0; i--) {
-      if (!lines[i]!.trim()) continue
+    let last = lines.length - 1
+    while (last >= 0 && !lines[last]!.trim()) last--
+    for (let i = 0; i <= last; i++) {
       try {
         JSON.parse(lines[i]!)
-        return
       } catch {
-        const isFinal = lines.slice(i + 1).every((line) => !line.trim())
-        if (!isFinal) throw new Error(`Corrupt session log ${sessionId}: line ${i + 1} is not valid JSON`)
-        // Keep the newline after the last complete record, removing the bad tail.
-        end = lines.slice(0, i).join('\n').length + (i > 0 ? 1 : 0)
+        if (i !== last) throw new Error(`Corrupt session log ${sessionId}: line ${i + 1} is not valid JSON`)
+        // Only an incomplete final record is recoverable. Never append past
+        // corruption in the middle of the log, even if the final line parses.
+        const end = lines.slice(0, i).join('\n').length + (i > 0 ? 1 : 0)
         await truncate(this.file(sessionId), end)
         return
       }
     }
+    // A crash can leave a complete JSON object without its delimiter. Separate it
+    // before the next append, or the next record would be concatenated onto this one.
+    if (last >= 0 && !text.endsWith('\n')) await appendFile(this.file(sessionId), '\n', 'utf8')
   }
 
   async append(event: SessionEvent) {

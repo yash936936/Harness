@@ -99,16 +99,41 @@ describe('rate limiter: persistence', () => {
     }
   })
 
-  it('ignores a corrupt or stale state file', async () => {
+  it('fails closed for a corrupt state file but resets a valid stale state file', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'rl-'))
     try {
       const path = join(dir, 'state.json')
       const { writeFileSync } = await import('node:fs')
       writeFileSync(path, 'not json')
       const c = clock()
-      expect(new RateLimiter({ perDay: 5, statePath: path, now: c.now }).remainingToday()).toBe(5)
+      expect(() => new RateLimiter({ perDay: 5, statePath: path, now: c.now })).toThrow(LLMError)
       writeFileSync(path, JSON.stringify({ day: '2001-01-01', count: 4 }))
       expect(new RateLimiter({ perDay: 5, statePath: path, now: c.now }).remainingToday()).toBe(5)
+      writeFileSync(path, JSON.stringify({ day: '2026-99-99', count: 0 }))
+      expect(() => new RateLimiter({ perDay: 5, statePath: path, now: c.now })).toThrow(LLMError)
+      writeFileSync(path, JSON.stringify({ day: '2026-02-31', count: 0 }))
+      expect(() => new RateLimiter({ perDay: 5, statePath: path, now: c.now })).toThrow(LLMError)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('rate limiter: shared persistent quota', () => {
+  it('serializes the daily ceiling across limiter instances sharing one state path', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'rl-shared-'))
+    try {
+      const path = join(dir, 'state.json')
+      const c = clock()
+      const a = new RateLimiter({ perMinute: 100, perDay: 3, statePath: path, now: c.now, sleep: c.sleep })
+      const b = new RateLimiter({ perMinute: 100, perDay: 3, statePath: path, now: c.now, sleep: c.sleep })
+      let calls = 0
+      const run = (limiter: RateLimiter) => limiter.run(async () => { calls++ })
+      const results = await Promise.allSettled([run(a), run(b), run(a), run(b)])
+      expect(results.filter((x) => x.status === 'fulfilled')).toHaveLength(3)
+      expect(results.filter((x) => x.status === 'rejected')).toHaveLength(1)
+      expect(calls).toBe(3)
+      expect(JSON.parse(readFileSync(path, 'utf8')).count).toBe(3)
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

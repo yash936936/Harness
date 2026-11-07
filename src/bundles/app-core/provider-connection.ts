@@ -52,6 +52,22 @@ const PROBE_REQUEST: ProviderRequest = {
   maxTokens: 8,
 }
 
+/** Enforce the shared deadline even when a provider implementation ignores its AbortSignal. */
+function withAbort<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
+  if (signal.aborted) return Promise.reject(signal.reason ?? new Error('aborted'))
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => {
+      signal.removeEventListener('abort', onAbort)
+      reject(signal.reason ?? new Error('aborted'))
+    }
+    signal.addEventListener('abort', onAbort, { once: true })
+    work.then(
+      (value) => { signal.removeEventListener('abort', onAbort); resolve(value) },
+      (error) => { signal.removeEventListener('abort', onAbort); reject(error) },
+    )
+  })
+}
+
 /**
  * Connection test (1B.2): list models (best-effort), then one tiny
  * completion call, timed. Never throws - a failed test is data the wizard
@@ -77,24 +93,36 @@ export async function testProviderConnection(
   // One shared deadline for the whole test, not per-call: a hung `/models` endpoint must not
   // be able to keep the probe call from ever running, and vice versa.
   const timeoutMs = opts.timeoutMs ?? defaultConnectionTimeoutMs(provider)
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 2_147_483_647) {
+    return { ok: false, error: { kind: 'config', message: 'timeoutMs must be a positive safe integer no greater than 2147483647' } }
+  }
   const timeout = AbortSignal.timeout(timeoutMs)
   const signal = opts.signal ? AbortSignal.any([opts.signal, timeout]) : timeout
 
-  const models = provider.listModels ? await safeListModels(provider, signal) : undefined
-  if (signal.aborted) {
-    return { ok: false, models, error: { kind: 'timeout', message: `no response within ${timeoutMs}ms (timed out while listing models)` } }
+  const aborted = (phase: string): ProviderConnectionResult => opts.signal?.aborted
+    ? { ok: false, error: { kind: 'aborted', message: `connection test cancelled ${phase}` } }
+    : { ok: false, error: { kind: 'timeout', message: `no response within ${timeoutMs}ms${phase}` } }
+
+  if (opts.signal?.aborted) return aborted('')
+  let models: ModelListingResult | undefined
+  if (provider.listModels) {
+    try {
+      models = await withAbort(safeListModels(provider, signal), signal)
+    } catch {
+      return aborted(' (while listing models)')
+    }
   }
+  if (signal.aborted) return aborted(provider.listModels ? ' (while listing models)' : '')
 
   const start = Date.now()
   try {
-    const res = await provider.complete(PROBE_REQUEST, signal)
+    const res = await withAbort(Promise.resolve().then(() => provider.complete(PROBE_REQUEST, signal)), signal)
+    if (signal.aborted) return { ...aborted(''), latencyMs: Date.now() - start, models }
     return { ok: true, latencyMs: Date.now() - start, model: res.model, models }
   } catch (e) {
     const latencyMs = Date.now() - start
     if (e instanceof LLMError) return { ok: false, latencyMs, models, error: { kind: e.kind, message: e.message } }
-    if (timeout.aborted && !opts.signal?.aborted) {
-      return { ok: false, latencyMs, models, error: { kind: 'timeout', message: `no response within ${timeoutMs}ms` } }
-    }
+    if (signal.aborted) return { ...aborted(''), latencyMs, models }
     const message = e instanceof Error ? e.message : String(e)
     return { ok: false, latencyMs, models, error: { kind: 'unknown', message } }
   }

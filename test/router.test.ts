@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { createHash } from 'node:crypto'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { CommandBackend, RulesBackend, Router, SUITE, SUITE_SHA256, evaluateClass, suiteSha256, verdict, type Candidate, type ClassResult, type DecisionClass, type RouterBackend } from '../src/bundles/router/index.js'
+import { CommandBackend, RulesBackend, Router, WorkerBackend, SUITE, SUITE_SHA256, evaluateClass, suiteSha256, verdict, type Candidate, type ClassResult, type DecisionClass, type RouterBackend } from '../src/bundles/router/index.js'
 import { bootProfileCoding } from '../src/profiles/profile-coding.js'
 import { NEEDLE_PIN, ROUTER_BINDING } from '../src/bundles/model-store/index.js'
 
@@ -63,6 +63,47 @@ describe('router chain', () => {
     expect(d).toMatchObject({ choice: 'b', source: 'worker', workerRequests: 1, requestSaved: false })
     expect(needle.calls).toBe(0)
   })
+  it('passes the active session id to the worker backend instead of logging under the fallback id', async () => {
+    const sessions: string[] = []
+    const worker = new WorkerBackend({
+      complete: async (req) => { sessions.push(req.sessionId); return { text: 'a' } },
+    })
+    const ctx = await mk({ worker })
+    await ctx.router.decide('agent', { task: 'choose alpha', candidates: CANDS, sessionId: 'coding-session-42' })
+    expect(sessions).toEqual(['coding-session-42'])
+  })
+
+  it('times out availability checks and aborts the backend before falling through', async () => {
+    let observed: AbortSignal | undefined
+    const worker: RouterBackend = {
+      name: 'worker',
+      async available(signal) {
+        observed = signal
+        return new Promise(() => {})
+      },
+      async decide() { return 'b' },
+    }
+    const ctx = await mk({ worker, backendTimeoutMs: 30 })
+    const d = await ctx.router.decide('agent', { task: 'apples', candidates: CANDS, sessionId: 's' })
+    expect(d).toMatchObject({ source: 'rules', choice: 'a' })
+    expect(observed?.aborted).toBe(true)
+  })
+
+  it('aborts an in-flight backend decision when its deadline expires', async () => {
+    let observed: AbortSignal | undefined
+    const worker: RouterBackend = {
+      name: 'worker',
+      async decide(_cls, req) {
+        observed = req.signal
+        return new Promise(() => {})
+      },
+    }
+    const ctx = await mk({ worker, backendTimeoutMs: 30 })
+    const d = await ctx.router.decide('agent', { task: 'no-match-zzzz', candidates: CANDS })
+    expect(d.source).toBe('none')
+    expect(observed?.aborted).toBe(true)
+  })
+
   it('an owned class goes to Needle first and records a saved request', async () => {
     const needle = fixed('needle', 'a'); const worker = fixed('worker', 'b', 1)
     const ctx = await mk({ needle, worker, owned: ['agent'] })
@@ -130,6 +171,16 @@ describe('command backend (Needle stand-in)', () => {
     await expect(cmd('invalid').decide('agent', { task: 'x', candidates: CANDS })).rejects.toThrow(/invalid JSON/)
     await expect(new CommandBackend({ command: process.execPath, args: [FAKE, 'hang'], timeoutMs: 150 }).decide('agent', { task: 'x', candidates: CANDS })).rejects.toThrow(/timed out/)
   })
+  it('rejects nonzero exits and more than one JSON response line', async () => {
+    await expect(cmd('nonzero').decide('agent', { task: 'x', candidates: CANDS })).rejects.toThrow(/exited with code 2/)
+    await expect(cmd('multiline').decide('agent', { task: 'x', candidates: CANDS })).rejects.toThrow(/invalid JSON/)
+  })
+
+  it('validates external backend timeout and digest configuration', () => {
+    expect(() => new CommandBackend({ command: process.execPath, timeoutMs: Infinity })).toThrow(/timeoutMs/)
+    expect(() => new CommandBackend({ command: process.execPath, expectedSha256: 'bad' })).toThrow(/expectedSha256/)
+  })
+
   it('missing files = unavailable, silently skipped by the router', async () => {
     const needle = cmd('last', { requiredFiles: [join(tmp(), 'needle2.cact')] })
     expect((await needle.available()).ok).toBe(false)

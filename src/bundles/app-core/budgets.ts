@@ -1,4 +1,5 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
+import { randomUUID } from 'node:crypto'
 import { dirname } from 'node:path'
 
 export type BudgetScope = 'task' | 'session' | 'day'
@@ -80,7 +81,11 @@ export class BudgetStateError extends Error {
   }
 }
 
-const DAY_RE = /^\d{4}-\d{2}-\d{2}$/
+function validDayKey(value: unknown): value is string {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+  const parsed = new Date(`${value}T00:00:00.000Z`)
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value
+}
 const validCount = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n) && n >= 0
 
 interface DayState {
@@ -94,6 +99,7 @@ const METRICS: BudgetMetric[] = ['requests', 'tokens']
 const SCOPES: BudgetScope[] = ['task', 'session', 'day']
 
 function todayUTC(now: number): string {
+  if (!Number.isFinite(now)) throw new RangeError('budget: clock must return a finite timestamp')
   return new Date(now).toISOString().slice(0, 10)
 }
 
@@ -121,6 +127,25 @@ export class Budgets {
   constructor(config: BudgetsConfig = {}) {
     this.config = config
     this.now = config.now ?? Date.now
+    for (const metric of METRICS) {
+      for (const scope of SCOPES) {
+        const scopes = config[metric]
+        if (scopes !== undefined && (!scopes || typeof scopes !== 'object' || Array.isArray(scopes))) {
+          throw new RangeError(`budget: ${metric} scopes must be an object`)
+        }
+        const limit = scopes?.[scope]
+        if (limit === undefined) continue
+        if (!limit || typeof limit !== 'object' || Array.isArray(limit)) throw new RangeError(`budget: ${metric}/${scope} limit must be an object`)
+        for (const [name, value] of [['soft', limit.soft], ['hard', limit.hard]] as const) {
+          if (value !== undefined && (!Number.isFinite(value) || value < 0)) {
+            throw new RangeError(`budget: ${metric}/${scope} ${name} limit must be a finite non-negative number`)
+          }
+        }
+        if (limit.soft !== undefined && limit.hard !== undefined && limit.soft > limit.hard) {
+          throw new RangeError(`budget: ${metric}/${scope} soft limit cannot exceed hard limit`)
+        }
+      }
+    }
     this.day = this.loadDay()
   }
 
@@ -141,9 +166,10 @@ export class Budgets {
       } catch {
         throw new BudgetStateError(path, 'not valid JSON')
       }
-      if (!raw || typeof raw !== 'object' || typeof raw.day !== 'string' || !DAY_RE.test(raw.day) || !validCount(raw.requests) || !validCount(raw.tokens)) {
-        throw new BudgetStateError(path, 'unexpected contents: day must be YYYY-MM-DD and requests/tokens must be non-negative numbers')
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw) || !validDayKey(raw.day) || !validCount(raw.requests) || !validCount(raw.tokens)) {
+        throw new BudgetStateError(path, 'unexpected contents: day must be a real YYYY-MM-DD calendar date and requests/tokens must be non-negative numbers')
       }
+      if (raw.day > today) throw new BudgetStateError(path, 'saved day is ahead of the system date')
       // Valid file from an earlier day: the day has genuinely rolled over, so counters restart.
       if (raw.day === today) return { day: raw.day, requests: raw.requests, tokens: raw.tokens }
     }
@@ -153,9 +179,14 @@ export class Budgets {
   private saveDay(): void {
     if (!this.config.statePath) return
     mkdirSync(dirname(this.config.statePath), { recursive: true })
-    const tmp = `${this.config.statePath}.tmp-${process.pid}-${Math.random().toString(36).slice(2)}`
-    writeFileSync(tmp, JSON.stringify(this.day))
-    renameSync(tmp, this.config.statePath)
+    const tmp = `${this.config.statePath}.tmp-${process.pid}-${randomUUID()}`
+    try {
+      writeFileSync(tmp, JSON.stringify(this.day), { encoding: 'utf8', mode: 0o600, flag: 'wx' })
+      renameSync(tmp, this.config.statePath)
+    } catch (err) {
+      try { unlinkSync(tmp) } catch {}
+      throw err
+    }
   }
 
   private rollDayIfNeeded(): void {
@@ -200,7 +231,7 @@ export class Budgets {
   requestsLeftToday(): number | undefined {
     this.rollDayIfNeeded()
     const hard = this.limitFor('requests', 'day')?.hard
-    return hard === undefined ? undefined : Math.max(0, hard - this.day.requests)
+    return hard === undefined ? undefined : Math.max(0, hard - this.day.requests - this.reserved.requests)
   }
 
   /**
@@ -210,7 +241,7 @@ export class Budgets {
    * `record` followed by `release` (it was made).
    */
   reserve(metric: BudgetMetric, amount: number): Reservation {
-    if (!(amount >= 0)) throw new RangeError('budget: reserve amount must not be negative')
+    if (!Number.isFinite(amount) || amount < 0) throw new RangeError('budget: reserve amount must be finite and non-negative')
     this.rollDayIfNeeded()
     for (const scope of SCOPES) {
       const limit = this.limitFor(metric, scope)
@@ -235,7 +266,7 @@ export class Budgets {
    * an overshoot would let the next check pass. The overshoot shows up in `status()` and blocks the next `reserve`.
    */
   record(metric: BudgetMetric, amount: number): SpendResult {
-    if (!(amount >= 0)) throw new RangeError('budget: record amount must not be negative')
+    if (!Number.isFinite(amount) || amount < 0) throw new RangeError('budget: record amount must be finite and non-negative')
     this.rollDayIfNeeded()
     return this.book(metric, amount)
   }
@@ -246,7 +277,7 @@ export class Budgets {
    * use `reserve` + `record`.)
    */
   spend(metric: BudgetMetric, amount: number): SpendResult {
-    if (amount < 0) throw new RangeError('budget: spend amount must not be negative')
+    if (!Number.isFinite(amount) || amount < 0) throw new RangeError('budget: spend amount must be finite and non-negative')
     this.rollDayIfNeeded()
 
     for (const scope of SCOPES) {

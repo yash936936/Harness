@@ -1,3 +1,126 @@
+## DBG-084 — reject symlinked persisted egress consent — 2026-11-07
+
+**Found:** FileConsentStore.readAll() followed a symlink. A project-controlled symlink under a consent-store path could make a consent lookup trust a different file, rather than fail closed. The store also had no post-open identity check against a symlink swap.
+
+**Fixed:** consent reads now require a regular non-symlink file, use O_NOFOLLOW where supported, and compare the opened descriptor with lstat after open. Added a symlinked-store regression (skipped on Windows where creating symlinks may require elevated privileges).
+
+**Validation:** fresh Ubuntu and Windows CI required. This hardens the persistent store; project consent remains explicit and opt-in.
+
+## DBG-083 — episodic-memory read-time secret redaction — 2026-11-07
+
+**Found:** episodic records were redacted on write, but query() and the duplicate-record return path returned stored records without applying the current redactor. Legacy records, or secrets registered after a record was written, could therefore be returned unchanged.
+
+**Fixed:** episodic query results and duplicate-record return values now pass through the current egress redactor. Added a regression that seeds a legacy JSONL record containing a subsequently registered secret and checks the query result.
+
+**Validation:** fresh Ubuntu and Windows CI required.
+
+## DBG-082 — avoid echoing provider URL paths in network errors — 2026-11-07
+
+**Found:** Ollama network errors included the full configured base URL, and both provider adapters fell back to the raw fetch error message when no system error code existed. A base URL path or custom transport error could contain sensitive endpoint material and be copied into logs/session errors.
+
+**Fixed:** network failures now report the host plus a stable system error code (or unknown), not the full URL path or arbitrary raw transport message. Added regression tests for both OpenAI-compatible and Ollama providers.
+
+**Validation:** fresh Ubuntu and Windows CI required.
+
+## DBG-081 — hot-memory source metadata redaction — 2026-11-07
+
+**Found:** hot-memory text was redacted on write and read, but optional source metadata was persisted and returned by list() unchanged. A registered secret embedded in source metadata could therefore escape through the hot-memory API, including legacy records.
+
+**Fixed:** hot-memory source metadata is redacted on write and list/read. Added a regression for newly added and legacy persisted source metadata.
+
+**Validation:** fresh Ubuntu and Windows CI required.
+
+## DBG-080 — retrieval-rank symlink race and bounded file reads — 2026-11-07
+
+**Found:** retrieval-rank resolved and statted a path before opening it, then compared the descriptor with that pre-open stat. A symlink swap between realpath/stat/open could make the pre-open stat and opened descriptor refer to the outside target. The subsequent readFileSync(fd) also read to EOF after a size check, so a concurrently growing file could exceed maxFileBytes.
+
+**Fixed:** retrieval-rank now opens with O_NOFOLLOW where supported, re-resolves the candidate after open and compares the open descriptor's device/inode with the resolved in-root path, rechecks the path before reading, and reads at most maxFileBytes + 1 bytes. Added an outside-root symlink regression; the existing large-file test covers static oversize input.
+
+**Validation:** fresh Ubuntu and Windows CI required. The race-hardening is defense in depth; it does not replace real-provider poisoning acceptance.
+
+## DBG-079 — prevent scorer-only evaluation before D-109 labels — 2026-11-07
+
+**Found:** eval-calibrate.ts accepted an omitted labels argument and printed scorer output, which allowed the scorer to be viewed before human labels were committed. When labels were supplied, the minimum of 10 (or 20 when 20+ sessions were already collected) and both-class requirement was checked only after scoring, so an insufficient label set still exposed scorer output.
+
+**Fixed:** labels are now mandatory, provenance is verified before scoring, unknown IDs and the D-109 sample/class minimum are checked before the scorer loop, and the scorer-only report path was removed. README usage now requires committed labels.
+
+**Validation:** fresh Ubuntu and Windows CI required. Root labels.json remains only three good labels and is not eligible evidence.
+
+## DBG-078 — cross-platform label provenance and Git clean filters — 2026-11-07
+
+**Found:** D-109 verification compared raw working-tree SHA-256 with the committed Git blob. On Windows with core.autocrlf=true, Git can normalize CRLF to LF while the working tree remains clean, so valid labels and sidecar hashes were rejected. The label commit script also hashed raw bytes instead of the staged blob.
+
+**Fixed:** added a Git-index blob hashing helper, changed verification to compare the sidecar with committed blob bytes after confirming a clean working tree, and updated the PowerShell commit script to stage labels before hashing. Added a CRLF/core.autocrlf regression.
+
+**Validation:** fresh Windows and Ubuntu CI required.
+
+## DBG-077 — release budget holds for pre-dispatch cancellation — 2026-11-07
+
+**Found:** LLMService charged a failed request for cancellation after the request was logged but before the provider callback ran (for example, while waiting for a shared rate-limiter slot). A failed request-log write also used the metered-failure path despite never dispatching. Repeated queued cancellations could consume the hard request budget without sending requests.
+
+**Fixed:** CallReservation now has an idempotent release() for non-dispatched calls. LLMService tracks the provider-dispatch boundary; it charges failed attempts only after dispatch begins and releases reservations for earlier cancellation or logging failure. Added queue-cancellation and log-failure regressions.
+
+**Validation:** fresh Ubuntu and Windows CI required.
+
+## DBG-076 — credential-store lock directory initialization — 2026-11-07
+
+**Found:** FileCredentialStore.set() and delete() acquired the data-file lock before ensuring the data directory existed. A fresh nested store, or delete() on an absent key, could fail with ENOENT before reaching the no-op/write logic. loadOrCreateKey() created the key directory, but a custom keyPath could be in a different directory.
+
+**Fixed:** set() and delete() now create the data parent directory before taking the data lock. Added a fresh nested-store delete/set/get regression.
+
+**Validation:** fresh Ubuntu and Windows CI required.
+
+## DBG-075 — semantic-memory metadata redaction and input validation — 2026-11-07
+
+**Found:** semantic-memory text and rationale were redacted, but optional source and tag metadata were persisted and returned unchanged. Registered credentials embedded in those fields could be returned by list/query. A malformed non-array tags value also reached the spread operation before its intended validation and threw a native TypeError.
+
+**Fixed:** semantic facts now redact source and tag metadata on write and again when read, including legacy persisted records. Added object/string/array input checks before copying tags, and a regression for metadata redaction plus malformed tags.
+
+**Validation:** regression added on the audit branch; fresh Ubuntu and Windows CI is required. No real embedding or poisoning acceptance is claimed.
+
+## DBG-074 — audit documentation and complete file inventory — 2026-11-07
+
+**Found:** S0 and S1 were conflated in the Phase 5.1 evidence template: S0 required a host sentinel check even though the build plan defines sentinel/orphan recovery as S1. The audit table also lacked one consolidated Windows PowerShell owner-command section and an exact tracked-file inventory.
+
+**Fixed:** separated S0 lease/run/release criteria from S1 host-sentinel/orphan-reaper criteria, added PowerShell 5.1 owner commands and explicit notes where no valid command exists because the implementation is missing, and added AUDIT-FILE-MANIFEST.md listing every tracked file at audit commit 865b53c62e6e.
+
+**Boundary:** this inventory proves path coverage, not runtime validation of every platform or binary asset. Source review, test review, and external acceptance are distinguished in the manifest and closeout. No S0 run was performed.
+
+
+## DBG-073 — follow-up audit: strict rate-limit calendar validation — 2026-11-07
+
+**Found:** the persistent rate limiter used the strict calendar-date validator when it re-read the counter under the cross-process lock, but its constructor's initial load still used a shape-only regular expression. An impossible past date such as 2026-02-31 could therefore be treated as stale and silently reset to zero before the first request. The earlier regression covered an impossible future-like value only and missed this case.
+
+**Fixed:** constructor load now uses the same real-calendar-day validator as the locked read path. Added a regression for an impossible date that sorts before the current date. This is a static review correction; fresh CI is required before acceptance.
+
+## DBG-072 — repository-wide reliability and security audit — 2026-11-07
+
+**Scope:** inspected the 94 TypeScript source files under src/ by bundle and reviewed the high-risk paths in persistence, local file access, retrieval, provider configuration, evaluation, subprocess execution, sandbox wiring, profile boot, and CLI. Static inventory also counted 57 Vitest test files, 30 script files, 52 desktop benchmark/app assets, and 17 docs. This is a code review, not a claim that every runtime/platform behavior was exercised.
+
+**Found and fixed on branch `audit/repository-wide-review-2026-11-07`:**
+
+- Session JSONL and episodic-memory JSONL repair did not separate a complete final JSON record that had lost its newline. The next append could concatenate two valid JSON objects. Both stores now restore the delimiter under their existing lock; tests cover valid final records without a newline and incomplete tails.
+- File consent persistence used an unlocked read-modify-write. Separate processes could lose another project's consent update. It now locks, writes a unique mode-0600 temporary file, and atomically renames. Records are validated, copied defensively, and stored in a null-prototype map so special project IDs cannot use inherited object properties. Tests cover concurrent instances, special keys, copies, and parseable on-disk JSON.
+- Local file reads and retrieval did not share a complete credential-path denylist. Added cloud/SSH/CLI/Kubernetes/Docker/GCP/Cargo/Terraform and related credential locations; retrieval uses case-insensitive globs. Retrieval result parsing resolves existing paths to reject outside-root symlinks when `--follow` is enabled.
+- OpenAI-compatible provider accepted URL schemes other than HTTP(S) and URL userinfo. Constructor now rejects both; regression tests added.
+- Evaluation accepted custom scorer weights/results containing non-finite or out-of-range values. Scorer registration/execution now validates identity, finite non-negative weights, score range, and result field types.
+- Async persistence boundaries accepted mutable caller-owned objects. Session events, JSONL episodes, semantic fact metadata, and model completion requests are now snapshotted before queueing or awaiting consent, so logged prompts and persisted records cannot change after the call begins.
+- The persistent rate limiter failed for a nested state path because it attempted to create its lock before creating the parent directory. It now creates the directory, and the day-key validator checks a real ISO calendar date rather than only matching its shape.
+- Model artifact verification accepted mutable revision labels such as `main`. A shared provenance validator now requires a full 40- or 64-character Git commit hash and a SHA-256 digest.
+- Persisted budget state validated only the `YYYY-MM-DD` string shape and treated a future-dated or impossible date as an old day, resetting usage. It now validates a real calendar date and fails closed on future dates. The budget state file is explicitly documented as process-local; cross-process request ceilings belong to the locked rate limiter.
+- A negative, zero, fractional or unsafe `maxTokens` value could distort the budget estimate; Ollama can interpret a negative output cap as unbounded. The model-call boundary and estimator now require a positive safe integer before reservation, logging or provider invocation.
+- Egress redaction transformed string values but left object property names unchanged. A registered secret used as a JSON key could therefore remain in the outbound/logged payload. Keys are now redacted too, with regression coverage.
+- The `harness code` CLI checked only whether `projectRoot` existed, so passing a file path reached `mkdirSync` on `.harness` outside its error boundary and could crash. It now requires an accessible directory and returns a clear failure before creating state.
+- Provider connection tests accepted invalid timeout values that make `AbortSignal.timeout()` throw before the documented never-throw result path. They also classified a caller-cancelled probe as a timeout. Timeout bounds are now validated and caller cancellation is reported separately.
+- The encrypted file credential store set mode `0600` only when creating a key, not when reopening an existing key. It now tightens existing POSIX key permissions before use and rejects symlinked key files. Windows ACL enforcement remains platform-managed and is not claimed by the POSIX mode test.
+- CI exposed an existing policy-gate TypeScript declaration-order error and an unused day-key validator. Both were fixed; CI also exposed test-fixture issues in the abort-boundary and sandbox temporary-directory tests, which were corrected.
+
+**Validation status:** the code edits and regression tests are committed to the audit branch. No local `npm ci`, typecheck, lint, Vitest, real sandbox, or live-provider run is claimed. Run fresh CI on the PR before merging. S0/ARCH-01 remains a separate real Windows + Docker + Crabbox acceptance gate; this audit does not run S0.
+
+**Remaining review boundary:** the desktop trees are benchmarks, not a production app. Live provider, real embedding, poisoning, real-data evaluation, license distribution, model artifact provenance, and target-host sandbox checks remain external acceptance items.
+
+---
+
 ## DBG-071 — Evaluation artifact and provenance template review — 2026-11-07
 
 **Found:** the tracked root labels.json contains only three entries, all labelled good. It is insufficient for D-109 because it has fewer than 10 labels and no bad class; it is not treated as a completed human-evaluation dataset. The evidence README also retained the superseded 20-label/90%-agreement rule.

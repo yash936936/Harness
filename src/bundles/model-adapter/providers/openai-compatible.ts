@@ -54,6 +54,12 @@ export class OpenAICompatibleProvider implements LLMProvider {
     } catch {
       throw new LLMError('config', `${this.name}: \`baseUrl\` is not a valid URL`, this.name)
     }
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+      throw new LLMError('config', `${this.name}: baseUrl must use http:// or https://`, this.name)
+    }
+    if (!url.hostname) throw new LLMError('config', `${this.name}: baseUrl must have a host`, this.name)
+    if (url.username || url.password) throw new LLMError('config', `${this.name}: baseUrl must not contain embedded credentials`, this.name)
+    if (url.search || url.hash) throw new LLMError('config', `${this.name}: baseUrl must not contain a query or fragment`, this.name)
     this.model = config.model
     this.baseUrl = config.baseUrl.replace(/\/+$/, '')
     this.egress = { host: url.hostname, remote: !LOOPBACK.test(url.hostname) }
@@ -65,6 +71,9 @@ export class OpenAICompatibleProvider implements LLMProvider {
     const key = config.apiKey ?? fromEnv
     if (key) this.apiKey = key
     this.timeoutMs = config.timeoutMs ?? 120_000
+    if (!Number.isSafeInteger(this.timeoutMs) || this.timeoutMs < 1 || this.timeoutMs > 4_294_967_295) {
+      throw new LLMError('config', `${this.name}: timeoutMs must be an integer from 1 to 4294967295 milliseconds`, this.name)
+    }
     if (config.limiter) this.limiter = config.limiter
     this.doFetch = config.fetch ?? fetch
     this.allowInsecureHttp = config.allowInsecureHttp === true
@@ -90,7 +99,7 @@ export class OpenAICompatibleProvider implements LLMProvider {
     try {
       res = await this.doFetch(`${this.baseUrl}/models`, { headers, signal, ...NO_REDIRECT })
     } catch (e: any) {
-      const code = e?.cause?.code ?? e?.message ?? 'unknown'
+      const code = e?.cause?.code ?? 'unknown'
       throw new LLMError('network', this.scrub(`${this.name}: cannot reach ${this.egress.host} (${code})`), this.name)
     }
     if (isRedirect(res)) throw new LLMError('invalid_request', this.scrub(redirectMessage(this.name, res)), this.name, res.status)
@@ -131,7 +140,7 @@ export class OpenAICompatibleProvider implements LLMProvider {
     } catch (e: any) {
       if (timeout.aborted) throw new LLMError('timeout', `${this.name}: no response within ${this.timeoutMs}ms`, this.name)
       if (outer?.aborted) throw e
-      const code = e?.cause?.code ?? e?.message ?? 'unknown'
+      const code = e?.cause?.code ?? 'unknown'
       throw new LLMError('network', this.scrub(`${this.name}: cannot reach ${this.egress.host} (${code})`), this.name)
     }
 

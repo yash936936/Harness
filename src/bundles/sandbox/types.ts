@@ -26,6 +26,8 @@ export interface SandboxRunResult {
   stdout: string
   stderr: string
   timedOut: boolean
+  /** True when the caller cancelled the command rather than it exiting normally. */
+  aborted?: boolean
   durationMs: number
   /** True only when the lease was confirmed gone afterwards. `false` means a lease MAY be leaked: see `releaseNote`. */
   released: boolean
