@@ -195,7 +195,9 @@ export class LLMService extends Service {
 
     let dispatchStarted = false
     const dispatch = () => {
-      signal?.throwIfAborted()
+      // The limiter has checked cancellation while waiting. Once it consumes a quota slot,
+      // invoke the provider even if the signal just fired; the provider receives the signal.
+      if (!this.limiter) signal?.throwIfAborted()
       dispatchStarted = true
       return provider.complete(redacted, signal)
     }
