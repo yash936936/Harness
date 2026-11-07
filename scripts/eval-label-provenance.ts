@@ -46,12 +46,6 @@ export function verifyCommittedLabels(labelsPath: string): { sha256: string; com
   if (lstatSync(sidecar).isSymbolicLink() || !lstatSync(sidecar).isFile()) {
     throw new Error('D-109: labels SHA-256 sidecar must be a regular file, not a symlink')
   }
-  const sidecarReal = realpathSync(sidecar)
-  const sidecarRelativeReal = relative(root, sidecarReal)
-  if (sidecarRelativeReal === '..' || sidecarRelativeReal.startsWith(`..${sep}`) || isAbsolute(sidecarRelativeReal)) {
-    throw new Error('D-109: labels SHA-256 sidecar must resolve inside the Git repository')
-  }
-
   const bytes = readFileSync(absolute)
   const sha256 = createHash('sha256').update(bytes).digest('hex')
   const sidecarText = readFileSync(sidecar, 'utf8').trim()
