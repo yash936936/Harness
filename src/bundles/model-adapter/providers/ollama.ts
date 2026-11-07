@@ -36,7 +36,7 @@ const NAME = 'ollama'
 export function resolveBaseUrl(explicit?: string): string {
   let url = explicit ?? process.env['OLLAMA_HOST'] ?? 'http://localhost:11434'
   if (/^[a-z][a-z0-9+.-]*:\/\//i.test(url) && !/^https?:\/\//i.test(url)) {
-    throw new LLMError('config', 'ollama: baseUrl must use http:// or https://', NAME)
+    throw new LLMError('config', 'ollama: baseUrl must be an HTTP(S) URL (http:// or https://)', NAME)
   }
   if (!/^https?:\/\//i.test(url)) url = `http://${url}`
   return url.replace(/\/+$/, '')
@@ -61,9 +61,11 @@ export class OllamaProvider implements LLMProvider {
     } catch {
       throw new LLMError('config', 'ollama: `baseUrl` is not a valid URL', NAME)
     }
-    if ((endpoint.protocol !== 'http:' && endpoint.protocol !== 'https:') || !endpoint.hostname || endpoint.username || endpoint.password || endpoint.search || endpoint.hash) {
-      throw new LLMError('config', 'ollama: `baseUrl` must be an HTTP(S) URL without credentials, query or fragment', NAME)
+    if ((endpoint.protocol !== 'http:' && endpoint.protocol !== 'https:') || !endpoint.hostname) {
+      throw new LLMError('config', 'ollama: `baseUrl` must be an HTTP(S) URL with a host', NAME)
     }
+    if (endpoint.username || endpoint.password) throw new LLMError('config', 'ollama: `baseUrl` must not contain embedded credentials', NAME)
+    if (endpoint.search || endpoint.hash) throw new LLMError('config', 'ollama: `baseUrl` must not contain a query or fragment', NAME)
     const host = endpoint.hostname
     this.egress = { host, remote: !/^(localhost|127(\.\d{1,3}){3}|\[?::1\]?)$/i.test(host) }
     this.timeoutMs = config.timeoutMs ?? 120_000
