@@ -25,7 +25,15 @@ const MAX_LINE_CHARS = 300
 /** Never searched, regardless of config. */
 const ALWAYS_EXCLUDED = ['!.git', '!node_modules']
 /** Likely-secret files; excluded unless `includeSecrets`. */
-const SECRET_EXCLUDES = ['!.env*', '!*.env', '!*.pem', '!*.key', '!id_rsa*']
+const SECRET_EXCLUDES = [
+  '!.env*', '!**/.env*', '!*.env', '!**/*.env',
+  '!*.pem', '!**/*.pem', '!*.key', '!**/*.key',
+  '!*.p12', '!**/*.p12', '!*.pfx', '!**/*.pfx', '!*.jks', '!**/*.jks', '!*.keystore', '!**/*.keystore',
+  '!id_rsa*', '!**/id_rsa*', '!**/id_dsa*', '!**/id_ecdsa*', '!**/id_ed25519*',
+  '!**/credentials', '!**/credentials.json', '!**/service-account*.json', '!**/service_account*.json',
+  '!**/application_default_credentials.json', '!**/kubeconfig', '!**/secrets.yml', '!**/secrets.yaml',
+  '!**/secrets.json', '!**/secrets.toml',
+]
 
 /** True if `target` is `root` or lies under it. Both must already be real, absolute paths. */
 function isInside(root: string, target: string): boolean {
