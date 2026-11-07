@@ -81,7 +81,11 @@ export class BudgetStateError extends Error {
   }
 }
 
-const DAY_RE = /^\d{4}-\d{2}-\d{2}$/
+function validDayKey(value: unknown): value is string {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+  const parsed = new Date(`${value}T00:00:00.000Z`)
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value
+}
 const validCount = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n) && n >= 0
 
 interface DayState {
@@ -162,9 +166,10 @@ export class Budgets {
       } catch {
         throw new BudgetStateError(path, 'not valid JSON')
       }
-      if (!raw || typeof raw !== 'object' || typeof raw.day !== 'string' || !DAY_RE.test(raw.day) || !validCount(raw.requests) || !validCount(raw.tokens)) {
-        throw new BudgetStateError(path, 'unexpected contents: day must be YYYY-MM-DD and requests/tokens must be non-negative numbers')
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw) || !validDayKey(raw.day) || !validCount(raw.requests) || !validCount(raw.tokens)) {
+        throw new BudgetStateError(path, 'unexpected contents: day must be a real YYYY-MM-DD calendar date and requests/tokens must be non-negative numbers')
       }
+      if (raw.day > today) throw new BudgetStateError(path, 'saved day is ahead of the system date')
       // Valid file from an earlier day: the day has genuinely rolled over, so counters restart.
       if (raw.day === today) return { day: raw.day, requests: raw.requests, tokens: raw.tokens }
     }
