@@ -72,6 +72,7 @@ The follow-up review is being developed on branch `audit/repository-wide-review-
 | Egress redaction | Registered secrets in JSON property names were not redacted, only values | Redact object keys and values recursively; regression test added | Fresh CI |
 | CLI project root | An existing file path passed the existence check and could throw while creating `.harness` | Require an accessible directory before setup; regression test verifies graceful failure | Fresh CI |
 | Provider connection probe | Invalid timeout values could throw before the never-throw result contract; caller aborts were misreported as timeouts | Validate positive bounded timeout values and classify caller cancellation separately; tests added | Fresh CI |
+| Encrypted credential key | Existing key files were not re-tightened to mode `0600`, and symlinked key paths were accepted | Reapply POSIX mode on read and reject non-regular/symlink key paths; tests added | Fresh CI; Windows ACLs remain platform-managed |
 | Model artifact pin | Artifact verifier accepted mutable revision names such as `main` despite the immutable-pin requirement | Shared provenance validator requires full 40/64-hex commit hash and SHA-256; unit tests added | Fresh CI; actual Qwen revision/files/hashes still owner/network evidence |
 | Policy gate build | Existing invalid-signal branch referenced its decision base before declaration; the new lint gate also found an unused helper | Initialize decision snapshot before validating signals; validate persisted day keys with the helper | Fresh CI |
 
