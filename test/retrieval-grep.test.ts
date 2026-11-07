@@ -177,9 +177,11 @@ describe.skipIf(!hasRg)('RetrievalGrep with real ripgrep', () => {
     base = realpathSync(mkdtempSync(join(tmpdir(), 'rgtest-')))
     root = join(base, 'root')
     outside = join(base, 'root-evil') // sibling whose name starts with root's name
-    for (const d of ['root/src', 'root/skip', 'root/node_modules/dep', 'root/.git', 'root/.aws', 'root/.ssh', 'root/.docker', 'root/.kube', 'root/.azure', 'root/.config/gh', 'root/.config/gcloud', 'root/.cargo', 'root/.terraform.d', 'root/.gnupg/private-keys-v1.d', 'root/.AWS', 'root-evil']) mkdirSync(join(base, d), { recursive: true })
+    for (const d of ['root/src', 'root/src/.git', 'root/src/node_modules/dep', 'root/skip', 'root/node_modules/dep', 'root/.git', 'root/.aws', 'root/.ssh', 'root/.docker', 'root/.kube', 'root/.azure', 'root/.config/gh', 'root/.config/gcloud', 'root/.cargo', 'root/.terraform.d', 'root/.gnupg/private-keys-v1.d', 'root/.AWS', 'root-evil']) mkdirSync(join(base, d), { recursive: true })
     const w = (rel: string, s: string | Buffer) => writeFileSync(join(base, rel), s)
     w('root/src/app.ts', `const a = "${Q}"\n`)
+    w('root/src/.git/config', `${Q}\n`)
+    w('root/src/node_modules/dep/index.js', `${Q}\n`)
     w('root/skip/other.ts', `${Q}\n`)
     w('root/README.md', `${Q}\n${Q}\n${Q}\n`)
     w('root/.env', `${Q}\n`)
