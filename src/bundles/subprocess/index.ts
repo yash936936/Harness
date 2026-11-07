@@ -77,9 +77,13 @@ export class Subprocess extends Service {
   /** Run `command` with `args`. Never throws for a failure the caller needs to see — see the class doc. */
   async run(command: string, args: string[] = [], opts: RunOptions = {}): Promise<RunResult> {
     const cwd = opts.cwd ?? this.cwd
+    if (opts.envAllowlist !== undefined && (!Array.isArray(opts.envAllowlist) || opts.envAllowlist.some((key) => typeof key !== 'string' || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)))) {
+      throw new SubprocessError('config', 'subprocess: per-call envAllowlist must contain valid environment variable names')
+    }
     const allowlist = opts.envAllowlist?.length ? new Set([...this.baseAllowlist, ...opts.envAllowlist]) : this.baseAllowlist
 
-    for (const key of Object.keys(opts.env ?? {})) {
+    for (const [key, value] of Object.entries(opts.env ?? {})) {
+      if (value !== undefined && typeof value !== 'string') throw new SubprocessError('config', `subprocess: env var "${key}" must be a string`)
       if (!allowlist.has(key)) {
         throw new SubprocessError(
           'config',
