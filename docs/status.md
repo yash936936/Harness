@@ -1,3 +1,9 @@
+## 2026-11-07 evaluation provenance cross-platform follow-up (DBG-078)
+
+- D-109 label hashing now uses Git-normalized index/commit blob bytes, avoiding false failures on Windows checkouts with core.autocrlf=true.
+- The PowerShell label commit script stages the labels before computing SHA-256, then commits the sidecar and verifies the staged/committed digest.
+- Added a CRLF regression. Fresh CI required.
+
 ## 2026-11-07 model budget cancellation follow-up (DBG-077)
 
 - Fixed a budget accounting defect: cancellation while waiting for a rate-limiter slot, and a pre-dispatch request-log failure, now release reservations without charging a request.
