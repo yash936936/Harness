@@ -196,6 +196,23 @@ describe('ctx.sandbox seam', () => {
     expect(() => ctx.sandbox.register(crab(ctx, s.file))).toThrow(SandboxError)
     expect(ctx.sandbox.status()).toEqual([{ name: 'crabbox', destination: 'local', host: undefined, default: true }])
   })
+  it('doctor never creates or probes a remote sandbox without consent and host allowlisting', async () => {
+    const { client, events } = fakeClient()
+    const noConsent = await boot({ hosts: ['cube.example.internal'] })
+    noConsent.sandbox.register(new CubeSandboxProvider({ apiUrl: 'https://cube.example.internal', template: 't', client }))
+    const denied = await noConsent.sandbox.doctor()
+    expect(denied.cubesandbox?.ok).toBe(false)
+    expect(denied.cubesandbox?.detail).toMatch(/has not consented/)
+    expect(events).toEqual([])
+
+    const offList = await boot({ consent: true, hosts: ['other.host'] })
+    offList.sandbox.register(new CubeSandboxProvider({ apiUrl: 'https://cube.example.internal', template: 't', client }))
+    const blocked = await offList.sandbox.doctor()
+    expect(blocked.cubesandbox?.ok).toBe(false)
+    expect(blocked.cubesandbox?.detail).toMatch(/not allowlisted/)
+    expect(events).toEqual([])
+  })
+
   it('two providers: a request is routed by name', async () => {
     const s = state(); const { client, events } = fakeClient()
     const ctx = await boot({ consent: true, hosts: ['cube.example.internal'] })
