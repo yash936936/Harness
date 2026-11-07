@@ -1,5 +1,5 @@
 import { Context } from 'cordis'
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -78,6 +78,15 @@ describe('egress: consent stores', () => {
       const reopened = new FileConsentStore(path)
       expect(await reopened.get('project-a')).toMatchObject({ consented: true })
       expect(await reopened.get('project-b')).toMatchObject({ consented: false })
+    })
+
+    it.skipIf(process.platform === 'win32')('rejects a symlinked consent store instead of trusting its target', async () => {
+      const target = join(dir, 'attacker-controlled.json')
+      const link = join(dir, 'consent-link.json')
+      await writeFile(target, JSON.stringify({ project: { projectId: 'project', consented: true, decidedAt: 'now' } }))
+      await symlink(target, link)
+      const store = new FileConsentStore(link)
+      await expect(store.get('project')).rejects.toThrow(/regular non-symlink file/)
     })
 
     it('treats special object keys as ordinary project ids without prototype inheritance', async () => {
