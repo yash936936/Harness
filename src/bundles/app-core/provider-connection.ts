@@ -52,6 +52,22 @@ const PROBE_REQUEST: ProviderRequest = {
   maxTokens: 8,
 }
 
+/** Enforce the shared deadline even when a provider implementation ignores its AbortSignal. */
+function withAbort<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
+  if (signal.aborted) return Promise.reject(signal.reason ?? new Error('aborted'))
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => {
+      signal.removeEventListener('abort', onAbort)
+      reject(signal.reason ?? new Error('aborted'))
+    }
+    signal.addEventListener('abort', onAbort, { once: true })
+    work.then(
+      (value) => { signal.removeEventListener('abort', onAbort); resolve(value) },
+      (error) => { signal.removeEventListener('abort', onAbort); reject(error) },
+    )
+  })
+}
+
 /**
  * Connection test (1B.2): list models (best-effort), then one tiny
  * completion call, timed. Never throws - a failed test is data the wizard
@@ -87,14 +103,20 @@ export async function testProviderConnection(
     ? { ok: false, error: { kind: 'aborted', message: `connection test cancelled ${phase}` } }
     : { ok: false, error: { kind: 'timeout', message: `no response within ${timeoutMs}ms${phase}` } }
 
-  const models = provider.listModels ? await safeListModels(provider, signal) : undefined
-  if (signal.aborted) {
-    return aborted(provider.listModels ? ' (while listing models)' : '')
+  if (opts.signal?.aborted) return aborted('')
+  let models: ModelListingResult | undefined
+  if (provider.listModels) {
+    try {
+      models = await withAbort(safeListModels(provider, signal), signal)
+    } catch {
+      return aborted(' (while listing models)')
+    }
   }
+  if (signal.aborted) return aborted(provider.listModels ? ' (while listing models)' : '')
 
   const start = Date.now()
   try {
-    const res = await provider.complete(PROBE_REQUEST, signal)
+    const res = await withAbort(Promise.resolve().then(() => provider.complete(PROBE_REQUEST, signal)), signal)
     if (signal.aborted) return { ...aborted(''), latencyMs: Date.now() - start, models }
     return { ok: true, latencyMs: Date.now() - start, model: res.model, models }
   } catch (e) {
