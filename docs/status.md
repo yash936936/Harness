@@ -1,3 +1,8 @@
+## 2026-11-07 episodic-memory read-time redaction (DBG-083)
+
+- Episodic query and duplicate-record return paths now redact persisted records using the current egress secret registry.
+- Added a legacy JSONL regression. Fresh CI required.
+
 ## 2026-11-07 provider error redaction (DBG-082)
 
 - Provider network errors now expose only the endpoint host and a stable system error code, not URL paths or arbitrary raw fetch errors.
