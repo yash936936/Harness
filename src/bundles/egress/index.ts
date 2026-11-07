@@ -92,7 +92,7 @@ export class EgressPolicy extends Service {
     }
     if (Array.isArray(value)) return value.map((v) => this.redactValue(v)) as unknown as T
     if (value && typeof value === 'object') {
-      return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, this.redactValue(v)])) as unknown as T
+      return Object.fromEntries(Object.entries(value).map(([k, v]) => [this.redact(k), this.redactValue(v)])) as unknown as T
     }
     return value
   }
