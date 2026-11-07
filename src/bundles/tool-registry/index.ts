@@ -32,6 +32,7 @@ declare module 'cordis' {
 }
 
 const NAME_RE = /^[A-Za-z0-9_-]{1,64}$/
+const ACTION_CLASSES = new Set(['read-only', 'sandbox-write', 'real-fs-write', 'external-side-effect'])
 
 interface Entry {
   def: ToolDefinition
@@ -56,26 +57,30 @@ export class ToolRegistry extends Service {
   constructor(ctx: Context, config: ToolRegistryConfig = {}) {
     super(ctx, 'tools')
     this.maxOutput = config.maxOutputChars ?? 50_000
+    if (!Number.isSafeInteger(this.maxOutput) || this.maxOutput < 1) throw new ToolRegistrationError('tool registry: maxOutputChars must be a positive safe integer')
   }
 
   /** Register a tool. Returns a disposer; call it inside `ctx.effect` so it unregisters with its plugin. */
   register(def: ToolDefinition): () => void {
+    if (!def || typeof def !== 'object') throw new ToolRegistrationError('tool definition must be an object')
     if (!NAME_RE.test(def.name)) throw new ToolRegistrationError(`invalid tool name ${JSON.stringify(def.name)} (use 1-64 of A-Z a-z 0-9 _ -)`)
     if (!def.description?.trim()) throw new ToolRegistrationError(`tool "${def.name}": description is required`)
-    if (!def.actionClass) throw new ToolRegistrationError(`tool "${def.name}": actionClass is required`)
+    if (!ACTION_CLASSES.has(def.actionClass)) throw new ToolRegistrationError(`tool "${def.name}": actionClass must be one of ${[...ACTION_CLASSES].join(', ')}`)
     if (typeof def.execute !== 'function') throw new ToolRegistrationError(`tool "${def.name}": execute must be a function`)
     if (def.inputSchema?.['type'] !== 'object') throw new ToolRegistrationError(`tool "${def.name}": inputSchema must have type "object"`)
     if (this.entries.has(def.name)) {
       throw new ToolRegistrationError(`tool "${def.name}" is already registered; refusing to overwrite`)
     }
+    let frozenDef: ToolDefinition
     let validate: ReturnType<Ajv['compile']>
     try {
-      validate = this.ajv.compile(def.inputSchema)
+      frozenDef = deepFreeze({ ...def, inputSchema: structuredClone(def.inputSchema) })
+      validate = this.ajv.compile(frozenDef.inputSchema)
     } catch (e: any) {
       throw new ToolRegistrationError(`tool "${def.name}": invalid inputSchema (${e?.message ?? e})`)
     }
     const entry: Entry = {
-      def,
+      def: frozenDef,
       validate: (i) => validate(i) as boolean,
       errors: () => this.ajv.errorsText(validate.errors, { dataVar: 'input' }),
     }
@@ -130,7 +135,7 @@ export class ToolRegistry extends Service {
 
     const tool = info(entry.def)
     const frozen = deepFreeze(structuredClone(input))
-    const callEv: ToolCallEvent = { sessionId, ...(actor ? { actor } : {}), tool, input: frozen }
+    const callEv: ToolCallEvent = deepFreeze({ sessionId, ...(actor ? { actor } : {}), tool, input: frozen })
 
     try {
       await this.ctx.serial('tools/pre-execute', callEv)
@@ -175,7 +180,7 @@ export class ToolRegistry extends Service {
 }
 
 function info(d: ToolDefinition): ToolInfo {
-  return { name: d.name, description: d.description, inputSchema: d.inputSchema, actionClass: d.actionClass }
+  return deepFreeze({ name: d.name, description: d.description, inputSchema: structuredClone(d.inputSchema), actionClass: d.actionClass })
 }
 
 function deepFreeze<T>(v: T): T {
