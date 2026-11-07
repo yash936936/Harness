@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { withFileLock } from '../../util/filelock.js'
 import type { EpisodicMemory } from './index.js'
 import type { HotTier } from './hot.js'
 import { MemoryError, type CompactionResult, type PromotionCandidate } from './types.js'
@@ -53,7 +54,16 @@ export class Compaction {
 
   /** Serialised, so two overlapping runs cannot both promote the same lesson. */
   run(opts: { minOccurrences?: number; dryRun?: boolean; approve?: (c: PromotionCandidate) => boolean | Promise<boolean> } = {}): Promise<CompactionResult> {
-    const job = this.queue.then(() => this.runNow(opts))
+    const job = this.queue.then(async () => {
+      if (!this.dir) return this.runNow(opts)
+      await mkdir(this.dir, { recursive: true })
+      // Compaction state is shared across Harness processes. Serialize the whole
+      // read/decide/promote/ledger cycle, then reload the ledger inside the lock.
+      return withFileLock(`${this.file}.lock`, async () => {
+        this.ledger = undefined
+        return this.runNow(opts)
+      })
+    })
     this.queue = job.catch(() => {})
     return job
   }
@@ -89,7 +99,7 @@ export class Compaction {
         continue
       }
       const id = lessonId(g.norm, g.scope)
-      if (ledger.promoted[key]) {
+      if (Object.hasOwn(ledger.promoted, key)) {
         result.skipped.alreadyPromoted++
         continue
       }
@@ -128,12 +138,25 @@ export class Compaction {
 
   private async loadLedger(): Promise<Ledger> {
     if (this.ledger) return this.ledger
-    this.ledger = { promoted: {} }
+    this.ledger = { promoted: Object.create(null) as Ledger['promoted'] }
     if (this.dir) {
       try {
-        const parsed = JSON.parse(await readFile(this.file, 'utf8'))
-        if (!parsed || typeof parsed.promoted !== 'object') throw new Error('unexpected shape')
-        this.ledger = parsed
+        const parsed: unknown = JSON.parse(await readFile(this.file, 'utf8'))
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) ||
+          !('promoted' in parsed) || !parsed.promoted || typeof parsed.promoted !== 'object' || Array.isArray(parsed.promoted)) {
+          throw new Error('unexpected shape')
+        }
+        const promoted = Object.create(null) as Ledger['promoted']
+        for (const [key, value] of Object.entries(parsed.promoted)) {
+          if (!value || typeof value !== 'object' || Array.isArray(value) ||
+            typeof (value as any).ts !== 'string' ||
+            !Number.isSafeInteger((value as any).occurrences) || (value as any).occurrences < 1 ||
+            typeof (value as any).text !== 'string') {
+            throw new Error(`invalid promoted entry "${key}"`)
+          }
+          promoted[key] = value as Ledger['promoted'][string]
+        }
+        this.ledger = { promoted }
       } catch (err: any) {
         if (err?.code !== 'ENOENT') {
           this.ledger = undefined
@@ -146,7 +169,7 @@ export class Compaction {
 
   private async record(key: string, c: PromotionCandidate): Promise<void> {
     const ledger = await this.loadLedger()
-    const next: Ledger = { promoted: { ...ledger.promoted, [key]: { ts: this.now().toISOString(), occurrences: c.occurrences, text: c.text } } }
+    const next: Ledger = { promoted: Object.assign(Object.create(null), ledger.promoted, { [key]: { ts: this.now().toISOString(), occurrences: c.occurrences, text: c.text } }) }
     if (this.dir) {
       await mkdir(this.dir, { recursive: true })
       const tmp = `${this.file}.${process.pid}.tmp`
