@@ -1,3 +1,11 @@
+## DBG-076 — credential-store lock directory initialization — 2026-11-07
+
+**Found:** FileCredentialStore.set() and delete() acquired the data-file lock before ensuring the data directory existed. A fresh nested store, or delete() on an absent key, could fail with ENOENT before reaching the no-op/write logic. loadOrCreateKey() created the key directory, but a custom keyPath could be in a different directory.
+
+**Fixed:** set() and delete() now create the data parent directory before taking the data lock. Added a fresh nested-store delete/set/get regression.
+
+**Validation:** fresh Ubuntu and Windows CI required.
+
 ## DBG-075 — semantic-memory metadata redaction and input validation — 2026-11-07
 
 **Found:** semantic-memory text and rationale were redacted, but optional source and tag metadata were persisted and returned unchanged. Registered credentials embedded in those fields could be returned by list/query. A malformed non-array tags value also reached the spread operation before its intended validation and threw a native TypeError.
