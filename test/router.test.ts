@@ -73,6 +73,37 @@ describe('router chain', () => {
     expect(sessions).toEqual(['coding-session-42'])
   })
 
+  it('times out availability checks and aborts the backend before falling through', async () => {
+    let observed: AbortSignal | undefined
+    const worker: RouterBackend = {
+      name: 'worker',
+      async available(signal) {
+        observed = signal
+        return new Promise(() => {})
+      },
+      async decide() { return 'b' },
+    }
+    const ctx = await mk({ worker, backendTimeoutMs: 30 })
+    const d = await ctx.router.decide('agent', { task: 'apples', candidates: CANDS, sessionId: 's' })
+    expect(d).toMatchObject({ source: 'rules', choice: 'a' })
+    expect(observed?.aborted).toBe(true)
+  })
+
+  it('aborts an in-flight backend decision when its deadline expires', async () => {
+    let observed: AbortSignal | undefined
+    const worker: RouterBackend = {
+      name: 'worker',
+      async decide(_cls, req) {
+        observed = req.signal
+        return new Promise(() => {})
+      },
+    }
+    const ctx = await mk({ worker, backendTimeoutMs: 30 })
+    const d = await ctx.router.decide('agent', { task: 'no-match-zzzz', candidates: CANDS })
+    expect(d.source).toBe('none')
+    expect(observed?.aborted).toBe(true)
+  })
+
   it('an owned class goes to Needle first and records a saved request', async () => {
     const needle = fixed('needle', 'a'); const worker = fixed('worker', 'b', 1)
     const ctx = await mk({ needle, worker, owned: ['agent'] })
