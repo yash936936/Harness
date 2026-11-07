@@ -92,6 +92,8 @@ export class PolicyGates extends Service {
     const raw = (ev.input as Record<string, unknown> | null)?.[CONFIDENCE_FIELD]
     const self = typeof raw === 'number' && Number.isFinite(raw) && raw >= 0 && raw <= 1 ? raw : null
     const signals: SignalResult[] = []
+    // Keep the same mutable signal array in the decision snapshot while it is built.
+    const base = { class: cls, self, signals } as const
     for (const s of this.signals) {
       const r = s(ev, { projectRoot: this.root })
       if (r) {
@@ -101,7 +103,6 @@ export class PolicyGates extends Service {
         signals.push(r)
       }
     }
-    const base = { class: cls, self, signals } as const
     if (!signals.length) return { ...base, verdict: 'hold', reason: `${subject} held: no independent signal is available for this call, and a self-reported confidence is never enough on its own` }
     if (self === null) return { ...base, verdict: 'hold', reason: `${subject} held: no valid self-reported confidence (a number from 0 to 1) in the call` }
     const score = Math.min(self, ...signals.map((s) => s.score))
