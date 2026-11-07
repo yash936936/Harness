@@ -49,3 +49,22 @@ CubeSandbox, Qdrant, Langfuse, browser tool, Needle router ownership absent meas
 ## Defects and limitations found
 
 The closeout found a recordkeeping defect: earlier status entries cited superseded CI runs. Current main was independently checked at run #63, which passed on Ubuntu and Windows. PR #11 and PR #12 are both merged. Historical older status entries contain stale phase descriptions; they remain historical and are superseded by the newest dated entries. The Windows owner acceptance subsequently ran successfully: PsSuspend v1.09, 15/15 tests passed in 20.66 seconds, including the OS-suspended live-holder case. This follow-up updates that evidence without claiming other external gates. The local `npm ci` attempt during the earlier docs-only closeout timed out; no local lint or test result is claimed here. PR #12's fake-CLI environment test does not close the real Crabbox acceptance gate.
+
+
+## 2026-11-07 repository-wide review delta
+
+The follow-up review is being developed on branch `audit/repository-wide-review-2026-11-07`. It is not merged or CI-accepted yet.
+
+| Area | Defect found | Change and regression coverage | Remaining acceptance |
+|---|---|---|---|
+| Session JSONL | Valid final JSON without a trailing newline could be concatenated with the next append | Repair delimiter under the session lock; existing no-newline/torn-tail tests | Fresh CI; no hardware power-loss claim |
+| Episodic memory | Same valid-final-record delimiter gap | Repair before append under the episode-store lock; regression test | Fresh CI; no multi-host filesystem claim |
+| Egress consent | Concurrent processes could lose read-modify-write updates; special object keys and mutable record references were unsafe | Lock + unique temp file + atomic rename; validate records; defensive copies; null-prototype map; concurrency/special-key tests | Fresh CI; local filesystem assumption inherited from filelock |
+| Local file security | Credential denylist missed common cloud/SSH/CLI/Kubernetes/Docker/GCP/Cargo/Terraform locations | Expanded path matcher and read refusal tests | Fresh CI; secret naming patterns cannot identify arbitrary user-defined secret files |
+| Code retrieval | Secret globs were incomplete/case-sensitive; configured ripgrep symlink following could surface outside-root content | Case-insensitive exclusions and realpath check for existing match paths; integration fixtures cover credential directories and `--follow` | Fresh CI; retrieval with `includeSecrets: true` remains an explicit opt-in |
+| Model provider config | OpenAI-compatible endpoint accepted non-HTTP schemes and URL userinfo | Reject unsupported protocols and embedded credentials; tests added | Fresh CI; no live provider request claimed |
+| Evaluation | Custom scorers could return non-finite weights or invalid score/result fields | Validate scorer names, weights, score range and result types; tests added | Fresh CI; real-data evaluation remains blocked under D-109 |
+
+The audit branch also adds a dedicated CI lint step (`npm run lint`) in addition to typecheck and tests. No local compiler/test execution was available through the repository connector. Do not merge until the latest branch commit passes Ubuntu and Windows CI.
+
+This work does not run S0. ARCH-01 remains BLOCKED-HARDWARE until the owner runs the real Windows + Docker + Crabbox lease/run/release acceptance and preserves the raw output.
