@@ -14,7 +14,7 @@
  * approval. The classifier cannot see this; only the execution step can neutralise it. So every git
  * command classified read-only is run through `hardenGit`, which overrides those settings on the
  * command line (command-line `-c` outranks every config file and is inherited by git's own
- * subprocesses) and strips the matching environment variables.
+ * subprocesses). Pager and optional-lock behavior are disabled with global Git flags because the sandbox API has no child-env override.
  *
  * Known residual: a submodule has its own config that git reads when it recurses. Recursion is switched
  * off (`diff.ignoreSubmodules=all`, `submodule.recurse=false`), which is the mitigation; it also means
