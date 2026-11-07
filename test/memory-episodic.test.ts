@@ -66,6 +66,20 @@ describe('memory: JSONL tail recovery', () => {
     expect((await store.all()).map((entry) => entry.id)).toEqual(['one', 'two'])
   })
 
+  it('refuses to append when episodic corruption precedes a later valid record', async () => {
+    const dir = await tmp()
+    const store = new JsonlEpisodeStore(dir)
+    const episode = {
+      id: 'first', sessionId: 's', agentId: 'main', ts: '2026-11-07T00:00:00.000Z',
+      task: 'first', approach: 'none', result: 'ok', outcome: 'done' as const,
+      lesson: null, fromSeq: 1, toSeq: 1, steps: 1, toolCalls: 0,
+    }
+    await store.add(episode)
+    const later = { ...episode, id: 'later', task: 'later' }
+    await appendFile(join(dir, 'episodic.jsonl'), `not-json\n${JSON.stringify(later)}\n`)
+    await expect(store.add({ ...episode, id: 'new', task: 'new' })).rejects.toThrow(/corrupt episodic.jsonl at line 2/)
+  })
+
   it('drops an incomplete final episode before the next append', async () => {
     const dir = await tmp()
     const store = new JsonlEpisodeStore(dir)
