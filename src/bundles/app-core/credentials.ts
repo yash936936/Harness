@@ -1,5 +1,5 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto'
-import { chmod, mkdir, open, readFile, rename, writeFile } from 'node:fs/promises'
+import { chmod, lstat, mkdir, open, readFile, rename, writeFile } from 'node:fs/promises'
 import { withFileLock } from '../../util/filelock.js'
 import { dirname, resolve } from 'node:path'
 
@@ -108,8 +108,11 @@ export class FileCredentialStore implements CredentialStore {
     await mkdir(dirname(this.keyPath), { recursive: true })
     return withFileLock(`${this.keyPath}.lock`, async () => {
       try {
+        const stat = await lstat(this.keyPath)
+        if (!stat.isFile() || stat.isSymbolicLink()) throw new Error('credentials: encryption key path must be a regular file, not a symlink')
         const key = await readFile(this.keyPath)
         if (key.length !== 32) throw new Error(`credentials: encryption key ${this.keyPath} must contain exactly 32 bytes`)
+        if (process.platform !== 'win32') await chmod(this.keyPath, 0o600)
         return key
       } catch (e: any) {
         if (e?.code !== 'ENOENT') throw e
