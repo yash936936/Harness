@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -22,7 +22,7 @@ function repoWithCommittedLabels() {
   writeFileSync(labelsPath + '.sha256', `${hash}  ${basename(labelsPath)}\n`)
   execFileSync('git', ['add', '--', 'labels.json', 'labels.json.sha256'], { cwd: root })
   execFileSync('git', ['commit', '-m', 'blinded labels'], { cwd: root, stdio: 'ignore' })
-  return { root, labelsPath, labels, hash }
+  return { root, labelsPath, hash }
 }
 
 describe('D-109 committed label provenance', () => {
