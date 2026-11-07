@@ -177,7 +177,7 @@ describe.skipIf(!hasRg)('RetrievalGrep with real ripgrep', () => {
     base = realpathSync(mkdtempSync(join(tmpdir(), 'rgtest-')))
     root = join(base, 'root')
     outside = join(base, 'root-evil') // sibling whose name starts with root's name
-    for (const d of ['root/src', 'root/skip', 'root/node_modules/dep', 'root/.git', 'root/.aws', 'root/.ssh', 'root/.docker', 'root/.kube', 'root/.azure', 'root/.config/gh', 'root/.config/gcloud', 'root/.cargo', 'root/.terraform.d', 'root/.gnupg', 'root/.AWS', 'root-evil']) mkdirSync(join(base, d), { recursive: true })
+    for (const d of ['root/src', 'root/skip', 'root/node_modules/dep', 'root/.git', 'root/.aws', 'root/.ssh', 'root/.docker', 'root/.kube', 'root/.azure', 'root/.config/gh', 'root/.config/gcloud', 'root/.cargo', 'root/.terraform.d', 'root/.gnupg/private-keys-v1.d', 'root/.AWS', 'root-evil']) mkdirSync(join(base, d), { recursive: true })
     const w = (rel: string, s: string | Buffer) => writeFileSync(join(base, rel), s)
     w('root/src/app.ts', `const a = "${Q}"\n`)
     w('root/skip/other.ts', `${Q}\n`)
@@ -383,7 +383,7 @@ describe('RetrievalGrep.listFiles', () => {
     beforeAll(() => {
       base = realpathSync(mkdtempSync(join(tmpdir(), 'rglist-')))
       root = join(base, 'root')
-      for (const d of ['root/src/deep', 'root/skip', 'root/node_modules/dep', 'root/.git', 'root-evil']) mkdirSync(join(base, d), { recursive: true })
+      for (const d of ['root/src/deep', 'root/skip', 'root/node_modules/dep', 'root/.git', 'root/.aws', 'root/.ssh', 'root-evil']) mkdirSync(join(base, d), { recursive: true })
       const w = (rel: string, s: string) => writeFileSync(join(base, rel), s)
       for (const f of ['root/z.txt', 'root/a.txt', 'root/src/app.ts', 'root/src/deep/x.ts', 'root/skip/s.ts', 'root/.env', 'root/.env.local', 'root/prod.env', 'root/key.pem', 'root/deploy.key', 'root/id_rsa', 'root/credentials.json', 'root/service-account-prod.json', 'root/kubeconfig', 'root/secrets.yaml', 'root/cert.p12', 'root/.aws/credentials', 'root/.ssh/id_ed25519', 'root/node_modules/dep/i.js', 'root/.git/config', 'root/.hidden.txt', 'root-evil/loot.txt']) w(f, 'x\n')
       try { symlinkSync(join(base, 'root-evil'), join(root, 'link-dir'), 'dir') } catch { /* no symlink privilege */ }
