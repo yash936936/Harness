@@ -37,7 +37,7 @@ export class FileConsentStore implements ConsentStore {
       all[record.projectId] = record
       const temp = `${this.path}.${process.pid}.${randomUUID()}.tmp`
       try {
-        await writeFile(temp, `${JSON.stringify(all, null, 2)}\\n`, { encoding: 'utf8', mode: 0o600, flag: 'wx' })
+        await writeFile(temp, `${JSON.stringify(all, null, 2)}\n`, { encoding: 'utf8', mode: 0o600, flag: 'wx' })
         await rename(temp, this.path)
       } finally {
         await rm(temp, { force: true }).catch(() => {})
