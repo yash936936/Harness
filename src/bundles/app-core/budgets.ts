@@ -95,6 +95,7 @@ const METRICS: BudgetMetric[] = ['requests', 'tokens']
 const SCOPES: BudgetScope[] = ['task', 'session', 'day']
 
 function todayUTC(now: number): string {
+  if (!Number.isFinite(now)) throw new RangeError('budget: clock must return a finite timestamp')
   return new Date(now).toISOString().slice(0, 10)
 }
 
@@ -125,7 +126,8 @@ export class Budgets {
     for (const metric of METRICS) {
       for (const scope of SCOPES) {
         const limit = config[metric]?.[scope]
-        if (!limit) continue
+        if (limit === undefined) continue
+        if (!limit || typeof limit !== 'object' || Array.isArray(limit)) throw new RangeError(`budget: ${metric}/${scope} limit must be an object`)
         for (const [name, value] of [['soft', limit.soft], ['hard', limit.hard]] as const) {
           if (value !== undefined && (!Number.isFinite(value) || value < 0)) {
             throw new RangeError(`budget: ${metric}/${scope} ${name} limit must be a finite non-negative number`)
