@@ -142,7 +142,7 @@ export class OllamaProvider implements LLMProvider {
     } catch (e: any) {
       if (timeout.aborted) throw new LLMError('timeout', `ollama: no response within ${this.timeoutMs}ms (large model still loading?)`, NAME)
       if (outer?.aborted) throw e
-      const code = e?.cause?.code ?? e?.message ?? 'unknown'
+      const code = e?.cause?.code ?? 'unknown'
       throw new LLMError('network', `ollama: cannot reach ${this.egress.host} (${code}). Is Ollama running? Start it with \`ollama serve\`.`, NAME)
     }
 
