@@ -1,3 +1,11 @@
+## DBG-085 — require TLS for OpenRouter API-key transport — 2026-11-07
+
+**Found:** the governed OpenRouter CLI accepted custom `http://` endpoints. The provider sends `OPENROUTER_API_KEY` in the authorization header, so a cleartext endpoint exposes the credential to network observers and intermediaries. User consent to remote disclosure does not provide transport confidentiality.
+
+**Fixed:** the OpenRouter CLI now requires HTTPS and rejects cleartext HTTP before requesting consent or booting the provider. Added a regression proving no confirmation prompt is issued for an HTTP endpoint. The lower-level OpenAI-compatible adapter remains HTTP-capable for explicitly configured local services such as Ollama-compatible gateways; this restriction is specific to the remote OpenRouter CLI path.
+
+**Validation:** fresh Ubuntu and Windows CI required.
+
 ## DBG-084 — reject symlinked persisted egress consent — 2026-11-07
 
 **Found:** FileConsentStore.readAll() followed a symlink. A project-controlled symlink under a consent-store path could make a consent lookup trust a different file, rather than fail closed. The store also had no post-open identity check against a symlink swap.
