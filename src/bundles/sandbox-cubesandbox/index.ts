@@ -29,6 +29,20 @@ export function shellQuote(argv: string[]): string {
   return argv.map((a) => `'${a.replace(/'/g, `'\\''`)}'`).join(' ')
 }
 
+function raceAbort<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return promise
+  if (signal.aborted) return Promise.reject(signal.reason ?? new Error('aborted'))
+  return new Promise<T>((resolve, reject) => {
+    const cleanup = () => signal.removeEventListener('abort', onAbort)
+    const onAbort = () => { cleanup(); reject(signal.reason ?? new Error('aborted')) }
+    signal.addEventListener('abort', onAbort, { once: true })
+    promise.then(
+      (value) => { cleanup(); resolve(value) },
+      (error) => { cleanup(); reject(error) },
+    )
+  })
+}
+
 async function defaultClient(cfg: CubeSandboxConfig): Promise<CubeClient> {
   let mod: any
   try {
@@ -73,12 +87,20 @@ export class CubeSandboxProvider implements SandboxProvider {
   private client: CubeClient | undefined
 
   constructor(private readonly cfg: CubeSandboxConfig) {
+    let api: URL
     try {
-      this.host = new URL(cfg.apiUrl).hostname
+      api = new URL(cfg.apiUrl)
     } catch {
       throw new SandboxError('config', `cubesandbox: apiUrl "${cfg.apiUrl}" is not a valid URL`)
     }
-    if (!this.host) throw new SandboxError('config', 'cubesandbox: apiUrl has no hostname')
+    this.host = api.hostname
+    if (api.protocol !== 'https:') throw new SandboxError('config', 'cubesandbox: apiUrl must use HTTPS')
+    if (!this.host || api.username || api.password || api.search || api.hash) throw new SandboxError('config', 'cubesandbox: apiUrl must have a hostname and must not contain credentials, query or fragment')
+    if (typeof cfg.template !== 'string' || !cfg.template.trim() || cfg.template.length > 256) throw new SandboxError('config', 'cubesandbox: template must be a non-empty id of at most 256 characters')
+    if (cfg.apiKey !== undefined && (typeof cfg.apiKey !== 'string' || !cfg.apiKey.trim())) throw new SandboxError('config', 'cubesandbox: apiKey must be a non-empty string when supplied')
+    if (cfg.bootBudgetMs !== undefined && (!Number.isSafeInteger(cfg.bootBudgetMs) || cfg.bootBudgetMs < 1)) throw new SandboxError('config', 'cubesandbox: bootBudgetMs must be a positive safe integer')
+    if (cfg.sandboxTimeoutMs !== undefined && (!Number.isSafeInteger(cfg.sandboxTimeoutMs) || cfg.sandboxTimeoutMs < 1)) throw new SandboxError('config', 'cubesandbox: sandboxTimeoutMs must be a positive safe integer')
+    if (cfg.client !== undefined && (typeof cfg.client.create !== 'function')) throw new SandboxError('config', 'cubesandbox: client must implement create')
     this.client = cfg.client
   }
 
@@ -97,28 +119,45 @@ export class CubeSandboxProvider implements SandboxProvider {
   }
 
   async run(req: SandboxRunRequest): Promise<SandboxRunResult> {
-    const client = await this.getClient()
+    req.signal?.throwIfAborted()
     const start = Date.now()
+    const client = await raceAbort(this.getClient(), req.signal)
+    const create = client.create({ template: this.cfg.template, timeoutMs: this.cfg.sandboxTimeoutMs ?? 300_000 })
     let handle: CubeSandboxHandle
     try {
-      handle = await client.create({ template: this.cfg.template, timeoutMs: this.cfg.sandboxTimeoutMs ?? 300_000 })
-    } catch (e: any) {
-      throw new SandboxError('unreachable', `cubesandbox: could not create a sandbox (${String(e?.message ?? e).slice(0, 300)})`)
+      handle = await raceAbort(create, req.signal)
+    } catch (error: any) {
+      if (req.signal?.aborted) {
+        // The SDK create call has no cancellation parameter. If it completes after
+        // the caller aborts, kill the late handle instead of leaving a remote VM.
+        void create.then((late) => late.kill()).catch(() => {})
+        throw req.signal.reason ?? error
+      }
+      throw new SandboxError('unreachable', `cubesandbox: could not create a sandbox (${String(error?.message ?? error).slice(0, 300)})`)
+    }
+    if (!handle || typeof handle.id !== 'string' || !handle.id || typeof handle.run !== 'function' || typeof handle.kill !== 'function') {
+      throw new SandboxError('unreachable', 'cubesandbox: client returned an invalid sandbox handle')
     }
     const bootMs = Date.now() - start
     let out = { exitCode: null as number | null, stdout: '', stderr: '' }
     let timedOut = false
     let rel: { released: boolean; note?: string }
     try {
-      out = await handle.run(shellQuote(req.command), { timeoutMs: req.timeoutMs })
-    } catch (e: any) {
-      const msg = String(e?.message ?? e)
+      const result = await raceAbort(handle.run(shellQuote(req.command), { timeoutMs: req.timeoutMs }), req.signal)
+      if (!result || (result.exitCode !== null && !Number.isSafeInteger(result.exitCode)) ||
+          typeof result.stdout !== 'string' || typeof result.stderr !== 'string') {
+        throw new Error('cubesandbox: client returned a malformed command result')
+      }
+      out = result
+    } catch (error: any) {
+      if (req.signal?.aborted) throw req.signal.reason ?? error
+      const msg = String(error?.message ?? error)
       timedOut = /timeout|timed out/i.test(msg)
       out = { exitCode: null, stdout: '', stderr: msg.slice(0, 500) }
     } finally {
       rel = await handle.kill().then(
         () => ({ released: true } as { released: boolean; note?: string }),
-        (e: any) => ({ released: false, note: `kill failed: ${String(e?.message ?? e).slice(0, 160)}` }),
+        (error: any) => ({ released: false, note: `kill failed: ${String(error?.message ?? error).slice(0, 160)}` }),
       )
     }
     const budget = this.cfg.bootBudgetMs ?? 200
