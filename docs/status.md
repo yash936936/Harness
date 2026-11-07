@@ -1,3 +1,9 @@
+## 2026-11-07 documentation audit follow-up (DBG-074)
+
+- Split S0 lease/run/release evidence from S1 host-sentinel and orphan-reaper evidence. The previous Phase 5.1 template incorrectly included an S1 requirement in S0.
+- Added a complete tracked-file inventory and a Windows PowerShell 5.1 command section. Missing implementations (orphan reaper, real poisoning acceptance, desktop product) are explicitly marked as having no valid acceptance command yet.
+- No S0 hardware run was performed.
+
 ## 2026-11-07 repository-wide audit follow-up (DBG-073)
 
 - Found and fixed a remaining rate-limiter date-validation gap: constructor load now uses the same strict calendar-date validator as the locked persistent read. Added a regression for impossible past date 2026-02-31, which previously could be reset as stale state.
