@@ -64,6 +64,7 @@ The follow-up review is being developed on branch `audit/repository-wide-review-
 | Code retrieval | Secret globs were incomplete/case-sensitive; configured ripgrep symlink following could surface outside-root content | Case-insensitive exclusions and realpath check for existing match paths; integration fixtures cover credential directories and `--follow` | Fresh CI; retrieval with `includeSecrets: true` remains an explicit opt-in |
 | Model provider config | OpenAI-compatible endpoint accepted non-HTTP schemes and URL userinfo | Reject unsupported protocols and embedded credentials; tests added | Fresh CI; no live provider request claimed |
 | Evaluation | Custom scorers could return non-finite weights or invalid score/result fields | Validate scorer names, weights, score range and result types; tests added | Fresh CI; real-data evaluation remains blocked under D-109 |
+| Label provenance | The evaluator trusted a manual instruction to commit labels before scoring but did not enforce it | New provenance verifier requires tracked, committed, clean labels and a matching SHA-256 sidecar; temp-Git regression tests | Fresh CI; owner must still label genuine sessions independently |
 
 The audit branch also adds a dedicated CI lint step (`npm run lint`) in addition to typecheck and tests. No local compiler/test execution was available through the repository connector. Do not merge until the latest branch commit passes Ubuntu and Windows CI.
 
