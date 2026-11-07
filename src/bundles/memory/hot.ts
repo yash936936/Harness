@@ -66,12 +66,13 @@ export class HotTier {
     const id = input.id ?? randomUUID()
     if (typeof id !== 'string' || !id.trim() || id.includes('\0')) throw new MemoryError('memory: hot entry id must be a non-empty string without NUL')
     if (input.source !== undefined && typeof input.source !== 'string') throw new MemoryError('memory: hot source must be a string')
+    const source = input.source === undefined ? undefined : oneLine(this.ctx.egress.redactValue(input.source))
     const entry: HotEntry = {
       id,
       text,
       priority,
       ts: this.now().toISOString(),
-      ...(input.source ? { source: input.source } : {}),
+      ...(source ? { source } : {}),
       ...(input.scope ? { scope: input.scope } : {}),
     }
     await this.mutate((list) => {
@@ -95,7 +96,11 @@ export class HotTier {
   }
 
   async list(): Promise<HotEntry[]> {
-    return structuredClone((await this.load()).map((entry) => ({ ...entry, text: oneLine(this.ctx.egress.redactValue(entry.text)) })))
+    return structuredClone((await this.load()).map((entry) => ({
+      ...entry,
+      text: oneLine(this.ctx.egress.redactValue(entry.text)),
+      ...(entry.source !== undefined ? { source: oneLine(this.ctx.egress.redactValue(entry.source)) } : {}),
+    })))
   }
 
   /** Highest priority first; among equals, newest first. Greedy: an entry too big for the room left is skipped, smaller ones may still fit. */
