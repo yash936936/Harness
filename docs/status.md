@@ -11,7 +11,7 @@
 
 ## 2026-11-07 — repository-wide code audit (DBG-072)
 
-- Reviewed the 96 TypeScript source files by module and ran targeted security/reliability inspection across session logging, episodic/semantic memory, consent persistence, local file access, retrieval, model-provider configuration, evaluation, subprocess execution, sandbox adapters, orchestration, profile wiring, and CLI entry points.
+- Reviewed the 94 TypeScript source files under src/ by module and ran targeted security/reliability inspection across session logging, episodic/semantic memory, consent persistence, local file access, retrieval, model-provider configuration, evaluation, subprocess execution, sandbox adapters, orchestration, profile wiring, and CLI entry points.
 - Fixed JSONL recovery for a valid final record missing its newline in session logs and episodic memory. The next append now gets a delimiter rather than corrupting the following record. Regression tests cover both valid-no-newline and torn-tail recovery.
 - Fixed cross-process consent-store lost updates with a file lock and atomic rename. Added validation, defensive copies, special-key/prototype-safety handling, and concurrent-instance regression tests.
 - Expanded local secret-path exclusions to cloud, SSH, CLI, Kubernetes, Docker, GCP, Cargo, Terraform, and related credential locations. Aligned retrieval exclusions and made them case-insensitive. Retrieval parsing now resolves existing result paths to reject outside-root symlinks even when ripgrep is configured to follow links.
