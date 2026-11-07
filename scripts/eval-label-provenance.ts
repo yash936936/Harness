@@ -34,9 +34,10 @@ export function verifyCommittedLabels(labelsPath: string): { sha256: string; com
   }
 
   try {
-    execFileSync('git', ['ls-files', '--error-unmatch', '--', labelsRelative, sidecarRelative], { cwd: root, stdio: 'ignore' })
+    execFileSync('git', ['cat-file', '-e', `HEAD:${labelsRelative}`], { cwd: root, stdio: 'ignore' })
+    execFileSync('git', ['cat-file', '-e', `HEAD:${sidecarRelative}`], { cwd: root, stdio: 'ignore' })
   } catch {
-    throw new Error('D-109: labels and SHA-256 sidecar must both be tracked')
+    throw new Error('D-109: labels and SHA-256 sidecar must both be committed in HEAD')
   }
   const dirty = execFileSync('git', ['status', '--porcelain', '--', labelsRelative, sidecarRelative], { cwd: root, encoding: 'utf8' })
   if (dirty.trim()) throw new Error('D-109: labels and SHA-256 sidecar must be committed with a clean working copy')
