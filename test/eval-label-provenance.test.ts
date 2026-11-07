@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -19,22 +19,23 @@ function cleanGitEnv() {
   return env
 }
 
-function repoWithCommittedLabels(autocrlf = false) {
+function repoWithCommittedLabels(autocrlf = false, relativePath = 'labels.json') {
   const root = mkdtempSync(join(tmpdir(), 'eval-label-provenance-'))
   roots.push(root)
   execFileSync('git', ['-c', 'init.defaultBranch=main', 'init', '-q'], { cwd: root, env: cleanGitEnv() })
   execFileSync('git', ['config', 'user.name', 'Harness Test'], { cwd: root, env: cleanGitEnv() })
   execFileSync('git', ['config', 'user.email', 'harness-test@example.invalid'], { cwd: root })
   if (autocrlf) execFileSync('git', ['config', 'core.autocrlf', 'true'], { cwd: root })
-  const labelsPath = join(root, 'labels.json')
+  const labelsPath = join(root, ...relativePath.split('/'))
+  mkdirSync(dirname(labelsPath), { recursive: true })
   const text = JSON.stringify({ session1: 'good', session2: 'bad' }, null, 2) + '\n'
   const labels = Buffer.from(autocrlf ? text.replace(/\n/g, '\r\n') : text)
   writeFileSync(labelsPath, labels)
-  execFileSync('git', ['add', '--', 'labels.json'], { cwd: root })
-  const staged = execFileSync('git', ['show', ':labels.json'], { cwd: root, env: cleanGitEnv() })
+  execFileSync('git', ['add', '--', relativePath], { cwd: root })
+  const staged = execFileSync('git', ['show', ':' + relativePath], { cwd: root, env: cleanGitEnv() })
   const hash = createHash('sha256').update(staged).digest('hex')
   writeFileSync(labelsPath + '.sha256', hash + '  ' + basename(labelsPath) + '\n')
-  execFileSync('git', ['add', '--', 'labels.json.sha256'], { cwd: root })
+  execFileSync('git', ['add', '--', relativePath + '.sha256'], { cwd: root })
   execFileSync('git', ['commit', '-m', 'blinded labels'], { cwd: root, stdio: 'ignore', env: cleanGitEnv() })
   return { root, labelsPath, hash }
 }
@@ -47,7 +48,7 @@ describe('D-109 committed label provenance', () => {
 
 
   it('hashes the Git-normalized blob when a Windows-style CRLF worktree is clean', () => {
-    const { labelsPath, hash } = repoWithCommittedLabels(true)
+    const { labelsPath, hash } = repoWithCommittedLabels(true, 'docs/evidence/labels.json')
     expect(hashGitIndexLabels(labelsPath)).toBe(hash)
     expect(verifyCommittedLabels(labelsPath)).toMatchObject({ sha256: hash })
   })
