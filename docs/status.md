@@ -6,6 +6,9 @@
 - Expanded local secret-path exclusions to cloud, SSH, CLI, Kubernetes, Docker, GCP, Cargo, Terraform, and related credential locations. Aligned retrieval exclusions and made them case-insensitive. Retrieval parsing now resolves existing result paths to reject outside-root symlinks even when ripgrep is configured to follow links.
 - Added OpenAI-compatible endpoint validation for HTTP(S) only, rejecting embedded URL credentials. Added tests for invalid protocols and userinfo.
 - Hardened custom evaluation scorer output validation: names, finite non-negative weights, score range, and required result types are checked before scoring.
+- Snapshotted session-log payloads, episodic episodes, semantic fact metadata, and model requests at API entry to prevent mutation while queued or awaiting remote consent. Added regression tests that compare persisted/logged/sent values with the original inputs.
+- Fixed the persistent rate limiter's missing parent-directory creation and tightened its persisted UTC day-key validation. The model-artifact verifier now rejects mutable revision labels and requires a full Git commit hash.
+- CI found and fixed a policy-gate declaration-order compile error, an unused helper under the new lint step, and test-fixture mistakes in cancellation timing and sandbox temporary-directory setup. An intermediate Ubuntu run passed typecheck, lint, and tests; the latest head still requires both-platform CI.
 - These are code changes on `audit/repository-wide-review-2026-11-07`; they are not yet accepted by CI. No local compiler/test run was available through the GitHub connector. A PR and fresh Ubuntu/Windows CI run are required before merge.
 - Static source inventory: 96 files. Repository inventory at audit start: 60 test files, 28 scripts, 52 desktop benchmark/app assets, and 17 documentation files. This review does not claim live Crabbox, Docker, Ollama, OpenRouter, real embeddings, or real model-quality acceptance.
 
