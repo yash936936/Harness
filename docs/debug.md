@@ -1,3 +1,9 @@
+## DBG-085 — repository audit merge and validation record — 2026-11-07
+
+**Merged:** PR #15 merged to main as d07e191548c2fc3f6bc56192a27824af38a177d0 after the audit branch passed npm ci, typecheck, lint and tests on Ubuntu and Windows in workflow run #237. All five automated review threads were answered and resolved.
+
+**Remaining validation:** main workflow run #238 was still in progress when this entry was prepared. S0 was not run. No real Crabbox, Docker lease, live-provider or human-label evidence is inferred from CI.
+
 ## DBG-084 — reject symlinked persisted egress consent — 2026-11-07
 
 **Found:** FileConsentStore.readAll() followed a symlink. A project-controlled symlink under a consent-store path could make a consent lookup trust a different file, rather than fail closed. The store also had no post-open identity check against a symlink swap.
