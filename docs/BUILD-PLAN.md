@@ -116,3 +116,18 @@ Record the full raw output, date/time, Windows build, Docker version, Crabbox ve
 - Licensing and model provenance are documented with verifiable evidence.
 - Evaluation results are recorded and labelled prototype-grade.
 - Everything unfinished is listed as experimental or blocked in the README and audit.
+
+
+## 2026-11-08 verification update
+
+The owner reported a full local `npm test` run with **56 test files passed, 1 skipped; 1,182 tests passed, 22 skipped; 0 failures; 64.00 seconds**. The result is recorded in [docs/evidence/TEST-SUITE-2026-11-08.md](evidence/TEST-SUITE-2026-11-08.md). The earlier concurrent-writers test also passed three consecutive isolated runs (about 1.55-1.62 seconds each) and did not time out in the reported full-suite run.
+
+This is local owner-reported evidence, not a new GitHub Actions result. `test/sandbox-real.test.ts` was skipped (2 tests), so this does not close S0.
+
+Current gates:
+- **Automated test suite:** PASS for the reported local run.
+- **S0 / ARCH-01:** BLOCKED-HARDWARE. Still requires the stripped/full environment diagnosis and real Windows + Docker + Crabbox doctor, lease, command exit codes 0 and 7, release confirmation, and clean `docker ps -a` evidence.
+- **S1:** OPEN. The current Crabbox provider's `finally` cleanup cannot run after process termination. The host-sentinel assertion exists in the opt-in real-sandbox test, but no process-death/orphan-reaper acceptance has been demonstrated. Do not treat ordinary unit tests as S1 evidence.
+- **Local Git working tree:** not inspected by this remote documentation update. Before pulling or committing, preserve the local worktree and inspect `git status --short`, `git diff --stat`, and `git diff --cached --stat`.
+
+The Windows owner must run S0 on the target machine. S1 implementation must be based on observed Crabbox lease-list output and a deterministic ownership marker; do not stop arbitrary leases or infer ownership from an unverified output format.
