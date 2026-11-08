@@ -22,7 +22,7 @@ Not done:
 - S3's governed CLI has scripted coverage, but the required manual run showing a held write, a hard-blocked action, and terminal approval/denial in the session log has not been recorded.
 - S4 live full coding acceptance through OpenRouter and Ollama is not complete.
 - S5 exact shipped third-party notices and immutable Qwen artifact provenance are not complete.
-- S6 requires genuine model sessions and owner-labelled evidence under D-109.
+- S6 requires genuine model sessions and owner-labelled evidence under D-109. Source review confirms the commit-before-score guard; the tracked labels still contain only three good labels and no bad class.
 - S7 real embedding and poisoning acceptance is not complete.
 - The desktop product remains deferred/partial; benchmark hello-worlds are not a desktop application.
 - `harness run` remains one bare model call; the governed path is `harness code`.
