@@ -182,36 +182,8 @@ describe('governed CLI policy acceptance', () => {
       requests.push(body)
       const hasTools = Array.isArray(body.tools) && body.tools.length > 0
       const afterToolResult = Array.isArray(body.messages) && body.messages.some((message) => (message as { role?: string }).role === 'tool')
-      const payload = hasTools && !afterToolResult
+      const payload = !hasTools
         ? {
-            model: 'scripted',
-            done: true,
-            done_reason: 'stop',
-            message: {
-              role: 'assistant',
-              content: '',
-              tool_calls: [
-                {
-                  function: {
-                    name: 'edit_file',
-                    arguments: {
-                      path: 'package.json',
-                      old_string: manifest,
-                      new_string: manifest,
-                      confidence: 1,
-                    },
-                  },
-                },
-                {
-                  function: {
-                    name: 'read_file',
-                    arguments: { path: '.env.production' },
-                  },
-                },
-              ],
-            },
-          }
-        : {
             model: 'scripted',
             done: true,
             done_reason: 'stop',
@@ -227,6 +199,41 @@ describe('governed CLI policy acceptance', () => {
               }),
             },
           }
+        : afterToolResult
+          ? {
+              model: 'scripted',
+              done: true,
+              done_reason: 'stop',
+              message: { role: 'assistant', content: 'Both requested tool attempts were processed.' },
+            }
+          : {
+              model: 'scripted',
+              done: true,
+              done_reason: 'stop',
+              message: {
+                role: 'assistant',
+                content: '',
+                tool_calls: [
+                  {
+                    function: {
+                      name: 'edit_file',
+                      arguments: {
+                        path: 'package.json',
+                        old_string: manifest,
+                        new_string: manifest,
+                        confidence: 1,
+                      },
+                    },
+                  },
+                  {
+                    function: {
+                      name: 'read_file',
+                      arguments: { path: '.env.production' },
+                    },
+                  },
+                ],
+              },
+            }
       return new Response(JSON.stringify(payload), {
         status: 200,
         headers: { 'content-type': 'application/json' },
