@@ -1614,3 +1614,21 @@ design draft.
 
 ---
 **Next:** Return to [`context.md`](../context.md).
+
+## DBG-087 — record S0 WSL transport failure and pause repeated attempts — 2026-11-08
+
+**Observed:** With the pinned image harness-crabbox-s0:ubuntu-pinned, Crabbox warmup completed, a lease was reported ready, inspect worked, and the Docker container was running. crabbox run then failed before the requested in-container command executed:
+
+~~~text
+rsync failed: write private WSL SSH transport file:
+exit status 1: crabbox: 1: cannot create : Directory nonexistent
+chmod: cannot access '': No such file or directory
+~~~
+
+**Lifecycle evidence:** crabbox stop succeeded and the lease disappeared from the provider list. This does not establish workload execution or full S0 acceptance.
+
+**Disposition:** S0 / ARCH-01 is PENDING-ENVIRONMENT. The empty pathname suggests a private-file path/argument setup failure, but does not identify whether the fault is WSL argument forwarding, Crabbox's transport helper, or the selected WSL distribution/tool configuration. Do not label this fixed. Do not repeat the same transport attempt or change SSH environment forwarding, image bootstrap, or port mapping until the owner resumes S0 or new evidence isolates a layer.
+
+**Evidence:** docs/evidence/S0-ARCH-01-TRANSPORT-INCIDENT-REPORT-2026-11-08.md records the conversation timeline and limits. docs/evidence/S0-TRANSPORT-2026-11-08.md records the current concise disposition. Earlier exit-255/Docker Desktop restart observations remain distinct historical symptoms and are not asserted as the cause of this later failure.
+
+**Validation:** documentation update only. No real in-box command, exit-code 0/7, host-file isolation, or orphan-recovery test passed in this attempt. S1 real acceptance remains dependent on S0.
