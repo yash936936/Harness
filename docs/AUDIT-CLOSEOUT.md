@@ -191,3 +191,9 @@ Detailed conversation-based incident history: [S0 / ARCH-01 transport incident r
 The lockfile license inventory was refreshed from the current package-lock.json on the continuation branch. It now records 157 lockfile package entries (previously documented as 180 on 2026-11-05), with counts MIT 123, Apache-2.0 15, BSD-3-Clause 2, ISC 2, MPL-2.0 12, 0BSD 1, Unlicense 1, and UNDECLARED 1. A separate static dependency-graph traversal from root runtime dependencies reaches 59 entries when resolved dependencies, optional dependencies, and present peer dependencies are followed.
 
 This refresh corrects the metadata snapshot only. It does not establish the exact contents of a shipped artifact or create a complete notice bundle. json-bignum@0.0.3 remains without lockfile license metadata; its upstream repository's MIT LICENSE is recorded as a notice requirement. ENG-04 remains PARTIAL until the exact production package is built and its included dependency notices are checked. ENG-08 remains PARTIAL until the exact Qwen 7B artifact revision and SHA-256 values are recorded and verified.
+
+## 2026-11-08 S7 source review update
+
+Current code and tests establish deterministic retrieval-output fencing, not live-model resistance to poisoning. `search_code` snippets use per-call random CODE/END nonces and are explicitly marked as untrusted project data. InputGuard adds a nonce fence and heuristic instruction scan to successful tool results that do not fence themselves. Its own code states that this is not prevention. The policy gate remains the independent action-control layer.
+
+Existing `test/retrieval-tools.test.ts` and `test/input-guard.test.ts` cover formatting, nonce uniqueness, forged markers, and instruction-pattern flags. They do not establish that a live model obeys the fence. S7 remains PARTIAL until a real embedding provider and controlled live-model poisoning run produce inspectable evidence. No code defect was confirmed in this source review.
