@@ -116,3 +116,9 @@ Repository baseline refreshed directly from GitHub: `fb4f2fa27570254c62a5cdfc16e
 - **S8:** reconcile every row against committed evidence only after independent gates have been run or explicitly retained as blocked/deferred.
 
 The detailed S0 evidence boundary is in `docs/evidence/S0-TRANSPORT-2026-11-08.md`. This update changes the work order, not the acceptance criteria. It does not claim any new runtime test or external acceptance result.
+
+## 8. Independent work started: S5 license/provenance
+
+The lockfile license inventory has been refreshed on the continuation branch from the current package-lock.json. It contains 157 package entries; the root runtime dependency graph reaches 59 lockfile entries when resolved dependencies, optional dependencies, and present peer dependencies are included. See THIRD_PARTY_LICENSES.md for the current counts and package rows.
+
+This is not release clearance. The production package has not been built and its actual notice payload has not been inspected. json-bignum@0.0.3 has no lockfile license field; preserve its upstream MIT notice if included. The model artifact verifier and provenance template exist, but no immutable Qwen2.5-Coder-7B-Instruct revision or artifact SHA-256 has been supplied or verified. Continue with the production package/notice inspection and artifact provenance preparation without downloading or claiming model weights that are not available.
