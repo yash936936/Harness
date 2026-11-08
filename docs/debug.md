@@ -2,7 +2,7 @@
 
 **Found:** doctor and lease startup were separate Vitest cases, so a failed doctor did not prevent the lease test from attempting warmup. The real test configured a 600-second control timeout for every Crabbox operation. On failed warmup, the provider still attempted cleanup; its two-attempt stop/list loop could wait through several long timeouts.
 
-**Fixed:** Crabbox now has a separate cleanupTimeoutMs (15 seconds by default) for stop/list, independent of startup/control timeout. The real acceptance test uses a 180-second startup/control budget and a 10-second cleanup budget, and performs doctor before warmup in the same test. A failed doctor now ends the test before any lease is created. A unit regression verifies stop/list receive the independent cleanup timeout.
+**Fixed:** Crabbox now has a 45-second doctor timeout and a separate cleanupTimeoutMs (15 seconds by default) that bounds the entire stop/list retry sequence, independent of startup/control timeout. The real acceptance test uses a 45-second doctor budget, a 180-second startup/control budget, and a 10-second total cleanup budget, and performs doctor before warmup in the same test. A failed doctor now ends the test before any lease is created. A unit regression verifies doctor, warmup/run, and stop/list receive their separate timeout budgets.
 
 **Known blockers not changed:** host-side rsync is still missing from the recorded Windows doctor output. Successful full/stripped ssh-keygen probes mean the environment allowlist should not be changed without new evidence. The captured container accepted an SSH public key and later exited 255; the exact cause remains unknown. This patch does not close S0 or S1.
 
