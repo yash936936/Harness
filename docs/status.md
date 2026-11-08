@@ -1149,3 +1149,17 @@ npm run eval -- <logDir> labels.json
 ### Validation performed in this repository edit
 
 GitHub source inspection only. No TypeScript compiler, Vitest, Windows, Docker, Crabbox, Ollama/Needle, OpenRouter, or Tauri process was available through the repository connector. Do not interpret this PR's documentation update as a passing test run.
+
+## 2026-11-08 S0 transport disposition and independent closeout continuation
+
+**Current S0 / ARCH-01 disposition: PENDING-ENVIRONMENT.** This entry supersedes older S0 status labels where they conflict with the newest attempt.
+
+- Pinned local-container image warmup succeeded; Crabbox reported a ready lease and SSH endpoint. Inspect succeeded and Docker showed the container running.
+- crabbox run failed before the requested in-container command executed while preparing the private WSL SSH transport file. The error reported an empty path to create/chmod. Exact root cause is not isolated.
+- crabbox stop succeeded and the lease disappeared from the provider list.
+- Exit-code 0/7 execution, Harness real-sandbox acceptance, host-file isolation, and S1 orphan recovery remain unverified.
+- Full incident chronology and evidence boundaries: [S0 / ARCH-01 transport incident report](evidence/S0-ARCH-01-TRANSPORT-INCIDENT-REPORT-2026-11-08.md). Concise current evidence: [S0 transport status](evidence/S0-TRANSPORT-2026-11-08.md).
+
+**Work order:** pause S0 transport debugging at the owner's request. Continue independent S3, S5, S6 preparation, S7 review/implementation where prerequisites permit, and S8 documentation reconciliation. S1 real acceptance remains dependent on S0. S4 live end-to-end acceptance must not be claimed without its sandbox/provider evidence.
+
+**Documentation branch:** work/continue-independent-closeout-2026-11-08, based on main fb4f2fa27570254c62a5cdfc16e392a77ff7c875 (PR #20 merged). This entry is a status correction and work-order change, not a test result.
