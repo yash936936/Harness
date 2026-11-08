@@ -1632,3 +1632,13 @@ chmod: cannot access '': No such file or directory
 **Evidence:** docs/evidence/S0-ARCH-01-TRANSPORT-INCIDENT-REPORT-2026-11-08.md records the conversation timeline and limits. docs/evidence/S0-TRANSPORT-2026-11-08.md records the current concise disposition. Earlier exit-255/Docker Desktop restart observations remain distinct historical symptoms and are not asserted as the cause of this later failure.
 
 **Validation:** documentation update only. No real in-box command, exit-code 0/7, host-file isolation, or orphan-recovery test passed in this attempt. S1 real acceptance remains dependent on S0.
+
+## DBG-088 — S7 retrieval-fencing source review — 2026-11-08
+
+Reviewed current `search_code`, `InputGuard`, and their tests on the continuation branch.
+
+**Verified in source/tests:** retrieval snippets use a random per-call nonce in CODE/END markers and state that the content is data, not instructions. Tests check fresh nonces, matching closes, forged marker attempts, and exclusion of secret files. InputGuard wraps successful non-self-fenced tool output with a second random nonce, scans a bounded prefix for instruction-like patterns, and logs `input.flagged`. The source explicitly says this is heuristic detection, not prevention. Policy gates are the independent enforcement layer for actions.
+
+**Open:** there is no accepted live-model poisoning run in the reviewed evidence. Scripted formatting tests cannot establish that a live model ignores injected instructions. Real embedding-provider retrieval and controlled live-model poisoning acceptance remain open. No source defect was established by this review; no runtime behavior was changed.
+
+**Next evidence:** a real embedding-provider run and a controlled harmless canary injection, with retrieved snippets, model response, policy/tool/session events, and before/after filesystem diff retained. Any attempted side effect must be denied by policy regardless of the model's stated intent.
