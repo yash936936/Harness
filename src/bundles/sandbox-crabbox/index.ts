@@ -136,7 +136,7 @@ export class CrabboxProvider implements SandboxProvider {
           w.stdout.trim(),
           w.stderr.trim(),
         ].filter(Boolean).join('\\n').slice(0, 1500)
-        throw new SandboxError('unreachable', `crabbox: could not lease a box\\n${diagnostic || 'no diagnostic output'}`)
+        throw new SandboxError('unreachable', `crabbox: could not lease a box\n${diagnostic || 'no diagnostic output'}`)
       }
       const said = (w.stdout + '\n' + w.stderr).match(/slug=(\S+)/)?.[1]
       const cbx = (w.stdout + '\n' + w.stderr).match(/\bcbx_[0-9a-f]{12}\b/)?.[0]
