@@ -1175,3 +1175,15 @@ The independent S5 pass began while S0 remains paused.
 - Remaining S5 work: inspect the exact production packaging closure and generated notice bundle; no release artifact was available in this repository review. Qwen artifact revision and per-file hashes are also still absent. The existing verifier currently accepts one artifact file per invocation; no model weights were downloaded or verified in this pass.
 
 This is a source-backed inventory refresh, not a legal review or release clearance.
+
+## 2026-11-08 continuation PR validation and S7 source review
+
+PR #21's latest head c704bbddaf2497d600479fb0ff4dc8d08234eb4b completed GitHub Actions CI run #302 with conclusion **success**. This validates the repository's configured CI for that head; it does not run Docker/Crabbox, a live model, or a real embedding provider.
+
+S7 source review:
+- `search_code` output is fenced with a per-call random nonce and explicitly labeled project data; `test/retrieval-tools.test.ts` checks nonce uniqueness, matching open/close markers, forged-marker attempts, and secret exclusion.
+- `InputGuard` adds a second nonce fence to successful tool results except tools that fence themselves; suspicious instruction patterns are logged as `input.flagged`. Its own source describes detection as heuristic, not prevention.
+- Policy gates remain the action enforcement layer, independent of retrieved text. A fence is not proof that a live model obeys it.
+- Existing tests exercise formatting and deterministic behavior, not whether a live model refuses an injected instruction. No accepted live embedding-provider or poisoning run is recorded.
+
+Disposition remains **S7 PARTIAL / REAL ACCEPTANCE OPEN**. Next gate: run the documented real embedding provider, then a controlled poisoning task with a harmless canary instruction and a forbidden side-effect attempt; retain prompt, retrieved content, model response, tool/policy events, and final filesystem diff. Do not claim success from the fence unit tests alone.
