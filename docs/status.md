@@ -1163,3 +1163,15 @@ GitHub source inspection only. No TypeScript compiler, Vitest, Windows, Docker, 
 **Work order:** pause S0 transport debugging at the owner's request. Continue independent S3, S5, S6 preparation, S7 review/implementation where prerequisites permit, and S8 documentation reconciliation. S1 real acceptance remains dependent on S0. S4 live end-to-end acceptance must not be claimed without its sandbox/provider evidence.
 
 **Documentation branch:** work/continue-independent-closeout-2026-11-08, based on main fb4f2fa27570254c62a5cdfc16e392a77ff7c875 (PR #20 merged). This entry is a status correction and work-order change, not a test result.
+
+## 2026-11-08 independent work started: S5 license inventory
+
+The independent S5 pass began while S0 remains paused.
+
+- Refreshed THIRD_PARTY_LICENSES.md from the current committed package-lock.json on this branch. The current lockfile has 157 package entries, not the 180 entries recorded in the prior 2026-11-05 inventory.
+- Current full lockfile metadata counts: MIT 123, Apache-2.0 15, BSD-3-Clause 2, ISC 2, MPL-2.0 12, 0BSD 1, Unlicense 1, and UNDECLARED 1.
+- A static traversal from root runtime dependencies through resolved dependencies, optional dependencies, and present peer dependencies reached 59 lockfile entries. This is a lockfile graph estimate, not an exact shipped-artifact inventory.
+- json-bignum@0.0.3 remains UNDECLARED in lockfile metadata; its upstream LICENSE is MIT and that notice must be retained if distributed.
+- Remaining S5 work: inspect the exact production packaging closure and generated notice bundle; no release artifact was available in this repository review. Qwen artifact revision and per-file hashes are also still absent. The existing verifier currently accepts one artifact file per invocation; no model weights were downloaded or verified in this pass.
+
+This is a source-backed inventory refresh, not a legal review or release clearance.
