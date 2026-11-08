@@ -1,0 +1,17 @@
+# Prebuilt image for the real Crabbox S0 acceptance test.
+# Pin the same Ubuntu base image observed in the Windows S0 attempt so the
+# test does not spend its lease installing the SSH/toolchain prerequisites.
+FROM ubuntu@sha256:2260313b31c8c011cd2eebe728008efac1b3982be73eb71348ea2648d2c0e09b
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+       openssh-server \
+       ca-certificates \
+       git \
+       rsync \
+       curl \
+       sudo \
+       python3 \
+    && rm -rf /var/lib/apt/lists/*
