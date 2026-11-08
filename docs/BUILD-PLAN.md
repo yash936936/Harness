@@ -137,7 +137,7 @@ The Windows owner must run S0 on the target machine. S1 implementation must be b
 
 The cross-chat and repository failure audit is maintained in [docs/RECURRING-FAILURE-AUDIT.md](RECURRING-FAILURE-AUDIT.md). It records confirmed causes, fixes already merged, unresolved evidence, and the rule for future runs.
 
-For Crabbox, run doctor first and do not attempt warmup when it fails. The provider now has separate doctor, lease-control, and total cleanup budgets. The real acceptance test and standalone smoke use the same bounded budgets. This is a responsiveness fix, not S0 evidence.
+For Crabbox, run doctor first and do not attempt warmup when it fails. The provider now has separate doctor, lease-control, and total cleanup budgets. The real acceptance test and standalone smoke use the same bounded budgets. This is a responsiveness fix, not S0 evidence. PR #17's GitHub Actions run #278 passed typecheck, lint, and tests on Ubuntu and Windows; the real sandbox test remained skipped.
 
 Current blockers remain: host-side rsync is missing in the recorded Windows doctor output; the captured container's exit 255 is unexplained; S1 orphan recovery has not been implemented or accepted. Do not modify SSH environment forwarding, bootstrap, or port mapping without new evidence. See the recurring-failure audit for the exact evidence boundary and next diagnostic.
 
