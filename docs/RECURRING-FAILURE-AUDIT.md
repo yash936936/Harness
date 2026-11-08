@@ -55,3 +55,11 @@ The current `finally` cleanup is not crash recovery. Before implementing a reape
 
 PR #17: https://github.com/yash936936/Harness/pull/17  
 GitHub Actions run #278 passed on Ubuntu and Windows (typecheck, lint, tests). The real sandbox test remained skipped, as expected. The patch bounds Crabbox doctor/cleanup waits and prevents warmup after failed doctor. It does not resolve the missing host rsync, explain exit 255, or implement S1 orphan recovery.
+
+## 2026-11-08 additional S0 attempt: Docker Desktop restart during bootstrap
+
+The owner subsequently reported a real S0 attempt in which Crabbox doctor passed after a session-only MSYS2 PATH adjustment. The created Ubuntu container exited 255 while APT was unpacking `python3-minimal`. In the same incident window, Docker Desktop launched a new `com.docker.backend.exe`, reset its API proxies, and initialized the WSL engine. Windows logs did not establish why the backend launched. A Codex sandbox-service crash occurred shortly beforehand, but no causal link was found.
+
+Disposition: confirmed Docker Desktop/WSL runtime interruption during container provisioning; initiating trigger unknown. Do not modify SSH environment forwarding, port mapping, or Crabbox bootstrap based on this evidence.
+
+Prevention added on branch `fix/s0-prebuilt-crabbox-image-2026-11-08`: `Dockerfile.crabbox-s0` preinstalls the exact Linux tools Crabbox bootstrap otherwise installs, and `test/sandbox-real.test.ts` can select it through `HARNESS_CRABBOX_IMAGE`. This removes the in-lease APT installation from the next acceptance attempt. It cannot prevent a Docker Desktop/WSL restart. S0 remains blocked until the target Windows machine completes the full real acceptance and container inventory checks.

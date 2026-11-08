@@ -20,6 +20,7 @@ describe.skipIf(!real)('REAL crabbox + local-container (needs Docker)', () => {
       cwd: dir,
       bin: process.env['HARNESS_CRABBOX_BIN'] ?? 'crabbox',
       ...(runtime ? { runtime } : {}),
+      ...(process.env['HARNESS_CRABBOX_IMAGE'] ? { image: process.env['HARNESS_CRABBOX_IMAGE'] } : {}),
       controlTimeoutMs: 180_000,
       doctorTimeoutMs: 45_000,
       cleanupTimeoutMs: 10_000,

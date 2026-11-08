@@ -85,3 +85,26 @@ crabbox doctor --provider local-container --local-container-runtime docker
 ```
 
 Do not rerun the real Harness acceptance while doctor fails. This prerequisite does not explain the captured container's later exit 255 by itself; keep that cause open until Docker events and a successful doctor are correlated.
+
+## 2026-11-08 follow-up: prebuilt image for the S0 retry
+
+The later Windows attempt passed Crabbox doctor after the host rsync/SSH tools were made available through the session PATH, but the container exited 255 while Ubuntu was unpacking `python3-minimal`. Docker Desktop launched a new backend and restarted its WSL engine/API proxies during the same window. The logs establish an infrastructure interruption during bootstrap; they do not prove why Docker Desktop launched or that Harness caused it.
+
+To avoid repeating package installation inside every S0 lease, the repository now includes `Dockerfile.crabbox-s0`. It pins the same Ubuntu base digest observed in the failed container and preinstalls the exact bootstrap prerequisites (`openssh-server`, `ca-certificates`, `git`, `rsync`, `curl`, `sudo`, and `python3`). The real test accepts an optional `HARNESS_CRABBOX_IMAGE` and passes it to Crabbox's `--local-container-image` option. When unset, the existing default image behavior is unchanged.
+
+On the target Windows machine, from the repository root, with Docker Desktop fully running:
+
+```powershell
+docker info
+crabbox doctor --provider local-container --local-container-runtime docker
+docker build -f Dockerfile.crabbox-s0 -t harness-crabbox-s0:ubuntu-pinned .
+$env:HARNESS_CRABBOX_RUNTIME = "docker"
+$env:HARNESS_CRABBOX_IMAGE = "harness-crabbox-s0:ubuntu-pinned"
+$env:HARNESS_REAL_CRABBOX = "1"
+npm run test:real-sandbox 2>&1 | Tee-Object docs/evidence/PHASE-5.1.raw.txt
+docker ps -a
+```
+
+If `docker info` or Crabbox doctor fails, stop before building or running S0. Do not restart Docker Desktop during the run. The prebuilt image removes the repeated in-lease APT install, but it does not repair a Docker Desktop/WSL restart and is not itself S0 evidence.
+
+S0 remains **BLOCKED** until the real test proves: successful command exit 0, host sentinel absent inside the box, failing command exit 7, both leases confirmed released, and no Harness-owned container left behind. Record the exact output, environment versions, and final `docker ps -a` state below. Do not copy a green unit-test or CI result into this section as real-sandbox evidence.
