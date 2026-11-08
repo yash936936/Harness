@@ -6,7 +6,7 @@
 
 **Known blockers not changed:** host-side rsync is still missing from the recorded Windows doctor output. Successful full/stripped ssh-keygen probes mean the environment allowlist should not be changed without new evidence. The captured container accepted an SSH public key and later exited 255; the exact cause remains unknown. This patch does not close S0 or S1.
 
-**Validation:** pending targeted unit test, typecheck, and fresh CI. No real Crabbox/Docker acceptance is claimed.
+**Validation:** GitHub Actions run #278 passed typecheck, lint, and tests on Ubuntu and Windows. The opt-in real Crabbox test remained skipped. No real Crabbox/Docker acceptance is claimed.
 ## DBG-085 — repository audit merge and validation record — 2026-11-07
 
 **Merged:** PR #15 merged to main as d07e191548c2fc3f6bc56192a27824af38a177d0 after the audit branch passed npm ci, typecheck, lint and tests on Ubuntu and Windows in workflow run #237. All five automated review threads were answered and resolved.
