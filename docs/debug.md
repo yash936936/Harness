@@ -1664,3 +1664,15 @@ The S3 command in `docs/BUILD-PLAN.md` was checked against `src/cli/index.ts`, `
 - `.env.production` matches the built-in `credential-path` deny rule and is hard-denied without approval.
 
 The procedure is source-consistent. It remains unexecuted because a live Ollama model and owner terminal session are required.
+
+
+## DBG-092 — Governed CLI hold and hard-deny integration coverage — 2026-11-08
+
+Added an end-to-end `runCodeTask` regression using a scripted Ollama-compatible response. It exercises the real CLI boot, orchestrator, agent loop, tool registry, and policy gates with `--sandbox none`.
+
+- A `package.json` edit receives a `hold` decision because path-criticality is 0.5, then a scripted terminal denial records `approval.pending` and `approval.resolved` with outcome `denied`.
+- A subsequent `.env.production` read receives a hard `credential-path` denial and does not create an approval request.
+- The fixture manifest is checked unchanged, and command execution remains unavailable.
+- The test is in PR #22. Ubuntu CI passed on head `03332330227662b706f3184095fbefff63e83deb`; Windows CI was still running at the time of this entry. The follow-up documentation commit requires CI on its new head.
+
+This is deterministic scripted acceptance coverage, not a live Ollama run. S3 remains partial until the owner runs the documented command and preserves the actual session JSONL.
