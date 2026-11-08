@@ -197,3 +197,9 @@ This refresh corrects the metadata snapshot only. It does not establish the exac
 Current code and tests establish deterministic retrieval-output fencing, not live-model resistance to poisoning. `search_code` snippets use per-call random CODE/END nonces and are explicitly marked as untrusted project data. InputGuard adds a nonce fence and heuristic instruction scan to successful tool results that do not fence themselves. Its own code states that this is not prevention. The policy gate remains the independent action-control layer.
 
 Existing `test/retrieval-tools.test.ts` and `test/input-guard.test.ts` cover formatting, nonce uniqueness, forged markers, and instruction-pattern flags. They do not establish that a live model obeys the fence. S7 remains PARTIAL until a real embedding provider and controlled live-model poisoning run produce inspectable evidence. No code defect was confirmed in this source review.
+
+## 2026-11-08 S6 D-109 source review
+
+D-109's code path is present: the PowerShell helper hashes the staged Git blob, commits the labels and sidecar, and the scorer verifies the committed bytes and clean working copy before producing scorer output. The evaluator validates labels against available session IDs and requires 10 matched labels (20 if 20+ sessions are available) with both good and bad classes. Agreement is reported but is not a pass/fail threshold.
+
+The tracked labels file currently contains only three good labels. No genuine 10-session corpus or both-class human labels are recorded. S6 remains BLOCKED-HUMAN; no synthetic labels or sessions were generated.
