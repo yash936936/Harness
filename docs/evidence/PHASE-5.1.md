@@ -61,3 +61,27 @@ A review of the provider and opt-in test found a test-flow problem: doctor and l
 The follow-up patch adds a 45-second doctor timeout and a 10-second total cleanup budget in the real acceptance configuration (15 seconds by default in the provider) and moves doctor + lease acceptance into one test. The standalone smoke script uses the same bounded timeouts. Warmup is attempted only after doctor passes. A fake-CLI regression checks that stop/list receive the cleanup budget rather than the startup timeout.
 
 This is a test/runtime responsiveness fix, not a diagnosis of the container's exit code 255. The host-side missing rsync and unexplained container exit remain open. S0 remains blocked until a real lease, command exit codes 0 and 7, release, and clean container inventory are demonstrated.
+
+
+## Windows rsync prerequisite clarification
+
+The host-side rsync failure is a Windows transport prerequisite, not a missing package inside the Linux image. Upstream Crabbox's supported Windows paths are:
+
+- Preferred: WSL2 with a default WSL distribution containing native Linux rsync and OpenSSH. Crabbox invokes the default distribution without a distro name.
+- x64 without WSL: MSYS2 rsync.exe and the sibling MSYS2 ssh.exe from the exact same directory. Do not pair MSYS2/Cygwin rsync with the native System32 OpenSSH client.
+
+Upstream guide: https://github.com/openclaw/crabbox/blob/main/docs/windows-install.md
+
+For the preferred WSL2 path, verify the default distro with:
+
+```powershell
+wsl.exe sh -c 'command -v rsync || exit 1; command -v ssh || exit 1'
+```
+
+After the supported transfer toolchain is available, rerun:
+
+```powershell
+crabbox doctor --provider local-container --local-container-runtime docker
+```
+
+Do not rerun the real Harness acceptance while doctor fails. This prerequisite does not explain the captured container's later exit 255 by itself; keep that cause open until Docker events and a successful doctor are correlated.
