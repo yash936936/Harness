@@ -18,7 +18,7 @@ await ctx.plugin(EgressPolicy, { projectId: 'smoke-crabbox', allowedHosts: proce
 if (provider !== 'local-container') await ctx.egress.grantConsent() // a remote provider needs consent; this smoke run is you consenting
 await ctx.plugin(Subprocess, { timeoutMs: 600_000 })
 await ctx.plugin(Sandbox)
-ctx.sandbox.register(new CrabboxProvider(ctx.subprocess, { provider, image: process.env['HARNESS_CRABBOX_IMAGE'], runtime: process.env['HARNESS_CRABBOX_RUNTIME'], expectedVersion: process.env['HARNESS_CRABBOX_VERSION'], host: process.env['HARNESS_CRABBOX_HOST'] }))
+ctx.sandbox.register(new CrabboxProvider(ctx.subprocess, { provider, image: process.env['HARNESS_CRABBOX_IMAGE'], runtime: process.env['HARNESS_CRABBOX_RUNTIME'], expectedVersion: process.env['HARNESS_CRABBOX_VERSION'], host: process.env['HARNESS_CRABBOX_HOST'], controlTimeoutMs: 180_000, doctorTimeoutMs: 45_000, cleanupTimeoutMs: 10_000 }))
 
 let failed = 0
 const check = (label: string, ok: boolean, extra = '') => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}${extra ? '  ' + extra : ''}`); if (!ok) failed++ }
