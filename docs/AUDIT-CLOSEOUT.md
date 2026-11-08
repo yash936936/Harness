@@ -207,3 +207,7 @@ The tracked labels file currently contains only three good labels. No genuine 10
 ## 2026-11-08 S5 provenance template alignment
 
 The model provenance template's revision placeholder now matches the validator, which accepts only a full 40- or 64-character Git commit hash. The current verifier hashes one file per invocation; for sharded model weights, record one provenance JSON per file and compare each local digest with the corresponding pinned upstream Git-LFS object ID or another trusted checksum source. No model artifact was downloaded or hashed. S5 remains partial until the exact revision, every artifact digest, and the actual shipped notice payload are verified.
+
+## 2026-11-08 S3 manual procedure source verification
+
+The proposed manual CLI test is consistent with the current implementation: `harness code --provider ollama --model <tag> --sandbox none` withholds command execution while leaving gated file tools available. The `package.json` path-criticality signal is 0.5 (below the default 0.8 threshold), so its edit should be held. The built-in credential-path rule matches `.env.production` and hard-denies the read without an approval override. This confirms the test setup from source; S3 remains partial until the owner runs a live Ollama session and retains the terminal/session-log evidence.
