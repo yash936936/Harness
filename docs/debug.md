@@ -1654,3 +1654,13 @@ Reviewed `docs/evidence/EVAL-10.md`, `scripts/commit-eval-labels.ps1`, `scripts/
 ## DBG-090 — S5 model provenance template/validator alignment — 2026-11-08
 
 The template's revision placeholder said "immutable commit or tag", but `validateModelArtifactProvenance` accepts only a full 40- or 64-character Git commit hash. Updated the placeholder to make the accepted format explicit. The current verifier accepts one artifact file and one provenance JSON per invocation; the build plan now specifies per-file provenance records for sharded model weights and independent checksum comparison against the pinned upstream Git-LFS object IDs or another trusted source. No downloaded artifact or digest was invented. S5 remains partial pending the exact revision, files, checksums, and release notice bundle.
+
+## DBG-091 — S3 manual acceptance command verified against CLI/policy — 2026-11-08
+
+The S3 command in `docs/BUILD-PLAN.md` was checked against `src/cli/index.ts`, `src/cli/code.ts`, `policy-gates/signals.ts`, and `policy-gates/denylist.ts`.
+
+- CLI supports `--provider ollama --model <tag> --sandbox none`; with no sandbox, command tools are withheld, while file tools remain gated.
+- `package.json` receives path-criticality 0.5, below the default 0.8 threshold, so a write request is held.
+- `.env.production` matches the built-in `credential-path` deny rule and is hard-denied without approval.
+
+The procedure is source-consistent. It remains unexecuted because a live Ollama model and owner terminal session are required.
