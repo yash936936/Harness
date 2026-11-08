@@ -12,6 +12,7 @@ Done, with evidence in the repo or CI:
 - Governed harness code command exists with terminal approvals, session logging, and fail-closed command-tool availability.
 - PRs #11, #12, #17, #18, #19, and #20 are merged.
 - PR #20's CI run #289 passed; it preserves bounded stdout/stderr warmup diagnostics on failure.
+- Documentation continuation PR #21's latest CI run #302 passed; this is CI evidence only, not live sandbox/model acceptance.
 - The owner reported a local test run of 56 test files passed, 1 skipped; 1,182 tests passed, 22 skipped; 0 failures. Evidence: `docs/evidence/TEST-SUITE-2026-11-08.md`.
 
 Not done:
@@ -39,7 +40,7 @@ A green `npm test` does not mean Docker ran. The regular sandbox unit tests use 
 | S4 | Live acceptance: one real coding task on OpenRouter and one on Ollama, through `harness code` | Session logs saved, key absent from logs/stdout, target project tests pass |
 | S5 | Licensing and provenance | Exact shipped third-party notices, json-bignum MIT notice retained, pinned Qwen 7B revision and SHA-256s, tampered-file test |
 | S6 | Evaluation | Labels hashed and committed before scorer output; at least 10 real sessions (20+ if already collected), both classes, prototype-grade confusion report |
-| S7 | Retrieval and poisoning | Real embedding provider run; injected instructions fenced and not obeyed |
+| S7 | Retrieval and poisoning | Source/tests verify nonce fencing and heuristic input scanning; still requires a real embedding provider run and controlled live-model poisoning test proving injected instructions are not obeyed and attempted side effects are denied |
 | S8 | Final audit | `docs/AUDIT-CLOSEOUT.md` has one evidence-backed row per item; README separates implemented and experimental |
 
 S0 blocks S1 real acceptance. S2 is closed. S3-S8 continue independently where their prerequisites are available. S5 and S6 do not require the sandbox. Do not let the S0 transport issue pause independent documentation, license/provenance preparation, evaluation preparation, or code review. Do not mark external acceptance complete without its evidence.
