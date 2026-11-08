@@ -1650,3 +1650,7 @@ Reviewed `docs/evidence/EVAL-10.md`, `scripts/commit-eval-labels.ps1`, `scripts/
 **Verified in source:** label hashes are calculated from the staged Git blob, so Windows clean filters do not change the digest basis. The label and sidecar must both exist in HEAD, match the committed bytes, and have a clean working copy before scoring. The evaluator validates IDs against actual session logs, requires at least 10 labels (20 when 20+ sessions are available) and both classes, and reports agreement/confusion without an agreement threshold, consistent with D-109.
 
 **Evidence gap:** tracked labels currently contain three good labels only. No real-session corpus or both-class human labels are present. S6 remains BLOCKED-HUMAN. No live session or label was created during this review; no code change was made.
+
+## DBG-090 — S5 model provenance template/validator alignment — 2026-11-08
+
+The template's revision placeholder said "immutable commit or tag", but `validateModelArtifactProvenance` accepts only a full 40- or 64-character Git commit hash. Updated the placeholder to make the accepted format explicit. The current verifier accepts one artifact file and one provenance JSON per invocation; the build plan now specifies per-file provenance records for sharded model weights and independent checksum comparison against the pinned upstream Git-LFS object IDs or another trusted source. No downloaded artifact or digest was invented. S5 remains partial pending the exact revision, files, checksums, and release notice bundle.
