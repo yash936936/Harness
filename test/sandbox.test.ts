@@ -45,6 +45,23 @@ describe('5.1 crabbox provider (fake CLI)', () => {
     expect(s.read().leases).toEqual([])
     expect(s.read().calls.map((c) => c[0])).toEqual(['warmup', 'run', 'stop', 'list'])
   })
+  it('uses a short independent timeout for stop/list cleanup', async () => {
+    const s = state(); const ctx = await boot()
+    const observed: { command: string; timeoutMs?: number }[] = []
+    const instrumented = {
+      run: (command: string, args: string[], opts?: Parameters<Subprocess['run']>[2]) => {
+        observed.push({ command: args[0] ?? '', timeoutMs: opts?.timeoutMs })
+        return ctx.subprocess.run(command, args, opts)
+      },
+    } as Subprocess
+    const provider = new CrabboxProvider(instrumented, {
+      bin: process.execPath, binArgs: [FAKE, s.file], controlTimeoutMs: 1_000, cleanupTimeoutMs: 25,
+    })
+    const result = await provider.run({ command: ['true'] })
+    expect(result.released).toBe(true)
+    expect(observed.filter((x) => x.command === 'warmup' || x.command === 'run').every((x) => x.timeoutMs === 1_000)).toBe(true)
+    expect(observed.filter((x) => x.command === 'stop' || x.command === 'list').map((x) => x.timeoutMs)).toEqual([25, 25])
+  })
   it('passes the container runtime on warmup, only for a local provider', async () => {
     const s = state(); const ctx = await boot()
     ctx.sandbox.register(crab(ctx, s.file, { runtime: 'docker' }))
