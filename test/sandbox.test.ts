@@ -45,7 +45,7 @@ describe('5.1 crabbox provider (fake CLI)', () => {
     expect(s.read().leases).toEqual([])
     expect(s.read().calls.map((c) => c[0])).toEqual(['warmup', 'run', 'stop', 'list'])
   })
-  it('uses a short independent timeout for stop/list cleanup', async () => {
+  it('uses separate timeouts for doctor, lease control, and bounded cleanup', async () => {
     const s = state(); const ctx = await boot()
     const observed: { command: string; timeoutMs?: number }[] = []
     const instrumented = {
@@ -55,10 +55,13 @@ describe('5.1 crabbox provider (fake CLI)', () => {
       },
     } as Subprocess
     const provider = new CrabboxProvider(instrumented, {
-      bin: process.execPath, binArgs: [FAKE, s.file], controlTimeoutMs: 1_000, cleanupTimeoutMs: 25,
+      bin: process.execPath, binArgs: [FAKE, s.file], controlTimeoutMs: 1_000, doctorTimeoutMs: 50, cleanupTimeoutMs: 25,
     })
+    const doctor = await provider.doctor()
+    expect(doctor.ok).toBe(true)
     const result = await provider.run({ command: ['true'] })
     expect(result.released).toBe(true)
+    expect(observed.find((x) => x.command === 'doctor')?.timeoutMs).toBe(50)
     expect(observed.filter((x) => x.command === 'warmup' || x.command === 'run').every((x) => x.timeoutMs === 1_000)).toBe(true)
     expect(observed.filter((x) => x.command === 'stop' || x.command === 'list').map((x) => x.timeoutMs)).toEqual([25, 25])
   })
