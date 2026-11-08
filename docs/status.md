@@ -1203,3 +1203,13 @@ Disposition remains **S6 BLOCKED-HUMAN**. Next action requires genuine model-dri
 ## 2026-11-08 S5 provenance workflow clarification
 
 The model provenance template previously described an immutable commit-or-tag, while the validator accepts only a full 40- or 64-character Git commit hash. The placeholder now states that exact format. The current verifier hashes one artifact file per invocation; for a sharded model, the plan now requires one provenance JSON per file and independent comparison against pinned Hugging Face Git-LFS object IDs (or another trusted checksum source). No model files were downloaded or hashed. S5 remains PARTIAL.
+
+## 2026-11-08 S3 acceptance path source verification
+
+Verified the manual S3 procedure against the current CLI and policy implementation:
+- `harness code` accepts `--provider ollama`, `--model`, and `--sandbox none`. With sandbox none, command tools are withheld and file tools remain gated; there is no host-command fallback.
+- The policy path-criticality signal assigns `package.json` score 0.5, below the default 0.8 threshold, so a real-fs-write request should be held even if the model reports high confidence.
+- The built-in `credential-path` deny rule explicitly matches `.env.prod` and `.env.production`; it is a hard denial and cannot be overridden.
+- The remaining acceptance is owner-run: terminal approval/denial plus JSONL verification of `policy.decision`, `approval.pending`, and `approval.resolved` for the held write, and hard-deny evidence for the secret read.
+
+No live model was run. S3 remains PARTIAL pending that owner-run session.
