@@ -1,3 +1,12 @@
+## DBG-086 — bound Crabbox cleanup and gate real startup on doctor — 2026-11-08
+
+**Found:** doctor and lease startup were separate Vitest cases, so a failed doctor did not prevent the lease test from attempting warmup. The real test configured a 600-second control timeout for every Crabbox operation. On failed warmup, the provider still attempted cleanup; its two-attempt stop/list loop could wait through several long timeouts.
+
+**Fixed:** Crabbox now has a separate cleanupTimeoutMs (15 seconds by default) for stop/list, independent of startup/control timeout. The real acceptance test uses a 180-second startup/control budget and a 10-second cleanup budget, and performs doctor before warmup in the same test. A failed doctor now ends the test before any lease is created. A unit regression verifies stop/list receive the independent cleanup timeout.
+
+**Known blockers not changed:** host-side rsync is still missing from the recorded Windows doctor output. Successful full/stripped ssh-keygen probes mean the environment allowlist should not be changed without new evidence. The captured container accepted an SSH public key and later exited 255; the exact cause remains unknown. This patch does not close S0 or S1.
+
+**Validation:** pending targeted unit test, typecheck, and fresh CI. No real Crabbox/Docker acceptance is claimed.
 ## DBG-085 — repository audit merge and validation record — 2026-11-07
 
 **Merged:** PR #15 merged to main as d07e191548c2fc3f6bc56192a27824af38a177d0 after the audit branch passed npm ci, typecheck, lint and tests on Ubuntu and Windows in workflow run #237. All five automated review threads were answered and resolved.
