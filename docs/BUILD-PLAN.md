@@ -140,3 +140,12 @@ The cross-chat and repository failure audit is maintained in [docs/RECURRING-FAI
 For Crabbox, run doctor first and do not attempt warmup when it fails. The provider now has separate doctor, lease-control, and total cleanup budgets. The real acceptance test and standalone smoke use the same bounded budgets. This is a responsiveness fix, not S0 evidence.
 
 Current blockers remain: host-side rsync is missing in the recorded Windows doctor output; the captured container's exit 255 is unexplained; S1 orphan recovery has not been implemented or accepted. Do not modify SSH environment forwarding, bootstrap, or port mapping without new evidence. See the recurring-failure audit for the exact evidence boundary and next diagnostic.
+
+
+For a short, read-only Windows prerequisite and stale-container capture, use:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/diagnose-crabbox.ps1 -ContainerId <container-id>
+```
+
+The script checks the supported WSL transfer tools, Windows tool paths, Docker context/engine, Crabbox doctor, and (when an ID is supplied) a bounded container log/event tail. It does not create, stop, or remove containers. Use the upstream Windows installation guide linked from the recurring-failure audit to select the correct rsync/SSH pairing.
