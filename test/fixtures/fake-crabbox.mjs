@@ -14,7 +14,12 @@ else if (sub === 'doctor') {
   console.log('ok'); save()
 }
 else if (sub === 'warmup') {
-  if (st.failWarmup) { console.error('broker unreachable'); save(); process.exit(1) }
+  if (st.failWarmup) {
+    if (st.warmupStdout) console.log(st.warmupStdout)
+    console.error(st.warmupStderr ?? 'broker unreachable')
+    save()
+    process.exit(st.warmupExitCode ?? 1)
+  }
   st.leases.push(flag('--slug')); console.log('leased ' + flag('--slug')); save()
 } else if (sub === 'run') {
   const id = flag('--id'); const cmd = args.slice(args.indexOf('--') + 1)

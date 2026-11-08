@@ -109,10 +109,18 @@ describe('5.1 crabbox provider (fake CLI)', () => {
     expect(r.released).toBe(true)
     expect(s.read().leases).toEqual([])
   })
-  it('broker unreachable: clear error, and a release is still attempted so no lease hangs', async () => {
-    const s = state({ failWarmup: true }); const ctx = await boot()
+  it('broker unreachable: preserves both bounded warmup streams and still attempts release', async () => {
+    const s = state({
+      failWarmup: true,
+      warmupStdout: 'private WSL SSH transport setup failed',
+      warmupStderr: 'cannot create : Directory nonexistent',
+    }); const ctx = await boot()
     ctx.sandbox.register(crab(ctx, s.file))
-    await expect(ctx.sandbox.run({ command: ['echo'] })).rejects.toMatchObject({ kind: 'unreachable' })
+    const error = await ctx.sandbox.run({ command: ['echo'] }).then(() => undefined, (reason) => reason)
+    expect(error).toMatchObject({ kind: 'unreachable' })
+    expect(error.message).toContain('private WSL SSH transport setup failed')
+    expect(error.message).toContain('cannot create : Directory nonexistent')
+    expect(error.message).toContain('exit code: 1')
     expect(s.read().calls.map((c) => c[0])).toContain('stop')
     expect(s.read().leases).toEqual([])
   })
