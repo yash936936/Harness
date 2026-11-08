@@ -2,6 +2,10 @@
 
 Generated from the current committed root package-lock.json on 2026-11-08 (157 package entries). This is lockfile metadata only. It is not a legal conclusion and does not identify the exact files included in a future shipped artifact.
 
+## Runtime dependency closure (lockfile graph)
+
+A static traversal from the root package's declared runtime dependencies through resolved dependencies, optional dependencies, and present peer dependencies reaches 59 lockfile package entries. Its lockfile license metadata counts are: MIT 43, Apache-2.0 12, BSD-3-Clause 1, 0BSD 1, Unlicense 1, and UNDECLARED 1. The UNDECLARED entry is json-bignum@0.0.3; its upstream repository contains an MIT LICENSE. This graph traversal includes optional platform variants when they are present in the lockfile. It is a useful dependency-closure estimate, not proof of which files a future packaging process ships.
+
 ## Counts
 
 - 0BSD: 1
