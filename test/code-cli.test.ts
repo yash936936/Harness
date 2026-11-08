@@ -181,7 +181,8 @@ describe('governed CLI policy acceptance', () => {
       const body = JSON.parse(String(init?.body ?? '{}')) as { tools?: unknown[]; messages?: unknown[] }
       requests.push(body)
       const hasTools = Array.isArray(body.tools) && body.tools.length > 0
-      const payload = hasTools
+      const afterToolResult = Array.isArray(body.messages) && body.messages.some((message) => (message as { role?: string }).role === 'tool')
+      const payload = hasTools && !afterToolResult
         ? {
             model: 'scripted',
             done: true,
