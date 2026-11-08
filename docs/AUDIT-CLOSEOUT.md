@@ -203,3 +203,7 @@ Existing `test/retrieval-tools.test.ts` and `test/input-guard.test.ts` cover for
 D-109's code path is present: the PowerShell helper hashes the staged Git blob, commits the labels and sidecar, and the scorer verifies the committed bytes and clean working copy before producing scorer output. The evaluator validates labels against available session IDs and requires 10 matched labels (20 if 20+ sessions are available) with both good and bad classes. Agreement is reported but is not a pass/fail threshold.
 
 The tracked labels file currently contains only three good labels. No genuine 10-session corpus or both-class human labels are recorded. S6 remains BLOCKED-HUMAN; no synthetic labels or sessions were generated.
+
+## 2026-11-08 S5 provenance template alignment
+
+The model provenance template's revision placeholder now matches the validator, which accepts only a full 40- or 64-character Git commit hash. The current verifier hashes one file per invocation; for sharded model weights, record one provenance JSON per file and compare each local digest with the corresponding pinned upstream Git-LFS object ID or another trusted checksum source. No model artifact was downloaded or hashed. S5 remains partial until the exact revision, every artifact digest, and the actual shipped notice payload are verified.
