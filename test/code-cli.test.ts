@@ -173,7 +173,8 @@ describe('governed CLI policy acceptance', () => {
   it('records a held package manifest edit, terminal denial, and hard-denied credential read without touching the project', async () => {
     const root = makeProject()
     const manifest = '"name": "coding-harness"'
-    writeFileSync(join(root, 'package.json'), `{\n  ${manifest},\n  "version": "0.0.1"\n}\n`)
+    const originalManifest = `{\n  ${manifest},\n  "version": "0.0.1"\n}\n`
+    writeFileSync(join(root, 'package.json'), originalManifest)
 
     const previousFetch = globalThis.fetch
     const requests: Array<{ tools?: unknown[]; messages?: unknown[] }> = []
@@ -265,10 +266,14 @@ describe('governed CLI policy acceptance', () => {
       })
 
       expect(requests.length).toBeGreaterThanOrEqual(2)
+      const offeredToolNames = requests.flatMap((request) => (request.tools ?? []).map((tool) => (tool as { function?: { name?: string } }).function?.name))
+      expect(offeredToolNames).toContain('edit_file')
+      expect(offeredToolNames).toContain('read_file')
+      expect(offeredToolNames).not.toContain('run_command')
       expect(prompts).toHaveLength(1)
       expect(prompts[0]).toContain('Approve this exact operation?')
       expect(output.join('\n')).toContain('no sandbox: commands disabled, file tools still gated')
-      expect(readFileSync(join(root, 'package.json'), 'utf8')).toContain(manifest)
+      expect(readFileSync(join(root, 'package.json'), 'utf8')).toBe(originalManifest)
 
       const events = await result.context!.log.read(result.sessionId!)
       const decisions = events.filter((event) => event.type === 'policy.decision')
