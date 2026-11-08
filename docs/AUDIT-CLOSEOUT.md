@@ -168,3 +168,20 @@ The owner reported a local Windows `npm test` result: 56 test files passed, 1 sk
 - S0 / ARCH-01: BLOCKED-HARDWARE. The real Crabbox/Docker test file was skipped.
 - S1: OPEN. The existing sentinel check is inside the opt-in real test. The provider's `finally` release is not crash recovery; no orphan lease reaper or process-death acceptance has been demonstrated.
 - Local working-tree state: NOT VERIFIED by GitHub-side documentation changes. Preserve local modifications and inspect the working tree before syncing.
+
+## 2026-11-08 status correction: S0 / ARCH-01 remains pending
+
+The earlier table is historical; the newest attempt is recorded here and supersedes its older S0 wording.
+
+| ID | Current status | Latest evidence | Remaining gate |
+|---|---|---|---|
+| ARCH-01 / S0 | **PENDING-ENVIRONMENT** | Pinned-image warmup and inspect succeeded; Docker container was running. crabbox run failed before workload execution while writing the private WSL SSH transport file (empty path). Stop succeeded and lease disappeared. | Isolate WSL private-file argument handoff, then pass no-sync run, synced run, exit codes 0 and 7, Harness real-sandbox test, release and clean container inventory. |
+| S1 | **BLOCKED BY S0 / OPEN** | No accepted orphan-recovery run. | After S0, prove host sentinel absence and ownership-safe orphan recovery after process death. |
+| S3 | Partial | Governed CLI and scripted policy tests exist. | Owner-run manual acceptance with a held write, a hard-blocked credential path, terminal approval/denial and matching session-log events. |
+| S4 | Open | Provider adapters and smoke paths exist. | Full governed coding tasks on live OpenRouter and Ollama with logs and target-project tests. |
+| S5 | Partial | Lockfile inventory and model artifact verifier exist. | Verify exact production dependency closure and shipped notices; pin/download exact Qwen 7B artifact and verify per-file SHA-256. |
+| S6 | Blocked-human | D-109 label provenance gate exists. | At least 10 genuine sessions, both labels, owner labels committed and hashed before scorer output. |
+| S7 | Partial | Semantic memory and scripted tests exist. | Real embedding-provider run and separate poisoning acceptance proving injected instructions are fenced and not followed. |
+| S8 | Open | Audit docs exist. | Reconcile every row against committed evidence after independent gates are run or explicitly retained as blocked/deferred. |
+
+Detailed conversation-based incident history: [S0 / ARCH-01 transport incident report](evidence/S0-ARCH-01-TRANSPORT-INCIDENT-REPORT-2026-11-08.md). This documentation update does not claim any new runtime test. The owner requested pausing S0 transport debugging while independent work continues. S1 remains dependent on S0; do not claim it passed.
