@@ -50,7 +50,7 @@ describe('5.1 crabbox provider (fake CLI)', () => {
     const observed: { command: string; timeoutMs?: number }[] = []
     const instrumented = {
       run: (command: string, args: string[], opts?: Parameters<Subprocess['run']>[2]) => {
-        observed.push({ command: args[0] ?? '', timeoutMs: opts?.timeoutMs })
+        observed.push({ command: args[2] ?? args[0] ?? '', timeoutMs: opts?.timeoutMs })
         return ctx.subprocess.run(command, args, opts)
       },
     } as Subprocess
