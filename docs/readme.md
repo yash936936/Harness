@@ -146,3 +146,9 @@ The repository includes sandbox-provider adapters, router hooks, semantic-memory
 - `npm run harness -- run` is a single model call with no tools, policy gates or sandbox. The governed multi-agent path (`profile-coding`) is reached only from scripts and tests.
 - A passing `npm test` does not mean Docker or crabbox ran: all sandbox tests use fakes. On a machine with Docker running and `crabbox` on PATH, run `npm run test:real-sandbox`; until its output is recorded, Phase 5.1 is open.
 - There is no desktop UI yet; `app/desktop/` holds only the Electron/Tauri benchmark apps.
+
+## Current closeout state (2026-11-08)
+
+S0 / ARCH-01 is currently PENDING-ENVIRONMENT. The pinned Crabbox image warms and inspect succeeds, but crabbox run fails before the in-box command while creating the private WSL SSH transport file. The latest stop operation succeeded. This does not pass real sandbox acceptance. The owner has asked to pause this one transport issue and continue independent work. See [the incident report](evidence/S0-ARCH-01-TRANSPORT-INCIDENT-REPORT-2026-11-08.md), [status](status.md), and [audit closeout](AUDIT-CLOSEOUT.md).
+
+S1 real orphan recovery remains dependent on S0. S3 manual terminal approval evidence is still required. S5 licensing/provenance, S6 genuine-session evaluation, and S7 real embedding/poisoning acceptance remain incomplete until their own evidence is recorded. The desktop UI remains deferred; benchmark hello-worlds are not a desktop product. Do not infer any of these gates from a passing unit suite.

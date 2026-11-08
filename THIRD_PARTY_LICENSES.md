@@ -1,12 +1,27 @@
 # Third-party dependency license inventory
 
-Generated from the committed root `package-lock.json` on 2026-11-05. This inventories npm lockfile metadata, not legal conclusions or the exact files included in a future distribution.
+Generated from the current committed root package-lock.json on 2026-11-08 (157 package entries). This is lockfile metadata only. It is not a legal conclusion and does not identify the exact files included in a future shipped artifact.
 
-- Runtime and development dependency tree: 180 package entries.
-- Metadata counts: MIT 159, Apache-2.0 14, BSD-3-Clause 2, ISC 2, Unlicense 1, 0BSD 1, undeclared 1. The undeclared count is lockfile metadata only; json-bignum@0.0.3 upstream contains an MIT LICENSE file.
-- json-bignum@0.0.3: lockfile metadata omits license, but upstream datalanche/json-bignum identifies the project as MIT and contains LICENSE. Preserve that notice in third-party distributions. Whether it enters a shipped bundle still requires a release-artifact inventory.
-- Optional platform packages are included because they occur in the lockfile. A release-specific inventory should be generated from the actual packaged artifact.
-- The repository's `LICENSE` covers original repository work only. It does not grant rights to third-party packages or model weights.
+## Runtime dependency closure (lockfile graph)
+
+A static traversal from the root package's declared runtime dependencies through resolved dependencies, optional dependencies, and present peer dependencies reaches 59 lockfile package entries. Its lockfile license metadata counts are: MIT 43, Apache-2.0 12, BSD-3-Clause 1, 0BSD 1, Unlicense 1, and UNDECLARED 1. The UNDECLARED entry is json-bignum@0.0.3; its upstream repository contains an MIT LICENSE. This graph traversal includes optional platform variants when they are present in the lockfile. It is a useful dependency-closure estimate, not proof of which files a future packaging process ships.
+
+## Counts
+
+- 0BSD: 1
+- Apache-2.0: 15
+- BSD-3-Clause: 2
+- ISC: 2
+- MIT: 123
+- MPL-2.0: 12
+- UNDECLARED: 1
+- Unlicense: 1
+
+- json-bignum@0.0.3 has no license field in the lockfile. Its upstream datalanche/json-bignum repository contains an MIT LICENSE; preserve that MIT notice in any distribution that includes it.
+- The lockfile contains runtime, development, optional, and platform-specific packages. Determine the exact production dependency closure and inspect the actual packaged output before shipping.
+- The repository LICENSE covers original project work only. Third-party packages and model weights retain their own terms.
+
+## Packages
 
 | Package | Locked version | License metadata |
 |---|---:|---|
@@ -58,135 +73,112 @@ Generated from the committed root `package-lock.json` on 2026-11-05. This invent
 | `@napi-rs/keyring-win32-arm64-msvc` | 2.1.0 | MIT |
 | `@napi-rs/keyring-win32-ia32-msvc` | 2.1.0 | MIT |
 | `@napi-rs/keyring-win32-x64-msvc` | 2.1.0 | MIT |
-| `@napi-rs/lzma-linux-x64-gnu` | 1.5.1 | MIT |
-| `@rollup/rollup-android-arm-eabi` | 4.63.4 | MIT |
-| `@rollup/rollup-android-arm64` | 4.63.4 | MIT |
-| `@rollup/rollup-darwin-arm64` | 4.63.4 | MIT |
-| `@rollup/rollup-darwin-x64` | 4.63.4 | MIT |
-| `@rollup/rollup-freebsd-arm64` | 4.63.4 | MIT |
-| `@rollup/rollup-freebsd-x64` | 4.63.4 | MIT |
-| `@rollup/rollup-linux-arm-gnueabihf` | 4.63.4 | MIT |
-| `@rollup/rollup-linux-arm-musleabihf` | 4.63.4 | MIT |
-| `@rollup/rollup-linux-arm64-gnu` | 4.63.4 | MIT |
-| `@rollup/rollup-linux-arm64-musl` | 4.63.4 | MIT |
-| `@rollup/rollup-linux-loong64-gnu` | 4.63.4 | MIT |
-| `@rollup/rollup-linux-loong64-musl` | 4.63.4 | MIT |
-| `@rollup/rollup-linux-ppc64-gnu` | 4.63.4 | MIT |
-| `@rollup/rollup-linux-ppc64-musl` | 4.63.4 | MIT |
-| `@rollup/rollup-linux-riscv64-gnu` | 4.63.4 | MIT |
-| `@rollup/rollup-linux-riscv64-musl` | 4.63.4 | MIT |
-| `@rollup/rollup-linux-s390x-gnu` | 4.63.4 | MIT |
-| `@rollup/rollup-linux-x64-gnu` | 4.63.4 | MIT |
-| `@rollup/rollup-linux-x64-musl` | 4.63.4 | MIT |
-| `@rollup/rollup-openbsd-x64` | 4.63.4 | MIT |
-| `@rollup/rollup-openharmony-arm64` | 4.63.4 | MIT |
-| `@rollup/rollup-win32-arm64-msvc` | 4.63.4 | MIT |
-| `@rollup/rollup-win32-ia32-msvc` | 4.63.4 | MIT |
-| `@rollup/rollup-win32-x64-gnu` | 4.63.4 | MIT |
-| `@rollup/rollup-win32-x64-msvc` | 4.63.4 | MIT |
+| `@oxc-project/types` | 0.156.0 | MIT |
+| `@rolldown/binding-android-arm-eabi` | 1.2.16 | MIT |
+| `@rolldown/binding-android-arm64` | 1.2.16 | MIT |
+| `@rolldown/binding-darwin-arm64` | 1.2.16 | MIT |
+| `@rolldown/binding-darwin-x64` | 1.2.16 | MIT |
+| `@rolldown/binding-freebsd-x64` | 1.2.16 | MIT |
+| `@rolldown/binding-linux-arm-gnueabihf` | 1.2.16 | MIT |
+| `@rolldown/binding-linux-arm64-gnu` | 1.2.16 | MIT |
+| `@rolldown/binding-linux-arm64-musl` | 1.2.16 | MIT |
+| `@rolldown/binding-linux-ppc64-gnu` | 1.2.16 | MIT |
+| `@rolldown/binding-linux-s390x-gnu` | 1.2.16 | MIT |
+| `@rolldown/binding-linux-x64-gnu` | 1.2.16 | MIT |
+| `@rolldown/binding-linux-x64-musl` | 1.2.16 | MIT |
+| `@rolldown/binding-openharmony-arm64` | 1.2.16 | MIT |
+| `@rolldown/binding-win32-arm64-msvc` | 1.2.16 | MIT |
+| `@rolldown/binding-win32-x64-msvc` | 1.2.16 | MIT |
+| `@rolldown/pluginutils` | 1.0.1 | MIT |
 | `@standard-schema/spec` | 1.1.0 | MIT |
 | `@swc/helpers` | 0.5.23 | Apache-2.0 |
+| `@types/chai` | 5.2.3 | MIT |
 | `@types/command-line-args` | 5.2.3 | MIT |
 | `@types/command-line-usage` | 5.0.4 | MIT |
-| `@types/estree` | 1.0.9 | MIT |
+| `@types/deep-eql` | 4.0.2 | MIT |
+| `@types/estree` | 1.0.10 | MIT |
 | `@types/node` | 22.20.4 | MIT |
-| `@vitest/expect` | 2.1.9 | MIT |
-| `@vitest/mocker` | 2.1.9 | MIT |
-| `@vitest/pretty-format` | 2.1.9 | MIT |
-| `@vitest/runner` | 2.1.9 | MIT |
-| `@vitest/snapshot` | 2.1.9 | MIT |
-| `@vitest/spy` | 2.1.9 | MIT |
-| `@vitest/utils` | 2.1.9 | MIT |
+| `@vitest/expect` | 4.1.12 | MIT |
+| `@vitest/mocker` | 4.1.12 | MIT |
+| `@vitest/pretty-format` | 4.1.12 | MIT |
+| `@vitest/runner` | 4.1.12 | MIT |
+| `@vitest/snapshot` | 4.1.12 | MIT |
+| `@vitest/spy` | 4.1.12 | MIT |
+| `@vitest/utils` | 4.1.12 | MIT |
 | `ajv` | 8.20.0 | MIT |
 | `ansi-styles` | 4.3.0 | MIT |
 | `apache-arrow` | 18.1.0 | Apache-2.0 |
 | `apache-arrow/node_modules/@types/node` | 20.19.43 | MIT |
 | `array-back` | 3.1.0 | MIT |
 | `assertion-error` | 2.0.1 | MIT |
-| `cac` | 6.7.14 | MIT |
-| `chai` | 5.3.3 | MIT |
+| `chai` | 6.3.0 | MIT |
 | `chalk` | 4.1.2 | MIT |
 | `chalk-template` | 0.4.0 | MIT |
-| `check-error` | 2.1.3 | MIT |
 | `color-convert` | 2.0.1 | MIT |
 | `color-name` | 1.1.4 | MIT |
 | `command-line-args` | 5.2.1 | MIT |
 | `command-line-usage` | 7.0.4 | MIT |
 | `command-line-usage/node_modules/array-back` | 6.2.3 | MIT |
 | `command-line-usage/node_modules/typical` | 7.3.0 | MIT |
+| `convert-source-map` | 2.0.0 | MIT |
 | `cordis` | 4.0.0-rc.10 | MIT |
 | `cosmokit` | 1.8.1 | MIT |
-| `debug` | 4.4.3 | MIT |
-| `deep-eql` | 5.0.2 | MIT |
-| `es-module-lexer` | 1.7.0 | MIT |
+| `detect-libc` | 2.1.2 | Apache-2.0 |
+| `es-module-lexer` | 2.3.2 | MIT |
 | `esbuild` | 0.28.2 | MIT |
 | `estree-walker` | 3.0.3 | MIT |
 | `expect-type` | 1.4.0 | Apache-2.0 |
 | `fast-deep-equal` | 3.1.3 | MIT |
-| `fast-uri` | 3.1.8 | BSD-3-Clause |
+| `fast-uri` | 3.1.9 | BSD-3-Clause |
+| `fdir` | 6.5.0 | MIT |
 | `find-replace` | 3.0.0 | MIT |
 | `flatbuffers` | 24.12.23 | Apache-2.0 |
 | `fsevents` | 2.3.3 | MIT |
 | `has-flag` | 4.0.0 | MIT |
-| `json-bignum` | 0.0.3 | MIT (upstream LICENSE; lockfile field absent) |
+| `json-bignum` | 0.0.3 | UNDECLARED |
 | `json-schema-traverse` | 1.0.0 | MIT |
+| `lightningcss` | 1.33.0 | MPL-2.0 |
+| `lightningcss-android-arm64` | 1.33.0 | MPL-2.0 |
+| `lightningcss-darwin-arm64` | 1.33.0 | MPL-2.0 |
+| `lightningcss-darwin-x64` | 1.33.0 | MPL-2.0 |
+| `lightningcss-freebsd-x64` | 1.33.0 | MPL-2.0 |
+| `lightningcss-linux-arm-gnueabihf` | 1.33.0 | MPL-2.0 |
+| `lightningcss-linux-arm64-gnu` | 1.33.0 | MPL-2.0 |
+| `lightningcss-linux-arm64-musl` | 1.33.0 | MPL-2.0 |
+| `lightningcss-linux-x64-gnu` | 1.33.0 | MPL-2.0 |
+| `lightningcss-linux-x64-musl` | 1.33.0 | MPL-2.0 |
+| `lightningcss-win32-arm64-msvc` | 1.33.0 | MPL-2.0 |
+| `lightningcss-win32-x64-msvc` | 1.33.0 | MPL-2.0 |
 | `lodash.camelcase` | 4.3.0 | MIT |
-| `loupe` | 3.2.1 | MIT |
 | `magic-string` | 0.30.21 | MIT |
-| `ms` | 2.1.3 | MIT |
-| `nanoid` | 3.3.19 | MIT |
-| `pathe` | 1.1.2 | MIT |
-| `pathval` | 2.0.1 | MIT |
+| `nanoid` | 3.3.20 | MIT |
+| `obug` | 2.2.1 | MIT |
+| `pathe` | 2.0.3 | MIT |
 | `picocolors` | 1.1.1 | ISC |
-| `postcss` | 8.5.28 | MIT |
+| `picomatch` | 4.0.7 | MIT |
+| `postcss` | 8.5.32 | MIT |
 | `reflect-metadata` | 0.2.2 | Apache-2.0 |
 | `require-from-string` | 2.0.2 | MIT |
-| `rollup` | 4.63.4 | MIT |
+| `rolldown` | 1.2.16 | MIT |
 | `siginfo` | 2.0.0 | ISC |
-| `source-map-js` | 1.2.1 | BSD-3-Clause |
+| `source-map-js` | 1.2.2 | BSD-3-Clause |
 | `stackback` | 0.0.2 | MIT |
-| `std-env` | 3.10.0 | MIT |
+| `std-env` | 4.3.0 | MIT |
 | `supports-color` | 7.2.0 | MIT |
 | `table-layout` | 4.1.1 | MIT |
 | `table-layout/node_modules/array-back` | 6.2.3 | MIT |
 | `tinybench` | 2.9.0 | MIT |
-| `tinyexec` | 0.3.2 | MIT |
-| `tinypool` | 1.1.1 | MIT |
-| `tinyrainbow` | 1.2.0 | MIT |
-| `tinyspy` | 3.0.2 | MIT |
+| `tinyexec` | 1.3.1 | MIT |
+| `tinyglobby` | 0.2.17 | MIT |
+| `tinyrainbow` | 3.2.0 | MIT |
 | `tree-sitter-wasms` | 0.1.13 | Unlicense |
 | `tslib` | 2.8.1 | 0BSD |
 | `tsx` | 4.23.14 | MIT |
 | `typescript` | 5.9.3 | Apache-2.0 |
 | `typical` | 4.0.0 | MIT |
 | `undici-types` | 6.21.0 | MIT |
-| `vite` | 5.4.21 | MIT |
-| `vite-node` | 2.1.9 | MIT |
-| `vite/node_modules/@esbuild/aix-ppc64` | 0.21.5 | MIT |
-| `vite/node_modules/@esbuild/android-arm` | 0.21.5 | MIT |
-| `vite/node_modules/@esbuild/android-arm64` | 0.21.5 | MIT |
-| `vite/node_modules/@esbuild/android-x64` | 0.21.5 | MIT |
-| `vite/node_modules/@esbuild/darwin-arm64` | 0.21.5 | MIT |
-| `vite/node_modules/@esbuild/darwin-x64` | 0.21.5 | MIT |
-| `vite/node_modules/@esbuild/freebsd-arm64` | 0.21.5 | MIT |
-| `vite/node_modules/@esbuild/freebsd-x64` | 0.21.5 | MIT |
-| `vite/node_modules/@esbuild/linux-arm` | 0.21.5 | MIT |
-| `vite/node_modules/@esbuild/linux-arm64` | 0.21.5 | MIT |
-| `vite/node_modules/@esbuild/linux-ia32` | 0.21.5 | MIT |
-| `vite/node_modules/@esbuild/linux-loong64` | 0.21.5 | MIT |
-| `vite/node_modules/@esbuild/linux-mips64el` | 0.21.5 | MIT |
-| `vite/node_modules/@esbuild/linux-ppc64` | 0.21.5 | MIT |
-| `vite/node_modules/@esbuild/linux-riscv64` | 0.21.5 | MIT |
-| `vite/node_modules/@esbuild/linux-s390x` | 0.21.5 | MIT |
-| `vite/node_modules/@esbuild/linux-x64` | 0.21.5 | MIT |
-| `vite/node_modules/@esbuild/netbsd-x64` | 0.21.5 | MIT |
-| `vite/node_modules/@esbuild/openbsd-x64` | 0.21.5 | MIT |
-| `vite/node_modules/@esbuild/sunos-x64` | 0.21.5 | MIT |
-| `vite/node_modules/@esbuild/win32-arm64` | 0.21.5 | MIT |
-| `vite/node_modules/@esbuild/win32-ia32` | 0.21.5 | MIT |
-| `vite/node_modules/@esbuild/win32-x64` | 0.21.5 | MIT |
-| `vite/node_modules/esbuild` | 0.21.5 | MIT |
-| `vitest` | 2.1.9 | MIT |
+| `vite` | 8.3.6 | MIT |
+| `vitest` | 4.1.12 | MIT |
 | `web-tree-sitter` | 0.25.10 | MIT |
 | `why-is-node-running` | 2.3.0 | MIT |
 | `wordwrapjs` | 5.1.1 | MIT |

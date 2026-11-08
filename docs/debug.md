@@ -1614,3 +1614,53 @@ design draft.
 
 ---
 **Next:** Return to [`context.md`](../context.md).
+
+## DBG-087 — record S0 WSL transport failure and pause repeated attempts — 2026-11-08
+
+**Observed:** With the pinned image harness-crabbox-s0:ubuntu-pinned, Crabbox warmup completed, a lease was reported ready, inspect worked, and the Docker container was running. crabbox run then failed before the requested in-container command executed:
+
+~~~text
+rsync failed: write private WSL SSH transport file:
+exit status 1: crabbox: 1: cannot create : Directory nonexistent
+chmod: cannot access '': No such file or directory
+~~~
+
+**Lifecycle evidence:** crabbox stop succeeded and the lease disappeared from the provider list. This does not establish workload execution or full S0 acceptance.
+
+**Disposition:** S0 / ARCH-01 is PENDING-ENVIRONMENT. The empty pathname suggests a private-file path/argument setup failure, but does not identify whether the fault is WSL argument forwarding, Crabbox's transport helper, or the selected WSL distribution/tool configuration. Do not label this fixed. Do not repeat the same transport attempt or change SSH environment forwarding, image bootstrap, or port mapping until the owner resumes S0 or new evidence isolates a layer.
+
+**Evidence:** docs/evidence/S0-ARCH-01-TRANSPORT-INCIDENT-REPORT-2026-11-08.md records the conversation timeline and limits. docs/evidence/S0-TRANSPORT-2026-11-08.md records the current concise disposition. Earlier exit-255/Docker Desktop restart observations remain distinct historical symptoms and are not asserted as the cause of this later failure.
+
+**Validation:** documentation update only. No real in-box command, exit-code 0/7, host-file isolation, or orphan-recovery test passed in this attempt. S1 real acceptance remains dependent on S0.
+
+## DBG-088 — S7 retrieval-fencing source review — 2026-11-08
+
+Reviewed current `search_code`, `InputGuard`, and their tests on the continuation branch.
+
+**Verified in source/tests:** retrieval snippets use a random per-call nonce in CODE/END markers and state that the content is data, not instructions. Tests check fresh nonces, matching closes, forged marker attempts, and exclusion of secret files. InputGuard wraps successful non-self-fenced tool output with a second random nonce, scans a bounded prefix for instruction-like patterns, and logs `input.flagged`. The source explicitly says this is heuristic detection, not prevention. Policy gates are the independent enforcement layer for actions.
+
+**Open:** there is no accepted live-model poisoning run in the reviewed evidence. Scripted formatting tests cannot establish that a live model ignores injected instructions. Real embedding-provider retrieval and controlled live-model poisoning acceptance remain open. No source defect was established by this review; no runtime behavior was changed.
+
+**Next evidence:** a real embedding-provider run and a controlled harmless canary injection, with retrieved snippets, model response, policy/tool/session events, and before/after filesystem diff retained. Any attempted side effect must be denied by policy regardless of the model's stated intent.
+
+## DBG-089 — S6 D-109 source review — 2026-11-08
+
+Reviewed `docs/evidence/EVAL-10.md`, `scripts/commit-eval-labels.ps1`, `scripts/eval-label-provenance.ts`, and `scripts/eval-calibrate.ts`.
+
+**Verified in source:** label hashes are calculated from the staged Git blob, so Windows clean filters do not change the digest basis. The label and sidecar must both exist in HEAD, match the committed bytes, and have a clean working copy before scoring. The evaluator validates IDs against actual session logs, requires at least 10 labels (20 when 20+ sessions are available) and both classes, and reports agreement/confusion without an agreement threshold, consistent with D-109.
+
+**Evidence gap:** tracked labels currently contain three good labels only. No real-session corpus or both-class human labels are present. S6 remains BLOCKED-HUMAN. No live session or label was created during this review; no code change was made.
+
+## DBG-090 — S5 model provenance template/validator alignment — 2026-11-08
+
+The template's revision placeholder said "immutable commit or tag", but `validateModelArtifactProvenance` accepts only a full 40- or 64-character Git commit hash. Updated the placeholder to make the accepted format explicit. The current verifier accepts one artifact file and one provenance JSON per invocation; the build plan now specifies per-file provenance records for sharded model weights and independent checksum comparison against the pinned upstream Git-LFS object IDs or another trusted source. No downloaded artifact or digest was invented. S5 remains partial pending the exact revision, files, checksums, and release notice bundle.
+
+## DBG-091 — S3 manual acceptance command verified against CLI/policy — 2026-11-08
+
+The S3 command in `docs/BUILD-PLAN.md` was checked against `src/cli/index.ts`, `src/cli/code.ts`, `policy-gates/signals.ts`, and `policy-gates/denylist.ts`.
+
+- CLI supports `--provider ollama --model <tag> --sandbox none`; with no sandbox, command tools are withheld, while file tools remain gated.
+- `package.json` receives path-criticality 0.5, below the default 0.8 threshold, so a write request is held.
+- `.env.production` matches the built-in `credential-path` deny rule and is hard-denied without approval.
+
+The procedure is source-consistent. It remains unexecuted because a live Ollama model and owner terminal session are required.

@@ -1149,3 +1149,67 @@ npm run eval -- <logDir> labels.json
 ### Validation performed in this repository edit
 
 GitHub source inspection only. No TypeScript compiler, Vitest, Windows, Docker, Crabbox, Ollama/Needle, OpenRouter, or Tauri process was available through the repository connector. Do not interpret this PR's documentation update as a passing test run.
+
+## 2026-11-08 S0 transport disposition and independent closeout continuation
+
+**Current S0 / ARCH-01 disposition: PENDING-ENVIRONMENT.** This entry supersedes older S0 status labels where they conflict with the newest attempt.
+
+- Pinned local-container image warmup succeeded; Crabbox reported a ready lease and SSH endpoint. Inspect succeeded and Docker showed the container running.
+- crabbox run failed before the requested in-container command executed while preparing the private WSL SSH transport file. The error reported an empty path to create/chmod. Exact root cause is not isolated.
+- crabbox stop succeeded and the lease disappeared from the provider list.
+- Exit-code 0/7 execution, Harness real-sandbox acceptance, host-file isolation, and S1 orphan recovery remain unverified.
+- Full incident chronology and evidence boundaries: [S0 / ARCH-01 transport incident report](evidence/S0-ARCH-01-TRANSPORT-INCIDENT-REPORT-2026-11-08.md). Concise current evidence: [S0 transport status](evidence/S0-TRANSPORT-2026-11-08.md).
+
+**Work order:** pause S0 transport debugging at the owner's request. Continue independent S3, S5, S6 preparation, S7 review/implementation where prerequisites permit, and S8 documentation reconciliation. S1 real acceptance remains dependent on S0. S4 live end-to-end acceptance must not be claimed without its sandbox/provider evidence.
+
+**Documentation branch:** work/continue-independent-closeout-2026-11-08, based on main fb4f2fa27570254c62a5cdfc16e392a77ff7c875 (PR #20 merged). This entry is a status correction and work-order change, not a test result.
+
+## 2026-11-08 independent work started: S5 license inventory
+
+The independent S5 pass began while S0 remains paused.
+
+- Refreshed THIRD_PARTY_LICENSES.md from the current committed package-lock.json on this branch. The current lockfile has 157 package entries, not the 180 entries recorded in the prior 2026-11-05 inventory.
+- Current full lockfile metadata counts: MIT 123, Apache-2.0 15, BSD-3-Clause 2, ISC 2, MPL-2.0 12, 0BSD 1, Unlicense 1, and UNDECLARED 1.
+- A static traversal from root runtime dependencies through resolved dependencies, optional dependencies, and present peer dependencies reached 59 lockfile entries. This is a lockfile graph estimate, not an exact shipped-artifact inventory.
+- json-bignum@0.0.3 remains UNDECLARED in lockfile metadata; its upstream LICENSE is MIT and that notice must be retained if distributed.
+- Remaining S5 work: inspect the exact production packaging closure and generated notice bundle; no release artifact was available in this repository review. Qwen artifact revision and per-file hashes are also still absent. The existing verifier currently accepts one artifact file per invocation; no model weights were downloaded or verified in this pass.
+
+This is a source-backed inventory refresh, not a legal review or release clearance.
+
+## 2026-11-08 continuation PR validation and S7 source review
+
+PR #21's latest head c704bbddaf2497d600479fb0ff4dc8d08234eb4b completed GitHub Actions CI run #302 with conclusion **success**. This validates the repository's configured CI for that head; it does not run Docker/Crabbox, a live model, or a real embedding provider.
+
+S7 source review:
+- `search_code` output is fenced with a per-call random nonce and explicitly labeled project data; `test/retrieval-tools.test.ts` checks nonce uniqueness, matching open/close markers, forged-marker attempts, and secret exclusion.
+- `InputGuard` adds a second nonce fence to successful tool results except tools that fence themselves; suspicious instruction patterns are logged as `input.flagged`. Its own source describes detection as heuristic, not prevention.
+- Policy gates remain the action enforcement layer, independent of retrieved text. A fence is not proof that a live model obeys it.
+- Existing tests exercise formatting and deterministic behavior, not whether a live model refuses an injected instruction. No accepted live embedding-provider or poisoning run is recorded.
+
+Disposition remains **S7 PARTIAL / REAL ACCEPTANCE OPEN**. Next gate: run the documented real embedding provider, then a controlled poisoning task with a harmless canary instruction and a forbidden side-effect attempt; retain prompt, retrieved content, model response, tool/policy events, and final filesystem diff. Do not claim success from the fence unit tests alone.
+
+## 2026-11-08 S6 evaluation source review
+
+Reviewed the current D-109 implementation and evidence template.
+
+- `docs/evidence/EVAL-10.md` correctly records BLOCKED-HUMAN and states that no sessions or labels are fabricated.
+- The tracked root `labels.json` has only three `good` labels. It does not meet the minimum of 10 distinct matched real sessions and has no `bad` class.
+- `commit-eval-labels.ps1` stages labels, hashes the Git index blob (not raw worktree bytes), commits labels plus sidecar, and checks that the committed working copy is clean.
+- `eval-calibrate.ts` verifies committed label provenance before reading labels or emitting scorer output; it requires at least 10 labels (20 when 20+ sessions are available) and both classes. Agreement is reported, not used as a pass/fail cutoff, consistent with D-109.
+- No live sessions were generated or labels changed during this review.
+
+Disposition remains **S6 BLOCKED-HUMAN**. Next action requires genuine model-driven sessions and owner-assigned labels, not code changes or synthetic fixtures.
+
+## 2026-11-08 S5 provenance workflow clarification
+
+The model provenance template previously described an immutable commit-or-tag, while the validator accepts only a full 40- or 64-character Git commit hash. The placeholder now states that exact format. The current verifier hashes one artifact file per invocation; for a sharded model, the plan now requires one provenance JSON per file and independent comparison against pinned Hugging Face Git-LFS object IDs (or another trusted checksum source). No model files were downloaded or hashed. S5 remains PARTIAL.
+
+## 2026-11-08 S3 acceptance path source verification
+
+Verified the manual S3 procedure against the current CLI and policy implementation:
+- `harness code` accepts `--provider ollama`, `--model`, and `--sandbox none`. With sandbox none, command tools are withheld and file tools remain gated; there is no host-command fallback.
+- The policy path-criticality signal assigns `package.json` score 0.5, below the default 0.8 threshold, so a real-fs-write request should be held even if the model reports high confidence.
+- The built-in `credential-path` deny rule explicitly matches `.env.prod` and `.env.production`; it is a hard denial and cannot be overridden.
+- The remaining acceptance is owner-run: terminal approval/denial plus JSONL verification of `policy.decision`, `approval.pending`, and `approval.resolved` for the held write, and hard-deny evidence for the secret read.
+
+No live model was run. S3 remains PARTIAL pending that owner-run session.

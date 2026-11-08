@@ -1035,3 +1035,7 @@ The status of audit items is recorded in the newest `docs/status.md` entry. In p
 ## 2026-11-05 audit closeout checklist
 
 The latest consolidated audit table is in [status.md](status.md). Repository-local implementations for session-log torn-tail repair and guarded semantic-memory retrieval are in the audit branch; do not label either as test-verified until CI passes. Real host/provider measurements and human-labelled real-run evaluation remain acceptance gates.
+
+## 2026-11-08 independent closeout work order
+
+The latest consolidated acceptance state is in [docs/status.md](status.md) and [docs/AUDIT-CLOSEOUT.md](AUDIT-CLOSEOUT.md). S0 / ARCH-01 is PENDING-ENVIRONMENT: pinned-image warmup and inspect succeeded, but crabbox run failed before in-box execution while preparing the private WSL SSH transport file. The owner has asked to pause that issue and continue independent work. S1's real orphan-recovery gate remains dependent on S0. Continue S3 manual CLI acceptance preparation, S5 license/provenance verification, S6 real-session label preparation, and S7 real embedding/poisoning work only where prerequisites exist. No external acceptance is complete without its raw evidence. See [the S0 incident report](evidence/S0-ARCH-01-TRANSPORT-INCIDENT-REPORT-2026-11-08.md).

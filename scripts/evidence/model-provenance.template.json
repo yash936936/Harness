@@ -1,6 +1,6 @@
 {
   "model": "Qwen/Qwen2.5-Coder-7B-Instruct",
-  "revision": "REPLACE_WITH_IMMUTABLE_COMMIT_OR_TAG",
+  "revision": "REPLACE_WITH_FULL_40_OR_64_HEX_COMMIT_HASH",
   "source": "https://huggingface.co/Qwen/Qwen2.5-Coder-7B-Instruct",
   "sha256": "REPLACE_WITH_64_CHARACTER_SHA256"
 }

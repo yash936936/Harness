@@ -63,3 +63,19 @@ The owner subsequently reported a real S0 attempt in which Crabbox doctor passed
 Disposition: confirmed Docker Desktop/WSL runtime interruption during container provisioning; initiating trigger unknown. Do not modify SSH environment forwarding, port mapping, or Crabbox bootstrap based on this evidence.
 
 Prevention added on branch `fix/s0-prebuilt-crabbox-image-2026-11-08`: `Dockerfile.crabbox-s0` preinstalls the exact Linux tools Crabbox bootstrap otherwise installs, and `test/sandbox-real.test.ts` can select it through `HARNESS_CRABBOX_IMAGE`. This removes the in-lease APT installation from the next acceptance attempt. It cannot prevent a Docker Desktop/WSL restart. S0 remains blocked until the target Windows machine completes the full real acceptance and container inventory checks.
+
+## 2026-11-08 latest S0 attempt: warmup passes, private WSL transport-file creation fails
+
+The owner reported a successful warmup with the pinned image harness-crabbox-s0:ubuntu-pinned. Crabbox reported a ready lease and SSH endpoint; inspect succeeded; Docker showed the container running. Both subsequent run attempts failed before the requested in-container command executed:
+
+~~~text
+rsync failed: write private WSL SSH transport file:
+exit status 1: crabbox: 1: cannot create : Directory nonexistent
+chmod: cannot access '': No such file or directory
+~~~
+
+The stop operation succeeded and the lease disappeared from the provider list. The workload was not reached, so neither exit-code assertion nor host-file isolation is accepted.
+
+**Current status: S0 / ARCH-01 PENDING-ENVIRONMENT.** The empty path is a clue, not a proven root cause. Do not conflate this with the earlier container exit-255/Docker Desktop restart during APT bootstrap. PR #19 reduces bootstrap APT exposure; PR #20 improves warmup diagnostics. Neither changes the WSL run/sync transport.
+
+The owner requested that this issue remain pending while independent work continues. Pause further S0 transport debugging until explicitly resumed. Resume with the isolated WSL argument-handoff probe, followed by no-sync run, synced run, and Harness real acceptance. Full chronology: docs/evidence/S0-ARCH-01-TRANSPORT-INCIDENT-REPORT-2026-11-08.md.

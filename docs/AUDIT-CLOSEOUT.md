@@ -168,3 +168,46 @@ The owner reported a local Windows `npm test` result: 56 test files passed, 1 sk
 - S0 / ARCH-01: BLOCKED-HARDWARE. The real Crabbox/Docker test file was skipped.
 - S1: OPEN. The existing sentinel check is inside the opt-in real test. The provider's `finally` release is not crash recovery; no orphan lease reaper or process-death acceptance has been demonstrated.
 - Local working-tree state: NOT VERIFIED by GitHub-side documentation changes. Preserve local modifications and inspect the working tree before syncing.
+
+## 2026-11-08 status correction: S0 / ARCH-01 remains pending
+
+The earlier table is historical; the newest attempt is recorded here and supersedes its older S0 wording.
+
+| ID | Current status | Latest evidence | Remaining gate |
+|---|---|---|---|
+| ARCH-01 / S0 | **PENDING-ENVIRONMENT** | Pinned-image warmup and inspect succeeded; Docker container was running. crabbox run failed before workload execution while writing the private WSL SSH transport file (empty path). Stop succeeded and lease disappeared. | Isolate WSL private-file argument handoff, then pass no-sync run, synced run, exit codes 0 and 7, Harness real-sandbox test, release and clean container inventory. |
+| S1 | **BLOCKED BY S0 / OPEN** | No accepted orphan-recovery run. | After S0, prove host sentinel absence and ownership-safe orphan recovery after process death. |
+| S3 | Partial | Governed CLI and scripted policy tests exist. | Owner-run manual acceptance with a held write, a hard-blocked credential path, terminal approval/denial and matching session-log events. |
+| S4 | Open | Provider adapters and smoke paths exist. | Full governed coding tasks on live OpenRouter and Ollama with logs and target-project tests. |
+| S5 | Partial | Lockfile inventory and model artifact verifier exist. | Verify exact production dependency closure and shipped notices; pin/download exact Qwen 7B artifact and verify per-file SHA-256. |
+| S6 | Blocked-human | D-109 label provenance gate exists. | At least 10 genuine sessions, both labels, owner labels committed and hashed before scorer output. |
+| S7 | Partial | Semantic memory and scripted tests exist. | Real embedding-provider run and separate poisoning acceptance proving injected instructions are fenced and not followed. |
+| S8 | Open | Audit docs exist. | Reconcile every row against committed evidence after independent gates are run or explicitly retained as blocked/deferred. |
+
+Detailed conversation-based incident history: [S0 / ARCH-01 transport incident report](evidence/S0-ARCH-01-TRANSPORT-INCIDENT-REPORT-2026-11-08.md). This documentation update does not claim any new runtime test. The owner requested pausing S0 transport debugging while independent work continues. S1 remains dependent on S0; do not claim it passed.
+
+## 2026-11-08 independent S5 work started
+
+The lockfile license inventory was refreshed from the current package-lock.json on the continuation branch. It now records 157 lockfile package entries (previously documented as 180 on 2026-11-05), with counts MIT 123, Apache-2.0 15, BSD-3-Clause 2, ISC 2, MPL-2.0 12, 0BSD 1, Unlicense 1, and UNDECLARED 1. A separate static dependency-graph traversal from root runtime dependencies reaches 59 entries when resolved dependencies, optional dependencies, and present peer dependencies are followed.
+
+This refresh corrects the metadata snapshot only. It does not establish the exact contents of a shipped artifact or create a complete notice bundle. json-bignum@0.0.3 remains without lockfile license metadata; its upstream repository's MIT LICENSE is recorded as a notice requirement. ENG-04 remains PARTIAL until the exact production package is built and its included dependency notices are checked. ENG-08 remains PARTIAL until the exact Qwen 7B artifact revision and SHA-256 values are recorded and verified.
+
+## 2026-11-08 S7 source review update
+
+Current code and tests establish deterministic retrieval-output fencing, not live-model resistance to poisoning. `search_code` snippets use per-call random CODE/END nonces and are explicitly marked as untrusted project data. InputGuard adds a nonce fence and heuristic instruction scan to successful tool results that do not fence themselves. Its own code states that this is not prevention. The policy gate remains the independent action-control layer.
+
+Existing `test/retrieval-tools.test.ts` and `test/input-guard.test.ts` cover formatting, nonce uniqueness, forged markers, and instruction-pattern flags. They do not establish that a live model obeys the fence. S7 remains PARTIAL until a real embedding provider and controlled live-model poisoning run produce inspectable evidence. No code defect was confirmed in this source review.
+
+## 2026-11-08 S6 D-109 source review
+
+D-109's code path is present: the PowerShell helper hashes the staged Git blob, commits the labels and sidecar, and the scorer verifies the committed bytes and clean working copy before producing scorer output. The evaluator validates labels against available session IDs and requires 10 matched labels (20 if 20+ sessions are available) with both good and bad classes. Agreement is reported but is not a pass/fail threshold.
+
+The tracked labels file currently contains only three good labels. No genuine 10-session corpus or both-class human labels are recorded. S6 remains BLOCKED-HUMAN; no synthetic labels or sessions were generated.
+
+## 2026-11-08 S5 provenance template alignment
+
+The model provenance template's revision placeholder now matches the validator, which accepts only a full 40- or 64-character Git commit hash. The current verifier hashes one file per invocation; for sharded model weights, record one provenance JSON per file and compare each local digest with the corresponding pinned upstream Git-LFS object ID or another trusted checksum source. No model artifact was downloaded or hashed. S5 remains partial until the exact revision, every artifact digest, and the actual shipped notice payload are verified.
+
+## 2026-11-08 S3 manual procedure source verification
+
+The proposed manual CLI test is consistent with the current implementation: `harness code --provider ollama --model <tag> --sandbox none` withholds command execution while leaving gated file tools available. The `package.json` path-criticality signal is 0.5 (below the default 0.8 threshold), so its edit should be held. The built-in credential-path rule matches `.env.production` and hard-denies the read without an approval override. This confirms the test setup from source; S3 remains partial until the owner runs a live Ollama session and retains the terminal/session-log evidence.
