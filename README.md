@@ -2,7 +2,7 @@
 
 A multi-agent orchestration harness for coding tasks, built on [Cordis](https://github.com/cordiverse/cordis). Every capability (model access, tools, retrieval, memory, sandboxing, evaluation) is a swappable plugin; profiles compose them into runnable stacks, from a single-agent kernel (`profile-minimal`) to a governed coding stack (`profile-coding`).
 
-**Status:** working prototype, still under audit. See [`docs/readme.md`](docs/readme.md) for implemented capabilities, [`docs/status.md`](docs/status.md) for acceptance gates, [`docs/AUDIT-CLOSEOUT.md`](docs/AUDIT-CLOSEOUT.md) for evidence, [`docs/debug.md`](docs/debug.md) for defect history, and [`docs/decisions.md`](docs/decisions.md) for locked decisions.
+**Status:** working prototype, still under audit. S0 / ARCH-01 is currently pending because Crabbox run fails during private WSL SSH transport-file creation; warmup and inspect succeeded, but the workload did not execute. The owner has asked to pause this issue and continue independent closeout work. See the [S0 incident report](docs/evidence/S0-ARCH-01-TRANSPORT-INCIDENT-REPORT-2026-11-08.md), [`docs/readme.md`](docs/readme.md), [`docs/status.md`](docs/status.md), [`docs/AUDIT-CLOSEOUT.md`](docs/AUDIT-CLOSEOUT.md), [`docs/debug.md`](docs/debug.md), and [`docs/decisions.md`](docs/decisions.md).
 
 ```
 npm ci
