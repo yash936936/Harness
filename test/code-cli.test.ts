@@ -167,3 +167,131 @@ describe('Ollama CLI timeout option', () => {
     },
   )
 })
+
+
+describe('governed CLI policy acceptance', () => {
+  it('records a held package manifest edit, terminal denial, and hard-denied credential read without touching the project', async () => {
+    const root = makeProject()
+    const manifest = '"name": "coding-harness"'
+    writeFileSync(join(root, 'package.json'), `{\n  ${manifest},\n  "version": "0.0.1"\n}\n`)
+
+    const previousFetch = globalThis.fetch
+    const requests: Array<{ tools?: unknown[]; messages?: unknown[] }> = []
+    globalThis.fetch = (async (_input: string | URL | Request, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body ?? '{}')) as { tools?: unknown[]; messages?: unknown[] }
+      requests.push(body)
+      const hasTools = Array.isArray(body.tools) && body.tools.length > 0
+      const payload = hasTools
+        ? {
+            model: 'scripted',
+            done: true,
+            done_reason: 'stop',
+            message: {
+              role: 'assistant',
+              content: '',
+              tool_calls: [
+                {
+                  function: {
+                    name: 'edit_file',
+                    arguments: {
+                      path: 'package.json',
+                      old_string: manifest,
+                      new_string: manifest,
+                      confidence: 1,
+                    },
+                  },
+                },
+                {
+                  function: {
+                    name: 'read_file',
+                    arguments: { path: '.env.production' },
+                  },
+                },
+              ],
+            },
+          }
+        : {
+            model: 'scripted',
+            done: true,
+            done_reason: 'stop',
+            message: {
+              role: 'assistant',
+              content: JSON.stringify({
+                subtasks: [{
+                  id: 'policy-check',
+                  goal: 'Attempt the package manifest edit and protected credential read.',
+                  tools: ['edit_file', 'read_file'],
+                  dependsOn: [],
+                }],
+              }),
+            },
+          }
+      return new Response(JSON.stringify(payload), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    }) as typeof fetch
+
+    const prompts: string[] = []
+    const output: string[] = []
+    const io = {
+      print: (line: string) => output.push(line),
+      ask: async () => '',
+      confirm: async (prompt: string) => {
+        prompts.push(prompt)
+        return false
+      },
+    }
+
+    let result: Awaited<ReturnType<typeof import('../src/cli/code.js').runCodeTask>> | undefined
+    try {
+      const { runCodeTask } = await import('../src/cli/code.js')
+      result = await runCodeTask(io, {
+        task: 'Read README.md. Attempt an identical package.json replacement, then attempt to read .env.production without revealing its contents.',
+        projectRoot: root,
+        provider: 'ollama',
+        model: 'scripted',
+        baseUrl: 'http://127.0.0.1:11434',
+        sandbox: 'none',
+        dockerAvailable: false,
+      })
+
+      expect(requests.length).toBeGreaterThanOrEqual(2)
+      expect(prompts).toHaveLength(1)
+      expect(prompts[0]).toContain('Approve this exact operation?')
+      expect(output.join('\n')).toContain('no sandbox: commands disabled, file tools still gated')
+      expect(readFileSync(join(root, 'package.json'), 'utf8')).toContain(manifest)
+
+      const events = await result.context!.log.read(result.sessionId!)
+      const decisions = events.filter((event) => event.type === 'policy.decision')
+      const heldEdit = decisions.find((event) => {
+        const data = event.data as { tool?: string; verdict?: string }
+        return data.tool === 'edit_file' && data.verdict === 'hold'
+      })
+      expect(heldEdit).toBeDefined()
+      expect((heldEdit!.data as { signals: Array<{ name: string; score: number }> }).signals)
+        .toContainEqual(expect.objectContaining({ name: 'path-criticality', score: 0.5 }))
+
+      const deniedRead = decisions.find((event) => {
+        const data = event.data as { tool?: string; verdict?: string; rule?: string }
+        return data.tool === 'read_file' && data.verdict === 'deny' && data.rule === 'credential-path'
+      })
+      expect(deniedRead).toBeDefined()
+
+      const pending = events.filter((event) => event.type === 'approval.pending')
+      expect(pending).toHaveLength(1)
+      expect((pending[0]!.data as { tool: string }).tool).toBe('edit_file')
+
+      const resolved = events.filter((event) => event.type === 'approval.resolved')
+      expect(resolved).toHaveLength(1)
+      expect((resolved[0]!.data as { outcome: string }).outcome).toBe('denied')
+      expect(events.some((event) =>
+        event.type === 'approval.pending' &&
+        (event.data as { tool?: string }).tool === 'read_file',
+      )).toBe(false)
+    } finally {
+      globalThis.fetch = previousFetch
+      await result?.context?.fiber.dispose()
+    }
+  })
+})
