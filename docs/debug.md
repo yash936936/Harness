@@ -1642,3 +1642,11 @@ Reviewed current `search_code`, `InputGuard`, and their tests on the continuatio
 **Open:** there is no accepted live-model poisoning run in the reviewed evidence. Scripted formatting tests cannot establish that a live model ignores injected instructions. Real embedding-provider retrieval and controlled live-model poisoning acceptance remain open. No source defect was established by this review; no runtime behavior was changed.
 
 **Next evidence:** a real embedding-provider run and a controlled harmless canary injection, with retrieved snippets, model response, policy/tool/session events, and before/after filesystem diff retained. Any attempted side effect must be denied by policy regardless of the model's stated intent.
+
+## DBG-089 — S6 D-109 source review — 2026-11-08
+
+Reviewed `docs/evidence/EVAL-10.md`, `scripts/commit-eval-labels.ps1`, `scripts/eval-label-provenance.ts`, and `scripts/eval-calibrate.ts`.
+
+**Verified in source:** label hashes are calculated from the staged Git blob, so Windows clean filters do not change the digest basis. The label and sidecar must both exist in HEAD, match the committed bytes, and have a clean working copy before scoring. The evaluator validates IDs against actual session logs, requires at least 10 labels (20 when 20+ sessions are available) and both classes, and reports agreement/confusion without an agreement threshold, consistent with D-109.
+
+**Evidence gap:** tracked labels currently contain three good labels only. No real-session corpus or both-class human labels are present. S6 remains BLOCKED-HUMAN. No live session or label was created during this review; no code change was made.
