@@ -17,8 +17,10 @@ export interface CrabboxConfig {
   image?: string
   /** Pin (D-024: crabbox is pre-1.0). If set, `doctor` fails unless `crabbox --version` contains this string. */
   expectedVersion?: string
-  /** Max time for each crabbox control call (warmup, stop, list). Default 300000. */
+  /** Max time for startup/control calls (warmup and doctor). Default 300000. */
   controlTimeoutMs?: number
+  /** Max time for each cleanup call (stop/list). Default 15000. */
+  cleanupTimeoutMs?: number
   /**
    * Directory the crabbox CLI is started in. `crabbox run` syncs the CURRENT checkout into the box (docs/commands/run.md), so this
    * decides which tree the sandbox sees. `profile-coding` sets it to the project root; without it the subprocess default (the
@@ -53,6 +55,7 @@ export class CrabboxProvider implements SandboxProvider {
   private readonly bin: string
   private readonly binArgs: string[]
   private readonly controlTimeout: number
+  private readonly cleanupTimeout: number
   private readonly envNames: string[]
   private readonly cwd?: string
 
@@ -61,11 +64,13 @@ export class CrabboxProvider implements SandboxProvider {
     this.bin = cfg.bin ?? 'crabbox'
     this.binArgs = cfg.binArgs ?? []
     this.controlTimeout = cfg.controlTimeoutMs ?? 300_000
+    this.cleanupTimeout = cfg.cleanupTimeoutMs ?? 15_000
     const extraEnv = cfg.envAllowlist ?? []
     if (typeof this.provider !== 'string' || !this.provider.trim()) throw new SandboxError('config', 'crabbox: provider must be a non-empty string')
     if (typeof this.bin !== 'string' || !this.bin.trim()) throw new SandboxError('config', 'crabbox: bin must be a non-empty executable')
     if (!Array.isArray(this.binArgs) || this.binArgs.some((arg) => typeof arg !== 'string')) throw new SandboxError('config', 'crabbox: binArgs must be strings')
     if (!Number.isSafeInteger(this.controlTimeout) || this.controlTimeout < 1) throw new SandboxError('config', 'crabbox: controlTimeoutMs must be a positive safe integer')
+    if (!Number.isSafeInteger(this.cleanupTimeout) || this.cleanupTimeout < 1) throw new SandboxError('config', 'crabbox: cleanupTimeoutMs must be a positive safe integer')
     if (!Array.isArray(extraEnv) || extraEnv.some((key) => typeof key !== 'string' || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(key))) throw new SandboxError('config', 'crabbox: envAllowlist must contain valid environment variable names')
     if (cfg.runtime !== undefined && !['docker', 'podman'].includes(cfg.runtime)) throw new SandboxError('config', 'crabbox: runtime must be docker or podman')
     if (cfg.image !== undefined && (typeof cfg.image !== 'string' || !cfg.image.trim())) throw new SandboxError('config', 'crabbox: image must be a non-empty string')
@@ -156,9 +161,9 @@ export class CrabboxProvider implements SandboxProvider {
     for (let attempt = 0; attempt < 2; attempt++) {
       let stop: Awaited<ReturnType<CrabboxProvider['cb']>> | undefined
       let list: Awaited<ReturnType<CrabboxProvider['cb']>> | undefined
-      try { stop = await this.cb(['stop', '--provider', this.provider, id], this.controlTimeout) }
+      try { stop = await this.cb(['stop', '--provider', this.provider, id], this.cleanupTimeout) }
       catch (error: any) { note = `stop threw: ${String(error?.message ?? error).slice(0, 120)}` }
-      try { list = await this.cb(['list', '--provider', this.provider], this.controlTimeout) }
+      try { list = await this.cb(['list', '--provider', this.provider], this.cleanupTimeout) }
       catch (error: any) { note = `list threw: ${String(error?.message ?? error).slice(0, 120)}` }
       if (!list) continue
       const stillListed = [...names].some((name) => list!.stdout.includes(name))
