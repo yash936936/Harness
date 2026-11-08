@@ -1199,3 +1199,7 @@ Reviewed the current D-109 implementation and evidence template.
 - No live sessions were generated or labels changed during this review.
 
 Disposition remains **S6 BLOCKED-HUMAN**. Next action requires genuine model-driven sessions and owner-assigned labels, not code changes or synthetic fixtures.
+
+## 2026-11-08 S5 provenance workflow clarification
+
+The model provenance template previously described an immutable commit-or-tag, while the validator accepts only a full 40- or 64-character Git commit hash. The placeholder now states that exact format. The current verifier hashes one artifact file per invocation; for a sharded model, the plan now requires one provenance JSON per file and independent comparison against pinned Hugging Face Git-LFS object IDs (or another trusted checksum source). No model files were downloaded or hashed. S5 remains PARTIAL.
