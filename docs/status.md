@@ -1187,3 +1187,15 @@ S7 source review:
 - Existing tests exercise formatting and deterministic behavior, not whether a live model refuses an injected instruction. No accepted live embedding-provider or poisoning run is recorded.
 
 Disposition remains **S7 PARTIAL / REAL ACCEPTANCE OPEN**. Next gate: run the documented real embedding provider, then a controlled poisoning task with a harmless canary instruction and a forbidden side-effect attempt; retain prompt, retrieved content, model response, tool/policy events, and final filesystem diff. Do not claim success from the fence unit tests alone.
+
+## 2026-11-08 S6 evaluation source review
+
+Reviewed the current D-109 implementation and evidence template.
+
+- `docs/evidence/EVAL-10.md` correctly records BLOCKED-HUMAN and states that no sessions or labels are fabricated.
+- The tracked root `labels.json` has only three `good` labels. It does not meet the minimum of 10 distinct matched real sessions and has no `bad` class.
+- `commit-eval-labels.ps1` stages labels, hashes the Git index blob (not raw worktree bytes), commits labels plus sidecar, and checks that the committed working copy is clean.
+- `eval-calibrate.ts` verifies committed label provenance before reading labels or emitting scorer output; it requires at least 10 labels (20 when 20+ sessions are available) and both classes. Agreement is reported, not used as a pass/fail cutoff, consistent with D-109.
+- No live sessions were generated or labels changed during this review.
+
+Disposition remains **S6 BLOCKED-HUMAN**. Next action requires genuine model-driven sessions and owner-assigned labels, not code changes or synthetic fixtures.
