@@ -127,7 +127,16 @@ export class CrabboxProvider implements SandboxProvider {
       const w = await this.cb(warm, this.controlTimeout, req.signal)
       if (req.signal?.aborted) throw req.signal.reason ?? new Error('aborted')
       if (w.spawnError || w.exitCode !== 0) {
-        throw new SandboxError('unreachable', `crabbox: could not lease a box (${w.spawnError ?? (w.stderr || w.stdout).trim().slice(0, 300)})`)
+        // Preserve both streams: Crabbox and its SSH/WSL helpers may split the useful
+        // diagnostic between stdout and stderr. Keep the message bounded.
+        const diagnostic = [
+          w.spawnError ? `spawn error: ${w.spawnError}` : '',
+          w.timedOut ? 'warmup timed out' : '',
+          `exit code: ${w.exitCode}`,
+          w.stdout.trim(),
+          w.stderr.trim(),
+        ].filter(Boolean).join('\\n').slice(0, 1500)
+        throw new SandboxError('unreachable', `crabbox: could not lease a box\\n${diagnostic || 'no diagnostic output'}`)
       }
       const said = (w.stdout + '\n' + w.stderr).match(/slug=(\S+)/)?.[1]
       const cbx = (w.stdout + '\n' + w.stderr).match(/\bcbx_[0-9a-f]{12}\b/)?.[0]
