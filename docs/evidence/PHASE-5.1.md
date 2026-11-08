@@ -58,6 +58,6 @@ Next diagnostics required before changing code:
 
 A review of the provider and opt-in test found a test-flow problem: doctor and lease startup were separate Vitest cases, so a failed doctor did not stop the lease test. The real test also used a 600-second timeout for warmup, stop, and list. Because failed warmup still enters cleanup, the two-attempt stop/list loop could wait through multiple long timeouts.
 
-The follow-up patch adds a separate 10-second cleanup timeout in the real acceptance configuration (15 seconds by default in the provider) and moves doctor + lease acceptance into one test. Warmup is attempted only after doctor passes. A fake-CLI regression checks that stop/list receive the cleanup timeout rather than the startup timeout.
+The follow-up patch adds a 45-second doctor timeout and a 10-second total cleanup budget in the real acceptance configuration (15 seconds by default in the provider) and moves doctor + lease acceptance into one test. The standalone smoke script uses the same bounded timeouts. Warmup is attempted only after doctor passes. A fake-CLI regression checks that stop/list receive the cleanup budget rather than the startup timeout.
 
 This is a test/runtime responsiveness fix, not a diagnosis of the container's exit code 255. The host-side missing rsync and unexplained container exit remain open. S0 remains blocked until a real lease, command exit codes 0 and 7, release, and clean container inventory are demonstrated.
