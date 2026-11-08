@@ -46,23 +46,29 @@ describe('5.1 crabbox provider (fake CLI)', () => {
     expect(s.read().calls.map((c) => c[0])).toEqual(['warmup', 'run', 'stop', 'list'])
   })
   it('uses separate timeouts for doctor, lease control, and bounded cleanup', async () => {
-    const s = state(); const ctx = await boot()
     const observed: { command: string; timeoutMs?: number }[] = []
     const instrumented = {
-      run: (command: string, args: string[], opts?: Parameters<Subprocess['run']>[2]) => {
-        observed.push({ command: args[2] ?? args[0] ?? '', timeoutMs: opts?.timeoutMs })
-        return ctx.subprocess.run(command, args, opts)
+      run: async (command: string, args: string[], opts?: Parameters<Subprocess['run']>[2]) => {
+        const subcommand = ['--version', 'doctor', 'warmup', 'run', 'stop', 'list'].find((name) => args.includes(name)) ?? args[0] ?? ''
+        observed.push({ command: subcommand, timeoutMs: opts?.timeoutMs })
+        const slug = args[args.indexOf('--slug') + 1]
+        const stdout = subcommand === '--version' ? 'crabbox 0.0.0-fake' : subcommand === 'warmup' ? `leased slug=${slug}` : ''
+        return {
+          command, args, cwd: process.cwd(), exitCode: 0, signal: null, stdout, stderr: '',
+          stdoutTruncated: false, stderrTruncated: false, timedOut: false, aborted: false, durationMs: 0,
+        }
       },
-    } as Subprocess
+    } as unknown as Subprocess
     const provider = new CrabboxProvider(instrumented, {
-      bin: process.execPath, binArgs: [FAKE, s.file], controlTimeoutMs: 10_000, doctorTimeoutMs: 5_000, cleanupTimeoutMs: 2_000,
+      controlTimeoutMs: 10_000, doctorTimeoutMs: 5_000, cleanupTimeoutMs: 2_000,
     })
     const doctor = await provider.doctor()
     expect(doctor.ok).toBe(true)
-    const result = await provider.run({ command: ['true'] })
+    const result = await provider.run({ command: ['true'], timeoutMs: 8_000 })
     expect(result.released).toBe(true)
     expect(observed.find((x) => x.command === 'doctor')?.timeoutMs).toBe(5_000)
-    expect(observed.filter((x) => x.command === 'warmup' || x.command === 'run').every((x) => x.timeoutMs === 10_000)).toBe(true)
+    expect(observed.find((x) => x.command === 'warmup')?.timeoutMs).toBe(10_000)
+    expect(observed.find((x) => x.command === 'run')?.timeoutMs).toBe(8_000)
     const cleanupTimeouts = observed.filter((x) => x.command === 'stop' || x.command === 'list').map((x) => x.timeoutMs)
     expect(cleanupTimeouts).toHaveLength(2)
     expect(cleanupTimeouts.every((timeout) => timeout !== undefined && timeout > 0 && timeout <= 2_000)).toBe(true)
