@@ -1213,3 +1213,8 @@ Verified the manual S3 procedure against the current CLI and policy implementati
 - The remaining acceptance is owner-run: terminal approval/denial plus JSONL verification of `policy.decision`, `approval.pending`, and `approval.resolved` for the held write, and hard-deny evidence for the secret read.
 
 No live model was run. S3 remains PARTIAL pending that owner-run session.
+
+
+## 2026-11-08 S3 governed CLI integration regression
+
+PR #22 adds a deterministic end-to-end test through `runCodeTask`: the package-manifest write is held at path-criticality 0.5, the scripted terminal denial is recorded, and `.env.production` is hard-denied by `credential-path` without an approval prompt. The fixture remains unchanged and `--sandbox none` keeps command execution unavailable. Ubuntu CI passed on the initial PR head; Windows was still running when recorded. A later docs-only commit fixes the PowerShell example's quoting and requires a fresh CI run. This does not replace the owner-run Ollama session. S3 remains PARTIAL.
