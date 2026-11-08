@@ -158,3 +158,13 @@ Run each command on its own line. Replace angle-bracket placeholders locally; do
 - The merge commit's own main-branch workflow run #238 was still running at documentation time; it must also pass before the audit is considered fully green on main.
 - S0 was not run. ARCH-01 remains BLOCKED-HARDWARE until the owner executes the exact PowerShell acceptance command in this document. S1 remains open because the host-sentinel test and orphan-lease reaper are not implemented.
 - All five automated review threads on PR #15 were replied to and resolved.
+
+
+## 2026-11-08 automated test evidence
+
+The owner reported a local Windows `npm test` result: 56 test files passed, 1 skipped; 1,182 tests passed, 22 skipped; zero failures; 64.00 seconds. Evidence summary: `docs/evidence/TEST-SUITE-2026-11-08.md`. This is not a new CI run and does not close real-environment gates.
+
+- Automated tests: PASS for this reported run.
+- S0 / ARCH-01: BLOCKED-HARDWARE. The real Crabbox/Docker test file was skipped.
+- S1: OPEN. The existing sentinel check is inside the opt-in real test. The provider's `finally` release is not crash recovery; no orphan lease reaper or process-death acceptance has been demonstrated.
+- Local working-tree state: NOT VERIFIED by GitHub-side documentation changes. Preserve local modifications and inspect the working tree before syncing.
