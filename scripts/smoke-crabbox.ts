@@ -27,11 +27,11 @@ const d = (await ctx.sandbox.doctor())['crabbox']!
 check('doctor', d.ok, d.detail)
 if (!d.ok) { console.log('doctor failed: fix that first (Docker running? rsync on Windows? version pin?).'); process.exit(1) }
 
-const a = await ctx.sandbox.run({ command: ['echo', 'harness-5.1'] })
+const a = await ctx.sandbox.run({ command: ['echo', 'harness-5.1'], timeoutMs: 300_000 })
 check('lease -> echo -> output', a.exitCode === 0 && a.stdout.includes('harness-5.1'), `exit=${a.exitCode} ${a.durationMs}ms`)
 check('lease confirmed released', a.released, a.releaseNote ?? a.leaseId)
 
-const b = await ctx.sandbox.run({ command: ['sh', '-c', 'exit 3'] })
+const b = await ctx.sandbox.run({ command: ['sh', '-c', 'exit 3'], timeoutMs: 300_000 })
 check('failing command: exit code returned, lease still released', b.exitCode === 3 && b.released, `exit=${b.exitCode} ${b.releaseNote ?? ''}`)
 
 console.log(failed ? `\n${failed} check(s) FAILED. Paste this output back whole.` : '\nAll checks passed. Paste this output back whole; it is the first real measurement of 5.1.')
