@@ -53,3 +53,11 @@ Next diagnostics required before changing code:
 2. Run `where.exe ssh-keygen`, `where.exe rsync`, and `Get-Command ssh-keygen,rsync -ErrorAction SilentlyContinue | Format-List Name,Source`.
 3. Inspect the failed capture container with `docker logs crabbox-harness-ssh-capture-65a66291` and `docker inspect --format '{{.State.Status}} {{.State.ExitCode}} {{.State.Error}}' crabbox-harness-ssh-capture-65a66291`. Do not remove it before preserving the evidence.
 4. Re-run `crabbox doctor --provider local-container --local-container-runtime docker` after addressing the missing `rsync` dependency and capture its complete output.
+
+## 2026-11-08 follow-up: prevent repeated long waits
+
+A review of the provider and opt-in test found a test-flow problem: doctor and lease startup were separate Vitest cases, so a failed doctor did not stop the lease test. The real test also used a 600-second timeout for warmup, stop, and list. Because failed warmup still enters cleanup, the two-attempt stop/list loop could wait through multiple long timeouts.
+
+The follow-up patch adds a separate 10-second cleanup timeout in the real acceptance configuration (15 seconds by default in the provider) and moves doctor + lease acceptance into one test. Warmup is attempted only after doctor passes. A fake-CLI regression checks that stop/list receive the cleanup timeout rather than the startup timeout.
+
+This is a test/runtime responsiveness fix, not a diagnosis of the container's exit code 255. The host-side missing rsync and unexplained container exit remain open. S0 remains blocked until a real lease, command exit codes 0 and 7, release, and clean container inventory are demonstrated.
