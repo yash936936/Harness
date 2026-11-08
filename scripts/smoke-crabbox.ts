@@ -18,7 +18,7 @@ await ctx.plugin(EgressPolicy, { projectId: 'smoke-crabbox', allowedHosts: proce
 if (provider !== 'local-container') await ctx.egress.grantConsent() // a remote provider needs consent; this smoke run is you consenting
 await ctx.plugin(Subprocess, { timeoutMs: 600_000 })
 await ctx.plugin(Sandbox)
-ctx.sandbox.register(new CrabboxProvider(ctx.subprocess, { provider, image: process.env['HARNESS_CRABBOX_IMAGE'], runtime: process.env['HARNESS_CRABBOX_RUNTIME'], expectedVersion: process.env['HARNESS_CRABBOX_VERSION'], host: process.env['HARNESS_CRABBOX_HOST'] }))
+ctx.sandbox.register(new CrabboxProvider(ctx.subprocess, { provider, image: process.env['HARNESS_CRABBOX_IMAGE'], runtime: process.env['HARNESS_CRABBOX_RUNTIME'], expectedVersion: process.env['HARNESS_CRABBOX_VERSION'], host: process.env['HARNESS_CRABBOX_HOST'], controlTimeoutMs: 180_000, doctorTimeoutMs: 45_000, cleanupTimeoutMs: 10_000 }))
 
 let failed = 0
 const check = (label: string, ok: boolean, extra = '') => { console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}${extra ? '  ' + extra : ''}`); if (!ok) failed++ }
@@ -27,11 +27,11 @@ const d = (await ctx.sandbox.doctor())['crabbox']!
 check('doctor', d.ok, d.detail)
 if (!d.ok) { console.log('doctor failed: fix that first (Docker running? rsync on Windows? version pin?).'); process.exit(1) }
 
-const a = await ctx.sandbox.run({ command: ['echo', 'harness-5.1'] })
+const a = await ctx.sandbox.run({ command: ['echo', 'harness-5.1'], timeoutMs: 300_000 })
 check('lease -> echo -> output', a.exitCode === 0 && a.stdout.includes('harness-5.1'), `exit=${a.exitCode} ${a.durationMs}ms`)
 check('lease confirmed released', a.released, a.releaseNote ?? a.leaseId)
 
-const b = await ctx.sandbox.run({ command: ['sh', '-c', 'exit 3'] })
+const b = await ctx.sandbox.run({ command: ['sh', '-c', 'exit 3'], timeoutMs: 300_000 })
 check('failing command: exit code returned, lease still released', b.exitCode === 3 && b.released, `exit=${b.exitCode} ${b.releaseNote ?? ''}`)
 
 console.log(failed ? `\n${failed} check(s) FAILED. Paste this output back whole.` : '\nAll checks passed. Paste this output back whole; it is the first real measurement of 5.1.')
