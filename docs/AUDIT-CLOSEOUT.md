@@ -185,3 +185,9 @@ The earlier table is historical; the newest attempt is recorded here and superse
 | S8 | Open | Audit docs exist. | Reconcile every row against committed evidence after independent gates are run or explicitly retained as blocked/deferred. |
 
 Detailed conversation-based incident history: [S0 / ARCH-01 transport incident report](evidence/S0-ARCH-01-TRANSPORT-INCIDENT-REPORT-2026-11-08.md). This documentation update does not claim any new runtime test. The owner requested pausing S0 transport debugging while independent work continues. S1 remains dependent on S0; do not claim it passed.
+
+## 2026-11-08 independent S5 work started
+
+The lockfile license inventory was refreshed from the current package-lock.json on the continuation branch. It now records 157 lockfile package entries (previously documented as 180 on 2026-11-05), with counts MIT 123, Apache-2.0 15, BSD-3-Clause 2, ISC 2, MPL-2.0 12, 0BSD 1, Unlicense 1, and UNDECLARED 1. A separate static dependency-graph traversal from root runtime dependencies reaches 59 entries when resolved dependencies, optional dependencies, and present peer dependencies are followed.
+
+This refresh corrects the metadata snapshot only. It does not establish the exact contents of a shipped artifact or create a complete notice bundle. json-bignum@0.0.3 remains without lockfile license metadata; its upstream repository's MIT LICENSE is recorded as a notice requirement. ENG-04 remains PARTIAL until the exact production package is built and its included dependency notices are checked. ENG-08 remains PARTIAL until the exact Qwen 7B artifact revision and SHA-256 values are recorded and verified.
