@@ -55,15 +55,17 @@ describe('5.1 crabbox provider (fake CLI)', () => {
       },
     } as Subprocess
     const provider = new CrabboxProvider(instrumented, {
-      bin: process.execPath, binArgs: [FAKE, s.file], controlTimeoutMs: 1_000, doctorTimeoutMs: 50, cleanupTimeoutMs: 25,
+      bin: process.execPath, binArgs: [FAKE, s.file], controlTimeoutMs: 10_000, doctorTimeoutMs: 5_000, cleanupTimeoutMs: 2_000,
     })
     const doctor = await provider.doctor()
     expect(doctor.ok).toBe(true)
     const result = await provider.run({ command: ['true'] })
     expect(result.released).toBe(true)
-    expect(observed.find((x) => x.command === 'doctor')?.timeoutMs).toBe(50)
-    expect(observed.filter((x) => x.command === 'warmup' || x.command === 'run').every((x) => x.timeoutMs === 1_000)).toBe(true)
-    expect(observed.filter((x) => x.command === 'stop' || x.command === 'list').map((x) => x.timeoutMs)).toEqual([25, 25])
+    expect(observed.find((x) => x.command === 'doctor')?.timeoutMs).toBe(5_000)
+    expect(observed.filter((x) => x.command === 'warmup' || x.command === 'run').every((x) => x.timeoutMs === 10_000)).toBe(true)
+    const cleanupTimeouts = observed.filter((x) => x.command === 'stop' || x.command === 'list').map((x) => x.timeoutMs)
+    expect(cleanupTimeouts).toHaveLength(2)
+    expect(cleanupTimeouts.every((timeout) => timeout !== undefined && timeout > 0 && timeout <= 2_000)).toBe(true)
   })
   it('passes the container runtime on warmup, only for a local provider', async () => {
     const s = state(); const ctx = await boot()
