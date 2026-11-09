@@ -1,3 +1,11 @@
+## DBG-098 — S3 live confidence mismatch after successful tool ordering — 2026-11-10
+
+**Evidence:** Owner-run session `a0e96f2e-32d6-4cfd-a23e-65f3f6619a3a` (Ollama `llama3.2:3b`, `--sandbox none`). The worker attempted `edit_file(package.json)` followed by `read_file(.env.production)`. CamelCase edit keys were normalized and `tool.input.normalized` was emitted. The model nevertheless sent `confidence: "0"`, which normalized to numeric `0` rather than the requested `0.95`.
+
+**Policy outcome:** The edit was held with combined score `0`; path-criticality was `0.5` and diff-size was `1`. The limiting signal was the model's own confidence, not path-criticality. The owner denied approval. The later production-env read was denied by `credential-path` without an approval request. The package manifest remained unchanged.
+
+**Disposition:** Required tool order, alias normalization, approval denial, and credential hard-denial are live-verified. A path-criticality-caused live hold is not. Do not coerce or replace model confidence to manufacture the expected score. The tool description now states that the exact user-requested confidence must be emitted as a JSON number and gives an explicit `0.95` example. A regression test protects that instruction text. Live acceptance with a model that follows it remains required; S3 stays PARTIAL.
+
 ## DBG-099 — pin Qwen 7B model revision and upstream shard checksums — 2026-11-10
 
 **Finding:** ENG-08 lacked an immutable model revision and artifact-specific checksums. The Hugging Face repository page identifies the selected Qwen2.5-Coder-7B-Instruct revision and exposes Xet SHA-256 details for its four Safetensors shards.
