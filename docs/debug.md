@@ -1,3 +1,11 @@
+## DBG-097 — update confidence-string gate regression after S3 normalization — 2026-11-10
+
+**Found:** CI on PR #29 and the merge commit failed on both Windows and Ubuntu in `test/tools-local.test.ts`. The test still expected valid decimal strings passed to `edit_file` to be held as invalid self-reported confidence. PR #29 intentionally normalizes strict decimal strings in [0, 1], so the first two calls were correctly `allow-logged`; only the null-confidence call should be held.
+
+**Fix:** Updated the regression to assert the two valid strings normalize and are accepted by the ordinary-file independent signal, while null remains held. It also asserts the normalized-input event count and preserves the invalid-confidence reason check. No policy threshold, signal, deny rule, or runtime behavior was weakened.
+
+**Evidence:** GitHub Actions run #369 failed on Windows and Ubuntu at the stale expectation (54 test files passed, 1 failed, 2 skipped; 1,108 tests passed, 1 failed, 114 skipped on Windows). This branch contains the test-only correction; fresh CI is required before merge.
+
 ## DBG-096 — normalize bounded numeric-string confidence for S3 — 2026-11-10
 
 **Found:** the live `llama3.2:3b` acceptance emitted `confidence: "0.95"`. The schema accepted the string so the call reached policy, but the policy gate correctly trusted only a number and held for invalid self-reported confidence. This masked the intended path-criticality hold in the live evidence.
