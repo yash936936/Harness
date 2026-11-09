@@ -218,8 +218,8 @@ describe('governed CLI policy acceptance', () => {
                     name: 'edit_file',
                     parameters: {
                       path: 'package.json',
-                      oldString: manifest,
-                      newString: manifest,
+                      old_string: manifest,
+                      new_string: manifest,
                       confidence: '1',
                     },
                   }),
