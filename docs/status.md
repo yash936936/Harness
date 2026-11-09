@@ -1,3 +1,10 @@
+## 2026-11-10 closeout after PR #30 and S5 notice follow-up
+
+- PR #30 merged as `6076ba986ace29484aae958d91784e0b0bf2604f`. GitHub Actions run #370 passed on Ubuntu and Windows. The change updates the confidence-normalization regression and documentation only; no runtime policy changed.
+- S3 implementation and scripted coverage are CI-green, but live acceptance remains PARTIAL. The previous owner-run session still lacks a `tool.input.normalized` event and a live path-criticality-caused hold. Do not infer those from CI.
+- S5: added a retained MIT notice for `json-bignum@0.0.3` at `THIRD_PARTY_NOTICES/json-bignum-MIT.txt`. The lockfile still marks its license metadata UNDECLARED; upstream repository LICENSE and independent package metadata identify MIT. The exact 0.0.3 tag-specific license and actual release artifact contents remain unverified. Qwen 7B immutable revision and per-file hashes remain outstanding.
+- S0 remains PENDING-ENVIRONMENT; S1 real acceptance depends on S0. S4 live provider acceptance, S6 human-labelled evaluation, and S7 real embedding/poisoning acceptance remain open.
+
 ## 2026-11-10 S3 confidence regression test correction (CI pending)
 
 - Latest main CI run #369 failed on both Windows and Ubuntu after PR #29 merged. Typecheck and lint passed; the full test suite failed only at the stale expectation in `test/tools-local.test.ts`.
