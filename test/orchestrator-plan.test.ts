@@ -6,7 +6,7 @@ import { ToolRegistry, type ToolDefinition } from '../src/bundles/tool-registry/
 import { LLMService, MockProvider } from '../src/bundles/model-adapter/index.js'
 import { AgentLoop } from '../src/bundles/agent-loop/index.js'
 import { Orchestrator, OrchestratorError, PlanError, extractJson, validatePlan, type OrchestratorConfig } from '../src/bundles/orchestrator/index.js'
-import { planSchema } from '../src/bundles/orchestrator/plan.js'
+import { normalizeExplicitToolPlan, planSchema } from '../src/bundles/orchestrator/plan.js'
 
 const reply = (o: unknown) => ({ text: typeof o === 'string' ? o : JSON.stringify(o), stopReason: 'end_turn' as const })
 const good = { subtasks: [{ id: 's1', goal: 'find the file', tools: ['search'], dependsOn: [] }, { id: 's2', goal: 'read it', tools: ['read'], dependsOn: ['s1'] }] }
@@ -73,6 +73,17 @@ describe('planner: accepted plans', () => {
     expect(normalized.requestedTools).toEqual(['read_file', 'edit_file'])
     expect(normalized.modelPlan.subtasks[0].tools).toEqual(['search_code'])
     expect((events.find((event) => event.type === 'plan.created')!.data as any).plan).toEqual(result.plan)
+  })
+  it('normalizes an explicit tool sequence when an unquoted exact path ends a sentence', async () => {
+    const task = 'Read package.json using read_file with path package.json.'
+    const modelPlan = {
+      task,
+      subtasks: [{ id: 's1', goal: 'Search for keywords in package.json', tools: ['search_code'], dependsOn: [] }],
+    }
+    const result = normalizeExplicitToolPlan(task, modelPlan, ['search_code', 'read_file', 'edit_file'])
+    expect(result.adjusted).toBe(true)
+    expect(result.requestedTools).toEqual(['read_file'])
+    expect(result.plan.subtasks[0]!.tools).toEqual(['read_file'])
   })
   it('the planner sees offered tool schemas and path-selection rules, but receives no executable tools', async () => {
     const { ctx, mock } = await boot([reply(good)])
