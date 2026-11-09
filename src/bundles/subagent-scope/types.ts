@@ -1,6 +1,5 @@
 import type { RunResult, RunTaskOptions } from '../agent-loop/index.js'
 import type { Episode, MemoryGrant, ScopedMemory } from '../memory/index.js'
-import type { RequiredToolSequence } from '../tool-registry/index.js'
 
 export interface SubagentSpec {
   /** 1-64 of [A-Za-z0-9_-]. Becomes the actor `subagent:<id>` on every log event the agent causes. */
