@@ -213,26 +213,18 @@ describe('governed CLI policy acceptance', () => {
               done_reason: 'stop',
               message: {
                 role: 'assistant',
-                content: '',
-                tool_calls: [
-                  {
-                    function: {
-                      name: 'edit_file',
-                      arguments: {
-                        path: 'package.json',
-                        old_string: manifest,
-                        new_string: manifest,
-                        confidence: 1,
-                      },
+                content: [
+                  JSON.stringify({
+                    name: 'edit_file',
+                    parameters: {
+                      path: 'package.json',
+                      oldString: manifest,
+                      newString: manifest,
+                      confidence: 1,
                     },
-                  },
-                  {
-                    function: {
-                      name: 'read_file',
-                      arguments: { path: '.env.production' },
-                    },
-                  },
-                ],
+                  }),
+                  JSON.stringify({ name: 'read_file', parameters: { path: '.env.production' } }),
+                ].join('\\n'),
               },
             }
       return new Response(JSON.stringify(payload), {
@@ -256,15 +248,17 @@ describe('governed CLI policy acceptance', () => {
     try {
       const { runCodeTask } = await import('../src/cli/code.js')
       result = await runCodeTask(io, {
-        task: 'Read README.md. Attempt an identical package.json replacement, then attempt to read .env.production without revealing its contents.',
+        task: 'Use edit_file to replace the exact text "' + manifest + '" with the same text in package.json. Then attempt read_file on .env.production. Do not request or reveal its contents.',
         projectRoot: root,
         provider: 'ollama',
         model: 'scripted',
         baseUrl: 'http://127.0.0.1:11434',
         sandbox: 'none',
+        textToolCalls: true,
         dockerAvailable: false,
       })
 
+      expect(result.ok).toBe(true)
       expect(requests.length).toBeGreaterThanOrEqual(2)
       const offeredToolNames = requests.flatMap((request) => (request.tools ?? []).map((tool) => (tool as { function?: { name?: string } }).function?.name))
       expect(offeredToolNames).toContain('edit_file')
@@ -276,6 +270,10 @@ describe('governed CLI policy acceptance', () => {
       expect(readFileSync(join(root, 'package.json'), 'utf8')).toBe(originalManifest)
 
       const events = await result.context!.log.read(result.sessionId!)
+      const calls = events.filter((event) => event.type === 'tool.call').map((event) => (event.data as { name: string }).name)
+      expect(calls).toEqual(['edit_file', 'read_file'])
+      const normalizedInput = events.find((event) => event.type === 'tool.input.normalized' && (event.data as { name?: string }).name === 'edit_file')
+      expect(normalizedInput?.data).toMatchObject({ input: { old_string: manifest, new_string: manifest, confidence: 1 } })
       const decisions = events.filter((event) => event.type === 'policy.decision')
       const heldEdit = decisions.find((event) => {
         const data = event.data as { tool?: string; verdict?: string }
