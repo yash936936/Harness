@@ -1227,3 +1227,12 @@ Owner-run tests used the installed `llama3.2:3b` model. The hard-deny portion pa
 The write-approval portion has **not** passed. One run supplied an invalid `edit_file` argument shape and received a tool validation error. Another planner run selected `search_code` for the explicit `package.json` path, passed an empty path, and never attempted `edit_file`. No policy hold or approval events were generated in that run.
 
 PR #22 now adds planner guidance and input-schema context for exact-path tool selection, with a regression test. Keep S3 PARTIAL until fresh CI passes and a live `llama3.2:3b` session records a valid manifest edit call, `policy.decision: hold`, terminal approval denial, and the credential-path hard deny. No large model is required or planned.
+
+
+## 2026-11-09 S3 planner normalization correction
+
+A further owner-run `llama3.2:3b` session showed that planner prompt guidance alone did not prevent an exact-path task from being decomposed into an unnecessary `search_code` step while omitting the explicitly requested `edit_file` call. The read itself succeeded; `package.json` remained unchanged; no write-policy or approval event was reached.
+
+PR #22 now adds deterministic normalization for the narrow case where the task contains an exact file path and explicitly names the offered tools to call. The effective plan becomes one ordered subtask with those positively requested tools. Negated tool mentions are excluded. The original model plan and effective plan are retained in the `plan.normalized` audit event. A regression test covers the observed planner output and verifies that prohibited `write_file` and `run_command` mentions are not granted.
+
+This correction is not live acceptance evidence. **S3 remains PARTIAL** until fresh CI passes and a live `llama3.2:3b` session records a valid `edit_file` call, a path-criticality `policy.decision: hold`, terminal approval denial, and the `.env.production` `credential-path` hard denial. No large model is required or planned.
