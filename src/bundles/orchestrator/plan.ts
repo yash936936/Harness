@@ -84,7 +84,7 @@ export function normalizeExplicitToolPlan(
   offered: string[],
   limits: PlannerLimits = DEFAULT_LIMITS,
 ): { plan: Plan; adjusted: boolean; requestedTools: string[] } {
-  const hasExactPath = /(?:^|[\s"'\x60])(?:\.{0,2}[\/])?[\w.-]+(?:[\/][\w.-]+)*\.[A-Za-z0-9]{1,12}(?=$|[\s"'\x60,;:])/m.test(task)
+  const hasExactPath = /(?:^|[\s"'\x60])(?:\.{0,2}[\/])?[\w.-]+(?:[\/][\w.-]+)*\.[A-Za-z0-9]{1,12}(?=$|[\s"'\x60,;:.!?])/m.test(task)
   if (!hasExactPath) return { plan, adjusted: false, requestedTools: [] }
 
   const mentions = offered.flatMap((name) => {
