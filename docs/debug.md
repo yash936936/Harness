@@ -1776,3 +1776,13 @@ This is deterministic scripted acceptance coverage, not a live Ollama run. S3 re
 **CI:** GitHub Actions run #339 passed on both Windows and Ubuntu. Each job completed `npm ci`, `npm run typecheck`, `npm run lint`, and `npm test`. The owner's Windows output reports 56 files passed / 1 skipped and 1,191 tests passed / 21 skipped. The opt-in real sandbox test was skipped.
 
 **Remaining live acceptance:** no post-merge Ollama session has yet been supplied. S3 remains PARTIAL until a real `llama3.2:3b` session records the normalized edit input, package.json path-criticality hold, terminal approval denial, and `.env.production` hard denial, with the package manifest unchanged. Do not treat CI or scripted provider tests as live-model evidence.
+
+
+## DBG-100 — S3 implementation CI closeout and final live gate — 2026-11-10
+
+**Finding:** The S3 code path is complete and scripted acceptance is present on main, but the prior live Ollama trace does not prove normalization or a path-criticality-caused hold.
+
+**Evidence:** PR #32 merged as `d05ee2e0f6c606d6112b25eccd218fa36eefb7a1`; Actions run #377 (`42701133697`) passed Ubuntu and Windows. The integrated governed CLI test asserts ordered edit/read attempts, the normalized input event, package manifest path-criticality score 0.5, approval denial, credential-path hard denial without approval, and unchanged package.json. Tool registry normalizes before schema validation and logs canonical input; policy evaluates the normalized value.
+
+**Disposition:** Implementation/scripted acceptance PASS. Live-model acceptance OPEN. The earlier session `9b2efe92-af24-4d16-a9ac-f755c9a0b69c` had approval denial and credential hard-denial, but no `tool.input.normalized` event and the hold reason was invalid confidence. The next owner-run task uses camelCase `oldString` / `newString` with numeric confidence so the alias normalization event is expected, and package.json path-criticality 0.5 should be the limiting signal. See the exact command and event checklist in `docs/BUILD-PLAN.md`. Do not claim S3 closed until the owner session JSONL and clean manifest diff are reviewed.
+
