@@ -1,3 +1,19 @@
+## DBG-099 — pin Qwen 7B model revision and upstream shard checksums — 2026-11-10
+
+**Finding:** ENG-08 lacked an immutable model revision and artifact-specific checksums. The Hugging Face repository page identifies the selected Qwen2.5-Coder-7B-Instruct revision and exposes Xet SHA-256 details for its four Safetensors shards.
+
+**Change:** Recorded immutable commit `7b148ce7a59a361780846419d31d271537addf81`, model card Apache-2.0 metadata, upstream SHA-256 values for all four shards, and one provenance JSON per shard under `docs/evidence/qwen2.5-coder-7b-instruct/`. The manifests use the existing `model`, `revision`, `source`, and `sha256` schema.
+
+**Limits:** These are upstream-reported checksums, not local verification. No model files were downloaded. Tokenizer/configuration files, model license copy, complete artifact inventory, and all local SHA-256 checks remain outstanding. ENG-08 remains PARTIAL.
+
+## DBG-098 — retain json-bignum MIT notice and record provenance limits — 2026-11-10
+
+**Finding:** The lockfile contains `json-bignum@0.0.3` with no `license` metadata. The package is in the 59-entry static runtime dependency-closure estimate. Its upstream repository's LICENSE file contains the MIT grant and Datalanche, Inc. copyright notice; Snyk's package record independently identifies MIT for 0.0.3.
+
+**Change:** Added the MIT notice text at `THIRD_PARTY_NOTICES/json-bignum-MIT.txt` and documented the evidence in `THIRD_PARTY_LICENSES.md`. Kept the generated lockfile metadata as UNDECLARED rather than rewriting it based on external evidence.
+
+**Limits:** The LICENSE was retrieved from the upstream default branch, not a verified immutable tag for 0.0.3. The actual release package output and shipped notice bundle have not been inspected. ENG-04 remains PARTIAL. Qwen 7B artifact provenance remains open.
+
 ## DBG-097 — update confidence-string gate regression after S3 normalization — 2026-11-10
 
 **Found:** CI on PR #29 and the merge commit failed on both Windows and Ubuntu in `test/tools-local.test.ts`. The test still expected valid decimal strings passed to `edit_file` to be held as invalid self-reported confidence. PR #29 intentionally normalizes strict decimal strings in [0, 1], so the first two calls were correctly `allow-logged`; only the null-confidence call should be held.
