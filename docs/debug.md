@@ -1699,3 +1699,14 @@ This is deterministic scripted acceptance coverage, not a live Ollama run. S3 re
 **Regression:** The test reproduces the observed `search_code` + `read_file` plan, verifies the effective ordered tools are `read_file` + `edit_file`, and verifies prohibited `write_file` / `run_command` mentions are not granted.
 
 **Evidence boundary:** This is deterministic planner correction and unit-test coverage. It is not live Ollama acceptance. S3 remains PARTIAL until a live `llama3.2:3b` run records a valid `edit_file` call, path-criticality `hold`, terminal approval denial, and `.env.production` hard denial.
+
+ 
+## DBG-093 — normalize small-model edit argument casing before policy — 2026-11-09
+
+**Observed:** A live `llama3.2:3b` call supplied `oldString` and `newString` to `edit_file`, while the strict tool schema requires `old_string` and `new_string`. The registry rejected the call before `tools/pre-execute`, so no policy decision or approval request was produced. The same payload used `confidence: "0"`; policy intentionally trusts only a JSON number.
+
+**Correction:** Added an opt-in `ToolDefinition.normalizeInput` hook. The registry retains the original `tool.call` payload, logs a separate `tool.input.normalized` event when canonicalization changes the input, validates the normalized value against the unchanged strict schema, and passes that same frozen canonical value to policy and execution. `edit_file` maps only `oldString` / `newString` to their snake_case forms. Supplying both spellings is rejected; unrelated unknown fields remain subject to `additionalProperties: false`. Confidence strings are never converted to numbers or trusted.
+
+**Regression coverage added:** Registry-level normalization ordering, raw/canonical audit events, and fail-closed normalizer errors; local-tool integration proving camelCase input reaches the package.json path-criticality hold (0.5 versus threshold 0.8), records approval pending and denial, and leaves the file unchanged. Additional tests cover conflicting aliases and string confidence remaining held.
+
+**Validation boundary:** Changes are on `fix/s3-edit-argument-normalization-2026-11-09`, based on main `c1d2be645ff34a9e2e4bd1db0a95a8dc827e776b`. CI and the owner's live Ollama acceptance have not yet run. S3 remains PARTIAL until both CI and the live session evidence pass. The existing `.env.production` credential-path hard denial is unchanged.

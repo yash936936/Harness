@@ -1,5 +1,6 @@
 import { Context, Service } from 'cordis'
 import Ajv from 'ajv'
+import { isDeepStrictEqual } from 'node:util'
 import '../session-log/index.js'
 import {
   ToolDeniedError,
@@ -132,10 +133,24 @@ export class ToolRegistry extends Service {
       return fail('unknown_tool', `Unknown tool "${name}". Available tools: ${avail}.`)
     }
 
-    if (!entry.validate(input)) return fail('invalid_input', `Invalid input for tool "${name}": ${entry.errors()}.`)
+    let normalizedInput = input
+    if (entry.def.normalizeInput) {
+      try {
+        normalizedInput = entry.def.normalizeInput(structuredClone(input))
+      } catch (e: any) {
+        return fail('invalid_input', `Invalid input for tool "${name}": ${e?.message ?? String(e)}.`)
+      }
+      // Keep the original model payload in tool.call and record the canonical form separately.
+      // This preserves forensic evidence while making the exact policy/execution input auditable.
+      if (!isDeepStrictEqual(input, normalizedInput)) {
+        await log.append(sessionId, 'tool.input.normalized', { name, input: normalizedInput }, actor)
+      }
+    }
+
+    if (!entry.validate(normalizedInput)) return fail('invalid_input', `Invalid input for tool "${name}": ${entry.errors()}.`)
 
     const tool = info(entry.def)
-    const frozen = deepFreeze(structuredClone(input))
+    const frozen = deepFreeze(structuredClone(normalizedInput))
     const callEv: ToolCallEvent = deepFreeze({ sessionId, ...(actor ? { actor } : {}), ...(tctx.signal ? { signal: tctx.signal } : {}), tool, input: frozen })
 
     try {

@@ -1,3 +1,11 @@
+## 2026-11-09 S3 edit argument normalization follow-up (DBG-093)
+
+- Reproduced the live small-model failure: `edit_file` received camelCase `oldString` / `newString`, so strict schema validation rejected the call before policy.
+- Added a fail-closed, tool-specific compatibility normalizer before strict schema validation. Original and canonical arguments are separately auditable; policy and execution receive the same canonical input.
+- Added regression coverage for the package.json path-criticality hold (0.5 below 0.8), approval denial, unchanged file, ambiguous alias rejection, and string-confidence hold.
+- Changes are on `fix/s3-edit-argument-normalization-2026-11-09`, based on main `c1d2be645ff34a9e2e4bd1db0a95a8dc827e776b`. CI and live Ollama acceptance are pending. S3 remains PARTIAL; do not infer acceptance from source changes.
+- The `.env.production` hard-deny rule is unchanged.
+
 ## 2026-11-07 audit merge status (DBG-085)
 
 - PR #15 merged to main as d07e191548c2fc3f6bc56192a27824af38a177d0.

@@ -198,6 +198,73 @@ describe('edit_file', () => {
     expect(cat(root, 'src/a.ts')).toBe('const a = 1\nconst b = 3\n')
     expect(readdirSync(join(root, 'src'))).toEqual(['a.ts'])
   })
+  it('normalizes small-model camelCase edit keys before policy and execution', async () => {
+    let approvalInput: any
+    const b = await boot({}, {
+      approver: (request) => {
+        approvalInput = request.input
+        return { approve: false, by: 'test', note: 'expected denial' }
+      },
+    })
+    put(b.root, 'package.json', '{"name":"before"}')
+    const result = await b.call('edit_file', {
+      path: 'package.json',
+      oldString: '{"name":"before"}',
+      newString: '{"name":"after"}',
+      confidence: 0.95,
+    })
+    expect(result).toMatchObject({ ok: false, errorKind: 'denied' })
+    const decision = (await b.events('policy.decision'))[0]!.data as any
+    expect(decision.verdict).toBe('hold')
+    expect(decision.score).toBe(0.5)
+    expect(decision.reason).toMatch(/path-criticality \(0.5/)
+    expect(approvalInput).toMatchObject({
+      path: 'package.json',
+      old_string: '{"name":"before"}',
+      new_string: '{"name":"after"}',
+      confidence: 0.95,
+    })
+    expect((await b.events('approval.pending')).length).toBe(1)
+    expect((await b.events('approval.resolved'))[0]!.data).toMatchObject({ outcome: 'denied' })
+    expect((await b.events('tool.input.normalized'))[0]!.data).toMatchObject({
+      name: 'edit_file',
+      input: { path: 'package.json', old_string: '{"name":"before"}', new_string: '{"name":"after"}', confidence: 0.95 },
+    })
+    expect(cat(b.root, 'package.json')).toBe('{"name":"before"}')
+  })
+
+  it('rejects ambiguous camelCase and snake_case edit keys without entering policy', async () => {
+    const b = await boot({}, { approver: () => ({ approve: false }) })
+    put(b.root, 'a.txt', 'before')
+    const result = await b.call('edit_file', {
+      path: 'a.txt',
+      old_string: 'before',
+      oldString: 'before',
+      new_string: 'after',
+    })
+    expect(result).toMatchObject({ ok: false, errorKind: 'invalid_input' })
+    expect(result.content).toMatch(/provide only one spelling/)
+    expect((await b.events('policy.decision')).length).toBe(0)
+    expect(cat(b.root, 'a.txt')).toBe('before')
+  })
+
+  it('rejects string confidence at the policy gate even when camelCase text keys normalize', async () => {
+    const b = await boot({}, { approver: () => ({ approve: false }) })
+    put(b.root, 'package.json', '{"a":1}')
+    const result = await b.call('edit_file', {
+      path: 'package.json',
+      oldString: '{"a":1}',
+      newString: '{"a":2}',
+      confidence: '0.95',
+    })
+    expect(result).toMatchObject({ ok: false, errorKind: 'denied' })
+    const decision = (await b.events('policy.decision'))[0]!.data as any
+    expect(decision.verdict).toBe('hold')
+    expect(decision.self).toBeNull()
+    expect(decision.reason).toMatch(/no valid self-reported confidence/)
+    expect(cat(b.root, 'package.json')).toBe('{"a":1}')
+  })
+
   it('deletes with an empty new_string', async () => {
     const { root, call } = await boot()
     put(root, 'a.txt', 'keep\ndrop me\nkeep2\n')
