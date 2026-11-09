@@ -1686,3 +1686,16 @@ Added an end-to-end `runCodeTask` regression using a scripted Ollama-compatible 
 - The test is in PR #22. GitHub Actions run #321 passed on both Ubuntu and Windows for final tested head `cf435b377721cece23fea08fd4d86b11f5576282` (npm ci, typecheck, lint, and full test suite).
 
 This is deterministic scripted acceptance coverage, not a live Ollama run. S3 remains partial until the owner runs the documented command and preserves the actual session JSONL.
+
+
+## DBG-088 — Planner drops explicitly requested tools for exact file paths
+
+**Observed:** A live `llama3.2:3b` session received an exact `package.json` path and explicit `read_file` / `edit_file` instructions. The planner instead returned a `search_code` subtask followed by a `read_file` subtask. The search returned no matches, the edit was omitted, and no approval-policy event was reached.
+
+**Cause:** Planner instructions and tool input schemas are advisory. A valid JSON plan can still contradict explicit tool and path instructions; schema validation only checks plan shape and registered tool names.
+
+**Correction in PR #22:** For tasks containing an exact file path and positively phrased, explicitly named offered tools, the orchestrator now normalizes the accepted plan to one ordered subtask containing those tools. Negated mentions such as `Do not use write_file` are excluded. The original model plan and normalized plan are recorded in `plan.normalized`; `plan.created` records the effective plan. Tasks without an exact path and explicit tool calls retain model decomposition.
+
+**Regression:** The test reproduces the observed `search_code` + `read_file` plan, verifies the effective ordered tools are `read_file` + `edit_file`, and verifies prohibited `write_file` / `run_command` mentions are not granted.
+
+**Evidence boundary:** This is deterministic planner correction and unit-test coverage. It is not live Ollama acceptance. S3 remains PARTIAL until a live `llama3.2:3b` run records a valid `edit_file` call, path-criticality `hold`, terminal approval denial, and `.env.production` hard denial.
