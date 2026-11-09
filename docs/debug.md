@@ -1,3 +1,13 @@
+## DBG-087 — guide planner tool choice for explicit file paths — 2026-11-09
+
+**Found:** an owner-run Ollama acceptance attempt with `llama3.2:3b` produced a valid one-subtask plan that selected `search_code` for the explicit path `package.json`. The worker then supplied an empty `path`, which failed input validation. No `edit_file` call, policy decision, or approval event occurred. A later attempt selected `edit_file` but used the wrong argument shape (`file`, `mode`, `content`) and was rejected because required property `path` was missing. The worker then falsely claimed the edit succeeded; the manifest remained unchanged.
+
+**Fixed in PR #22:** planner context now includes each offered tool's JSON input schema and explicit selection rules: use `read_file` for a user-supplied path, reserve `search_code` for unknown locations, and plan `read_file` before `edit_file` for existing files. Added a regression asserting the schema and path-selection guidance are present while the planner still receives no executable tools.
+
+**Verified live protection:** the 2026-11-09 session `942f90bb-c51f-4c3e-bbd2-ef2dfb98d915` recorded a hard `deny` for `.env.production` under `credential-path`; no approval was requested. `git diff -- package.json` was empty. The separate `dae99cc3-3675-485b-81b0-b4dd465c9b30` run failed earlier at planning: `search_code` received an empty path and was rejected.
+
+**Remaining acceptance:** rerun with the existing `llama3.2:3b` model after PR CI passes. Require a valid `edit_file` call, `policy.decision: hold`, `approval.pending`, terminal `approval.resolved: denied`, and the `.env.production` hard deny. Do not claim the live write-approval flow passed from these failed attempts.
+
 ## DBG-086 — bound Crabbox cleanup and gate real startup on doctor — 2026-11-08
 
 **Found:** doctor and lease startup were separate Vitest cases, so a failed doctor did not prevent the lease test from attempting warmup. The real test configured a 600-second control timeout for every Crabbox operation. On failed warmup, the provider still attempted cleanup; its two-attempt stop/list loop could wait through several long timeouts.
@@ -1664,3 +1674,28 @@ The S3 command in `docs/BUILD-PLAN.md` was checked against `src/cli/index.ts`, `
 - `.env.production` matches the built-in `credential-path` deny rule and is hard-denied without approval.
 
 The procedure is source-consistent. It remains unexecuted because a live Ollama model and owner terminal session are required.
+
+
+## DBG-092 — Governed CLI hold and hard-deny integration coverage — 2026-11-08
+
+Added an end-to-end `runCodeTask` regression using a scripted Ollama-compatible response. It exercises the real CLI boot, orchestrator, agent loop, tool registry, and policy gates with `--sandbox none`.
+
+- A `package.json` edit receives a `hold` decision because path-criticality is 0.5, then a scripted terminal denial records `approval.pending` and `approval.resolved` with outcome `denied`.
+- A subsequent `.env.production` read receives a hard `credential-path` denial and does not create an approval request.
+- The fixture manifest is checked unchanged, and command execution remains unavailable.
+- The test is in PR #22. GitHub Actions run #321 passed on both Ubuntu and Windows for final tested head `cf435b377721cece23fea08fd4d86b11f5576282` (npm ci, typecheck, lint, and full test suite).
+
+This is deterministic scripted acceptance coverage, not a live Ollama run. S3 remains partial until the owner runs the documented command and preserves the actual session JSONL.
+
+
+## DBG-088 — Planner drops explicitly requested tools for exact file paths
+
+**Observed:** A live `llama3.2:3b` session received an exact `package.json` path and explicit `read_file` / `edit_file` instructions. The planner instead returned a `search_code` subtask followed by a `read_file` subtask. The search returned no matches, the edit was omitted, and no approval-policy event was reached.
+
+**Cause:** Planner instructions and tool input schemas are advisory. A valid JSON plan can still contradict explicit tool and path instructions; schema validation only checks plan shape and registered tool names.
+
+**Correction in PR #22:** For tasks containing an exact file path and positively phrased, explicitly named offered tools, the orchestrator now normalizes the accepted plan to one ordered subtask containing those tools. Negated mentions such as `Do not use write_file` are excluded. The original model plan and normalized plan are recorded in `plan.normalized`; `plan.created` records the effective plan. Tasks without an exact path and explicit tool calls retain model decomposition.
+
+**Regression:** The test reproduces the observed `search_code` + `read_file` plan, verifies the effective ordered tools are `read_file` + `edit_file`, and verifies prohibited `write_file` / `run_command` mentions are not granted.
+
+**Evidence boundary:** This is deterministic planner correction and unit-test coverage. It is not live Ollama acceptance. S3 remains PARTIAL until a live `llama3.2:3b` run records a valid `edit_file` call, path-criticality `hold`, terminal approval denial, and `.env.production` hard denial.

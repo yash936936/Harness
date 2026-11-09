@@ -11,7 +11,7 @@ import { planSchema } from '../src/bundles/orchestrator/plan.js'
 const reply = (o: unknown) => ({ text: typeof o === 'string' ? o : JSON.stringify(o), stopReason: 'end_turn' as const })
 const good = { subtasks: [{ id: 's1', goal: 'find the file', tools: ['search'], dependsOn: [] }, { id: 's2', goal: 'read it', tools: ['read'], dependsOn: ['s1'] }] }
 
-async function boot(script: ConstructorParameters<typeof MockProvider>[0] = [], config: OrchestratorConfig = {}) {
+async function boot(script: ConstructorParameters<typeof MockProvider>[0] = [], config: OrchestratorConfig = {}, toolNames: string[] = ['search', 'read', 'edit']) {
   const ctx = new Context()
   await ctx.plugin(SessionLog, { memory: true })
   await ctx.plugin(EgressPolicy, { projectId: 'test' })
@@ -22,9 +22,9 @@ async function boot(script: ConstructorParameters<typeof MockProvider>[0] = [], 
   await ctx.plugin(AgentLoop, {})
   const ran: string[] = []
   const t = (name: string, actionClass: ToolDefinition['actionClass'] = 'read-only'): ToolDefinition => ({
-    name, description: `does ${name}`, inputSchema: { type: 'object' }, actionClass, execute: () => { ran.push(name); return 'ok' },
+    name, description: `does ${name}`, inputSchema: { type: 'object', properties: { path: { type: 'string', minLength: 1 } }, required: ['path'] }, actionClass, execute: () => { ran.push(name); return 'ok' },
   })
-  ctx.tools.register(t('search')); ctx.tools.register(t('read')); ctx.tools.register(t('edit', 'real-fs-write'))
+  for (const name of toolNames) ctx.tools.register(t(name, name.includes('edit') ? 'real-fs-write' : 'read-only'))
   await ctx.plugin(Orchestrator, config)
   return { ctx, mock, ran }
 }
@@ -48,12 +48,40 @@ describe('planner: accepted plans', () => {
     const r = await ctx.orchestrator.plan({ sessionId: 's', task: 'T' })
     expect(r.plan.subtasks.map((s) => [s.tools, s.dependsOn])).toEqual([[['read'], []], [[], ['a']]])
   })
-  it('the planner is shown only the offered tools, and no tool specs', async () => {
+  it('overrides an incomplete search plan when exact paths and tool calls are explicit', async () => {
+    const modelPlan = { subtasks: [
+      { id: 's1', goal: 'Search for keywords in package.json', tools: ['search_code'], dependsOn: [] },
+      { id: 's2', goal: 'Read package.json', tools: ['read_file'], dependsOn: ['s1'] },
+    ] }
+    const task = [
+      'Read package.json using read_file with path "package.json".',
+      'Then call edit_file with path "package.json" and the exact old_string and new_string.',
+      'Do not use write_file or run_command.',
+    ].join(' ')
+    const offered = ['edit_file', 'search_code', 'read_file', 'write_file', 'run_command']
+    const { ctx } = await boot([reply(modelPlan)], {}, offered)
+    const result = await ctx.orchestrator.plan({ sessionId: 'explicit-tools', task, tools: offered })
+    expect(result.plan.subtasks).toEqual([{
+      id: 's1',
+      goal: 'Carry out the explicitly named tool operations in the order stated, using the exact paths and arguments supplied in the task.',
+      tools: ['read_file', 'edit_file'],
+      dependsOn: [],
+    }])
+    const events = await ctx.log.read('explicit-tools')
+    const normalized = events.find((event) => event.type === 'plan.normalized')!.data as any
+    expect(normalized.reason).toBe('explicit-tool-sequence')
+    expect(normalized.requestedTools).toEqual(['read_file', 'edit_file'])
+    expect(normalized.modelPlan.subtasks[0].tools).toEqual(['search_code'])
+    expect((events.find((event) => event.type === 'plan.created')!.data as any).plan).toEqual(result.plan)
+  })
+  it('the planner sees offered tool schemas and path-selection rules, but receives no executable tools', async () => {
     const { ctx, mock } = await boot([reply(good)])
     await ctx.orchestrator.plan({ sessionId: 's', task: 'T', tools: ['search', 'read'] })
     const req = mock.calls[0]!
     expect(req.system).toContain('search: does search')
-    expect(req.system).not.toContain('edit')
+    expect(req.system).toContain('Input schema: {"type":"object","properties":{"path":{"type":"string","minLength":1}},"required":["path"]}')
+    expect(req.system).toContain('Do not use search_code to find a path the user already gave')
+    expect(req.system).not.toContain('- edit: does edit')
     expect(req.tools ?? []).toEqual([])
   })
 })
