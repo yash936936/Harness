@@ -112,7 +112,9 @@ describe('bundle-tool-registry', () => {
       execute: (input: unknown) => (executed = input, (input as any).text),
     }))
     ctx.on('tools/pre-execute', (ev) => { policyInput = ev.input })
-    const result = await ctx.tools.call('echo', { message: 'from-model' }, S)
+    const rawInput = { message: 'from-model' }
+    const result = await ctx.tools.call('echo', rawInput, S)
+    expect(rawInput).toEqual({ message: 'from-model' })
     expect(result).toEqual({ ok: true, content: 'from-model' })
     expect(policyInput).toEqual({ text: 'from-model' })
     expect(executed).toEqual({ text: 'from-model' })
