@@ -1,3 +1,11 @@
+## DBG-096 — normalize bounded numeric-string confidence for S3 — 2026-11-10
+
+**Found:** the live `llama3.2:3b` acceptance emitted `confidence: "0.95"`. The schema accepted the string so the call reached policy, but the policy gate correctly trusted only a number and held for invalid self-reported confidence. This masked the intended path-criticality hold in the live evidence.
+
+**Fix:** `edit_file` now normalizes only strict plain-decimal strings in [0, 1] to numbers before validation and policy. The normalized value is recorded by the existing `tool.input.normalized` event. It does not trim strings, accept exponent notation, or coerce malformed/out-of-range values. Those remain untrusted and continue to produce a policy hold. Independent signals still cap the combined score, so a high self-report cannot bypass the package-manifest path score of 0.5 against the 0.8 threshold.
+
+**Regression coverage:** unit tests assert normalization, an independently caused package-manifest hold, and fail-closed behavior for malformed/out-of-range strings. The governed CLI acceptance fixture now sends `confidence: "1"`, matching the model's observed serialization. CI and live acceptance are pending; this change alone does not close S3.
+
 ## DBG-095 — S3 live-model acceptance evidence and PR #27 merge — 2026-11-10
 
 **PR #27 merged:** `045b923074fe8db7b6eb1a5ae777ab2ec197f0b1`. PR-head CI run #362 passed on Windows and Ubuntu. The connector returned no workflow runs or combined status for the merge commit itself; post-merge CI remains unverified.
