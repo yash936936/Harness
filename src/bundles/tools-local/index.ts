@@ -11,7 +11,11 @@ import { confidenceProperty as strictConfidence } from '../policy-gates/index.js
  * The schema accepts a stray string or null for `confidence` so the call REACHES the gate instead of being rejected before any decision (D-086: llama3.2:3b sends
  * "1"). The gate trusts only a real number from 0 to 1; anything else is a hold, so this is a fail-closed relaxation, not a trust one. A number out of range is still rejected.
  */
-const confidenceProperty = { ...strictConfidence, type: ['number', 'string', 'null'] } as const
+const confidenceProperty = {
+  ...strictConfidence,
+  type: ['number', 'string', 'null'],
+  description: 'Your confidence from 0 to 1 as a JSON number, not a quoted string. A string or null is untrusted and causes the policy gate to hold the write.',
+} as const
 import type { ToolDefinition } from '../tool-registry/types.js'
 import { COMMAND_TOOL } from './risk.js'
 import { GIT_READ_SUBCOMMANDS, hardenGit, repoFilterDrivers, type HardenedGit } from './git-harden.js'
@@ -61,6 +65,28 @@ function flexMatches(text: string, needle: string): { index: number; length: num
 
 function posInt(name: string, v: number): void {
   if (!Number.isSafeInteger(v) || v < 1) throw new LocalToolsConfigError(`tools-local: ${name} must be a positive integer`)
+}
+
+/**
+ * Small local models sometimes camel-case the two edit text keys even though the
+ * advertised schema is snake_case. Accept that spelling only when its canonical
+ * key is absent. Preserve all other keys so strict AJV validation still rejects them.
+ */
+function normalizeEditInput(input: unknown): unknown {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return input
+  const out = { ...(input as Record<string, unknown>) }
+  for (const [alias, canonical] of [['oldString', 'old_string'], ['newString', 'new_string']] as const) {
+    const hasAlias = Object.prototype.hasOwnProperty.call(out, alias)
+    const hasCanonical = Object.prototype.hasOwnProperty.call(out, canonical)
+    if (hasAlias && hasCanonical) {
+      throw new Error(`provide only one spelling: "${canonical}" or "${alias}", not both`)
+    }
+    if (hasAlias) {
+      out[canonical] = out[alias]
+      delete out[alias]
+    }
+  }
+  return out
 }
 
 /**
@@ -234,16 +260,17 @@ export class LocalTools extends Service {
     return {
       name: EDIT_TOOL,
       description:
-        'Change an existing file by replacing one exact piece of text. old_string must appear in the file EXACTLY ONCE, including whitespace and indentation: ' +
-        'read the file first and include enough surrounding lines to make it unique. new_string replaces it (empty new_string deletes it). ' +
-        'To make a new file use write_file. This changes the real project, so it may be held for approval.',
+        'Change an existing file by replacing one exact piece of text. Use path, old_string and new_string; the oldString/newString camelCase spellings are also normalized for small-model compatibility. ' +
+        'old_string must appear in the file EXACTLY ONCE, including whitespace and indentation: read the file first and include enough surrounding lines to make it unique. ' +
+        'new_string replaces it (empty new_string deletes it). confidence must be a JSON number, not a quoted string. To make a new file use write_file. This changes the real project, so it may be held for approval.',
       actionClass: 'real-fs-write',
+      normalizeInput: normalizeEditInput,
       inputSchema: {
         type: 'object',
         properties: {
           path: { type: 'string', minLength: 1, maxLength: 1024 },
-          old_string: { type: 'string', maxLength: MAX_EDIT_STRING, description: 'The existing text to replace, copied from the file including its line breaks and indentation. Not empty, unless the file itself is empty. To replace everything, give the whole current text. To make a new file use write_file.' },
-          new_string: { type: 'string', maxLength: MAX_EDIT_STRING, description: 'The text to put in its place (empty to delete old_string).' },
+          old_string: { type: 'string', maxLength: MAX_EDIT_STRING, description: 'The existing text to replace, copied from the file including line breaks and indentation. The JSON key is old_string (oldString is accepted as a compatibility alias). Not empty unless the file itself is empty.' },
+          new_string: { type: 'string', maxLength: MAX_EDIT_STRING, description: 'The text to put in its place (empty to delete old_string). The JSON key is new_string (newString is accepted as a compatibility alias).' },
           confidence: confidenceProperty,
         },
         required: ['path', 'old_string', 'new_string'],
