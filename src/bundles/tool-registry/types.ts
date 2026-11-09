@@ -5,6 +5,11 @@
  */
 export type ActionClass = 'read-only' | 'sandbox-write' | 'real-fs-write' | 'external-side-effect'
 
+export interface RequiredToolSequence {
+  tools: readonly string[]
+  state: { nextIndex: number }
+}
+
 export interface ToolContext {
   sessionId: string
   actor?: string
@@ -14,6 +19,8 @@ export interface ToolContext {
    * the list still runs. Absent means no restriction, as before.
    */
   allowedTools?: readonly string[]
+  /** Ordered tool-call attempts enforced before policy hooks and execution. */
+  requiredToolSequence?: RequiredToolSequence
   /** Cancellation signal from the owning agent turn. */
   signal?: AbortSignal
 }
