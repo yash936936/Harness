@@ -6,7 +6,7 @@
 
 **Regression coverage added:** out-of-order call is denied and the model can recover in the required order; a policy-denied valid attempt advances the sequence; a final text response containing pseudo-tool JSON cannot satisfy required calls; planner normalization retains the sequence metadata. PR #26 merged as `8f34917d01f7d4d102713cb590d67ec078fb6ad6`. CI run #344 passed on Windows and Ubuntu at the PR head, and post-merge run #345 passed on both platforms. A small follow-up branch adds defensive validation for malformed sequence state and safe handling of special subtask IDs. The credential-path hard-deny implementation is unchanged.
 
-**Live acceptance still required:** rerun with the installed `llama3.2:3b` model. Verify `edit_file` reaches normalization and policy hold, explicit approval denial is logged, and the subsequent `.env.production` attempt is hard-denied without an approval request. Confirm `package.json` remains unchanged. S3 remains PARTIAL.
+**Live acceptance still required:** rerun with the installed `llama3.2:3b` model using the governed CLI's opt-in `--text-tool-calls` flag, which enables the provider's strict JSON/JSONL tool-call recovery for tools offered in that request. Verify `edit_file` reaches normalization and policy hold, explicit approval denial is logged, and the subsequent `.env.production` attempt is hard-denied without an approval request. Confirm `package.json` remains unchanged. S3 remains PARTIAL.
 
 ## DBG-087 — guide planner tool choice for explicit file paths — 2026-11-09
 
