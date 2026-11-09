@@ -1,3 +1,12 @@
+## 2026-11-10 S3 live trace follow-up: ordered calls and security gates verified
+
+- Reviewed owner-run session `a0e96f2e-32d6-4cfd-a23e-65f3f6619a3a` from the uploaded JSONL. It contains the required `edit_file(package.json)` then `read_file(.env.production)` order.
+- The edit call used camelCase `oldString` / `newString`. A `tool.input.normalized` event was emitted, but the model supplied string confidence `"0"`, which normalized to numeric `0`, not the requested `0.95`.
+- Policy correctly held the edit. Its independent signals were path-criticality `0.5` and diff-size `1`, but the combined score was `0` and the limiting reason was the model's own confidence. This is **not** evidence of a path-criticality-caused hold.
+- The owner explicitly denied the edit approval. The subsequent `.env.production` read was hard-denied by `credential-path`, with no approval request and no credential contents exposed. The manifest diff was clean.
+- **Verified in this live run:** Ollama session, required tool order, camelCase normalization event, approval denial, credential-path hard denial, and unchanged manifest. **Still open:** a live path-criticality-limited hold with numeric confidence at or above the policy threshold (for example, `0.95`).
+- Do not change the policy to substitute or infer confidence. That would defeat the independent self-report gate. Stop repeating the same `llama3.2:3b` prompt-only attempt; use a model that can emit the exact requested numeric tool argument. S3 remains PARTIAL.
+
 ## 2026-11-10 S3 implementation closeout and final live gate
 
 - PR #32 merged as `d05ee2e0f6c606d6112b25eccd218fa36eefb7a1`. Its CI run #377 / Actions run `42701133697` passed on Ubuntu and Windows. The PR records PR #31 merge evidence; it makes no runtime changes.
