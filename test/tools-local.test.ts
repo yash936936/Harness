@@ -606,8 +606,10 @@ describe('the gate guarding the real tools (D-080)', () => {
       expect(r.ok, String(c)).toBe(true)
     }
     const d = (await b.events('policy.decision')).map((e) => e.data as any)
-    expect(d.map((x) => x.verdict)).toEqual(['hold', 'hold', 'hold'])
-    expect(d[0].reason).toMatch(/no valid self-reported confidence/)
+    expect(d.map((x) => x.verdict)).toEqual(['allow-logged', 'allow-logged', 'hold'])
+    expect(d.map((x) => x.self)).toEqual([1, 0.99, null])
+    expect(d[2].reason).toMatch(/no valid self-reported confidence/)
+    expect((await b.events('tool.input.normalized')).length).toBe(2)
     expect((await b.call('edit_file', { path: 'src/a.ts', old_string: '3', new_string: '4', confidence: 1.5 })).errorKind).toBe('invalid_input')
   })
   it('a low-criticality path is held despite perfect confidence, and runs once approved', async () => {

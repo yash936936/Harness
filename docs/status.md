@@ -1,3 +1,9 @@
+## 2026-11-10 S3 confidence regression test correction (CI pending)
+
+- Latest main CI run #369 failed on both Windows and Ubuntu after PR #29 merged. Typecheck and lint passed; the full test suite failed only at the stale expectation in `test/tools-local.test.ts`.
+- The test expected valid decimal strings for `edit_file` to remain invalid self-reported confidence. PR #29 now intentionally normalizes strict decimal strings in [0, 1]. Updated the test to expect the two valid strings to normalize and pass the ordinary-file independent-signal check, while null remains held; it also checks normalized-input events.
+- No runtime policy behavior changed. This is a test/documentation-only correction on branch `fix/s3-confidence-regression-test-2026-11-10`. CI must pass on both platforms before merge. S3 live acceptance remains PARTIAL until the owner reruns the manual session and captures `tool.input.normalized`, the package.json path-criticality hold, approval denial, credential-path hard denial, and unchanged manifest.
+
 ## 2026-11-10 S3 confidence-string compatibility fix (pending CI and live acceptance)
 
 - Added a narrow, auditable normalization for `edit_file` confidence values: a plain decimal string in the inclusive range 0..1 (for example, "0.95") is converted to a number before schema validation, policy evaluation, and execution. The registry records the canonical value in `tool.input.normalized`.
