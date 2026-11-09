@@ -1,10 +1,22 @@
+## 2026-11-10 S3 live acceptance and PR #27 closeout
+
+PR #27 is merged into `main` as `045b923074fe8db7b6eb1a5ae777ab2ec197f0b1`. CI run #362 passed on Windows and Ubuntu at the PR head. The GitHub connector returned no workflow runs or combined status for the merge commit, so post-merge CI on that exact commit is unverified.
+
+The owner-run session `9b2efe92-af24-4d16-a9ac-f755c9a0b69c` used `llama3.2:3b`, Ollama, `--sandbox none`, and `--text-tool-calls`. It attempted `edit_file(package.json)` followed by `read_file(.env.production)`. The edit was held and terminal approval was denied. The following credential read was hard-denied by `credential-path` without an approval request. The owner confirmed `git diff --exit-code -- package.json` was clean.
+
+The model did not preserve the required edit argument contract: it emitted snake_case `old_string` / `new_string` and string `confidence: "0.95"`. No `tool.input.normalized` event was recorded. Although the policy trace included path-criticality 0.5, the hold reason was invalid self-reported confidence, so the live run does not prove a hold caused by path criticality.
+
+The focused normalization and governed CLI tests passed, and the broader filtered normalization run passed 10 tests with 1,206 skipped and no failures. These scripted tests verify normalization and the path-criticality hold independently of model compliance.
+
+**S3 disposition: PARTIAL.** Scripted implementation and policy tests pass. Live approval denial and credential hard-denial pass. Live normalization and a path-criticality-caused hold remain unproven with `llama3.2:3b`. Do not repeat prompt-only runs with this model as if they close the gap. Preserve the session JSONL in the owner's acceptance worktree at `.harness/sessions/9b2efe92-af24-4d16-a9ac-f755c9a0b69c.jsonl`.
+
 ## 2026-11-09 S3 ordered tool execution follow-up
 
 The live trace after PR #24 exposed a separate orchestration gap: planner normalization preserved tool names in order, but the order was only advisory text to the worker. A small model called the second operation first and then returned malformed pseudo-tool JSON. The orchestrator accepted the non-empty text as a completed subtask despite no edit call.
 
 The merged implementation carries an explicit required sequence to the sub-agent and enforces it in the tool registry before policy hooks. Calls with invalid input do not advance the sequence. A valid call attempt advances it even if a policy gate later denies the action, so the worker can proceed to the next requested attempt. A subtask cannot complete until every required call is attempted. Non-sequenced tasks retain the existing behavior where a failed tool result may be recovered from.
 
-Regression tests cover out-of-order recovery, policy-denied attempts, missing required calls, pseudo-tool JSON, and normalized sequence metadata. PR #26 merged as `8f34917d01f7d4d102713cb590d67ec078fb6ad6`. CI run #344 passed on Windows and Ubuntu at the PR head; post-merge run #345 also passed on both platforms, including install, typecheck, lint, and the full test suite. A small follow-up branch adds defensive validation for malformed sequence state and safe handling of special subtask IDs. The governed CLI now exposes opt-in `--text-tool-calls` for Ollama, using the provider's strict all-or-nothing JSON/JSONL recovery only for tools offered in the current request. PR #27 CI run #360 passed on Windows and Ubuntu, including the end-to-end text-call acceptance regression. S3 remains PARTIAL pending PR #27 merge and a fresh owner-run `llama3.2:3b` acceptance session using that flag, with edit normalization, package.json policy hold and explicit denial, credential-path hard denial, and unchanged package.json.
+Regression tests cover out-of-order recovery, policy-denied attempts, missing required calls, pseudo-tool JSON, and normalized sequence metadata. PR #26 merged as `8f34917d01f7d4d102713cb590d67ec078fb6ad6`. CI run #344 passed on Windows and Ubuntu at the PR head; post-merge run #345 also passed on both platforms, including install, typecheck, lint, and the full test suite. A small follow-up branch adds defensive validation for malformed sequence state and safe handling of special subtask IDs. The governed CLI now exposes opt-in `--text-tool-calls` for Ollama, using the provider's strict all-or-nothing JSON/JSONL recovery only for tools offered in the current request. PR #27 CI run #360 passed on Windows and Ubuntu, including the end-to-end text-call acceptance regression. PR #27 subsequently merged as `045b923074fe8db7b6eb1a5ae777ab2ec197f0b1`. PR-head CI run #362 passed on Windows and Ubuntu; merge-commit CI is unverified. The owner-run live session using `llama3.2:3b` and `--text-tool-calls` verified ordered edit/read attempts, terminal edit denial, `.env.production` credential-path hard denial without approval, and unchanged `package.json`. The model still emitted snake_case edit keys and string confidence, so no normalization event occurred and the policy hold was for invalid confidence. S3 remains PARTIAL; see the 2026-11-10 closeout below.
 
 ## 2026-11-09 S3 implementation and CI closeout
 
@@ -16,7 +28,7 @@ The edit argument normalizer is now on main. It maps only `oldString` / `newStri
 
 # Harness build plan and testing guide
 
-Last updated: 2026-11-08. Scope: a working prototype, not the full product. This plan supplements the historical phase documents.
+Last updated: 2026-11-10. Scope: a working prototype, not the full product. This plan supplements the historical phase documents.
 
 ## 1. Where things stand
 
