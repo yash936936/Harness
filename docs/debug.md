@@ -1,3 +1,11 @@
+## DBG-098 — retain json-bignum MIT notice and record provenance limits — 2026-11-10
+
+**Finding:** The lockfile contains `json-bignum@0.0.3` with no `license` metadata. The package is in the 59-entry static runtime dependency-closure estimate. Its upstream repository's LICENSE file contains the MIT grant and Datalanche, Inc. copyright notice; Snyk's package record independently identifies MIT for 0.0.3.
+
+**Change:** Added the MIT notice text at `THIRD_PARTY_NOTICES/json-bignum-MIT.txt` and documented the evidence in `THIRD_PARTY_LICENSES.md`. Kept the generated lockfile metadata as UNDECLARED rather than rewriting it based on external evidence.
+
+**Limits:** The LICENSE was retrieved from the upstream default branch, not a verified immutable tag for 0.0.3. The actual release package output and shipped notice bundle have not been inspected. ENG-04 remains PARTIAL. Qwen 7B artifact provenance remains open.
+
 ## DBG-097 — update confidence-string gate regression after S3 normalization — 2026-11-10
 
 **Found:** CI on PR #29 and the merge commit failed on both Windows and Ubuntu in `test/tools-local.test.ts`. The test still expected valid decimal strings passed to `edit_file` to be held as invalid self-reported confidence. PR #29 intentionally normalizes strict decimal strings in [0, 1], so the first two calls were correctly `allow-logged`; only the null-confidence call should be held.
