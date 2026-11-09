@@ -1218,3 +1218,12 @@ No live model was run. S3 remains PARTIAL pending that owner-run session.
 ## 2026-11-08 S3 governed CLI integration regression
 
 PR #22 adds a deterministic end-to-end test through `runCodeTask`: the package-manifest write is held at path-criticality 0.5, the scripted terminal denial is recorded, and `.env.production` is hard-denied by `credential-path` without an approval prompt. The fixture remains unchanged and `--sandbox none` keeps command execution unavailable. GitHub Actions run #321 passed on Ubuntu and Windows for final tested head `cf435b377721cece23fea08fd4d86b11f5576282` (npm ci, typecheck, lint, and full test suite). This does not replace the owner-run Ollama session. S3 remains PARTIAL.
+
+
+## 2026-11-09 S3 live Ollama acceptance update
+
+Owner-run tests used the installed `llama3.2:3b` model. The hard-deny portion passed: session `942f90bb-c51f-4c3e-bbd2-ef2dfb98d915` records `.env.production` denied by `credential-path` with no approval request. The package manifest remained unchanged.
+
+The write-approval portion has **not** passed. One run supplied an invalid `edit_file` argument shape and received a tool validation error. Another planner run selected `search_code` for the explicit `package.json` path, passed an empty path, and never attempted `edit_file`. No policy hold or approval events were generated in that run.
+
+PR #22 now adds planner guidance and input-schema context for exact-path tool selection, with a regression test. Keep S3 PARTIAL until fresh CI passes and a live `llama3.2:3b` session records a valid manifest edit call, `policy.decision: hold`, terminal approval denial, and the credential-path hard deny. No large model is required or planned.
