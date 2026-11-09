@@ -1,5 +1,6 @@
 import type { RunResult, RunTaskOptions } from '../agent-loop/index.js'
 import type { Episode, MemoryGrant, ScopedMemory } from '../memory/index.js'
+import type { RequiredToolSequence } from '../tool-registry/index.js'
 
 export interface SubagentSpec {
   /** 1-64 of [A-Za-z0-9_-]. Becomes the actor `subagent:<id>` on every log event the agent causes. */
@@ -18,7 +19,7 @@ export interface SubagentSpec {
   memory?: MemoryGrant
 }
 
-export type SubagentRunOptions = Omit<RunTaskOptions, 'actor' | 'sessionId' | 'tools' | 'prompt'> & {
+export type SubagentRunOptions = Omit<RunTaskOptions, 'actor' | 'sessionId' | 'tools' | 'prompt' | 'requiredToolSequence'> & {
   sessionId?: string
   /** Recorded on this run's episode when memory is loaded (see `Memory.runTurn`). */
   lesson?: string | null
