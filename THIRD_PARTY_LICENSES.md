@@ -1,6 +1,14 @@
 # Third-party dependency license inventory
 
-Generated from the current committed root package-lock.json on 2026-11-08 (157 package entries). This is lockfile metadata only. It is not a legal conclusion and does not identify the exact files included in a future shipped artifact.
+Generated from the current committed root package-lock.json on 2026-11-10 (157 package entries). This is lockfile metadata only. It is not a legal conclusion and does not identify the exact files included in a future shipped artifact.
+
+## 2026-11-10 provenance and notice follow-up
+
+The runtime dependency-closure traversal reaches 59 package entries. One entry, `json-bignum@0.0.3`, has no license field in the lockfile. The upstream project repository's LICENSE file contains the MIT terms and Datalanche, Inc. copyright notice; Snyk's package record independently identifies MIT for version 0.0.3. The corresponding notice text is retained in `THIRD_PARTY_NOTICES/json-bignum-MIT.txt`. The lockfile row remains `UNDECLARED` because that is what the lockfile actually says; the upstream license evidence is recorded separately rather than silently rewriting generated metadata.
+
+Sources reviewed: [upstream LICENSE](https://github.com/datalanche/json-bignum/blob/master/LICENSE), [npm package record](https://www.npmjs.com/package/json-bignum), and [Snyk version/license record](https://security.snyk.io/package/npm/json-bignum). The upstream LICENSE was read from the repository's default branch; a version-tagged license snapshot for the exact 0.0.3 release was not independently verified. Preserve this notice in any distribution that includes the package.
+
+The exact installed production closure is still only a lockfile graph estimate, and no release/package artifact was inspected. Therefore ENG-04 remains PARTIAL until the actual packaged output is built and its notices are verified.
 
 ## Runtime dependency closure (lockfile graph)
 
