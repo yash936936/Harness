@@ -152,6 +152,9 @@ export class ToolRegistry extends Service {
     // Enforce required call order at the registry choke point, before any policy hook can prompt or approve an out-of-order action.
     if (tctx.requiredToolSequence) {
       const { tools, state } = tctx.requiredToolSequence
+      if (!Array.isArray(tools) || !state || !Number.isSafeInteger(state.nextIndex) || state.nextIndex < 0 || state.nextIndex > tools.length || Object.isFrozen(state)) {
+        return fail('denied', 'Invalid required tool sequence state; refusing the call.')
+      }
       const expected = tools[state.nextIndex]
       if (expected === undefined) return fail('denied', `All required tool calls are complete; refusing extra call to "${name}".`)
       if (name !== expected) return fail('denied', `Required tool order: expected "${expected}" before "${name}".`)
