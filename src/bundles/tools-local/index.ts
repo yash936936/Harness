@@ -8,13 +8,15 @@ import '../sandbox/index.js'
 import { confidenceProperty as strictConfidence } from '../policy-gates/index.js'
 
 /**
- * The schema accepts a stray string or null for `confidence` so the call REACHES the gate instead of being rejected before any decision (D-086: llama3.2:3b sends
- * "1"). The gate trusts only a real number from 0 to 1; anything else is a hold, so this is a fail-closed relaxation, not a trust one. A number out of range is still rejected.
+ * Small local models may serialize a numeric confidence as a JSON string. Accept strings
+ * at schema validation so the call reaches the normalizer; only a strict decimal in [0, 1]
+ * is converted to a number. Other strings remain untrusted and the policy gate holds them.
+ * Independent risk signals still cap the combined score, so this does not bypass policy.
  */
 const confidenceProperty = {
   ...strictConfidence,
   type: ['number', 'string', 'null'],
-  description: 'Your confidence from 0 to 1 as a JSON number, not a quoted string. A string or null is untrusted and causes the policy gate to hold the write.',
+  description: 'Your confidence from 0 to 1. A numeric string such as "0.95" is normalized; invalid strings and null are untrusted and cause the policy gate to hold the write.',
 } as const
 import type { ToolDefinition } from '../tool-registry/types.js'
 import { COMMAND_TOOL } from './risk.js'
@@ -85,6 +87,11 @@ function normalizeEditInput(input: unknown): unknown {
       out[canonical] = out[alias]
       delete out[alias]
     }
+  }
+  // Accept only plain decimal numeric strings in the confidence range. Do not trim,
+  // parse exponents, or coerce malformed/out-of-range values: the policy gate must hold them.
+  if (typeof out.confidence === 'string' && /^(?:0(?:\.\d+)?|1(?:\.0+)?)$/.test(out.confidence)) {
+    out.confidence = Number(out.confidence)
   }
   return out
 }
