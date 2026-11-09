@@ -1,3 +1,13 @@
+## DBG-087 — guide planner tool choice for explicit file paths — 2026-11-09
+
+**Found:** an owner-run Ollama acceptance attempt with `llama3.2:3b` produced a valid one-subtask plan that selected `search_code` for the explicit path `package.json`. The worker then supplied an empty `path`, which failed input validation. No `edit_file` call, policy decision, or approval event occurred. A later attempt selected `edit_file` but used the wrong argument shape (`file`, `mode`, `content`) and was rejected because required property `path` was missing. The worker then falsely claimed the edit succeeded; the manifest remained unchanged.
+
+**Fixed in PR #22:** planner context now includes each offered tool's JSON input schema and explicit selection rules: use `read_file` for a user-supplied path, reserve `search_code` for unknown locations, and plan `read_file` before `edit_file` for existing files. Added a regression asserting the schema and path-selection guidance are present while the planner still receives no executable tools.
+
+**Verified live protection:** the 2026-11-09 session `942f90bb-c51f-4c3e-bbd2-ef2dfb98d915` recorded a hard `deny` for `.env.production` under `credential-path`; no approval was requested. `git diff -- package.json` was empty. The separate `dae99cc3-3675-485b-81b0-b4dd465c9b30` run failed earlier at planning: `search_code` received an empty path and was rejected.
+
+**Remaining acceptance:** rerun with the existing `llama3.2:3b` model after PR CI passes. Require a valid `edit_file` call, `policy.decision: hold`, `approval.pending`, terminal `approval.resolved: denied`, and the `.env.production` hard deny. Do not claim the live write-approval flow passed from these failed attempts.
+
 ## DBG-086 — bound Crabbox cleanup and gate real startup on doctor — 2026-11-08
 
 **Found:** doctor and lease startup were separate Vitest cases, so a failed doctor did not prevent the lease test from attempting warmup. The real test configured a 600-second control timeout for every Crabbox operation. On failed warmup, the provider still attempted cleanup; its two-attempt stop/list loop could wait through several long timeouts.
