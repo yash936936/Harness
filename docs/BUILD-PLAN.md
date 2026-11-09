@@ -4,7 +4,7 @@ The live trace after PR #24 exposed a separate orchestration gap: planner normal
 
 The current implementation branch carries an explicit required sequence to the sub-agent and enforces it in the tool registry before policy hooks. Calls with invalid input do not advance the sequence. A valid call attempt advances it even if a policy gate later denies the action, so the worker can proceed to the next requested attempt. A subtask cannot complete until every required call is attempted. Non-sequenced tasks retain the existing behavior where a failed tool result may be recovered from.
 
-Regression tests cover out-of-order recovery, missing required calls, pseudo-tool JSON, and normalized sequence metadata. CI has not yet run for this branch. S3 remains PARTIAL pending CI and a fresh owner-run `llama3.2:3b` acceptance session with edit normalization, package.json policy hold and explicit denial, credential-path hard denial, and unchanged package.json.
+Regression tests cover out-of-order recovery, policy-denied attempts, missing required calls, pseudo-tool JSON, and normalized sequence metadata. PR #26 merged as `8f34917d01f7d4d102713cb590d67ec078fb6ad6`. CI run #344 passed on Windows and Ubuntu at the PR head; post-merge run #345 also passed on both platforms, including install, typecheck, lint, and the full test suite. A small follow-up branch adds defensive validation for malformed sequence state and safe handling of special subtask IDs. S3 remains PARTIAL pending that follow-up CI and a fresh owner-run `llama3.2:3b` acceptance session with edit normalization, package.json policy hold and explicit denial, credential-path hard denial, and unchanged package.json.
 
 ## 2026-11-09 S3 implementation and CI closeout
 
