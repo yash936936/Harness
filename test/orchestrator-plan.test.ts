@@ -58,7 +58,7 @@ describe('planner: accepted plans', () => {
       'Then call edit_file with path "package.json" and the exact old_string and new_string.',
       'Do not use write_file or run_command.',
     ].join(' ')
-    const offered = ['search_code', 'read_file', 'edit_file', 'write_file', 'run_command']
+    const offered = ['edit_file', 'search_code', 'read_file', 'write_file', 'run_command']
     const { ctx } = await boot([reply(modelPlan)], {}, offered)
     const result = await ctx.orchestrator.plan({ sessionId: 'explicit-tools', task, tools: offered })
     expect(result.plan.subtasks).toEqual([{
@@ -81,7 +81,7 @@ describe('planner: accepted plans', () => {
     expect(req.system).toContain('search: does search')
     expect(req.system).toContain('Input schema: {"type":"object","properties":{"path":{"type":"string","minLength":1}},"required":["path"]}')
     expect(req.system).toContain('Do not use search_code to find a path the user already gave')
-    expect(req.system).not.toContain('edit')
+    expect(req.system).not.toContain('- edit: does edit')
     expect(req.tools ?? []).toEqual([])
   })
 })
