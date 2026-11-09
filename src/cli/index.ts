@@ -45,6 +45,7 @@ async function main(): Promise<number> {
           project: { type: 'string', default: basename(process.cwd()) },
           sandbox: { type: 'string', default: 'auto' },
           'timeout-ms': { type: 'string' },
+          'text-tool-calls': { type: 'boolean', default: false },
         },
       })
       const task = positionals.join(' ')
@@ -55,8 +56,8 @@ async function main(): Promise<number> {
         io.print(error instanceof Error ? error.message : String(error))
         return 2
       }
-      if (!values.model || !task || (values.provider !== 'ollama' && values.provider !== 'openrouter') || (values.sandbox !== 'auto' && values.sandbox !== 'none') || (values.provider === 'openrouter' && timeoutMs !== undefined)) {
-        io.print('usage: npm run harness -- code --model <tag-or-id> [--provider ollama|openrouter] [--base-url URL] [--project ID] [--sandbox auto|none] [--timeout-ms N (Ollama only)] "<task>"')
+      if (!values.model || !task || (values.provider !== 'ollama' && values.provider !== 'openrouter') || (values.sandbox !== 'auto' && values.sandbox !== 'none') || (values.provider === 'openrouter' && (timeoutMs !== undefined || values['text-tool-calls']))) {
+        io.print('usage: npm run harness -- code --model <tag-or-id> [--provider ollama|openrouter] [--base-url URL] [--project ID] [--sandbox auto|none] [--timeout-ms N (Ollama only)] [--text-tool-calls (Ollama only)] "<task>"')
         return 2
       }
       const result = await runCodeTask(io, {
@@ -64,6 +65,7 @@ async function main(): Promise<number> {
         ...(values['base-url'] ? { baseUrl: values['base-url'] } : {}),
         sandbox: values.sandbox as 'auto' | 'none',
         ...(timeoutMs !== undefined ? { timeoutMs } : {}),
+        ...(values['text-tool-calls'] ? { textToolCalls: true } : {}),
       })
       return result.ok ? 0 : 1
     }
