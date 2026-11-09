@@ -86,7 +86,6 @@ describe('planner: accepted plans', () => {
     expect(result.requestedTools).toEqual(['read_file'])
     expect(result.plan.subtasks[0]!.tools).toEqual(['read_file'])
     expect(result.plan.requiredToolSequences).toEqual({ s1: ['read_file'] })
-    expect(result.plan.requiredToolSequences).toEqual({ s1: ['read_file'] })
   })
   it('the planner sees offered tool schemas and path-selection rules, but receives no executable tools', async () => {
     const { ctx, mock } = await boot([reply(good)])
