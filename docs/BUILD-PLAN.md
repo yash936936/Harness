@@ -1,3 +1,7 @@
+## 2026-11-09 S3 implementation follow-up
+
+The live acceptance attempt exposed an argument-shape mismatch: `llama3.2:3b` emitted camelCase edit keys, while the strict tool schema requires snake_case. The current fix branch adds an audited, fail-closed normalization step before schema validation and policy. It does not coerce string confidence into a trusted number. Regression coverage targets the required package.json hold and terminal denial. This is implementation work only; S3 remains open until CI passes and the owner records the live Ollama session with a valid policy hold, approval denial, unchanged package.json, and `.env.production` hard denial.
+
 # Harness build plan and testing guide
 
 Last updated: 2026-11-08. Scope: a working prototype, not the full product. This plan supplements the historical phase documents.
