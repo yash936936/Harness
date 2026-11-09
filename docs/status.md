@@ -1,3 +1,10 @@
+## 2026-11-10 S3 confidence-string compatibility fix (pending CI and live acceptance)
+
+- Added a narrow, auditable normalization for `edit_file` confidence values: a plain decimal string in the inclusive range 0..1 (for example, "0.95") is converted to a number before schema validation, policy evaluation, and execution. The registry records the canonical value in `tool.input.normalized`.
+- Malformed, whitespace-padded, exponent-form, and out-of-range strings remain strings. The policy gate still rejects them as invalid self-reported confidence and holds the write. Numeric values remain subject to the existing independent-signal minimum and 0.8 threshold; `package.json` remains held by path-criticality 0.5.
+- Updated the governed CLI regression to send the same string confidence shape observed in the live `llama3.2:3b` trace. Added unit cases for accepted numeric strings and fail-closed malformed values.
+- This is a code/test change on branch `fix/s3-numeric-confidence-normalization-2026-11-10`. CI and owner-run live acceptance have not yet been verified. **S3 remains PARTIAL** until the live trace shows the normalized input, a path-criticality-caused hold, explicit approval denial, credential hard-denial without approval, and unchanged manifest.
+
 ## 2026-11-10 S3 live acceptance evidence and PR #27 merge closeout
 
 - PR #27 is merged into `main` as `045b923074fe8db7b6eb1a5ae777ab2ec197f0b1`. Its latest PR-head CI run #362 passed on Windows and Ubuntu, including install, typecheck, lint, and the full test suite. The GitHub connector returned no workflow runs or combined status for the merge commit, so post-merge CI on that exact commit is **unverified**.

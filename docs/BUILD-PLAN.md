@@ -1,3 +1,11 @@
+## 2026-11-10 S3 confidence-string normalization follow-up
+
+The live `llama3.2:3b` trace showed `confidence: "0.95"`, which passed the permissive tool schema but was intentionally not trusted by the policy gate. This caused the edit hold before path-criticality could be the deciding factor.
+
+The implementation now converts only strict plain-decimal confidence strings in [0, 1] to numbers at the `edit_file` input-normalization boundary. The registry's existing `tool.input.normalized` event makes the conversion auditable. Malformed, padded, exponent-form, and out-of-range strings remain untrusted and fail closed. Independent signals remain authoritative: a `package.json` edit scores 0.5 and remains below the 0.8 threshold.
+
+Unit tests cover valid conversion, path-criticality hold, and malformed values. The governed CLI integration fixture now uses string confidence to reproduce the observed model output. **Pending:** CI, then one owner-run live acceptance with `llama3.2:3b`. S3 remains PARTIAL until the live event trace verifies normalization, path-criticality hold, explicit approval denial, credential-path hard-denial without approval, and unchanged `package.json`.
+
 ## 2026-11-10 S3 live acceptance and PR #27 closeout
 
 PR #27 is merged into `main` as `045b923074fe8db7b6eb1a5ae777ab2ec197f0b1`. CI run #362 passed on Windows and Ubuntu at the PR head. The GitHub connector returned no workflow runs or combined status for the merge commit, so post-merge CI on that exact commit is unverified.
