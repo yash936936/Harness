@@ -24,6 +24,8 @@ interface Scope {
   parent?: string
   sessionId: string
   closed: boolean
+  requiredTools?: string[]
+  nextRequiredToolIndex: number
 }
 
 /**
@@ -64,6 +66,13 @@ export class SubagentScope extends Service {
     const scope = this.scopes.get(actor.slice(PREFIX.length))
     if (!scope || scope.closed) throw new ToolDeniedError(`actor "${actor}" has no live sub-agent scope`)
     if (!scope.tools.has(ev.tool.name)) throw new ToolDeniedError(`tool "${ev.tool.name}" is outside the grant of sub-agent "${scope.id}"`)
+    if (scope.requiredTools) {
+      const expected = scope.requiredTools[scope.nextRequiredToolIndex]
+      if (expected === undefined) throw new ToolDeniedError(`all required tool calls are already complete; refusing extra call to "${ev.tool.name}"`)
+      if (ev.tool.name !== expected) throw new ToolDeniedError(`required tool order: expected "${expected}" before "${ev.tool.name}"`)
+      // Count a valid, schema-checked attempt before policy hooks run. A policy denial is still an attempted operation.
+      scope.nextRequiredToolIndex++
+    }
   }
 
   /**
@@ -110,7 +119,12 @@ export class SubagentScope extends Service {
         if (!p.tools.has(t)) throw new ScopeError(`sub-agent "${spec.id}": tool "${t}" is not in parent "${spec.parent}"'s grant (a child cannot widen it)`)
       }
     }
-    const scope: Scope = { id: spec.id, actor: PREFIX + spec.id, tools: new Set(grant), ...(spec.parent !== undefined ? { parent: spec.parent } : {}), sessionId: spec.sessionId, closed: false }
+    if (spec.requiredTools !== undefined) {
+      if (!Array.isArray(spec.requiredTools) || spec.requiredTools.some((name) => typeof name !== 'string' || !grant.includes(name))) {
+        throw new ScopeError(`sub-agent "${spec.id}": requiredTools must be an ordered list contained in its tool grant`)
+      }
+    }
+    const scope: Scope = { id: spec.id, actor: PREFIX + spec.id, tools: new Set(grant), ...(spec.requiredTools !== undefined ? { requiredTools: [...spec.requiredTools] } : {}), nextRequiredToolIndex: 0, ...(spec.parent !== undefined ? { parent: spec.parent } : {}), sessionId: spec.sessionId, closed: false }
     // Log first: a spawn that cannot be recorded must not exist.
     await this.ctx.log.append(spec.sessionId, 'subagent.spawn', { id: spec.id, tools: grant, parent: spec.parent ?? null }, 'subagent-scope')
     this.scopes.set(spec.id, scope)
@@ -128,6 +142,12 @@ export class SubagentScope extends Service {
       id: scope.id,
       actor: scope.actor,
       tools: [...scope.tools],
+      get requiredToolsComplete() {
+        return scope.requiredTools === undefined || scope.nextRequiredToolIndex >= scope.requiredTools.length
+      },
+      get requiredToolsRemaining() {
+        return scope.requiredTools?.slice(scope.nextRequiredToolIndex) ?? []
+      },
       ...(scope.parent !== undefined ? { parent: scope.parent } : {}),
       get closed() {
         return !self.alive(scope)
