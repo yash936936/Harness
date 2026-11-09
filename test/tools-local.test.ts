@@ -190,6 +190,14 @@ describe('read_file', () => {
 })
 
 describe('edit_file', () => {
+  it('tells models to preserve the exact requested numeric confidence', async () => {
+    const { ctx } = await boot()
+    const tool = ctx.tools.list().find((item) => item.name === 'edit_file')!
+    const schema = tool.inputSchema as any
+    expect(tool.description).toMatch(/exact value requested by the user/)
+    expect(tool.description).toMatch(/0\.95/)
+    expect(schema.properties.confidence.description).toMatch(/if the user requests 0\.95, send 0\.95/)
+  })
   it('replaces exactly one occurrence and leaves no temp file behind', async () => {
     const { root, call } = await boot()
     put(root, 'src/a.ts', 'const a = 1\nconst b = 2\n')
