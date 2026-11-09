@@ -72,6 +72,49 @@ export function validatePlan(
   return { ok: true, plan: { task, subtasks } }
 }
 
+
+/**
+ * Weak planners can ignore explicit tool instructions even when the task supplies exact paths and schemas.
+ * In that narrow case, preserve the user's positive tool sequence deterministically instead of accepting
+ * a search-oriented or incomplete decomposition. Negated tool mentions are not treated as requests.
+ */
+export function normalizeExplicitToolPlan(
+  task: string,
+  plan: Plan,
+  offered: string[],
+  limits: PlannerLimits = DEFAULT_LIMITS,
+): { plan: Plan; adjusted: boolean; requestedTools: string[] } {
+  const hasExactPath = /(?:^|[\\s"'\x60])(?:\\.{0,2}[\\/])?[\\w.-]+(?:[\\/][\\w.-]+)*\\.[A-Za-z0-9]{1,12}(?=$|[\\s"'\x60,;:])/m.test(task)
+  if (!hasExactPath) return { plan, adjusted: false, requestedTools: [] }
+
+  const requestedTools = offered.filter((name) => {
+    let at = task.indexOf(name)
+    while (at >= 0) {
+      const before = task.slice(Math.max(0, at - 48), at)
+      const explicit = /\\b(?:use|using|call|calling|invoke|invoking|attempt|attempting)\\s+(?:the\\s+)?$/i.test(before)
+      const negated = /\\b(?:do\\s+not|don't|never|must\\s+not|avoid)\\s+(?:use|call|invoke|attempt)\\s+(?:the\\s+)?$/i.test(before)
+      if (explicit && !negated) return true
+      at = task.indexOf(name, at + name.length)
+    }
+    return false
+  })
+
+  const uniqueTools = [...new Set(requestedTools)]
+  if (!uniqueTools.length || uniqueTools.length > limits.maxToolsPerSubtask) {
+    return { plan, adjusted: false, requestedTools: uniqueTools }
+  }
+
+  const first = plan.subtasks[0]!
+  const goal = 'Carry out the explicitly named tool operations in the order stated, using the exact paths and arguments supplied in the task.'
+  if (goal.length > limits.maxGoalChars) return { plan, adjusted: false, requestedTools: uniqueTools }
+  const normalized: Plan = {
+    task,
+    subtasks: [{ id: first.id, goal, tools: uniqueTools, dependsOn: [] }],
+  }
+  const adjusted = JSON.stringify(normalized.subtasks) !== JSON.stringify(plan.subtasks)
+  return { plan: adjusted ? normalized : plan, adjusted, requestedTools: uniqueTools }
+}
+
 /**
  * JSON Schema for the plan, for providers that can constrain decoding (D-072). Tool names are an enum of the
  * OFFERED tools (none offered: an empty array), so a constrained model cannot name an unknown one; ids/goals/arrays are typed so it
