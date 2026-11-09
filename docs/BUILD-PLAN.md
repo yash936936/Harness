@@ -1,6 +1,6 @@
 ## S3 final live acceptance procedure (implementation is CI-green; live gate remains)
 
-The implementation and scripted acceptance are complete on main. The only remaining S3 gate is one owner-run Ollama session. Use a clean main checkout and ensure `git diff --exit-code -- package.json` succeeds before starting.
+The implementation and scripted acceptance are complete on main. The only remaining S3 gate is one owner-run Ollama session. Use a clean main checkout and ensure `git diff HEAD --exit-code -- package.json` succeeds before starting.
 
 Run this from the repository root in PowerShell:
 
@@ -20,7 +20,7 @@ When the terminal asks to approve the `edit_file` request, answer **No**. The ex
 After the run:
 
 ~~~powershell
-git diff --exit-code -- package.json
+git diff HEAD --exit-code -- package.json
 ~~~
 
 This must exit 0. Preserve `.harness/sessions/<session-id>.jsonl` and provide that file for review. Do not paste the full log into chat; it may contain project data. The reviewer should inspect only the required event fields and confirm the file remains unchanged. **Do not close S3 until all five event checks and the clean diff are confirmed from the same live session.**
@@ -44,7 +44,7 @@ Unit tests cover valid conversion, path-criticality hold, and malformed values. 
 
 PR #27 is merged into `main` as `045b923074fe8db7b6eb1a5ae777ab2ec197f0b1`. CI run #362 passed on Windows and Ubuntu at the PR head. The GitHub connector returned no workflow runs or combined status for the merge commit, so post-merge CI on that exact commit is unverified.
 
-The owner-run session `9b2efe92-af24-4d16-a9ac-f755c9a0b69c` used `llama3.2:3b`, Ollama, `--sandbox none`, and `--text-tool-calls`. It attempted `edit_file(package.json)` followed by `read_file(.env.production)`. The edit was held and terminal approval was denied. The following credential read was hard-denied by `credential-path` without an approval request. The owner confirmed `git diff --exit-code -- package.json` was clean.
+The owner-run session `9b2efe92-af24-4d16-a9ac-f755c9a0b69c` used `llama3.2:3b`, Ollama, `--sandbox none`, and `--text-tool-calls`. It attempted `edit_file(package.json)` followed by `read_file(.env.production)`. The edit was held and terminal approval was denied. The following credential read was hard-denied by `credential-path` without an approval request. The owner confirmed `git diff HEAD --exit-code -- package.json` was clean.
 
 The model did not preserve the required edit argument contract: it emitted snake_case `old_string` / `new_string` and string `confidence: "0.95"`. No `tool.input.normalized` event was recorded. Although the policy trace included path-criticality 0.5, the hold reason was invalid self-reported confidence, so the live run does not prove a hold caused by path criticality.
 
