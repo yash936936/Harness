@@ -14,6 +14,8 @@ export interface Subtask {
 export interface Plan {
   task: string
   subtasks: Subtask[]
+  /** Exact ordered tool-call attempts required by explicit-tool normalization, keyed by subtask id. */
+  requiredToolSequences?: Record<string, string[]>
 }
 
 export interface PlannerLimits {
