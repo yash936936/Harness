@@ -103,7 +103,7 @@ export async function executePlan(deps: ExecutorDeps, plan: Plan, opts: ExecuteO
     if (!sequences || typeof sequences !== 'object' || Array.isArray(sequences)) {
       throw new OrchestratorError('orchestrator: requiredToolSequences must be an object keyed by subtask id')
     }
-    const normalizedSequences: Record<string, string[]> = {}
+    const normalizedSequences: Record<string, string[]> = Object.create(null)
     for (const [id, sequence] of Object.entries(sequences)) {
       const st = valid.subtasks.find((item) => item.id === id)
       if (!st) throw new OrchestratorError(`orchestrator: required tool sequence references unknown subtask "${id}"`)
