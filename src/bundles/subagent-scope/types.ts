@@ -32,7 +32,7 @@ export interface SubAgent {
   readonly tools: readonly string[]
   /** True when every required tool-call attempt passed the registry sequence gate. */
   readonly requiredToolsComplete: boolean
-  /** Required tool-call attempts that have not yet reached the scope guard. */
+  /** Required tool-call attempts that have not yet passed the registry sequence gate. */
   readonly requiredToolsRemaining: readonly string[]
   readonly parent?: string
   readonly closed: boolean
