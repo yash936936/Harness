@@ -258,7 +258,13 @@ describe('governed CLI policy acceptance', () => {
         dockerAvailable: false,
       })
 
-      expect(result.ok, output.join('\n')).toBe(true)
+      const trace = await result.context!.log.read(result.sessionId!)
+      const modelResponses = trace.filter((event) => event.type === 'model.response').map((event) => {
+        const data = event.data as { recoveredToolCalls?: number; toolCalls?: Array<{ name: string }> }
+        return { recoveredToolCalls: data.recoveredToolCalls, toolCalls: data.toolCalls?.map((call) => call.name) }
+      })
+      const actualCalls = trace.filter((event) => event.type === 'tool.call').map((event) => (event.data as { name: string }).name)
+      expect(result.ok, JSON.stringify({ output, modelResponses, actualCalls })).toBe(true)
       expect(requests.length).toBeGreaterThanOrEqual(2)
       const offeredToolNames = requests.flatMap((request) => (request.tools ?? []).map((tool) => (tool as { function?: { name?: string } }).function?.name))
       expect(offeredToolNames).toContain('edit_file')
