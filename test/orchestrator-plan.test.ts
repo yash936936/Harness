@@ -22,7 +22,7 @@ async function boot(script: ConstructorParameters<typeof MockProvider>[0] = [], 
   await ctx.plugin(AgentLoop, {})
   const ran: string[] = []
   const t = (name: string, actionClass: ToolDefinition['actionClass'] = 'read-only'): ToolDefinition => ({
-    name, description: `does ${name}`, inputSchema: { type: 'object' }, actionClass, execute: () => { ran.push(name); return 'ok' },
+    name, description: `does ${name}`, inputSchema: { type: 'object', properties: { path: { type: 'string', minLength: 1 } }, required: ['path'] }, actionClass, execute: () => { ran.push(name); return 'ok' },
   })
   ctx.tools.register(t('search')); ctx.tools.register(t('read')); ctx.tools.register(t('edit', 'real-fs-write'))
   await ctx.plugin(Orchestrator, config)
@@ -48,11 +48,13 @@ describe('planner: accepted plans', () => {
     const r = await ctx.orchestrator.plan({ sessionId: 's', task: 'T' })
     expect(r.plan.subtasks.map((s) => [s.tools, s.dependsOn])).toEqual([[['read'], []], [[], ['a']]])
   })
-  it('the planner is shown only the offered tools, and no tool specs', async () => {
+  it('the planner sees offered tool schemas and path-selection rules, but receives no executable tools', async () => {
     const { ctx, mock } = await boot([reply(good)])
     await ctx.orchestrator.plan({ sessionId: 's', task: 'T', tools: ['search', 'read'] })
     const req = mock.calls[0]!
     expect(req.system).toContain('search: does search')
+    expect(req.system).toContain('Input schema: {"type":"object","properties":{"path":{"type":"string","minLength":1}},"required":["path"]}')
+    expect(req.system).toContain('Do not use search_code to find a path the user already gave')
     expect(req.system).not.toContain('edit')
     expect(req.tools ?? []).toEqual([])
   })
