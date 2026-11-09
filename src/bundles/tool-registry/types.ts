@@ -25,6 +25,12 @@ export interface ToolDefinition<I = any> {
   /** JSON Schema (must describe an object). Compiled at registration. */
   inputSchema: Record<string, unknown>
   actionClass: ActionClass
+  /**
+   * Optional pure compatibility normalizer for model-produced input. It runs before
+   * JSON Schema validation; the normalized value is what policy hooks and execute receive.
+   * Unknown fields must be preserved so the strict schema can reject them.
+   */
+  normalizeInput?(input: unknown): unknown
   execute(input: I, ctx: ToolContext): Promise<unknown> | unknown
 }
 
