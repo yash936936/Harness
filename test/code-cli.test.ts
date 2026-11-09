@@ -220,7 +220,7 @@ describe('governed CLI policy acceptance', () => {
                       path: 'package.json',
                       oldString: manifest,
                       newString: manifest,
-                      confidence: 1,
+                      confidence: '1',
                     },
                   }),
                   JSON.stringify({ name: 'read_file', parameters: { path: '.env.production' } }),
