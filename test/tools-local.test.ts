@@ -248,7 +248,7 @@ describe('edit_file', () => {
     expect(cat(b.root, 'a.txt')).toBe('before')
   })
 
-  it('rejects string confidence at the policy gate even when camelCase text keys normalize', async () => {
+  it('normalizes a bounded numeric-string confidence but still holds a critical manifest edit', async () => {
     const b = await boot({}, { approver: () => ({ approve: false }) })
     put(b.root, 'package.json', '{"a":1}')
     const result = await b.call('edit_file', {
@@ -260,10 +260,35 @@ describe('edit_file', () => {
     expect(result).toMatchObject({ ok: false, errorKind: 'denied' })
     const decision = (await b.events('policy.decision'))[0]!.data as any
     expect(decision.verdict).toBe('hold')
-    expect(decision.self).toBeNull()
-    expect(decision.reason).toMatch(/no valid self-reported confidence/)
+    expect(decision.self).toBe(0.95)
+    expect(decision.score).toBe(0.5)
+    expect(decision.reason).toMatch(/path-criticality \(0.5/)
+    expect((await b.events('tool.input.normalized'))[0]!.data).toMatchObject({
+      input: { confidence: 0.95, old_string: '{"a":1}', new_string: '{"a":2}' },
+    })
     expect(cat(b.root, 'package.json')).toBe('{"a":1}')
   })
+
+  it.each(['1.01', '-0.1', '0.95 ', '9.5e-1', 'high', ''])(
+    'keeps malformed or out-of-range confidence %j untrusted',
+    async (confidence) => {
+      const b = await boot({}, { approver: () => ({ approve: false }) })
+      put(b.root, 'package.json', '{"a":1}')
+      const result = await b.call('edit_file', {
+        path: 'package.json',
+        old_string: '{"a":1}',
+        new_string: '{"a":2}',
+        confidence,
+      })
+      expect(result).toMatchObject({ ok: false, errorKind: 'denied' })
+      const decision = (await b.events('policy.decision'))[0]!.data as any
+      expect(decision.verdict).toBe('hold')
+      expect(decision.self).toBeNull()
+      expect(decision.reason).toMatch(/no valid self-reported confidence/)
+      expect((await b.events('tool.input.normalized')).length).toBe(0)
+      expect(cat(b.root, 'package.json')).toBe('{"a":1}')
+    },
+  )
 
   it('deletes with an empty new_string', async () => {
     const { root, call } = await boot()
