@@ -97,7 +97,23 @@ export async function executePlan(deps: ExecutorDeps, plan: Plan, opts: ExecuteO
   const checked = validatePlan(plan?.task ?? '', { subtasks: plan?.subtasks }, ceiling, deps.limits)
   if (!plan?.task?.trim()) throw new OrchestratorError('orchestrator: plan.task must be a non-empty string')
   if (!checked.ok) throw new OrchestratorError(`orchestrator: plan rejected before running anything: ${checked.errors.join('; ')}`)
-  const valid = checked.plan
+  const valid: Plan = { ...checked.plan }
+  if (plan.requiredToolSequences !== undefined) {
+    const sequences = plan.requiredToolSequences
+    if (!sequences || typeof sequences !== 'object' || Array.isArray(sequences)) {
+      throw new OrchestratorError('orchestrator: requiredToolSequences must be an object keyed by subtask id')
+    }
+    const normalizedSequences: Record<string, string[]> = {}
+    for (const [id, sequence] of Object.entries(sequences)) {
+      const st = valid.subtasks.find((item) => item.id === id)
+      if (!st) throw new OrchestratorError(`orchestrator: required tool sequence references unknown subtask "${id}"`)
+      if (!Array.isArray(sequence) || sequence.length === 0 || sequence.length > deps.limits.maxToolsPerSubtask || sequence.some((name) => typeof name !== 'string' || !st.tools.includes(name))) {
+        throw new OrchestratorError(`orchestrator: required tool sequence for "${id}" must be a non-empty ordered list contained in that subtask's tools`)
+      }
+      normalizedSequences[id] = [...sequence]
+    }
+    if (Object.keys(normalizedSequences).length) valid.requiredToolSequences = normalizedSequences
+  }
 
   const sid = opts.sessionId
   const log = async (type: string, data: Record<string, unknown>): Promise<void> => {
@@ -167,6 +183,7 @@ export async function executePlan(deps: ExecutorDeps, plan: Plan, opts: ExecuteO
           id: agentId,
           sessionId: sid,
           tools: st.tools,
+          ...(valid.requiredToolSequences?.[st.id] ? { requiredTools: valid.requiredToolSequences[st.id] } : {}),
           ...(opts.system ? { system: opts.system } : {}),
           ...(opts.maxSteps !== undefined ? { maxSteps: opts.maxSteps } : {}),
           ...(opts.memory ? { memory: opts.memory } : {}),
@@ -183,6 +200,7 @@ export async function executePlan(deps: ExecutorDeps, plan: Plan, opts: ExecuteO
               ...(opts.signal ? { signal: opts.signal } : {}),
             })
             if (r.stopReason !== 'done') reason = `stopped at ${r.stopReason} without finishing`
+            else if (!agent!.requiredToolsComplete) reason = `finished before attempting required tool sequence: ${agent!.requiredToolsRemaining.join(' -> ')}`
             else if (!r.finalText.trim()) reason = 'finished with an empty answer'
             else {
               ok = true
