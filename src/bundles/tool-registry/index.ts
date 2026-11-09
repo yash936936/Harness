@@ -136,7 +136,7 @@ export class ToolRegistry extends Service {
     let normalizedInput = input
     if (entry.def.normalizeInput) {
       try {
-        normalizedInput = entry.def.normalizeInput(input)
+        normalizedInput = entry.def.normalizeInput(structuredClone(input))
       } catch (e: any) {
         return fail('invalid_input', `Invalid input for tool "${name}": ${e?.message ?? String(e)}.`)
       }
