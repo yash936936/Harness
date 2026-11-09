@@ -140,7 +140,7 @@ describe('governed profile code path', () => {
       expect(result.ok).toBe(false)
       expect(prompts[0]).toContain('gateway.example.test')
       expect(prompts[0]).toContain('API key')
-      expect(output.join('\\n')).toContain('OPENROUTER_API_KEY to gateway.example.test')
+      expect(output.join('\n')).toContain('OPENROUTER_API_KEY to gateway.example.test')
     } finally {
       if (prior === undefined) delete process.env.OPENROUTER_API_KEY
       else process.env.OPENROUTER_API_KEY = prior
