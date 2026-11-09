@@ -114,7 +114,7 @@ describe('governed profile code path', () => {
       expect(result.ok).toBe(false)
       expect(result.reason).toContain('invalid OpenRouter endpoint')
       expect(prompts).toHaveLength(0)
-      expect(output.join('\\n')).toContain('expected an HTTPS URL')
+      expect(output.join('\n')).toContain('expected an HTTPS URL')
     } finally {
       if (prior === undefined) delete process.env.OPENROUTER_API_KEY
       else process.env.OPENROUTER_API_KEY = prior
