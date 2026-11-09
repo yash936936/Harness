@@ -427,6 +427,21 @@ describe('edit_file', () => {
 })
 
 describe('write_file', () => {
+  it('does not normalize string confidence outside edit_file', async () => {
+    const b = await boot({}, { approver: () => ({ approve: false }) })
+    const result = await b.call('write_file', {
+      path: 'ordinary.txt',
+      content: 'safe',
+      confidence: '0.95',
+    })
+    expect(result).toMatchObject({ ok: false, errorKind: 'denied' })
+    const decision = (await b.events('policy.decision'))[0]!.data as any
+    expect(decision.self).toBeNull()
+    expect(decision.reason).toMatch(/no valid self-reported confidence/)
+    expect((await b.events('tool.input.normalized')).length).toBe(0)
+    expect(existsSync(join(b.root, 'ordinary.txt'))).toBe(false)
+  })
+
   it('creates a new file and its folders; refuses to overwrite', async () => {
     const { root, call } = await boot()
     expect((await call('write_file', { path: 'new/deep/f.txt', content: 'hello' })).ok).toBe(true)
