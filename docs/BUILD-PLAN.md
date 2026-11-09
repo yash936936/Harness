@@ -1,3 +1,11 @@
+## 2026-11-09 S3 ordered tool execution follow-up
+
+The live trace after PR #24 exposed a separate orchestration gap: planner normalization preserved tool names in order, but the order was only advisory text to the worker. A small model called the second operation first and then returned malformed pseudo-tool JSON. The orchestrator accepted the non-empty text as a completed subtask despite no edit call.
+
+The current implementation branch carries an explicit required sequence to the sub-agent and enforces it in the tool registry before policy hooks. Calls with invalid input do not advance the sequence. A valid call attempt advances it even if a policy gate later denies the action, so the worker can proceed to the next requested attempt. A subtask cannot complete until every required call is attempted. Non-sequenced tasks retain the existing behavior where a failed tool result may be recovered from.
+
+Regression tests cover out-of-order recovery, missing required calls, pseudo-tool JSON, and normalized sequence metadata. CI has not yet run for this branch. S3 remains PARTIAL pending CI and a fresh owner-run `llama3.2:3b` acceptance session with edit normalization, package.json policy hold and explicit denial, credential-path hard denial, and unchanged package.json.
+
 ## 2026-11-09 S3 implementation and CI closeout
 
 PR #24 merged into `main` as `003447221a9434303b87e8f0166a9d36916a0a6f`. GitHub Actions run #339 passed on Windows and Ubuntu, including install, typecheck, lint, and the full test suite. The owner-provided Windows run reports 1,191 passed and 21 skipped. The real sandbox test was skipped.
