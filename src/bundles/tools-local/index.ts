@@ -16,7 +16,7 @@ import { confidenceProperty as strictConfidence } from '../policy-gates/index.js
 const confidenceProperty = {
   ...strictConfidence,
   type: ['number', 'string', 'null'],
-  description: 'Your confidence from 0 to 1. A numeric string such as "0.95" is normalized; invalid strings and null are untrusted and cause the policy gate to hold the write.',
+  description: 'Provide confidence from 0 to 1 as a JSON number. For edit_file only, a strict plain-decimal string is also normalized; other string values remain untrusted and cause the policy gate to hold the write.',
 } as const
 import type { ToolDefinition } from '../tool-registry/types.js'
 import { COMMAND_TOOL } from './risk.js'
