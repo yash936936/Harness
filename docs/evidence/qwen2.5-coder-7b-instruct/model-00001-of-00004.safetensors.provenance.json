@@ -1,0 +1,6 @@
+{
+  "model": "Qwen/Qwen2.5-Coder-7B-Instruct",
+  "revision": "7b148ce7a59a361780846419d31d271537addf81",
+  "source": "https://huggingface.co/Qwen/Qwen2.5-Coder-7B-Instruct/resolve/7b148ce7a59a361780846419d31d271537addf81/model-00001-of-00004.safetensors",
+  "sha256": "0b6f069918b07c064cbba8ae4f00f529aa9bbf84b7cdfcb7fc2694a40f6aa8ef"
+}
