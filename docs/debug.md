@@ -1,12 +1,27 @@
+## DBG-095 — S3 live-model acceptance evidence and PR #27 merge — 2026-11-10
+
+**PR #27 merged:** `045b923074fe8db7b6eb1a5ae777ab2ec197f0b1`. PR-head CI run #362 passed on Windows and Ubuntu. The connector returned no workflow runs or combined status for the merge commit itself; post-merge CI remains unverified.
+
+**Owner-run live trace:** session `9b2efe92-af24-4d16-a9ac-f755c9a0b69c`, using `llama3.2:3b`, Ollama, `--sandbox none`, and `--text-tool-calls`.
+- The worker attempted `edit_file(package.json)` followed by `read_file(.env.production)`; required tool order was observed.
+- The edit call used snake_case `old_string` / `new_string` and string `confidence: "0.95"`. No `tool.input.normalized` event was emitted.
+- The policy decision was `hold`; path-criticality signal was 0.5, but the reason was invalid self-reported confidence. This does not establish a path-criticality-caused hold.
+- Terminal approval was denied. The subsequent credential read was hard-denied by `credential-path`, with no approval request. The session metadata shows the read attempt and denial.
+- The owner confirmed `git diff --exit-code -- package.json` was clean. No credential contents were included in the output.
+
+**Validation boundary:** the focused normalization and governed CLI tests passed; the broader filtered normalization run passed 10 tests, 1,206 skipped, 0 failed. Scripted tests verify the normalizer and path-criticality hold. The live model still does not emit the required camelCase keys and numeric confidence, even when given explicit JSON examples.
+
+**Disposition: S3 PARTIAL.** Scripted normalization/policy behavior and live approval denial/credential hard-denial are verified. Live normalization and a hold caused by the path-criticality threshold remain unverified. Stop repeating prompt-only attempts with `llama3.2:3b`. The live session JSONL is retained in the owner's acceptance worktree at `.harness/sessions/9b2efe92-af24-4d16-a9ac-f755c9a0b69c.jsonl`.
+
 ## DBG-095 — enforce required tool order and reject false completion — 2026-11-09
 
 **Found:** the live `llama3.2:3b` trace called `read_file(.env.production)` before the explicitly requested `edit_file(package.json)`. The credential-path denial worked, but the worker then printed malformed pseudo-tool JSON as plain text. The agent loop recorded no edit call, and the orchestrator accepted the non-empty final answer as completed. This was a real execution-contract gap, not a failure in edit-input normalization.
 
 **Fixed in PR #26 (merged):** explicit-tool normalization now records an ordered required sequence. Sub-agent runs carry that sequence to the tool registry. The registry enforces the next tool after input normalization and schema validation but before policy hooks, preventing out-of-order calls from reaching approval or execution. Valid attempts advance the sequence even when a later policy gate denies them, so subsequent explicitly requested attempts can proceed. The executor refuses to mark the subtask completed when the model ends before all required calls have been attempted. Ordinary subtasks retain the existing recoverable-tool-error behavior.
 
-**Regression coverage added:** out-of-order call is denied and the model can recover in the required order; a policy-denied valid attempt advances the sequence; a final text response containing pseudo-tool JSON cannot satisfy required calls; planner normalization retains the sequence metadata. PR #26 merged as `8f34917d01f7d4d102713cb590d67ec078fb6ad6`. CI run #344 passed on Windows and Ubuntu at the PR head, and post-merge run #345 passed on both platforms. PR #27 adds defensive validation for malformed sequence state, safe handling of special subtask IDs, and the governed CLI's opt-in Ollama text-tool-call recovery. CI run #360 passed on Windows and Ubuntu, including the end-to-end acceptance regression; PR #27 is open and not yet merged. The credential-path hard-deny implementation is unchanged.
+**Regression coverage added:** out-of-order call is denied and the model can recover in the required order; a policy-denied valid attempt advances the sequence; a final text response containing pseudo-tool JSON cannot satisfy required calls; planner normalization retains the sequence metadata. PR #26 merged as `8f34917d01f7d4d102713cb590d67ec078fb6ad6`. CI run #344 passed on Windows and Ubuntu at the PR head, and post-merge run #345 passed on both platforms. PR #27 adds defensive validation for malformed sequence state, safe handling of special subtask IDs, and the governed CLI's opt-in Ollama text-tool-call recovery. CI run #360 passed on Windows and Ubuntu, including the end-to-end acceptance regression; PR #27 subsequently merged as `045b923074fe8db7b6eb1a5ae777ab2ec197f0b1`; PR-head CI run #362 passed on Windows and Ubuntu. Merge-commit CI is unverified. The credential-path hard-deny implementation is unchanged.
 
-**Live acceptance still required:** rerun with the installed `llama3.2:3b` model using the governed CLI's opt-in `--text-tool-calls` flag, which enables the provider's strict JSON/JSONL tool-call recovery for tools offered in that request. Verify `edit_file` reaches normalization and policy hold, explicit approval denial is logged, and the subsequent `.env.production` attempt is hard-denied without an approval request. Confirm `package.json` remains unchanged. S3 remains PARTIAL.
+**Live acceptance update (2026-11-10):** the owner supplied a post-merge `llama3.2:3b` session using `--text-tool-calls`. Tool order, terminal denial, credential-path hard denial, and unchanged manifest were verified. The model still emitted snake_case edit keys and string confidence, so normalization was not reached and the hold reason was invalid confidence. See DBG-095. S3 remains PARTIAL.
 
 ## DBG-087 — guide planner tool choice for explicit file paths — 2026-11-09
 
