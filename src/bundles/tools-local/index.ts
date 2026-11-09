@@ -16,7 +16,7 @@ import { confidenceProperty as strictConfidence } from '../policy-gates/index.js
 const confidenceProperty = {
   ...strictConfidence,
   type: ['number', 'string', 'null'],
-  description: 'Provide confidence from 0 to 1 as a JSON number. For edit_file only, a strict plain-decimal string is also normalized; other string values remain untrusted and cause the policy gate to hold the write.',
+  description: 'Use the exact confidence value requested by the user as a JSON number. Example: if the user requests 0.95, send 0.95 (not 0 and not a quoted string). Do not default or guess. For edit_file only, a strict plain-decimal string is also normalized; other string values remain untrusted and cause the policy gate to hold the write.',
 } as const
 import type { ToolDefinition } from '../tool-registry/types.js'
 import { COMMAND_TOOL } from './risk.js'
@@ -269,7 +269,7 @@ export class LocalTools extends Service {
       description:
         'Change an existing file by replacing one exact piece of text. Use path, old_string and new_string; the oldString/newString camelCase spellings are also normalized for small-model compatibility. ' +
         'old_string must appear in the file EXACTLY ONCE, including whitespace and indentation: read the file first and include enough surrounding lines to make it unique. ' +
-        'new_string replaces it (empty new_string deletes it). confidence must be a JSON number, not a quoted string. To make a new file use write_file. This changes the real project, so it may be held for approval.',
+        'new_string replaces it (empty new_string deletes it). confidence must be the exact value requested by the user, encoded as a JSON number (for example, use 0.95, not "0.95" or 0). Never replace a requested confidence with a default or guessed value. To make a new file use write_file. This changes the real project, so it may be held for approval.',
       actionClass: 'real-fs-write',
       normalizeInput: normalizeEditInput,
       inputSchema: {
