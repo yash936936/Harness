@@ -18,6 +18,8 @@ export interface CodeTaskOptions {
   baseUrl?: string
   /** Per-model inference timeout in milliseconds. Ollama defaults to 120 seconds. */
   timeoutMs?: number
+  /** Opt in to strict recovery of JSON tool calls emitted as Ollama text. */
+  textToolCalls?: boolean
   sandbox?: 'auto' | 'none'
   dockerAvailable?: boolean
 }
@@ -118,6 +120,7 @@ export async function runCodeTask(io: WizardIO, options: CodeTaskOptions): Promi
           model: options.model,
           ...(options.baseUrl ? { baseUrl: options.baseUrl } : {}),
           ...(options.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}),
+          ...(options.textToolCalls === true ? { textToolCalls: true } : {}),
         },
         default: 'ollama',
       }
