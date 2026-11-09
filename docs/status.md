@@ -2,7 +2,7 @@
 
 - PR #30 merged as `6076ba986ace29484aae958d91784e0b0bf2604f`. GitHub Actions run #370 passed on Ubuntu and Windows. The change updates the confidence-normalization regression and documentation only; no runtime policy changed.
 - S3 implementation and scripted coverage are CI-green, but live acceptance remains PARTIAL. The previous owner-run session still lacks a `tool.input.normalized` event and a live path-criticality-caused hold. Do not infer those from CI.
-- S5: added a retained MIT notice for `json-bignum@0.0.3` at `THIRD_PARTY_NOTICES/json-bignum-MIT.txt`. The lockfile still marks its license metadata UNDECLARED; upstream repository LICENSE and independent package metadata identify MIT. The exact 0.0.3 tag-specific license and actual release artifact contents remain unverified. Qwen 7B immutable revision and per-file hashes remain outstanding.
+- S5: added a retained MIT notice for `json-bignum@0.0.3` at `THIRD_PARTY_NOTICES/json-bignum-MIT.txt`. The lockfile still marks its license metadata UNDECLARED; upstream repository LICENSE and independent package metadata identify MIT. Exact 0.0.3 tag-specific license and actual release artifact contents remain unverified. Qwen 7B is now pinned to Hugging Face commit `7b148ce7a59a361780846419d31d271537addf81`; upstream SHA-256 values for all four Safetensors shards and per-file provenance manifests are recorded under `docs/evidence/qwen2.5-coder-7b-instruct/`. No local model files have been downloaded or verified yet.
 - S0 remains PENDING-ENVIRONMENT; S1 real acceptance depends on S0. S4 live provider acceptance, S6 human-labelled evaluation, and S7 real embedding/poisoning acceptance remain open.
 
 ## 2026-11-10 S3 confidence regression test correction (CI pending)
