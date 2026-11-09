@@ -87,18 +87,21 @@ export function normalizeExplicitToolPlan(
   const hasExactPath = /(?:^|[\s"'\x60])(?:\.{0,2}[\/])?[\w.-]+(?:[\/][\w.-]+)*\.[A-Za-z0-9]{1,12}(?=$|[\s"'\x60,;:])/m.test(task)
   if (!hasExactPath) return { plan, adjusted: false, requestedTools: [] }
 
-  const requestedTools = offered.filter((name) => {
+  const mentions = offered.flatMap((name) => {
     let at = task.indexOf(name)
     while (at >= 0) {
       const before = task.slice(Math.max(0, at - 48), at)
-      const explicit = /\b(?:use|using|call|calling|invoke|invoking|attempt|attempting)\s+(?:the\s+)?$/i.test(before)
+      const after = task[at + name.length]
+      const beforeChar = task[at - 1]
+      const tokenBoundary = (!beforeChar || !/[A-Za-z0-9_]/.test(beforeChar)) && (!after || !/[A-Za-z0-9_]/.test(after))
+      const explicit = tokenBoundary && /\b(?:use|using|call|calling|invoke|invoking|attempt|attempting)\s+(?:the\s+)?$/i.test(before)
       const negated = /\b(?:do\s+not|don't|never|must\s+not|avoid)\s+(?:use|call|invoke|attempt)\s+(?:the\s+)?$/i.test(before)
-      if (explicit && !negated) return true
+      if (explicit && !negated) return [{ name, at }]
       at = task.indexOf(name, at + name.length)
     }
-    return false
-  })
-
+    return []
+  }).sort((a, b) => a.at - b.at)
+  const requestedTools = mentions.map((mention) => mention.name)
   const uniqueTools = [...new Set(requestedTools)]
   if (!uniqueTools.length || uniqueTools.length > limits.maxToolsPerSubtask) {
     return { plan, adjusted: false, requestedTools: uniqueTools }
