@@ -16,7 +16,7 @@ const toolCall = (name: string): Resp => ({ toolCalls: [{ id: 'c1', name, input:
 /** Per-subtask scripted model: answers for subtask `id` come from its queue, the last one repeating. Default `answer-<id>`. */
 function model(script: Record<string, Resp[]> = {}, hook?: () => void) {
   const queues = new Map(Object.entries(script).map(([k, v]) => [k, [...v]]))
-  const prompts: Record<string, string[]> = {}
+  const prompts: Record<string, string[]> = Object.create(null)
   const fn = (req: { messages: { content: unknown }[] }) => {
     hook?.()
     const p = String(req.messages[0]!.content)
