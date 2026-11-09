@@ -108,6 +108,21 @@ describe('executor: the happy path', () => {
     expect(events.find((e) => e.type === 'tool.result' && (e.data as any).name === 'read')?.data).toMatchObject({ ok: true })
   })
 
+  it('validates required sequences safely for special but valid subtask IDs', async () => {
+    const id = '__proto__'
+    const script = Object.fromEntries([[id, [toolCall('edit'), text('edit attempted')]]]) as Record<string, Resp[]>
+    const plan: Plan = {
+      task: 'attempt edit',
+      subtasks: [sub(id, 'attempt edit', ['edit'])],
+      requiredToolSequences: Object.fromEntries([[id, ['edit']]]),
+    }
+    const { ctx, ran } = await boot(script)
+    const r = await ctx.orchestrator.execute(plan, opts({ allowedTools: ['edit'] }))
+    expect(r.status).toBe('completed')
+    expect(r.subtasks[0]!.id).toBe(id)
+    expect(ran).toEqual(['edit'])
+  })
+
   it('does not mark a required-tool subtask complete when the model only prints pseudo tool-call JSON', async () => {
     const plan: Plan = {
       task: 'edit then read',
