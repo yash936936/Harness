@@ -1,7 +1,7 @@
 ## 2026-11-10 continuation update
 
 - PR #30 is merged to main as `6076ba986ace29484aae958d91784e0b0bf2604f`; CI run #370 passed on Ubuntu and Windows. This closes the cross-platform CI regression only.
-- S5 notice follow-up: retain `THIRD_PARTY_NOTICES/json-bignum-MIT.txt`. The lockfile metadata remains UNDECLARED for `json-bignum@0.0.3`; upstream LICENSE and independent package metadata identify MIT. Exact release-tag license provenance and the built package's shipped notice set still need verification. Qwen 7B immutable revision and per-file artifact hashes remain outstanding.
+- S5 notice follow-up: retain `THIRD_PARTY_NOTICES/json-bignum-MIT.txt`. The lockfile metadata remains UNDECLARED for `json-bignum@0.0.3`; upstream LICENSE and independent package metadata identify MIT. Exact release-tag license provenance and the built package's shipped notice set still need verification. Qwen 7B is pinned to Hugging Face commit `7b148ce7a59a361780846419d31d271537addf81`; upstream hashes for all four Safetensors shards and per-file provenance manifests are recorded in `docs/evidence/qwen2.5-coder-7b-instruct/`. Owner must download and verify every shard locally; tokenizer/configuration files and model notices also need a full artifact inventory.
 - S3 remains PARTIAL pending owner-run live evidence of normalized input and a package.json hold caused by path-criticality. Do not claim CI as live acceptance.
 - S0 remains PENDING-ENVIRONMENT; no new Docker/Crabbox run was performed. S1 remains dependent on S0.
 
