@@ -1710,3 +1710,12 @@ This is deterministic scripted acceptance coverage, not a live Ollama run. S3 re
 **Regression coverage added:** Registry-level normalization ordering, raw/canonical audit events, and fail-closed normalizer errors; local-tool integration proving camelCase input reaches the package.json path-criticality hold (0.5 versus threshold 0.8), records approval pending and denial, and leaves the file unchanged. Additional tests cover conflicting aliases and string confidence remaining held.
 
 **Validation boundary:** Changes are on `fix/s3-edit-argument-normalization-2026-11-09`, based on main `c1d2be645ff34a9e2e4bd1db0a95a8dc827e776b`. CI and the owner's live Ollama acceptance have not yet run. S3 remains PARTIAL until both CI and the live session evidence pass. The existing `.env.production` credential-path hard denial is unchanged.
+
+
+## DBG-094 — S3 edit argument normalization merged and CI-verified — 2026-11-09
+
+**Merged:** PR #24 merged into `main` as `003447221a9434303b87e8f0166a9d36916a0a6f`. It adds a fail-closed, opt-in tool input normalizer that runs before strict schema validation. For `edit_file`, only `oldString` and `newString` are mapped to the canonical snake_case keys. Conflicting spellings are rejected, unknown keys remain subject to the strict schema, and confidence strings are not coerced.
+
+**CI:** GitHub Actions run #339 passed on both Windows and Ubuntu. Each job completed `npm ci`, `npm run typecheck`, `npm run lint`, and `npm test`. The owner's Windows output reports 56 files passed / 1 skipped and 1,191 tests passed / 21 skipped. The opt-in real sandbox test was skipped.
+
+**Remaining live acceptance:** no post-merge Ollama session has yet been supplied. S3 remains PARTIAL until a real `llama3.2:3b` session records the normalized edit input, package.json path-criticality hold, terminal approval denial, and `.env.production` hard denial, with the package manifest unchanged. Do not treat CI or scripted provider tests as live-model evidence.

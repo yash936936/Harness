@@ -1,3 +1,12 @@
+## 2026-11-09 S3 CI closeout after PR #24 merge
+
+- PR #24 (`fix: normalize small-model edit arguments before policy`) merged into `main` as `003447221a9434303b87e8f0166a9d36916a0a6f`.
+- GitHub Actions run #339 passed both `windows-latest` and `ubuntu-latest`: `npm ci`, typecheck, lint, and the full Vitest suite.
+- Owner-provided Windows output independently reports 56 test files passed, 1 skipped; 1,191 tests passed, 21 skipped (1,212 total). The real sandbox test was skipped.
+- The merged regressions cover edit-key normalization, strict rejection of conflicting aliases/unknown keys, package.json path-criticality hold (0.5 below 0.8), approval denial, unchanged file, and string confidence remaining untrusted.
+- **Still open:** live `llama3.2:3b` acceptance after the merge. Preserve a real session JSONL showing a valid `edit_file` call, `tool.input.normalized`, `policy.decision: hold` for package.json, `approval.pending`, terminal `approval.resolved: denied`, and `.env.production` denied by `credential-path` without an approval request. Confirm `git diff -- package.json` is empty.
+- S3 remains PARTIAL until that live evidence is reviewed. CI and scripted tests do not substitute for the live run. The existing S0 pause is unchanged.
+
 ## 2026-11-09 S3 edit argument normalization follow-up (DBG-093)
 
 - Reproduced the live small-model failure: `edit_file` received camelCase `oldString` / `newString`, so strict schema validation rejected the call before policy.

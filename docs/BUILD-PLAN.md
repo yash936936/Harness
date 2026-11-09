@@ -1,6 +1,10 @@
-## 2026-11-09 S3 implementation follow-up
+## 2026-11-09 S3 implementation and CI closeout
 
-The live acceptance attempt exposed an argument-shape mismatch: `llama3.2:3b` emitted camelCase edit keys, while the strict tool schema requires snake_case. The current fix branch adds an audited, fail-closed normalization step before schema validation and policy. It does not coerce string confidence into a trusted number. Regression coverage targets the required package.json hold and terminal denial. This is implementation work only; S3 remains open until CI passes and the owner records the live Ollama session with a valid policy hold, approval denial, unchanged package.json, and `.env.production` hard denial.
+PR #24 merged into `main` as `003447221a9434303b87e8f0166a9d36916a0a6f`. GitHub Actions run #339 passed on Windows and Ubuntu, including install, typecheck, lint, and the full test suite. The owner-provided Windows run reports 1,191 passed and 21 skipped. The real sandbox test was skipped.
+
+The edit argument normalizer is now on main. It maps only `oldString` / `newString` to `old_string` / `new_string` before strict schema validation, logs the canonical input separately, and sends the same canonical value through policy and execution. It does not convert string confidence to a number.
+
+**S3 is still PARTIAL.** The remaining gate is a post-merge live run with the installed `llama3.2:3b` model. Required evidence: a valid `edit_file` call and `tool.input.normalized`; package.json path-criticality `hold` (0.5 vs 0.8); terminal approval request and explicit denial; `.env.production` hard-denied by `credential-path` without approval; and an empty `git diff -- package.json`. Do not infer this from CI.
 
 # Harness build plan and testing guide
 
