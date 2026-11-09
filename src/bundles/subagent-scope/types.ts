@@ -30,7 +30,7 @@ export interface SubAgent {
   readonly id: string
   readonly actor: string
   readonly tools: readonly string[]
-  /** True when every required tool-call attempt reached the sub-agent scope guard. */
+  /** True when every required tool-call attempt passed the registry sequence gate. */
   readonly requiredToolsComplete: boolean
   /** Required tool-call attempts that have not yet reached the scope guard. */
   readonly requiredToolsRemaining: readonly string[]
