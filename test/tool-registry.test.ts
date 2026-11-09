@@ -98,6 +98,46 @@ describe('bundle-tool-registry', () => {
     expect(specs[0]).toMatchObject({ name: 'echo', description: 'echo the text' })
   })
 
+  it('normalizes model input before strict validation, policy hooks, and execution', async () => {
+    const ctx = await boot()
+    let policyInput: unknown
+    let executed: unknown
+    ctx.tools.register(tool({
+      normalizeInput: (input: unknown) => {
+        const value = input as Record<string, unknown>
+        const out = { ...value, text: value.text ?? value.message }
+        delete (out as any).message
+        return out
+      },
+      execute: (input: unknown) => (executed = input, (input as any).text),
+    }))
+    ctx.on('tools/pre-execute', (ev) => { policyInput = ev.input })
+    const result = await ctx.tools.call('echo', { message: 'from-model' }, S)
+    expect(result).toEqual({ ok: true, content: 'from-model' })
+    expect(policyInput).toEqual({ text: 'from-model' })
+    expect(executed).toEqual({ text: 'from-model' })
+    const log = await ctx.log.read('s')
+    expect(log[0]!.data).toMatchObject({ name: 'echo', input: { message: 'from-model' } })
+    expect(log.map((e) => e.type)).toEqual(['tool.call', 'tool.input.normalized', 'tool.result'])
+    expect(log[1]!.data).toMatchObject({ name: 'echo', input: { text: 'from-model' } })
+  })
+
+  it('normalizer errors fail closed before policy or execution', async () => {
+    const ctx = await boot()
+    let policyCalls = 0
+    let executions = 0
+    ctx.tools.register(tool({
+      normalizeInput: () => { throw new Error('ambiguous aliases') },
+      execute: () => (executions++, 'ran'),
+    }))
+    ctx.on('tools/pre-execute', () => { policyCalls++ })
+    const result = await ctx.tools.call('echo', { text: 'x' }, S)
+    expect(result).toMatchObject({ ok: false, errorKind: 'invalid_input' })
+    expect(result.content).toContain('ambiguous aliases')
+    expect(policyCalls).toBe(0)
+    expect(executions).toBe(0)
+  })
+
   it('unknown tool / bad input / throwing tool come back as ok:false, never throw', async () => {
     const ctx = await boot()
     let ran = 0
