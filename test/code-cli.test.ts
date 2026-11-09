@@ -258,7 +258,7 @@ describe('governed CLI policy acceptance', () => {
         dockerAvailable: false,
       })
 
-      expect(result.ok).toBe(true)
+      expect(result.ok, output.join('\n')).toBe(true)
       expect(requests.length).toBeGreaterThanOrEqual(2)
       const offeredToolNames = requests.flatMap((request) => (request.tools ?? []).map((tool) => (tool as { function?: { name?: string } }).function?.name))
       expect(offeredToolNames).toContain('edit_file')
