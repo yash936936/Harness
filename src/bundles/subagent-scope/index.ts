@@ -112,7 +112,7 @@ export class SubagentScope extends Service {
       }
     }
     if (spec.requiredTools !== undefined) {
-      if (!Array.isArray(spec.requiredTools) || spec.requiredTools.some((name) => typeof name !== 'string' || !grant.includes(name))) {
+      if (!Array.isArray(spec.requiredTools) || spec.requiredTools.length === 0 || spec.requiredTools.some((name) => typeof name !== 'string' || !grant.includes(name))) {
         throw new ScopeError(`sub-agent "${spec.id}": requiredTools must be an ordered list contained in its tool grant`)
       }
     }
