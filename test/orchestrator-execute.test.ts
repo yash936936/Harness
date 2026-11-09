@@ -3,7 +3,7 @@ import { Context } from 'cordis'
 import { describe, expect, it } from 'vitest'
 import { SessionLog } from '../src/bundles/session-log/index.js'
 import { EgressPolicy } from '../src/bundles/egress/index.js'
-import { ToolRegistry, type ToolDefinition } from '../src/bundles/tool-registry/index.js'
+import { ToolDeniedError, ToolRegistry, type ToolDefinition } from '../src/bundles/tool-registry/index.js'
 import { LLMService, MockProvider } from '../src/bundles/model-adapter/index.js'
 import { AgentLoop } from '../src/bundles/agent-loop/index.js'
 import { Orchestrator, OrchestratorError, type ExecuteOptions, type Plan } from '../src/bundles/orchestrator/index.js'
@@ -86,6 +86,26 @@ describe('executor: the happy path', () => {
     const denied = events.filter((e) => e.type === 'tool.result' && (e.data as any).ok === false)
     expect(denied).toHaveLength(1)
     expect((denied[0]!.data as any).content).toContain('expected "edit"')
+  })
+
+  it('advances the required sequence when a policy hook denies a valid tool attempt', async () => {
+    const plan: Plan = {
+      task: 'attempt edit then read',
+      subtasks: [sub('s1', 'attempt both operations', ['edit', 'read'])],
+      requiredToolSequences: { s1: ['edit', 'read'] },
+    }
+    const { ctx, ran } = await boot({
+      s1: [toolCall('edit'), toolCall('read'), text('both attempts completed')],
+    })
+    ctx.on('tools/pre-execute', (ev) => {
+      if (ev.tool.name === 'edit') throw new ToolDeniedError('simulated approval denial')
+    })
+    const r = await ctx.orchestrator.execute(plan, opts({ allowedTools: ['edit', 'read'] }))
+    expect(r.status).toBe('completed')
+    expect(ran).toEqual(['read'])
+    const events = await ctx.log.read('s')
+    expect(events.find((e) => e.type === 'tool.result' && (e.data as any).name === 'edit')?.data).toMatchObject({ ok: false })
+    expect(events.find((e) => e.type === 'tool.result' && (e.data as any).name === 'read')?.data).toMatchObject({ ok: true })
   })
 
   it('does not mark a required-tool subtask complete when the model only prints pseudo tool-call JSON', async () => {
