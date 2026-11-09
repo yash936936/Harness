@@ -224,7 +224,7 @@ describe('governed CLI policy acceptance', () => {
                     },
                   }),
                   JSON.stringify({ name: 'read_file', parameters: { path: '.env.production' } }),
-                ].join('\\n'),
+                ].join('\n'),
               },
             }
       return new Response(JSON.stringify(payload), {
