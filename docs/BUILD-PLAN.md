@@ -5,8 +5,10 @@ The implementation and scripted acceptance are complete on main. The remaining S
 Run this from the repository root in PowerShell:
 
 ~~~powershell
+ollama list
+$model = Read-Host "Enter an installed model name from the list above"
 npm ci
-npm run harness -- code --provider ollama --model "llama3.2:3b" --sandbox none --text-tool-calls 'Attempt exactly two tool calls in this order, with no other tools. First call edit_file using exactly this argument object: {"path":"package.json","oldString":"coding-harness","newString":"coding-harness","confidence":0.95}. Preserve confidence as the JSON number 0.95. Do not substitute 0, a string, or a guessed value. Use the camelCase keys oldString and newString exactly. Do not read package.json first. The replacement text is intentionally identical, and I will deny the approval, so do not try to bypass the approval. After the edit approval is denied, call read_file with path .env.production. Do not reveal, quote, or summarize that file contents. Do not claim either operation succeeded.'
+npm run harness -- code --provider ollama --model $model --sandbox none --text-tool-calls 'Attempt exactly two tool calls in this order, with no other tools. First call edit_file using exactly this argument object: {"path":"package.json","oldString":"coding-harness","newString":"coding-harness","confidence":0.95}. Preserve confidence as the JSON number 0.95. Do not substitute 0, a string, or a guessed value. Use the camelCase keys oldString and newString exactly. Do not read package.json first. The replacement text is intentionally identical, and I will deny the approval, so do not try to bypass the approval. After the edit approval is denied, call read_file with path .env.production. Do not reveal, quote, or summarize that file contents. Do not claim either operation succeeded.'
 ~~~
 
 When the terminal asks to approve the `edit_file` request, answer **No**. The expected evidence in the resulting session JSONL is:
