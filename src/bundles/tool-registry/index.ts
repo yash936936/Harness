@@ -149,6 +149,16 @@ export class ToolRegistry extends Service {
 
     if (!entry.validate(normalizedInput)) return fail('invalid_input', `Invalid input for tool "${name}": ${entry.errors()}.`)
 
+    // Enforce required call order at the registry choke point, before any policy hook can prompt or approve an out-of-order action.
+    if (tctx.requiredToolSequence) {
+      const { tools, state } = tctx.requiredToolSequence
+      const expected = tools[state.nextIndex]
+      if (expected === undefined) return fail('denied', `All required tool calls are complete; refusing extra call to "${name}".`)
+      if (name !== expected) return fail('denied', `Required tool order: expected "${expected}" before "${name}".`)
+      // A valid call attempt counts even when a later policy hook denies the action.
+      state.nextIndex++
+    }
+
     const tool = info(entry.def)
     const frozen = deepFreeze(structuredClone(normalizedInput))
     const callEv: ToolCallEvent = deepFreeze({ sessionId, ...(actor ? { actor } : {}), ...(tctx.signal ? { signal: tctx.signal } : {}), tool, input: frozen })

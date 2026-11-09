@@ -1,3 +1,12 @@
+## 2026-11-09 S3 required tool-order enforcement implementation
+
+- The latest live `llama3.2:3b` trace showed that the explicit sequence was only included in planner text. The worker called `read_file` before `edit_file`, then printed pseudo-JSON instead of issuing a tool call. No edit normalization or write approval event occurred.
+- The orchestrator previously treated any non-empty final answer as subtask completion. This allowed a model to claim completion without attempting the required operations.
+- The implementation branch now carries a required ordered tool-call sequence from explicit-tool normalization into the sub-agent. The tool registry checks the next required tool after input normalization/schema validation and before policy hooks, so out-of-order calls cannot trigger approval or execute. A policy denial still counts as an attempted operation, allowing the next explicitly requested operation to be attempted.
+- The executor now fails a required-sequence subtask if the model returns without attempting every required tool. Ordinary subtasks without a required sequence retain existing recovery behavior.
+- Added scripted regressions for out-of-order recovery, sequence enforcement, missing tool calls, and pseudo-tool JSON. CI and local test execution are still pending; this is implementation evidence only.
+- S3 remains PARTIAL until CI passes and a fresh `llama3.2:3b` session proves valid `edit_file` normalization, the package.json policy hold and terminal denial, and the `.env.production` credential hard deny. Do not claim live acceptance from these source changes.
+
 ## 2026-11-09 S3 CI closeout after PR #24 merge
 
 - PR #24 (`fix: normalize small-model edit arguments before policy`) merged into `main` as `003447221a9434303b87e8f0166a9d36916a0a6f`.

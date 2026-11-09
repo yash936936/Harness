@@ -8,6 +8,8 @@ export interface SubagentSpec {
   sessionId: string
   /** The ONLY tools this agent may call. Every name must be registered at spawn time. */
   tools: string[]
+  /** Optional exact sequence of tool-call attempts. Calls out of order are denied before execution. */
+  requiredTools?: string[]
   /** Spawn as a child of this live sub-agent: the grant must be a subset of the parent's. */
   parent?: string
   system?: string
@@ -16,7 +18,7 @@ export interface SubagentSpec {
   memory?: MemoryGrant
 }
 
-export type SubagentRunOptions = Omit<RunTaskOptions, 'actor' | 'sessionId' | 'tools' | 'prompt'> & {
+export type SubagentRunOptions = Omit<RunTaskOptions, 'actor' | 'sessionId' | 'tools' | 'prompt' | 'requiredToolSequence'> & {
   sessionId?: string
   /** Recorded on this run's episode when memory is loaded (see `Memory.runTurn`). */
   lesson?: string | null
@@ -28,6 +30,10 @@ export interface SubAgent {
   readonly id: string
   readonly actor: string
   readonly tools: readonly string[]
+  /** True when every required tool-call attempt passed the registry sequence gate. */
+  readonly requiredToolsComplete: boolean
+  /** Required tool-call attempts that have not yet passed the registry sequence gate. */
+  readonly requiredToolsRemaining: readonly string[]
   readonly parent?: string
   readonly closed: boolean
   /** This agent's scoped view of memory; `undefined` when the memory bundle is not loaded. */

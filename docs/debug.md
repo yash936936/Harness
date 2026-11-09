@@ -1,3 +1,13 @@
+## DBG-095 — enforce required tool order and reject false completion — 2026-11-09
+
+**Found:** the live `llama3.2:3b` trace called `read_file(.env.production)` before the explicitly requested `edit_file(package.json)`. The credential-path denial worked, but the worker then printed malformed pseudo-tool JSON as plain text. The agent loop recorded no edit call, and the orchestrator accepted the non-empty final answer as completed. This was a real execution-contract gap, not a failure in edit-input normalization.
+
+**Fixed in the implementation branch:** explicit-tool normalization now records an ordered required sequence. Sub-agent runs carry that sequence to the tool registry. The registry enforces the next tool after input normalization and schema validation but before policy hooks, preventing out-of-order calls from reaching approval or execution. Valid attempts advance the sequence even when a later policy gate denies them, so subsequent explicitly requested attempts can proceed. The executor refuses to mark the subtask completed when the model ends before all required calls have been attempted. Ordinary subtasks retain the existing recoverable-tool-error behavior.
+
+**Regression coverage added:** out-of-order call is denied and the model can recover in the required order; a final text response containing pseudo-tool JSON cannot satisfy required calls; planner normalization retains the sequence metadata. CI and live acceptance are pending. The credential-path hard-deny implementation is unchanged.
+
+**Acceptance still required:** pass CI, then rerun with the installed `llama3.2:3b` model. Verify `edit_file` reaches normalization and policy hold, explicit approval denial is logged, and the subsequent `.env.production` attempt is hard-denied without an approval request. Confirm `package.json` remains unchanged. S3 remains PARTIAL.
+
 ## DBG-087 — guide planner tool choice for explicit file paths — 2026-11-09
 
 **Found:** an owner-run Ollama acceptance attempt with `llama3.2:3b` produced a valid one-subtask plan that selected `search_code` for the explicit path `package.json`. The worker then supplied an empty `path`, which failed input validation. No `edit_file` call, policy decision, or approval event occurred. A later attempt selected `edit_file` but used the wrong argument shape (`file`, `mode`, `content`) and was rejected because required property `path` was missing. The worker then falsely claimed the edit succeeded; the manifest remained unchanged.

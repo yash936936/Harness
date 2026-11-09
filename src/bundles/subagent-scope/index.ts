@@ -3,7 +3,7 @@ import '../session-log/index.js'
 import '../tool-registry/index.js'
 import '../agent-loop/index.js'
 import '../memory/index.js'
-import { ToolDeniedError, type ToolCallEvent } from '../tool-registry/index.js'
+import { ToolDeniedError, type RequiredToolSequence, type ToolCallEvent } from '../tool-registry/index.js'
 import { ScopeError, type SubAgent, type SubagentRunOptions, type SubagentSpec } from './types.js'
 
 export * from './types.js'
@@ -24,6 +24,7 @@ interface Scope {
   parent?: string
   sessionId: string
   closed: boolean
+  requiredToolSequence?: RequiredToolSequence
 }
 
 /**
@@ -110,7 +111,12 @@ export class SubagentScope extends Service {
         if (!p.tools.has(t)) throw new ScopeError(`sub-agent "${spec.id}": tool "${t}" is not in parent "${spec.parent}"'s grant (a child cannot widen it)`)
       }
     }
-    const scope: Scope = { id: spec.id, actor: PREFIX + spec.id, tools: new Set(grant), ...(spec.parent !== undefined ? { parent: spec.parent } : {}), sessionId: spec.sessionId, closed: false }
+    if (spec.requiredTools !== undefined) {
+      if (!Array.isArray(spec.requiredTools) || spec.requiredTools.length === 0 || spec.requiredTools.some((name) => typeof name !== 'string' || !grant.includes(name))) {
+        throw new ScopeError(`sub-agent "${spec.id}": requiredTools must be an ordered list contained in its tool grant`)
+      }
+    }
+    const scope: Scope = { id: spec.id, actor: PREFIX + spec.id, tools: new Set(grant), ...(spec.requiredTools !== undefined ? { requiredToolSequence: { tools: [...spec.requiredTools], state: { nextIndex: 0 } } } : {}), ...(spec.parent !== undefined ? { parent: spec.parent } : {}), sessionId: spec.sessionId, closed: false }
     // Log first: a spawn that cannot be recorded must not exist.
     await this.ctx.log.append(spec.sessionId, 'subagent.spawn', { id: spec.id, tools: grant, parent: spec.parent ?? null }, 'subagent-scope')
     this.scopes.set(spec.id, scope)
@@ -128,6 +134,12 @@ export class SubagentScope extends Service {
       id: scope.id,
       actor: scope.actor,
       tools: [...scope.tools],
+      get requiredToolsComplete() {
+        return scope.requiredToolSequence === undefined || scope.requiredToolSequence.state.nextIndex >= scope.requiredToolSequence.tools.length
+      },
+      get requiredToolsRemaining() {
+        return scope.requiredToolSequence?.tools.slice(scope.requiredToolSequence.state.nextIndex) ?? []
+      },
       ...(scope.parent !== undefined ? { parent: scope.parent } : {}),
       get closed() {
         return !self.alive(scope)
@@ -148,6 +160,7 @@ export class SubagentScope extends Service {
           actor: scope.actor,
           prompt,
           tools,
+          ...(scope.requiredToolSequence ? { requiredToolSequence: scope.requiredToolSequence } : {}),
           ...((system ?? spec.system) !== undefined ? { system: (system ?? spec.system)! } : {}),
           ...((maxSteps ?? spec.maxSteps) !== undefined ? { maxSteps: (maxSteps ?? spec.maxSteps)! } : {}),
         }

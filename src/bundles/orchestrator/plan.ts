@@ -113,8 +113,9 @@ export function normalizeExplicitToolPlan(
   const normalized: Plan = {
     task,
     subtasks: [{ id: first.id, goal, tools: uniqueTools, dependsOn: [] }],
+    requiredToolSequences: { [first.id]: uniqueTools },
   }
-  const adjusted = JSON.stringify(normalized.subtasks) !== JSON.stringify(plan.subtasks)
+  const adjusted = JSON.stringify(normalized) !== JSON.stringify(plan)
   return { plan: adjusted ? normalized : plan, adjusted, requestedTools: uniqueTools }
 }
 

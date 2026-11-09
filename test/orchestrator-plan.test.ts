@@ -67,6 +67,7 @@ describe('planner: accepted plans', () => {
       tools: ['read_file', 'edit_file'],
       dependsOn: [],
     }])
+    expect(result.plan.requiredToolSequences).toEqual({ s1: ['read_file', 'edit_file'] })
     const events = await ctx.log.read('explicit-tools')
     const normalized = events.find((event) => event.type === 'plan.normalized')!.data as any
     expect(normalized.reason).toBe('explicit-tool-sequence')
@@ -84,6 +85,7 @@ describe('planner: accepted plans', () => {
     expect(result.adjusted).toBe(true)
     expect(result.requestedTools).toEqual(['read_file'])
     expect(result.plan.subtasks[0]!.tools).toEqual(['read_file'])
+    expect(result.plan.requiredToolSequences).toEqual({ s1: ['read_file'] })
   })
   it('the planner sees offered tool schemas and path-selection rules, but receives no executable tools', async () => {
     const { ctx, mock } = await boot([reply(good)])

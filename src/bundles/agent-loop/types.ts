@@ -1,4 +1,5 @@
 import type { ContentBlock, Message } from '../model-adapter/index.js'
+import type { RequiredToolSequence } from '../tool-registry/index.js'
 
 export interface RetryConfig {
   /** Extra attempts after the first, for a retryable error on the SAME provider. Default 2. */
@@ -34,6 +35,8 @@ export interface RunTaskOptions {
   prompt: string
   /** Registered tool names to expose for this run. Default: every tool currently registered. */
   tools?: string[]
+  /** Optional ordered tool-call sequence enforced by the registry before policy hooks. */
+  requiredToolSequence?: RequiredToolSequence
   system?: string
   maxSteps?: number
   reflection?: boolean
