@@ -104,13 +104,24 @@ export function planSchema(tools: string[], limits?: Pick<PlannerLimits, 'maxSub
   }
 }
 
-export function plannerSystem(tools: { name: string; description: string }[], limits: PlannerLimits): string {
-  const toolText = tools.length ? tools.map((t) => `- ${t.name}: ${t.description}`).join('\n') : '(no tools)'
+export function plannerSystem(tools: { name: string; description: string; inputSchema?: unknown }[], limits: PlannerLimits): string {
+  const toolText = tools.length
+    ? tools.map((t) => [
+        `- ${t.name}: ${t.description}`,
+        ...(t.inputSchema !== undefined ? [`  Input schema: ${JSON.stringify(t.inputSchema)}`] : []),
+      ].join('\n')).join('\n')
+    : '(no tools)'
   return [
     'You are a planner. Break the user\'s task into a short ordered list of narrow subtasks. You do not do the work and you cannot call tools.',
     `Reply with ONLY one JSON object, no other text: {"subtasks":[{"id":"s1","goal":"...","tools":["tool_name"],"dependsOn":[]}]}`,
     `Rules: at most ${limits.maxSubtasks} subtasks; ids are unique; each goal is one small self-contained step; each subtask lists at most ${limits.maxToolsPerSubtask} tools, only from the list below; "dependsOn" lists ids of EARLIER subtasks only.`,
-    'Tools you may assign:',
+    'Tool selection rules:',
+    '- If the task names an exact file path, use read_file to inspect that path. Do not use search_code to find a path the user already gave.',
+    '- Use search_code only when the relevant file or code location is unknown and must be discovered.',
+    '- For an edit to an existing file, plan read_file before edit_file and keep both tools in the same subtask when the edit depends on the read result.',
+    '- For a new file, use write_file. Do not substitute write_file for editing an existing file.',
+    '- Preserve explicitly requested tool names and paths. Do not invent alternate tool arguments or tool names.',
+    'Tools you may assign (input schemas are included to guide exact tool selection and argument names):',
     toolText,
   ].join('\n')
 }
