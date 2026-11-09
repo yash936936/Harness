@@ -1,3 +1,12 @@
+## 2026-11-10 S3 implementation closeout and final live gate
+
+- PR #32 merged as `d05ee2e0f6c606d6112b25eccd218fa36eefb7a1`. Its CI run #377 / Actions run `42701133697` passed on Ubuntu and Windows. The PR records PR #31 merge evidence; it makes no runtime changes.
+- **Implementation and scripted acceptance: PASS.** Main contains ordered required-tool enforcement, strict Ollama text-tool-call recovery, edit argument alias normalization, strict decimal confidence normalization, and policy scoring. The governed CLI regression exercises the ordered `edit_file` then `read_file` sequence, checks `tool.input.normalized`, verifies `package.json` path-criticality 0.5 against threshold 0.8, denies approval, hard-denies `.env.production` under `credential-path`, and confirms the manifest is unchanged. Cross-platform CI is green.
+- **Live-model acceptance: OPEN.** The previous `llama3.2:3b` session did not emit a normalized-input event; its edit was held because confidence was invalid, not because path-criticality was decisive. Approval denial and credential-path hard denial were demonstrated. Do not relabel that session as a pass.
+- The final live run must deliberately exercise the supported camelCase alias (`oldString` / `newString`) with numeric confidence. The alias normalization itself must emit `tool.input.normalized`; the resulting policy decision must identify `path-criticality` score 0.5 as the limiting signal. This avoids relying on a model to emit an unsupported or malformed confidence value.
+- Exact owner-run command and prompt are recorded in the S3 section of `docs/BUILD-PLAN.md`. Run it once with the current main checkout, deny the edit approval, and preserve the resulting session JSONL. Until that trace and the clean manifest check are reviewed, **S3 overall remains PARTIAL**, not CLOSED.
+- S3 is independent of S0. No Docker/Crabbox execution is required for this `--sandbox none` file-tool acceptance. No sandbox command execution is offered and no host fallback is involved.
+
 ## 2026-11-10 closeout after PR #30 and S5 notice follow-up
 
 - PR #30 merged as `6076ba986ace29484aae958d91784e0b0bf2604f`. GitHub Actions run #370 passed on Ubuntu and Windows. The change updates the confidence-normalization regression and documentation only; no runtime policy changed.
