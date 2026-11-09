@@ -84,15 +84,15 @@ export function normalizeExplicitToolPlan(
   offered: string[],
   limits: PlannerLimits = DEFAULT_LIMITS,
 ): { plan: Plan; adjusted: boolean; requestedTools: string[] } {
-  const hasExactPath = /(?:^|[\\s"'\x60])(?:\\.{0,2}[\\/])?[\\w.-]+(?:[\\/][\\w.-]+)*\\.[A-Za-z0-9]{1,12}(?=$|[\\s"'\x60,;:])/m.test(task)
+  const hasExactPath = /(?:^|[\s"'\x60])(?:\.{0,2}[\/])?[\w.-]+(?:[\/][\w.-]+)*\.[A-Za-z0-9]{1,12}(?=$|[\s"'\x60,;:])/m.test(task)
   if (!hasExactPath) return { plan, adjusted: false, requestedTools: [] }
 
   const requestedTools = offered.filter((name) => {
     let at = task.indexOf(name)
     while (at >= 0) {
       const before = task.slice(Math.max(0, at - 48), at)
-      const explicit = /\\b(?:use|using|call|calling|invoke|invoking|attempt|attempting)\\s+(?:the\\s+)?$/i.test(before)
-      const negated = /\\b(?:do\\s+not|don't|never|must\\s+not|avoid)\\s+(?:use|call|invoke|attempt)\\s+(?:the\\s+)?$/i.test(before)
+      const explicit = /\b(?:use|using|call|calling|invoke|invoking|attempt|attempting)\s+(?:the\s+)?$/i.test(before)
+      const negated = /\b(?:do\s+not|don't|never|must\s+not|avoid)\s+(?:use|call|invoke|attempt)\s+(?:the\s+)?$/i.test(before)
       if (explicit && !negated) return true
       at = task.indexOf(name, at + name.length)
     }
