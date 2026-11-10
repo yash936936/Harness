@@ -87,20 +87,21 @@ export function normalizeExplicitToolPlan(
   const hasExactPath = /(?:^|[\s"'\x60])(?:\.{0,2}[\/])?[\w.-]+(?:[\/][\w.-]+)*\.[A-Za-z0-9]{1,12}(?=$|[\s"'\x60,;:.!?])/m.test(task)
   if (!hasExactPath) return { plan, adjusted: false, requestedTools: [] }
 
-  const mentions = offered.flatMap((name) => {
+  const mentions: { name: string; at: number }[] = []
+  for (const name of offered) {
     let at = task.indexOf(name)
     while (at >= 0) {
       const before = task.slice(Math.max(0, at - 48), at)
       const after = task[at + name.length]
       const beforeChar = task[at - 1]
       const tokenBoundary = (!beforeChar || !/[A-Za-z0-9_]/.test(beforeChar)) && (!after || !/[A-Za-z0-9_]/.test(after))
-      const explicit = tokenBoundary && /\b(?:use|using|call|calling|invoke|invoking|attempt|attempting)\s+(?:the\s+)?$/i.test(before)
-      const negated = /\b(?:do\s+not|don't|never|must\s+not|avoid)\s+(?:use|call|invoke|attempt)\s+(?:the\s+)?$/i.test(before)
-      if (explicit && !negated) return [{ name, at }]
+      const explicit = tokenBoundary && /\\b(?:use|using|call|calling|invoke|invoking|attempt|attempting)\\s+(?:the\\s+)?$/i.test(before)
+      const negated = /\\b(?:do\\s+not|don't|never|must\\s+not|avoid)\\s+(?:use|call|invoke|attempt)\\s+(?:the\\s+)?$/i.test(before)
+      if (explicit && !negated) mentions.push({ name, at })
       at = task.indexOf(name, at + name.length)
     }
-    return []
-  }).sort((a, b) => a.at - b.at)
+  }
+  mentions.sort((a, b) => a.at - b.at)
   // The capability grant is a set, but the required sequence is an ordered list of CALLS.
   // Keep repeated names in the sequence: read_file(path A), read_file(path B) are two
   // distinct required operations even though they use the same registered tool.
