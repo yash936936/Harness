@@ -230,6 +230,20 @@ export class AgentLoop extends Service {
         resultBlocks.push({ type: 'tool_result', toolUseId: call.id, content: result.content, isError: !result.ok })
       }
       messages.push({ role: 'user', content: resultBlocks })
+
+      // A provider may keep emitting calls after the required sequence is
+      // complete and no tools are offered. Reject the attempted calls through
+      // the registry once, then stop instead of retrying until maxSteps.
+      if (sequenceComplete) {
+        return {
+          stopReason: 'done',
+          messages,
+          finalText: 'The required tool attempts were completed. Additional tool calls were blocked.',
+          steps,
+          retries,
+          reflected,
+        }
+      }
     }
 
     return { stopReason: 'max_steps', messages, finalText: '', steps, retries, reflected }
