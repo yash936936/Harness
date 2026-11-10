@@ -1,3 +1,7 @@
+## 2026-11-10 ENG-04 dependency trace follow-up
+
+The lockfile shows that `apache-arrow@18.1.0` is the sole declared dependency parent of `json-bignum@0.0.3`. The locked tarball URL and SHA-512 integrity are recorded in `THIRD_PARTY_LICENSES.md`, but the tarball itself has not been inspected and its exact license contents remain unverified. The root package is `private: true` and has no build/pack/release script, so no intended distribution artifact or shipped dependency closure is currently established. **ENG-04 remains PARTIAL.** No license metadata was changed and no release artifact was invented.
+
 ## 2026-11-10 owner-run full-suite rerun
 
 The owner reran `npm test` on Windows after the earlier non-reproduced credential concurrency failure. Result: **56 test files passed, 1 skipped; 1,205 tests passed, 21 skipped, 0 failed; 72.91 seconds**. The isolated `test/credentials.test.ts` concurrency case also passed twice (989 ms and 1.99 s), preserving all 24 concurrent writes and decrypting them from a fresh store instance.
