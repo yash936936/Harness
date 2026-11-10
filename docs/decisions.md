@@ -1,3 +1,13 @@
+## D-110 — S0 permanent hold; dependent real-sandbox work deferred — 2026-11-10
+
+**Decision:** S0 / ARCH-01 is placed on **PERMANENT HOLD** for this prototype. Do not run further Docker, WSL, Crabbox transport probes, retries, workarounds, or host-execution substitutes. Preserve the existing failure evidence as historical evidence only. S1 real host-sentinel/orphan-reaper acceptance is deferred because it depends on S0. This is a scope disposition, not a claim that the sandbox passed or that the transport defect was fixed.
+
+**Boundary:** S0 may be reopened only by a new explicit owner decision that supersedes D-110. Until then, all documentation and closeout reports must show S0 as PERMANENT-HOLD and S1 as DEFERRED-S0-HOLD. No acceptance claim may be inferred from fake-backed tests or CI.
+
+**S3 remains independent:** S3 is a file-tool/policy acceptance with `--sandbox none`; it does not require Docker, Crabbox, S0, or host command execution. Its remaining live gate must be evaluated separately from this hold. Scripted tests and CI do not replace the owner-run session evidence required by the S3 procedure.
+
+**Affects:** `docs/status.md`, `docs/BUILD-PLAN.md`, `docs/AUDIT-CLOSEOUT.md`, S0/S1 acceptance disposition. This decision does not change runtime code or disable policy gates.
+
 ## D-109 — Prototype evaluation evidence threshold and label ordering — 2026-11-07
 
 **Decision:** For prototype-grade evaluation, require at least 10 distinct real model-driven sessions; use 20 or more when that many already exist. The owner is the single human labeler. The generating model must not label its own session. Commit the labels file and its SHA-256 before generating or viewing scorer output. Require both good and bad labels, but do not impose a minimum scorer-agreement percentage. Report raw agreement, class counts, and a human-label-versus-scorer confusion table, explicitly marked **prototype-grade, not calibrated**.
