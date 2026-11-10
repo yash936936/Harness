@@ -101,22 +101,25 @@ export function normalizeExplicitToolPlan(
     }
     return []
   }).sort((a, b) => a.at - b.at)
+  // The capability grant is a set, but the required sequence is an ordered list of CALLS.
+  // Keep repeated names in the sequence: read_file(path A), read_file(path B) are two
+  // distinct required operations even though they use the same registered tool.
   const requestedTools = mentions.map((mention) => mention.name)
   const uniqueTools = [...new Set(requestedTools)]
-  if (!uniqueTools.length || uniqueTools.length > limits.maxToolsPerSubtask) {
-    return { plan, adjusted: false, requestedTools: uniqueTools }
+  if (!requestedTools.length || requestedTools.length > limits.maxToolsPerSubtask || uniqueTools.length > limits.maxToolsPerSubtask) {
+    return { plan, adjusted: false, requestedTools }
   }
 
   const first = plan.subtasks[0]!
   const goal = 'Carry out the explicitly named tool operations in the order stated, using the exact paths and arguments supplied in the task.'
-  if (goal.length > limits.maxGoalChars) return { plan, adjusted: false, requestedTools: uniqueTools }
+  if (goal.length > limits.maxGoalChars) return { plan, adjusted: false, requestedTools }
   const normalized: Plan = {
     task,
     subtasks: [{ id: first.id, goal, tools: uniqueTools, dependsOn: [] }],
-    requiredToolSequences: { [first.id]: uniqueTools },
+    requiredToolSequences: { [first.id]: requestedTools },
   }
   const adjusted = JSON.stringify(normalized) !== JSON.stringify(plan)
-  return { plan: adjusted ? normalized : plan, adjusted, requestedTools: uniqueTools }
+  return { plan: adjusted ? normalized : plan, adjusted, requestedTools }
 }
 
 /**
