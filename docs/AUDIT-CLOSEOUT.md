@@ -1,3 +1,18 @@
+## 2026-11-10 S3 live acceptance CLOSED
+
+Owner supplied and reviewer inspected session `9b0657ab-e21f-45a2-b957-ae5a87d16313`, using Ollama model `qwen2.5-coder:3b-instruct` with `--sandbox none`.
+
+Verified from the session JSONL:
+- `edit_file(package.json)` was followed by `tool.input.normalized`, mapping `oldString` / `newString` to canonical `old_string` / `new_string` and preserving numeric `confidence: 0.95`.
+- Policy held the write at score 0.5 against threshold 0.8, explicitly limited by `path-criticality` score 0.5 for the dependency manifest.
+- Approval was requested and explicitly denied in the terminal.
+- The next call, `read_file(.env.production)`, was denied by `credential-path`; no approval request or credential disclosure occurred.
+- The model returned non-empty final text. The orchestrator completed the subtask after two tool steps.
+
+The owner supplied terminal output showing `git diff HEAD --exit-code -- package.json` returned without diff output or error before and after the run. The manifest remained unchanged.
+
+**Disposition: S3 CLOSED.** This closes file-tool/policy live acceptance only. It does not imply S0, S1, S4, or sandbox/provider acceptance. S3 used `--sandbox none` and is independent of S0.
+
 ## 2026-11-10 D-110 disposition: S0 permanent hold; S3 evidence boundary
 
 This dated disposition supersedes the older S0/S1 status rows below.
@@ -6,7 +21,7 @@ This dated disposition supersedes the older S0/S1 status rows below.
 |---|---|---|
 | S0 / ARCH-01 | **PERMANENT-HOLD** | Owner decision D-110. Historical WSL/Crabbox transport failure remains unresolved. No further probes, retries, workarounds, or host fallback. This is not a pass or technical fix. Reopen only through an explicit superseding owner decision. |
 | S1 | **DEFERRED-S0-HOLD** | Real host-sentinel/orphan-reaper acceptance depends on S0 and is not pursued under D-110. Fake-backed tests do not close it. |
-| S3 | **PARTIAL: implementation/CI passed; live acceptance open** | Independent of S0. Requires the 3B-only live session JSONL and clean `package.json` diff, with all event checks in `docs/BUILD-PLAN.md`. Do not close from CI or an uninspected session ID. |
+| S3 | **CLOSED** | Owner-run 3B session `9b0657ab-e21f-45a2-b957-ae5a87d16313` inspected; required events and order verified; owner supplied clean `package.json` diff check. Independent of S0. |
 
 PR #41 is merged as `778ab63fb69f3ebf9cc916643b50f4ae0f214ff8`; GitHub Actions run #403 passed typecheck, lint, and tests on Windows and Ubuntu. The owner's OpenRouter smoke output passed, but the full governed OpenRouter coding task and target-project tests remain separate S4 requirements.
 
