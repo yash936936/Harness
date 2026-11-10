@@ -1,4 +1,4 @@
-﻿/** Explicit live OpenRouter smoke test. Requires HARNESS_LIVE_OPENROUTER=1 and OPENROUTER_API_KEY. */
+/** Explicit live OpenRouter smoke test. Requires HARNESS_LIVE_OPENROUTER=1 and OPENROUTER_API_KEY. */
 import { Context } from 'cordis'
 import { SessionLog } from '../src/bundles/session-log/index.js'
 import { EgressPolicy } from '../src/bundles/egress/index.js'
@@ -43,7 +43,10 @@ try {
     messages: [
       { role: 'user', content: 'Reply with exactly: HARNESS_OPENROUTER_OK' },
     ],
-    maxTokens: 30,
+    // North Mini Code is reasoning-capable. 30 tokens can be consumed entirely
+    // by reasoning, leaving no user-visible content. Leave enough budget for
+    // reasoning and the short final answer.
+    maxTokens: 512,
     temperature: 0,
   })
 
@@ -55,6 +58,8 @@ try {
   console.log(JSON.stringify({
     ok: result.text.includes('HARNESS_OPENROUTER_OK'),
     model: result.model,
+    stopReason: result.stopReason,
+    usage: result.usage,
     text: safe.slice(0, 300),
   }, null, 2))
 
