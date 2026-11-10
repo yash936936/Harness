@@ -1,3 +1,19 @@
+## 2026-11-10 S4 disposition: full live coding acceptance blocked by permanent S0 hold
+
+**S4 is PARTIAL / BLOCKED-S0-PERMANENT-HOLD.** The OpenRouter connectivity smoke passed, but neither provider's full governed coding-task acceptance is complete.
+
+Evidence already available:
+- OpenRouter smoke supplied by the owner: model `cohere/north-mini-code:free`, `ok: true`, `stopReason: end_turn`, 57 output tokens, exact response `HARNESS_OPENROUTER_OK`.
+- PR #41 merged as `778ab63fb69f3ebf9cc916643b50f4ae0f214ff8`; CI run #403 passed on Windows and Ubuntu.
+- The Ollama S3 session used `qwen2.5-coder:3b-instruct`, but it was a file-tool/policy acceptance, not an S4 full coding task. It did not run target-project tests.
+
+Why the remaining S4 gate cannot be run under the current scope:
+- `src/cli/code.ts` offers `run_command` only when Docker is detected and Crabbox doctor succeeds.
+- With `--sandbox none`, the CLI records `sandbox.unavailable`, omits the command tool, and explicitly provides no host fallback.
+- D-110 permanently prohibits further Docker/WSL/Crabbox probes and host-execution substitutes. Therefore the required full coding task plus target-project test execution cannot be completed without superseding D-110. Do not try `--sandbox auto`, Docker probes, or host command fallbacks.
+
+**Disposition:** retain S4 as **PARTIAL / BLOCKED**, not passed. OpenRouter smoke is complete; OpenRouter full coding task, Ollama full coding task, session-log/key-exclusion evidence, and target-project test evidence remain outstanding. Reopen only if the owner makes a new explicit scope decision that supersedes D-110 and permits a supported execution environment. This status does not change S0's permanent hold.
+
 ## 2026-11-10 S3 live acceptance CLOSED
 
 Owner supplied and reviewer inspected session `9b0657ab-e21f-45a2-b957-ae5a87d16313`, using Ollama model `qwen2.5-coder:3b-instruct` with `--sandbox none`.
