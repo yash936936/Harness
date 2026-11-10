@@ -1,3 +1,11 @@
+## 2026-11-10 S3 post-sequence finalization fix merged
+
+- PR #38 (`fix(agent-loop): stop repeated post-sequence tool retries`) merged into `main` as `51486ad0dfbad219d6118e2fe16d53a44fcaee56`. The exact PR head `ae4ea4b3cb8ed5b46c4e469d4bf6d114cb297bb4` passed GitHub Actions run #394 on both Ubuntu and Windows: install, typecheck, lint, and full tests.
+- After the required ordered tool sequence completes, the first unexpected provider-emitted tool call is rejected and the loop returns a deterministic non-empty final response without another model request. The regression test proves repeated extra calls do not trigger repeated model requests or tool execution.
+- This closes the implementation/CI defect found in the previous `qwen2.5-coder:3b-instruct` trace. It does **not** close live S3 acceptance.
+- **S3 remains PARTIAL** until the owner runs the documented acceptance once with `qwen2.5-coder:3b-instruct`, preserves the session JSONL, and separately confirms `git diff HEAD --exit-code -- package.json` exits 0. Review the normalized camelCase edit arguments and numeric confidence, path-criticality-limited hold, explicit approval denial, `.env.production` credential-path hard denial without approval or disclosure, ordered calls, and non-empty final response.
+- Do not use a 7B or larger model for this acceptance. S0 remains on hold and is unrelated.
+
 ## S3 post-sequence finalization hardening
 
 The live 3B trace showed that a provider can keep emitting tool calls after the required sequence, despite receiving no tool specifications. The loop now sends the first unexpected call through the registry, where the required-sequence guard rejects it, records the failed tool result, and terminates with a deterministic non-empty final response. It does not ask the model for another turn, so repeated retries cannot exhaust the loop or cause another tool execution. The regression test scripts consecutive unexpected calls and asserts only one post-sequence model response is requested, the extra tool is rejected, and the final response is non-empty. This does not close live S3 acceptance; rerun the prescribed 3B session and inspect the trace and clean manifest diff.
