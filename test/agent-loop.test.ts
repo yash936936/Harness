@@ -71,7 +71,7 @@ describe('agent-loop: happy path and tool calls', () => {
     expect(res.messages[2]!.content).toMatchObject([{ type: 'tool_result', toolUseId: 'c1', content: 'file contents', isError: false }])
   })
 
-  it('hides tools after the required sequence and rejects a provider retry before finalizing', async () => {
+  it('rejects a provider retry after the required sequence and finalizes without another model call', async () => {
     const { ctx, mocks } = await boot({}, [
       {
         name: 'mock',
@@ -79,7 +79,7 @@ describe('agent-loop: happy path and tool calls', () => {
         script: [
           { toolCalls: [{ id: 'c1', name: 'read', input: {} }], content: [{ type: 'tool_use', id: 'c1', name: 'read', input: {} }] },
           { toolCalls: [{ id: 'c2', name: 'read', input: {} }], content: [{ type: 'tool_use', id: 'c2', name: 'read', input: {} }] },
-          { text: 'both checks completed', stopReason: 'end_turn' },
+          { toolCalls: [{ id: 'c3', name: 'read', input: {} }], content: [{ type: 'tool_use', id: 'c3', name: 'read', input: {} }] },
         ],
       },
     ])
@@ -95,13 +95,12 @@ describe('agent-loop: happy path and tool calls', () => {
     })
 
     expect(res.stopReason).toBe('done')
-    expect(res.finalText).toBe('both checks completed')
+    expect(res.finalText).toBe('The required tool attempts were completed. Additional tool calls were blocked.')
     expect(executions).toBe(1)
     expect(requiredToolSequence.state.nextIndex).toBe(1)
-    expect(mocks.get('mock')!.calls).toHaveLength(3)
+    expect(mocks.get('mock')!.calls).toHaveLength(2)
     expect(mocks.get('mock')!.calls[0]!.tools).toHaveLength(1)
     expect(mocks.get('mock')!.calls[1]!.tools).toBeUndefined()
-    expect(mocks.get('mock')!.calls[2]!.tools).toBeUndefined()
     expect(res.messages[4]!.content).toMatchObject([
       { type: 'tool_result', toolUseId: 'c2', isError: true },
     ])
