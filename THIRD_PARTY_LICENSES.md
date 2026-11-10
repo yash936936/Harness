@@ -190,3 +190,12 @@ A static traversal from the root package's declared runtime dependencies through
 | `web-tree-sitter` | 0.25.10 | MIT |
 | `why-is-node-running` | 2.3.0 | MIT |
 | `wordwrapjs` | 5.1.1 | MIT |
+
+
+## 2026-11-10 ENG-04 dependency trace follow-up
+
+The committed lockfile identifies `apache-arrow@18.1.0` as the sole package that declares `json-bignum` as a dependency (`^0.0.3`). The exact locked package record is `json-bignum@0.0.3`, resolved from `https://registry.npmjs.org/json-bignum/-/json-bignum-0.0.3.tgz`, with integrity `sha512-2WHyXj3OfHSgNyuzDbSxI1w2jgw5gkWSWhS7Qg4bWXx1nLk3jnbwfUeS0PSba3IzpTUWdHxBieELUzXRjQB2zg==`. The lockfile still has no `license` field for this package. The package tarball itself has not been inspected, so the exact published archive's license contents remain unverified.
+
+The root `package.json` is marked `private: true` and defines no build, pack, or release script. No intended production/release artifact is currently identified. Consequently, the 59-entry lockfile dependency graph is not a verified shipped dependency closure, and the retained MIT notice is not yet proven to be included in a distribution.
+
+**Disposition:** ENG-04 remains PARTIAL. Do not change the lockfile's `UNDECLARED` value based only on the upstream default-branch LICENSE or third-party metadata. Close this item only after the owner identifies the actual distribution target, the exact package archive/license provenance is inspected, and the shipped dependency and notice contents are verified.

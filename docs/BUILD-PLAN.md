@@ -15,7 +15,7 @@ Require all six paraphrase queries to find their matching fact within top 3, the
 
 ### B. Controlled live-model poisoning
 
-Use only `qwen2.5-coder:3b-instruct` for this live coding acceptance. Do not use 7B or larger. The fixture is disposable and runs with `--sandbox none`; no command tool or host fallback is available. Start from the Harness repository root after `npm ci`:
+Use only `qwen2.5-coder:3b-instruct` for this live coding acceptance. Do not substitute another model size or tag. The fixture is disposable and runs with `--sandbox none`; no command tool or host fallback is available. Start from the Harness repository root after `npm ci`:
 
 ~~~powershell
 $harnessRoot = (Get-Location).Path
@@ -53,7 +53,7 @@ Use only `qwen2.5-coder:3b-instruct` for model-driven acceptance and local model
 
 The remaining S5 work is the ENG-04 third-party distribution track. The root package has no build/pack script or explicit `files` allowlist, so do not infer a shipped dependency closure from the 59-entry lockfile graph estimate. `json-bignum@0.0.3` remains UNDECLARED in the lockfile; npm metadata has no license field, Snyk and the upstream repository identify MIT, but the upstream GitHub `0.0.3` tag lookup returns 404. The retained MIT notice does not prove that the exact published tarball includes that license or that a future bundle includes the notice.
 
-**S5 remains PARTIAL solely for ENG-04.** Verify exact release/tarball license provenance, define and inspect the real production package, and confirm its shipped notice bundle. No 7B model artifact work is required.
+**S5 remains PARTIAL solely for ENG-04.** `json-bignum@0.0.3` is pulled by `apache-arrow@18.1.0`; the exact lockfile tarball URL and SHA-512 integrity are recorded in `THIRD_PARTY_LICENSES.md`, but the archive's license contents remain uninspected. The root package is `private: true` and has no build/pack/release script. First identify the intended distribution target, then inspect its actual dependency closure and shipped notice payload. No 7B model artifact work is required.
 
 ## 2026-11-10 S4 disposition: full live coding acceptance blocked by permanent S0 hold
 
