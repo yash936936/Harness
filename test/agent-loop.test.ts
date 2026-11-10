@@ -80,6 +80,7 @@ describe('agent-loop: happy path and tool calls', () => {
           { toolCalls: [{ id: 'c1', name: 'read', input: {} }], content: [{ type: 'tool_use', id: 'c1', name: 'read', input: {} }] },
           { toolCalls: [{ id: 'c2', name: 'read', input: {} }], content: [{ type: 'tool_use', id: 'c2', name: 'read', input: {} }] },
           { toolCalls: [{ id: 'c3', name: 'read', input: {} }], content: [{ type: 'tool_use', id: 'c3', name: 'read', input: {} }] },
+          { toolCalls: [{ id: 'c4', name: 'read', input: {} }], content: [{ type: 'tool_use', id: 'c4', name: 'read', input: {} }] },
         ],
       },
     ])
