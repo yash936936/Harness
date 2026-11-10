@@ -211,6 +211,14 @@ export class AgentLoop extends Service {
       }
 
       if (res.toolCalls.length === 0) {
+        const nextRequiredTool = opts.requiredToolSequence?.tools[opts.requiredToolSequence.state.nextIndex]
+        if (nextRequiredTool !== undefined) {
+          messages.push({
+            role: 'user',
+            content: `The required tool sequence is incomplete. You must call "${nextRequiredTool}" next. Do not provide a final answer until every required tool call has been attempted.`,
+          })
+          continue
+        }
         if (reflectionOn && !requestedReflection) {
           requestedReflection = true
           reflected = true
