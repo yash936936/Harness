@@ -71,6 +71,38 @@ describe('agent-loop: happy path and tool calls', () => {
     expect(res.messages[2]!.content).toMatchObject([{ type: 'tool_result', toolUseId: 'c1', content: 'file contents', isError: false }])
   })
 
+  it('continues the required sequence when the model tries to finish after a denied tool', async () => {
+    const { ctx, mocks } = await boot({}, [
+      {
+        name: 'mock',
+        default: true,
+        script: [
+          { toolCalls: [{ id: 'c1', name: 'edit', input: {} }], content: [{ type: 'tool_use', id: 'c1', name: 'edit', input: {} }] },
+          { text: 'The operation was blocked.', stopReason: 'end_turn' },
+          { toolCalls: [{ id: 'c2', name: 'read', input: {} }], content: [{ type: 'tool_use', id: 'c2', name: 'read', input: {} }] },
+          { text: 'Both attempts were blocked.', stopReason: 'end_turn' },
+        ],
+      },
+    ])
+    ctx.tools.register(tool('edit', () => { throw new Error('approval denied') }))
+    ctx.tools.register(tool('read', () => { throw new Error('credential-path denied') }))
+    const requiredToolSequence = { tools: ['edit', 'read'], state: { nextIndex: 0 } }
+
+    const res = await ctx.agentLoop.run({
+      sessionId: 'required-sequence-early-final',
+      prompt: 'attempt edit, then read',
+      tools: ['edit', 'read'],
+      requiredToolSequence,
+    })
+
+    expect(res.stopReason).toBe('done')
+    expect(res.finalText).toBe('Both attempts were blocked.')
+    expect(requiredToolSequence.state.nextIndex).toBe(2)
+    expect(mocks.get('mock')!.calls).toHaveLength(4)
+    expect(mocks.get('mock')!.calls[2]!.messages.at(-1)!.content).toContain('You must call "read" next')
+    expect(res.messages).toHaveLength(8)
+  })
+
   it('rejects a provider retry after the required sequence and finalizes without another model call', async () => {
     const { ctx, mocks } = await boot({}, [
       {
