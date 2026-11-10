@@ -27,8 +27,8 @@ const DEFAULT_RETRY: Required<RetryConfig> = { maxAttempts: 2, baseDelayMs: 500,
 function looksLikePseudoToolCall(text: string): boolean {
   const body = text.trim()
   if (!body) return false
-  return /(?:\\"name\\"|\\bname)\\s*:\\s*[\"']?[A-Za-z_][\\w.-]*[\"']?\\s*,\\s*(?:\\"arguments\\"|\\barguments)\\s*:/i.test(body) ||
-    /(?:^|\\n)\\s*[\"']?[A-Za-z_][\\w.-]*[\"']?\\s*\\(\\s*\\{[\\s\\S]*?\\}\\s*\\)\\s*;?\\s*(?:$|\\n)/.test(body)
+  return /(?:\"name\"|\bname)\s*:\s*[\"']?[A-Za-z_][\w.-]*[\"']?\s*,\s*(?:\"arguments\"|\barguments)\s*:/i.test(body) ||
+    /(?:^|\n)\s*[\"']?[A-Za-z_][\w.-]*[\"']?\s*\(\s*\{[\s\S]*?\}\s*\)\s*;?\s*(?:$|\n)/.test(body)
 }
 
 function defaultSleep(ms: number, signal?: AbortSignal): Promise<void> {
