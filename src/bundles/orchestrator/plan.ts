@@ -112,7 +112,7 @@ export function normalizeExplicitToolPlan(
   }
 
   const first = plan.subtasks[0]!
-  const goal = 'Carry out the explicitly named tool operations in the order stated, using the exact paths and arguments supplied in the task.'
+  const goal = 'Perform the required tool calls in order, then complete the overall task.'
   if (goal.length > limits.maxGoalChars) return { plan, adjusted: false, requestedTools }
   const normalized: Plan = {
     task,

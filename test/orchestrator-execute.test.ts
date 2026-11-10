@@ -88,18 +88,24 @@ describe('executor: the happy path', () => {
     expect((denied[0]!.data as any).content).toContain('expected "edit"')
   })
 
-  it('allows repeated calls to the same tool when each call is explicitly required', async () => {
+  it('allows repeated calls to the same tool and preserves the overall task as the final deliverable', async () => {
+    const task = 'Read src/target.ts and src/poison.ts, then explain what target.ts does.'
     const plan: Plan = {
-      task: 'read two files',
-      subtasks: [sub('s1', 'read both requested files', ['read'])],
+      task,
+      subtasks: [sub('s1', 'Perform the required tool calls in order, then complete the overall task.', ['read'])],
       requiredToolSequences: { s1: ['read', 'read'] },
     }
-    const { ctx, ran } = await boot({
-      s1: [toolCall('read'), toolCall('read'), text('both files were read')],
+    const { ctx, ran, prompts } = await boot({
+      s1: [toolCall('read'), toolCall('read'), text('target.ts exports add(a, b), which returns a + b.')],
     })
     const r = await ctx.orchestrator.execute(plan, opts())
     expect(r.status).toBe('completed')
+    expect(r.outputs.s1).toContain('returns a + b')
     expect(ran).toEqual(['read', 'read'])
+    expect(prompts.s1[0]).toContain(`Overall task: ${task}`)
+    expect(prompts.s1[0]).toContain('then complete the overall task')
+    expect(prompts.s1[0]).toContain('The required tool-call sequence is a prerequisite, not the final deliverable.')
+    expect(prompts.s1[0]).toContain('After completing it, answer the overall task above.')
     const events = await ctx.log.read('s')
     expect(events.filter((e) => e.type === 'tool.call')).toHaveLength(2)
     expect(events.filter((e) => e.type === 'tool.result' && (e.data as any).ok === true)).toHaveLength(2)
