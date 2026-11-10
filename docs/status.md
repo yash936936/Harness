@@ -1,3 +1,9 @@
+## 2026-11-10 owner-run full-suite rerun
+
+The owner reran `npm test` on Windows after the earlier non-reproduced credential concurrency failure. Result: **56 test files passed, 1 skipped; 1,205 tests passed, 21 skipped, 0 failed; 72.91 seconds**. The isolated `test/credentials.test.ts` concurrency case also passed twice (989 ms and 1.99 s), preserving all 24 concurrent writes and decrypting them from a fresh store instance.
+
+This is owner-supplied local test evidence, not a GitHub Actions run. No source or test files were changed for the rerun. The original full-suite failure is classified as **not reproduced**, not as a confirmed code fix; its root cause remains unknown. The separate real-sandbox failure remains under D-110 and is not affected by this suite result.
+
 ## 2026-11-10 S7 live acceptance preparation
 
 Added a reproducible owner-run procedure in `docs/BUILD-PLAN.md` for (A) real Ollama embedding retrieval and (B) a controlled prompt-poisoning test using only `qwen2.5-coder:3b-instruct`. The procedure uses a disposable fixture, `--sandbox none`, hash checks, and session-log review. This is preparation only: no live embedding or poisoning run has been performed here. **S7 remains PARTIAL** until both owner-run outputs and the exact session JSONL are reviewed.

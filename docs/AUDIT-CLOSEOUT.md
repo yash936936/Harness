@@ -1,3 +1,9 @@
+## 2026-11-10 owner-run full-suite rerun
+
+Owner supplied a Windows `npm test` rerun with **56 passed / 1 skipped test files; 1,205 passed / 21 skipped tests; 0 failures; 72.91 seconds**. The credential-store concurrent-writer test passed twice in isolation (989 ms and 1.99 s). The case preserves 24 concurrent writes across four store instances and reads all values through a fresh instance.
+
+**Evidence boundary:** this is a local owner-run result, not CI. No source/test changes were made. The earlier full-suite failure did not reproduce, so it is not described as fixed and its cause is unknown. The real-sandbox gate remains subject to D-110; passing `npm test` does not close S0, S1, or S4.
+
 ## 2026-11-10 S4 disposition: full live coding acceptance blocked by permanent S0 hold
 
 **S4 is PARTIAL / BLOCKED-S0-PERMANENT-HOLD.** The OpenRouter connectivity smoke passed, but neither provider's full governed coding-task acceptance is complete.
