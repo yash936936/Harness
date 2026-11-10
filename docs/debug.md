@@ -1794,3 +1794,14 @@ This is deterministic scripted acceptance coverage, not a live Ollama run. S3 re
 
 **Disposition:** Implementation/scripted acceptance PASS. Live-model acceptance OPEN. The earlier session `9b2efe92-af24-4d16-a9ac-f755c9a0b69c` had approval denial and credential hard-denial, but no `tool.input.normalized` event and the hold reason was invalid confidence. The next owner-run task uses camelCase `oldString` / `newString` with numeric confidence so the alias normalization event is expected, and package.json path-criticality 0.5 should be the limiting signal. See the exact command and event checklist in `docs/BUILD-PLAN.md`. Do not claim S3 closed until the owner session JSONL and clean manifest diff are reviewed.
 
+
+
+## DBG-101 — stop offering tools after required sequence completion — 2026-11-10
+
+**Observed:** The live `qwen2.5-coder:3b-instruct` S3 trace passed the held-write denial and credential-path hard denial, but the model kept requesting tools after its required sequence was complete. The registry denied those extra calls, yet the agent loop continued offering the same tool definitions until the step limit; the run ended with an empty answer.
+
+**Correction:** The agent loop checks the required sequence cursor before each model request. Once all required tool calls have been attempted, it sends the next and subsequent model requests without tool specifications, allowing the model to finalize in text. The registry still rejects any tool call a provider emits despite the tool-free request. Policy thresholds, approval behavior, and credential-path rules are unchanged.
+
+**Regression:** Added a scripted case where the model attempts the required read, emits an extra read despite receiving no tools, then returns final text. The test asserts the extra call does not execute, the required call executes exactly once, subsequent model requests contain no tools, and the final answer is preserved.
+
+**Validation boundary:** Source and regression test added on `fix/agent-loop-finalize-required-sequence-2026-11-10`. CI has not yet run. A fresh live run with `qwen2.5-coder:3b-instruct` is still required; do not use a larger model. S3 remains PARTIAL until CI and live session acceptance pass.

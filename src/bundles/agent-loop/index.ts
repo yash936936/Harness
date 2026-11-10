@@ -189,7 +189,12 @@ export class AgentLoop extends Service {
     while (steps < maxSteps) {
       opts.signal?.throwIfAborted()
       if (steps === 0) routed = await this.routeFirstStep(opts, toolSpecs)
-      const stepTools = steps === 0 ? routed.tools : toolSpecs
+      // Once the caller's ordered tool sequence is complete, move into a
+      // tool-free finalization phase. The registry remains the enforcement
+      // boundary if a provider emits a tool call anyway.
+      const sequenceComplete = opts.requiredToolSequence !== undefined &&
+        opts.requiredToolSequence.state.nextIndex >= opts.requiredToolSequence.tools.length
+      const stepTools = sequenceComplete ? [] : (steps === 0 ? routed.tools : toolSpecs)
 
       const { res, retries: r } = await this.callModel(
         { sessionId: opts.sessionId, ...(opts.actor ? { actor: opts.actor } : {}), messages, ...(system ? { system } : {}), ...(stepTools.length ? { tools: stepTools } : {}), ...(model ? { model } : {}), ...(opts.jsonSchema ? { jsonSchema: opts.jsonSchema } : {}) },

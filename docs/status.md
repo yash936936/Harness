@@ -1311,3 +1311,10 @@ A further owner-run `llama3.2:3b` session showed that planner prompt guidance al
 PR #22 now adds deterministic normalization for the narrow case where the task contains an exact file path and explicitly names the offered tools to call. The effective plan becomes one ordered subtask with those positively requested tools. Negated tool mentions are excluded. The original model plan and effective plan are retained in the `plan.normalized` audit event. A regression test covers the observed planner output and verifies that prohibited `write_file` and `run_command` mentions are not granted.
 
 This correction is not live acceptance evidence. **S3 remains PARTIAL** until fresh CI passes and a live `llama3.2:3b` session records a valid `edit_file` call, a path-criticality `policy.decision: hold`, terminal approval denial, and the `.env.production` `credential-path` hard denial. No large model is required or planned.
+
+
+## 2026-11-10 S3 small-model finalization correction
+
+The supplied `qwen2.5-coder:3b-instruct` trace demonstrated the intended policy outcomes: the manifest edit was held and denied, and the `.env.production` read was hard-denied by `credential-path`. The overall session still failed because the model retried tool calls after the required sequence was complete and then returned no final text.
+
+The agent loop now omits tool specifications from model requests after the required ordered sequence completes. The tool registry remains the enforcement boundary for any provider-emitted extra call. A regression test exercises a post-sequence extra-call attempt, confirms it is rejected without a second execution, and confirms the model receives no tools during finalization. This is an implementation correction, not yet CI or live-model acceptance. S3 remains PARTIAL until the new CI passes and a fresh small-model run completes with non-empty final text and the required policy evidence. Use `qwen2.5-coder:3b-instruct`; do not use a larger model.

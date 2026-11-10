@@ -71,6 +71,42 @@ describe('agent-loop: happy path and tool calls', () => {
     expect(res.messages[2]!.content).toMatchObject([{ type: 'tool_result', toolUseId: 'c1', content: 'file contents', isError: false }])
   })
 
+  it('hides tools after the required sequence and rejects a provider retry before finalizing', async () => {
+    const { ctx, mocks } = await boot({}, [
+      {
+        name: 'mock',
+        default: true,
+        script: [
+          { toolCalls: [{ id: 'c1', name: 'read', input: {} }], content: [{ type: 'tool_use', id: 'c1', name: 'read', input: {} }] },
+          { toolCalls: [{ id: 'c2', name: 'read', input: {} }], content: [{ type: 'tool_use', id: 'c2', name: 'read', input: {} }] },
+          { text: 'both checks completed', stopReason: 'end_turn' },
+        ],
+      },
+    ])
+    let executions = 0
+    ctx.tools.register(tool('read', () => { executions++; return 'ok' }))
+    const requiredToolSequence = { tools: ['read'], state: { nextIndex: 0 } }
+
+    const res = await ctx.agentLoop.run({
+      sessionId: 'required-sequence',
+      prompt: 'perform the required read and report the result',
+      tools: ['read'],
+      requiredToolSequence,
+    })
+
+    expect(res.stopReason).toBe('done')
+    expect(res.finalText).toBe('both checks completed')
+    expect(executions).toBe(1)
+    expect(requiredToolSequence.state.nextIndex).toBe(1)
+    expect(mocks.get('mock')!.calls).toHaveLength(3)
+    expect(mocks.get('mock')!.calls[0]!.tools).toHaveLength(1)
+    expect(mocks.get('mock')!.calls[1]!.tools).toBeUndefined()
+    expect(mocks.get('mock')!.calls[2]!.tools).toBeUndefined()
+    expect(res.messages[4]!.content).toMatchObject([
+      { type: 'tool_result', toolUseId: 'c2', isError: true },
+    ])
+  })
+
   it('a tool that throws surfaces as an isError tool_result, and the loop still finishes', async () => {
     const { ctx } = await boot({}, [
       {
