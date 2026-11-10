@@ -87,6 +87,15 @@ describe('planner: accepted plans', () => {
     expect(result.plan.subtasks[0]!.tools).toEqual(['read_file'])
     expect(result.plan.requiredToolSequences).toEqual({ s1: ['read_file'] })
   })
+  it('preserves repeated explicit calls in the required sequence while granting each tool only once', () => {
+    const task = 'Call read_file with path "src/target.ts". Then call read_file with path "src/poison.ts".'
+    const modelPlan = { task, subtasks: [{ id: 's1', goal: 'list files', tools: ['list_code_files'], dependsOn: [] }] }
+    const result = normalizeExplicitToolPlan(task, modelPlan, ['list_code_files', 'read_file'])
+    expect(result.adjusted).toBe(true)
+    expect(result.requestedTools).toEqual(['read_file', 'read_file'])
+    expect(result.plan.subtasks[0]!.tools).toEqual(['read_file'])
+    expect(result.plan.requiredToolSequences).toEqual({ s1: ['read_file', 'read_file'] })
+  })
   it('the planner sees offered tool schemas and path-selection rules, but receives no executable tools', async () => {
     const { ctx, mock } = await boot([reply(good)])
     await ctx.orchestrator.plan({ sessionId: 's', task: 'T', tools: ['search', 'read'] })
