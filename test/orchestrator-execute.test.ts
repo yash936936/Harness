@@ -104,6 +104,8 @@ describe('executor: the happy path', () => {
     expect(ran).toEqual(['read', 'read'])
     expect(prompts.s1[0]).toContain(`Overall task: ${task}`)
     expect(prompts.s1[0]).toContain('then complete the overall task')
+    expect(prompts.s1[0]).toContain('The required tool-call sequence is a prerequisite, not the final deliverable.')
+    expect(prompts.s1[0]).toContain('After completing it, answer the overall task above.')
     const events = await ctx.log.read('s')
     expect(events.filter((e) => e.type === 'tool.call')).toHaveLength(2)
     expect(events.filter((e) => e.type === 'tool.result' && (e.data as any).ok === true)).toHaveLength(2)
