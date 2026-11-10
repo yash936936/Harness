@@ -1,3 +1,13 @@
+## D-111 — S3 live file-tool acceptance closed — 2026-11-10
+
+**Decision:** Close S3 after review of owner-run session `9b0657ab-e21f-45a2-b957-ae5a87d16313` with `qwen2.5-coder:3b-instruct` and `--sandbox none`.
+
+**Evidence:** The JSONL records ordered `edit_file(package.json)` and `read_file(.env.production)` calls; camelCase alias normalization to canonical keys with numeric confidence 0.95; policy hold score 0.5 against threshold 0.8 limited by path-criticality 0.5; terminal approval denial; credential-path hard denial with no approval request or disclosure; and non-empty final text. The owner supplied clean `git diff HEAD --exit-code -- package.json` output before and after the session. The orchestrator completed the subtask after two tool steps.
+
+**Boundary:** S3 is closed for the prototype's file-tool/policy acceptance. It used `--sandbox none` and is independent of S0. This does not close or reopen S0, S1, S4, or any real-sandbox/provider acceptance.
+
+**Affects:** `docs/status.md`, `docs/BUILD-PLAN.md`, `docs/AUDIT-CLOSEOUT.md`. No runtime code or policy thresholds changed.
+
 ## D-110 — S0 permanent hold; dependent real-sandbox work deferred — 2026-11-10
 
 **Decision:** S0 / ARCH-01 is placed on **PERMANENT HOLD** for this prototype. Do not run further Docker, WSL, Crabbox transport probes, retries, workarounds, or host-execution substitutes. Preserve the existing failure evidence as historical evidence only. S1 real host-sentinel/orphan-reaper acceptance is deferred because it depends on S0. This is a scope disposition, not a claim that the sandbox passed or that the transport defect was fixed.
