@@ -23,6 +23,14 @@ declare module 'cordis' {
 
 const DEFAULT_RETRY: Required<RetryConfig> = { maxAttempts: 2, baseDelayMs: 500, factor: 2, maxDelayMs: 30_000 }
 
+/** Text that imitates a tool invocation is not a user-facing answer after required calls finish. */
+function looksLikePseudoToolCall(text: string): boolean {
+  const body = text.trim()
+  if (!body) return false
+  return /(?:\\"name\\"|\\bname)\\s*:\\s*[\"']?[A-Za-z_][\\w.-]*[\"']?\\s*,\\s*(?:\\"arguments\\"|\\barguments)\\s*:/i.test(body) ||
+    /(?:^|\\n)\\s*[\"']?[A-Za-z_][\\w.-]*[\"']?\\s*\\(\\s*\\{[\\s\\S]*?\\}\\s*\\)\\s*;?\\s*(?:$|\\n)/.test(body)
+}
+
 function defaultSleep(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) return reject(signal.reason)
@@ -184,6 +192,7 @@ export class AgentLoop extends Service {
     let retries = 0
     let reflected = false
     let requestedReflection = false
+    let requiredSequenceFinalizationRetried = false
     let routed: { tools: ToolSpec[]; shadowChoice?: string | null } = { tools: toolSpecs }
 
     while (steps < maxSteps) {
@@ -219,6 +228,16 @@ export class AgentLoop extends Service {
           })
           continue
         }
+        const finalText = textOf(res.content)
+        if (opts.requiredToolSequence && looksLikePseudoToolCall(finalText)) {
+          if (requiredSequenceFinalizationRetried) return { stopReason: 'max_steps', messages, finalText: '', steps, retries, reflected }
+          requiredSequenceFinalizationRetried = true
+          messages.push({
+            role: 'user',
+            content: 'All required tool calls have already been completed. Your previous reply incorrectly described tool-call syntax instead of answering. Do not call, name, or describe tools. Use the tool results already in this conversation to answer the original user request directly. If the results do not support an answer, say what is missing.',
+          })
+          continue
+        }
         if (reflectionOn && !requestedReflection) {
           requestedReflection = true
           reflected = true
@@ -228,7 +247,7 @@ export class AgentLoop extends Service {
           })
           continue
         }
-        return { stopReason: 'done', messages, finalText: textOf(res.content), steps, retries, reflected }
+        return { stopReason: 'done', messages, finalText, steps, retries, reflected }
       }
 
       const resultBlocks: ContentBlock[] = []
