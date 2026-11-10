@@ -63,7 +63,7 @@ describe('planner: accepted plans', () => {
     const result = await ctx.orchestrator.plan({ sessionId: 'explicit-tools', task, tools: offered })
     expect(result.plan.subtasks).toEqual([{
       id: 's1',
-      goal: 'Carry out the explicitly named tool operations in the order stated, using the exact paths and arguments supplied in the task.',
+      goal: 'Perform the required tool calls in order, then complete the overall task.',
       tools: ['read_file', 'edit_file'],
       dependsOn: [],
     }])
