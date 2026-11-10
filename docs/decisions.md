@@ -1,3 +1,15 @@
+## D-112 — S4 full provider acceptance blocked by permanent S0 hold — 2026-11-10
+
+**Decision:** Keep S4 **PARTIAL / BLOCKED-S0-PERMANENT-HOLD** under D-110. Do not attempt full governed coding tasks that require target-project command/test execution while S0 remains permanently held.
+
+**Evidence:** The owner's OpenRouter smoke passed for `cohere/north-mini-code:free` (`end_turn`, 57 output tokens, expected marker), and PR #41 CI run #403 passed on Windows and Ubuntu. This is only provider connectivity evidence. No full OpenRouter or Ollama coding task with target-project test evidence has passed. The Ollama S3 trace is not S4 evidence.
+
+**Technical boundary:** `src/cli/code.ts` offers `run_command` only when Docker is detected and Crabbox doctor succeeds. With `--sandbox none`, command execution is omitted and the CLI records that there is no host fallback. D-110 prohibits Docker/WSL/Crabbox probes and host-execution substitutes. Thus the full S4 acceptance cannot be completed under the current scope.
+
+**Reopen condition:** Only a new explicit owner decision superseding D-110 may authorize a supported execution environment and resume S4. Until then, retain the smoke pass as partial evidence and do not claim S4 complete.
+
+**Affects:** `docs/status.md`, `docs/BUILD-PLAN.md`, `docs/AUDIT-CLOSEOUT.md`, `docs/evidence/OPENROUTER.md`. No runtime code or provider configuration changed.
+
 ## D-111 — S3 live file-tool acceptance closed — 2026-11-10
 
 **Decision:** Close S3 after review of owner-run session `9b0657ab-e21f-45a2-b957-ae5a87d16313` with `qwen2.5-coder:3b-instruct` and `--sandbox none`.
