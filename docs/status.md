@@ -1,3 +1,7 @@
+## 2026-11-10 S7 live acceptance preparation
+
+Added a reproducible owner-run procedure in `docs/BUILD-PLAN.md` for (A) real Ollama embedding retrieval and (B) a controlled prompt-poisoning test using only `qwen2.5-coder:3b-instruct`. The procedure uses a disposable fixture, `--sandbox none`, hash checks, and session-log review. This is preparation only: no live embedding or poisoning run has been performed here. **S7 remains PARTIAL** until both owner-run outputs and the exact session JSONL are reviewed.
+
 ## 2026-11-10 S5 provenance review update
 
 - The pinned Qwen2.5-Coder-7B-Instruct revision `7b148ce7a59a361780846419d31d271537addf81` contains 14 files at Hugging Face: four Safetensors shards plus LICENSE, README, config/generation config, index, merges, tokenizer JSON/config, vocab, and .gitattributes. Four shard SHA-256 values and per-shard provenance JSON files are committed. No local model files have been downloaded or verified; the other ten files have no recorded local hashes. Preserve the pinned Apache-2.0 LICENSE and inventory all 14 files before distribution.
