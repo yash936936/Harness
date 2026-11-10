@@ -1,3 +1,15 @@
+## D-114 — Use only Qwen2.5-Coder 3B; exclude 7B artifact work — 2026-11-10
+
+**Decision:** The project will use only the Ollama model `qwen2.5-coder:3b-instruct` for model-driven acceptance and local project workflows. Do not use, download, verify, package, or distribute Qwen2.5-Coder-7B-Instruct. The 7B artifact provenance work is outside the selected prototype scope.
+
+**Acceptance boundary:** This decision does not broaden model acceptance. Existing live acceptance remains tied to the exact 3B model tag. Do not substitute another size or model. This decision also does not grant permission to redistribute the 3B model; any future model distribution requires a separate license and artifact review.
+
+**Audit disposition:** ENG-08 (7B model artifact provenance/distribution) is OUT OF SCOPE, not passed. Keep the existing 7B provenance files as historical reference only; they are not an acceptance prerequisite. S5 remains PARTIAL solely for the unresolved third-party package/release-notice work under ENG-04.
+
+**Supersedes:** The 7B model-selection and distribution target in D-104 and the 7B verification tasks in D-105/D-113. Other decisions about third-party dependency notices remain in force.
+
+**Affects:** `docs/status.md`, `docs/BUILD-PLAN.md`, `docs/AUDIT-CLOSEOUT.md`, and the historical 7B provenance note. No runtime code, model weights, or package metadata changed.
+
 ## D-113 — S5 provenance evidence boundaries — 2026-11-10
 
 **Decision:** Keep ENG-04 and ENG-08 PARTIAL until evidence is tied to the exact release artifacts. Upstream metadata and committed expected hashes do not substitute for local artifact verification or inspection of the actual shipped package.

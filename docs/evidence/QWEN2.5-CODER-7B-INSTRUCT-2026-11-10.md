@@ -1,6 +1,8 @@
 # Qwen2.5-Coder-7B-Instruct artifact provenance
 
-**Status: PINNED SOURCE REVISION AND EXPECTED SHARD HASHES; LOCAL ARTIFACT VERIFICATION PENDING.**
+> **Historical reference only. D-114 (2026-11-10) excludes this 7B artifact from project scope. Do not download, verify, package, distribute, or use it for acceptance. The project uses only `qwen2.5-coder:3b-instruct`.**
+
+**Historical status at time of capture: PINNED SOURCE REVISION AND EXPECTED SHARD HASHES; LOCAL ARTIFACT VERIFICATION PENDING.**
 
 Model: `Qwen/Qwen2.5-Coder-7B-Instruct`  
 Immutable Hugging Face revision: `7b148ce7a59a361780846419d31d271537addf81`  

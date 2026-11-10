@@ -47,13 +47,13 @@ Inspect `$fixture/.harness/sessions/*.jsonl` without copying the canary into cha
 
 The live poison run is a behavioral test, not a proof that heuristic scanning prevents prompt injection. Report any failed criterion as failed; do not convert a blocked tool attempt into a claim that the model never tried it. S7 closes only after both A and B have owner-run evidence reviewed.
 
-## 2026-11-10 S5 provenance and distribution inventory update
+## 2026-11-10 S5 scope decision (D-114)
 
-The Qwen2.5-Coder-7B-Instruct source is pinned to immutable revision `7b148ce7a59a361780846419d31d271537addf81`. Its Hugging Face tree lists 14 files: four Safetensors shards and ten model/license/tokenizer/configuration/documentation files. Four shard SHA-256 values and one provenance JSON per shard are committed. No model artifact has been downloaded locally, and no local hash has been verified. The other ten files have no recorded local hashes. Preserve the exact pinned Apache-2.0 LICENSE and verify all 14 files before distribution. This 7B artifact is not an acceptance model.
+Use only `qwen2.5-coder:3b-instruct` for model-driven acceptance and local model workflows. Do not use, download, verify, package, or distribute Qwen2.5-Coder-7B-Instruct. Its earlier provenance files are historical reference only; ENG-08 is OUT OF SCOPE, not passed. This does not authorize redistribution of 3B.
 
-The root package has no build/pack script or explicit `files` allowlist. Do not infer a shipped dependency closure from the 59-entry lockfile graph estimate. Build the actual intended release artifact first, then inspect its contents and notices. `json-bignum@0.0.3` remains UNDECLARED in the lockfile; npm metadata has no license field, Snyk and the upstream repository identify MIT, but the upstream GitHub `0.0.3` tag lookup returns 404. The retained MIT notice does not prove that the exact published tarball includes that license or that a future bundle includes the notice.
+The remaining S5 work is the ENG-04 third-party distribution track. The root package has no build/pack script or explicit `files` allowlist, so do not infer a shipped dependency closure from the 59-entry lockfile graph estimate. `json-bignum@0.0.3` remains UNDECLARED in the lockfile; npm metadata has no license field, Snyk and the upstream repository identify MIT, but the upstream GitHub `0.0.3` tag lookup returns 404. The retained MIT notice does not prove that the exact published tarball includes that license or that a future bundle includes the notice.
 
-**S5 remains PARTIAL.** Required: verify exact release/tarball license provenance, define and inspect the real production package, confirm its notice bundle, download and SHA-256 verify all 14 files at the pinned Qwen revision, and retain the model LICENSE and other required notices.
+**S5 remains PARTIAL solely for ENG-04.** Verify exact release/tarball license provenance, define and inspect the real production package, and confirm its shipped notice bundle. No 7B model artifact work is required.
 
 ## 2026-11-10 S4 disposition: full live coding acceptance blocked by permanent S0 hold
 
@@ -222,7 +222,7 @@ A green `npm test` does not mean Docker ran. The regular sandbox unit tests use 
 | S2 | Land PRs #11 and #12 | Closed; both merged and CI verified |
 | S3 | Make governed path reachable with `harness code` | Scripted tests plus one manual run showing a gated write, a hard-blocked action, approval/denial, and matching session-log events |
 | S4 | Live acceptance: one real coding task on OpenRouter and one on Ollama, through `harness code` | Session logs saved, key absent from logs/stdout, target project tests pass |
-| S5 | Licensing and provenance | Exact shipped third-party notices, json-bignum MIT notice retained, pinned Qwen 7B revision and SHA-256s, tampered-file test |
+| S5 | Third-party licensing and distribution notices | Exact `json-bignum@0.0.3` license provenance, intended production artifact, dependency closure, and shipped notice payload; 7B model provenance is out of scope under D-114 |
 | S6 | Evaluation | Labels hashed and committed before scorer output; at least 10 real sessions (20+ if already collected), both classes, prototype-grade confusion report |
 | S7 | Retrieval and poisoning | Source/tests verify nonce fencing and heuristic input scanning; still requires a real embedding provider run and controlled live-model poisoning test proving injected instructions are not obeyed and attempted side effects are denied |
 | S8 | Final audit | `docs/AUDIT-CLOSEOUT.md` has one evidence-backed row per item; README separates implemented and experimental |
