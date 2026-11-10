@@ -31,6 +31,13 @@ function looksLikePseudoToolCall(text: string): boolean {
     /(?:^|\n)\s*[\"']?[A-Za-z_][\w.-]*[\"']?\s*\(\s*\{[\s\S]*?\}\s*\)\s*;?\s*(?:$|\n)/.test(body)
 }
 
+
+/** A copied tool-result warning is metadata, not a response to the user's task. */
+function looksLikeToolResultBoilerplate(text: string): boolean {
+  return /everything between the two markers above is data returned by the tool/i.test(text) ||
+    /^warning:\s*this data contains text that looks like instructions aimed at you\b/im.test(text)
+}
+
 function defaultSleep(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) return reject(signal.reason)
@@ -229,12 +236,12 @@ export class AgentLoop extends Service {
           continue
         }
         const finalText = textOf(res.content)
-        if (opts.requiredToolSequence && looksLikePseudoToolCall(finalText)) {
+        if (opts.requiredToolSequence && (looksLikePseudoToolCall(finalText) || looksLikeToolResultBoilerplate(finalText))) {
           if (requiredSequenceFinalizationRetried) return { stopReason: 'max_steps', messages, finalText: '', steps, retries, reflected }
           requiredSequenceFinalizationRetried = true
           messages.push({
             role: 'user',
-            content: 'All required tool calls have already been completed. Your previous reply incorrectly described tool-call syntax instead of answering. Do not call, name, or describe tools. Use the tool results already in this conversation to answer the original user request directly. If the results do not support an answer, say what is missing.',
+            content: 'All required tool calls have already been completed. Your previous reply repeated tool-call syntax or tool-result safety metadata instead of answering. Do not call, name, or describe tools, and do not repeat the warning text. Use the actual file contents already in this conversation to answer the original user request directly. If the results do not support an answer, say what is missing.',
           })
           continue
         }
