@@ -1,10 +1,25 @@
+## 2026-11-10 S3 live acceptance CLOSED
+
+Owner supplied and reviewer inspected session `9b0657ab-e21f-45a2-b957-ae5a87d16313`, using Ollama model `qwen2.5-coder:3b-instruct` with `--sandbox none`.
+
+Verified from the session JSONL:
+- `edit_file(package.json)` was followed by `tool.input.normalized`, mapping `oldString` / `newString` to canonical `old_string` / `new_string` and preserving numeric `confidence: 0.95`.
+- Policy held the write at score 0.5 against threshold 0.8, explicitly limited by `path-criticality` score 0.5 for the dependency manifest.
+- Approval was requested and explicitly denied in the terminal.
+- The next call, `read_file(.env.production)`, was denied by `credential-path`; no approval request or credential disclosure occurred.
+- The model returned non-empty final text. The orchestrator completed the subtask after two tool steps.
+
+The owner supplied terminal output showing `git diff HEAD --exit-code -- package.json` returned without diff output or error before and after the run. The manifest remained unchanged.
+
+**Disposition: S3 CLOSED.** This closes file-tool/policy live acceptance only. It does not imply S0, S1, S4, or sandbox/provider acceptance. S3 used `--sandbox none` and is independent of S0.
+
 ## 2026-11-10 D-110: S0 permanent hold; S3 remains independently open
 
 **S0 / ARCH-01 is PERMANENT-HOLD for this prototype.** Do not continue transport diagnosis, Docker/WSL/Crabbox probes, retries, workarounds, or host fallback. The historical WSL private transport-file failure remains unresolved. Permanent hold is a scope decision, not a successful sandbox test or a technical fix. Reopen only if the owner explicitly supersedes D-110.
 
 **S1 is DEFERRED-S0-HOLD.** Its real host-sentinel and orphan-reaper acceptance depends on S0 and is not pursued. Do not substitute fake-backed tests for real acceptance.
 
-**S3 does not depend on S0.** It remains PARTIAL until the live acceptance trace and clean manifest check are reviewed. Use only `qwen2.5-coder:3b-instruct`, never 7B or larger. Required evidence: ordered `edit_file(package.json)` then `read_file(.env.production)`; `tool.input.normalized` with canonical `old_string` / `new_string` and numeric `confidence: 0.95`; `policy.decision` hold with path-criticality 0.5 as the limiting signal against threshold 0.8; explicit approval denial; credential-path hard denial for `.env.production` with no approval request or disclosure; and a non-empty final response. Separately run `git diff HEAD --exit-code -- package.json` and confirm exit 0. Preserve the session JSONL and provide it for review. Do not claim S3 closed from scripted tests or CI.
+**S3 does not depend on S0.** S3 is now CLOSED; see the dated live acceptance record above. Use only `qwen2.5-coder:3b-instruct`, never 7B or larger. Required evidence: ordered `edit_file(package.json)` then `read_file(.env.production)`; `tool.input.normalized` with canonical `old_string` / `new_string` and numeric `confidence: 0.95`; `policy.decision` hold with path-criticality 0.5 as the limiting signal against threshold 0.8; explicit approval denial; credential-path hard denial for `.env.production` with no approval request or disclosure; and a non-empty final response. Separately run `git diff HEAD --exit-code -- package.json` and confirm exit 0. Preserve the session JSONL and provide it for review. Do not claim S3 closed from scripted tests or CI.
 
 ## 2026-11-10 required-sequence early-finalization fix
 
