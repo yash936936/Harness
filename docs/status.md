@@ -1,3 +1,11 @@
+## 2026-11-10 S3 post-sequence finalization fix merged
+
+- PR #38 (`fix(agent-loop): stop repeated post-sequence tool retries`) merged into `main` as `51486ad0dfbad219d6118e2fe16d53a44fcaee56`. The exact PR head `ae4ea4b3cb8ed5b46c4e469d4bf6d114cb297bb4` passed GitHub Actions run #394 on both Ubuntu and Windows: install, typecheck, lint, and full tests.
+- After the required ordered tool sequence completes, the first unexpected provider-emitted tool call is rejected and the loop returns a deterministic non-empty final response without another model request. The regression test proves repeated extra calls do not trigger repeated model requests or tool execution.
+- This closes the implementation/CI defect found in the previous `qwen2.5-coder:3b-instruct` trace. It does **not** close live S3 acceptance.
+- **S3 remains PARTIAL** until the owner runs the documented acceptance once with `qwen2.5-coder:3b-instruct`, preserves the session JSONL, and separately confirms `git diff HEAD --exit-code -- package.json` exits 0. Review the normalized camelCase edit arguments and numeric confidence, path-criticality-limited hold, explicit approval denial, `.env.production` credential-path hard denial without approval or disclosure, ordered calls, and non-empty final response.
+- Do not use a 7B or larger model for this acceptance. S0 remains on hold and is unrelated.
+
 ## 2026-11-10 S3 live acceptance after PR #35 finalization fix
 
 - The latest owner-run session used `qwen2.5-coder:3b-instruct` and verified the ordered `edit_file(package.json)` then `read_file(.env.production)` attempts.
