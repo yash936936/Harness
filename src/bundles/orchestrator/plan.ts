@@ -95,8 +95,8 @@ export function normalizeExplicitToolPlan(
       const after = task[at + name.length]
       const beforeChar = task[at - 1]
       const tokenBoundary = (!beforeChar || !/[A-Za-z0-9_]/.test(beforeChar)) && (!after || !/[A-Za-z0-9_]/.test(after))
-      const explicit = tokenBoundary && /\\b(?:use|using|call|calling|invoke|invoking|attempt|attempting)\\s+(?:the\\s+)?$/i.test(before)
-      const negated = /\\b(?:do\\s+not|don't|never|must\\s+not|avoid)\\s+(?:use|call|invoke|attempt)\\s+(?:the\\s+)?$/i.test(before)
+      const explicit = tokenBoundary && /\b(?:use|using|call|calling|invoke|invoking|attempt|attempting)\s+(?:the\s+)?$/i.test(before)
+      const negated = /\b(?:do\s+not|don't|never|must\s+not|avoid)\s+(?:use|call|invoke|attempt)\s+(?:the\s+)?$/i.test(before)
       if (explicit && !negated) mentions.push({ name, at })
       at = task.indexOf(name, at + name.length)
     }
