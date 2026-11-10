@@ -135,7 +135,7 @@ describe('executor: the happy path', () => {
     const r = await ctx.orchestrator.execute(plan, opts({ allowedTools: ['edit', 'read'] }))
     expect(r.status).toBe('failed')
     expect(r.subtasks[0]!.status).toBe('failed')
-    expect(r.subtasks[0]!.reason).toContain('required tool sequence: edit -> read')
+    expect(r.subtasks[0]!.reason).toMatch(/max_steps/) // premature text is retried only within the bounded loop, then fails closed
     expect(ran).toEqual([])
     expect((await ctx.log.read('s')).some((e) => e.type === 'tool.call')).toBe(false)
   })
