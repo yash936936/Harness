@@ -1,3 +1,7 @@
+## 2026-11-10 required-sequence early-finalization fix
+
+The uploaded live S3 trace showed that after `edit_file` was held and approval was denied, the 3B model returned a final text response while `read_file` was still required. The registry correctly counted the denied edit attempt, and the orchestrator correctly failed the subtask because the required sequence remained incomplete. The agent loop previously accepted any no-tool response as final text. It now sends a bounded continuation instruction naming the next required tool and continues the loop; if the model still refuses or the step budget expires, the run fails closed rather than reporting success. A regression test covers a denied first tool, an intervening premature text response, the second required tool attempt, and finalization. Live S3 remains PARTIAL until a fresh owner-run 3B trace proves both attempts and all other acceptance checks.
+
 ## 2026-11-10 S3 post-sequence finalization fix merged
 
 - PR #38 (`fix(agent-loop): stop repeated post-sequence tool retries`) merged into `main` as `51486ad0dfbad219d6118e2fe16d53a44fcaee56`. The exact PR head `ae4ea4b3cb8ed5b46c4e469d4bf6d114cb297bb4` passed GitHub Actions run #394 on both Ubuntu and Windows: install, typecheck, lint, and full tests.
