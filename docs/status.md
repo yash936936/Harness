@@ -1,3 +1,10 @@
+## 2026-11-10 S5 provenance review update
+
+- The pinned Qwen2.5-Coder-7B-Instruct revision `7b148ce7a59a361780846419d31d271537addf81` contains 14 files at Hugging Face: four Safetensors shards plus LICENSE, README, config/generation config, index, merges, tokenizer JSON/config, vocab, and .gitattributes. Four shard SHA-256 values and per-shard provenance JSON files are committed. No local model files have been downloaded or verified; the other ten files have no recorded local hashes. Preserve the pinned Apache-2.0 LICENSE and inventory all 14 files before distribution.
+- `json-bignum@0.0.3` remains UNDECLARED in package-lock metadata. npm metadata says no license; Snyk and the upstream repository identify MIT. A GitHub lookup for the upstream `0.0.3` tag returned 404, so exact release-tag/tarball license provenance remains unverified. The MIT notice is retained, but no release package or shipped notice bundle has been inspected.
+- Root package metadata has no build/pack script or explicit `files` allowlist. This review therefore does not claim a production package or its dependency/notice contents have been produced.
+- **S5 remains PARTIAL.** Remaining: verify the exact npm tarball/license provenance, determine the actual distribution artifact and production dependency closure, inspect its notice payload, and download/hash-verify all 14 pinned Qwen files. The 7B model must not be used for live acceptance.
+ 
 ## 2026-11-10 S4 disposition: full live coding acceptance blocked by permanent S0 hold
 
 **S4 is PARTIAL / BLOCKED-S0-PERMANENT-HOLD.** The OpenRouter connectivity smoke passed, but neither provider's full governed coding-task acceptance is complete.

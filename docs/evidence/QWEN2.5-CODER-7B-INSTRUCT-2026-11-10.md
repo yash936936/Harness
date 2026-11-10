@@ -30,3 +30,26 @@ Sources:
 - [Shard 2 details](https://huggingface.co/Qwen/Qwen2.5-Coder-7B-Instruct/blob/7b148ce7a59a361780846419d31d271537addf81/model-00002-of-00004.safetensors)
 - [Shard 3 details](https://huggingface.co/Qwen/Qwen2.5-Coder-7B-Instruct/blob/7b148ce7a59a361780846419d31d271537addf81/model-00003-of-00004.safetensors)
 - [Shard 4 details](https://huggingface.co/Qwen/Qwen2.5-Coder-7B-Instruct/blob/7b148ce7a59a361780846419d31d271537addf81/model-00004-of-00004.safetensors)
+
+## Complete repository file inventory at the pinned revision
+
+The pinned Hugging Face tree lists 14 files (approximately 15.2 GB total). The four weight shards have upstream SHA-256 values recorded above. The other ten files are part of the model artifact and must also be downloaded/reviewed for a complete bundle inventory. Their local hashes are not recorded here.
+
+| File | Upstream size shown | SHA-256 status |
+|---|---:|---|
+| `.gitattributes` | 1.52 kB | Not recorded |
+| `LICENSE` | 11.3 kB | Not locally verified |
+| `README.md` | 5.99 kB | Not recorded |
+| `config.json` | 663 B | Not recorded |
+| `generation_config.json` | 243 B | Not recorded |
+| `merges.txt` | 1.67 MB | Not recorded |
+| `model-00001-of-00004.safetensors` | 4.88 GB | Upstream SHA-256 recorded; local verification pending |
+| `model-00002-of-00004.safetensors` | 4.93 GB | Upstream SHA-256 recorded; local verification pending |
+| `model-00003-of-00004.safetensors` | 4.33 GB | Upstream SHA-256 recorded; local verification pending |
+| `model-00004-of-00004.safetensors` | 1.09 GB | Upstream SHA-256 recorded; local verification pending |
+| `model.safetensors.index.json` | 27.8 kB | Not recorded |
+| `tokenizer.json` | 7.03 MB | Not recorded |
+| `tokenizer_config.json` | 7.31 kB | Not recorded |
+| `vocab.json` | 2.78 MB | Not recorded |
+
+The pinned revision's Hugging Face file listing identifies the model license as Apache-2.0 and exposes the LICENSE file. Retain that exact LICENSE with any distribution. A repository listing and upstream digest are provenance references, not local artifact verification. The 7B weights are not used for acceptance testing; acceptance remains restricted to `qwen2.5-coder:3b-instruct`.

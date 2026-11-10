@@ -1,3 +1,15 @@
+## D-113 — S5 provenance evidence boundaries — 2026-11-10
+
+**Decision:** Keep ENG-04 and ENG-08 PARTIAL until evidence is tied to the exact release artifacts. Upstream metadata and committed expected hashes do not substitute for local artifact verification or inspection of the actual shipped package.
+
+**json-bignum:** `json-bignum@0.0.3` remains `UNDECLARED` in package-lock metadata. npm metadata reports no license; Snyk and the upstream repository identify MIT. The upstream GitHub repository lookup for tag/ref `0.0.3` returned 404, so the exact published tarball's license provenance remains unverified. Keep the MIT notice, but do not claim that the tarball or future release bundle includes it until both are inspected. The root package currently has no build/pack script or explicit `files` allowlist; do not infer a shipped dependency closure from the lockfile graph.
+
+**Qwen:** Pin only Qwen/Qwen2.5-Coder-7B-Instruct at revision `7b148ce7a59a361780846419d31d271537addf81`. The pinned repository lists 14 files. Expected upstream SHA-256 values and per-file provenance JSONs exist for the four Safetensors shards only. No local files have been downloaded or verified; ten other files, including LICENSE and tokenizer/configuration files, remain in the inventory without local hashes. Verify all 14 files and retain the exact pinned Apache-2.0 LICENSE before distribution. Do not use the 7B artifact for acceptance; live acceptance continues to use only `qwen2.5-coder:3b-instruct`.
+
+**Reopen/close condition:** Close ENG-04 only after the exact intended release package and its notice payload are inspected. Close ENG-08 only after all 14 pinned files are downloaded, locally hashed against trusted upstream digests, and their license/notices are retained.
+
+**Affects:** `THIRD_PARTY_LICENSES.md`, `THIRD_PARTY_NOTICES/json-bignum-MIT.txt`, `docs/evidence/QWEN2.5-CODER-7B-INSTRUCT-2026-11-10.md`, `docs/status.md`, `docs/BUILD-PLAN.md`, `docs/AUDIT-CLOSEOUT.md`. No runtime code or model artifact is added.
+
 ## D-112 — S4 full provider acceptance blocked by permanent S0 hold — 2026-11-10
 
 **Decision:** Keep S4 **PARTIAL / BLOCKED-S0-PERMANENT-HOLD** under D-110. Do not attempt full governed coding tasks that require target-project command/test execution while S0 remains permanently held.
