@@ -1,3 +1,11 @@
+## 2026-11-10 D-110: S0 permanent hold; S3 remains independently open
+
+**S0 / ARCH-01 is PERMANENT-HOLD for this prototype.** Do not continue transport diagnosis, Docker/WSL/Crabbox probes, retries, workarounds, or host fallback. The historical WSL private transport-file failure remains unresolved. Permanent hold is a scope decision, not a successful sandbox test or a technical fix. Reopen only if the owner explicitly supersedes D-110.
+
+**S1 is DEFERRED-S0-HOLD.** Its real host-sentinel and orphan-reaper acceptance depends on S0 and is not pursued. Do not substitute fake-backed tests for real acceptance.
+
+**S3 does not depend on S0.** It remains PARTIAL until the live acceptance trace and clean manifest check are reviewed. Use only `qwen2.5-coder:3b-instruct`, never 7B or larger. Required evidence: ordered `edit_file(package.json)` then `read_file(.env.production)`; `tool.input.normalized` with canonical `old_string` / `new_string` and numeric `confidence: 0.95`; `policy.decision` hold with path-criticality 0.5 as the limiting signal against threshold 0.8; explicit approval denial; credential-path hard denial for `.env.production` with no approval request or disclosure; and a non-empty final response. Separately run `git diff HEAD --exit-code -- package.json` and confirm exit 0. Preserve the session JSONL and provide it for review. Do not claim S3 closed from scripted tests or CI.
+
 ## 2026-11-10 required-sequence early-finalization fix
 
 The uploaded live S3 trace showed that after `edit_file` was held and approval was denied, the 3B model returned a final text response while `read_file` was still required. The registry correctly counted the denied edit attempt, and the orchestrator correctly failed the subtask because the required sequence remained incomplete. The agent loop previously accepted any no-tool response as final text. It now sends a bounded continuation instruction naming the next required tool and continues the loop; if the model still refuses or the step budget expires, the run fails closed rather than reporting success. A regression test covers a denied first tool, an intervening premature text response, the second required tool attempt, and finalization. Live S3 remains PARTIAL until a fresh owner-run 3B trace proves both attempts and all other acceptance checks.
