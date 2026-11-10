@@ -1,3 +1,15 @@
+## 2026-11-10 D-110 disposition: S0 permanent hold; S3 evidence boundary
+
+This dated disposition supersedes the older S0/S1 status rows below.
+
+| ID | Current disposition | Evidence / boundary |
+|---|---|---|
+| S0 / ARCH-01 | **PERMANENT-HOLD** | Owner decision D-110. Historical WSL/Crabbox transport failure remains unresolved. No further probes, retries, workarounds, or host fallback. This is not a pass or technical fix. Reopen only through an explicit superseding owner decision. |
+| S1 | **DEFERRED-S0-HOLD** | Real host-sentinel/orphan-reaper acceptance depends on S0 and is not pursued under D-110. Fake-backed tests do not close it. |
+| S3 | **PARTIAL: implementation/CI passed; live acceptance open** | Independent of S0. Requires the 3B-only live session JSONL and clean `package.json` diff, with all event checks in `docs/BUILD-PLAN.md`. Do not close from CI or an uninspected session ID. |
+
+PR #41 is merged as `778ab63fb69f3ebf9cc916643b50f4ae0f214ff8`; GitHub Actions run #403 passed typecheck, lint, and tests on Windows and Ubuntu. The owner's OpenRouter smoke output passed, but the full governed OpenRouter coding task and target-project tests remain separate S4 requirements.
+
 ## 2026-11-10 S3 post-sequence finalization fix merged
 
 - PR #38 (`fix(agent-loop): stop repeated post-sequence tool retries`) merged into `main` as `51486ad0dfbad219d6118e2fe16d53a44fcaee56`. The exact PR head `ae4ea4b3cb8ed5b46c4e469d4bf6d114cb297bb4` passed GitHub Actions run #394 on both Ubuntu and Windows: install, typecheck, lint, and full tests.
