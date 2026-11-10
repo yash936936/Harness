@@ -123,7 +123,7 @@ describe('agent-loop: happy path and tool calls', () => {
     expect(requiredToolSequence.state.nextIndex).toBe(2)
     expect(mocks.get('mock')!.calls).toHaveLength(4)
     expect(mocks.get('mock')!.calls[3]!.tools).toBeUndefined()
-    expect(mocks.get('mock')!.calls[3]!.messages.at(-1)!.content).toContain('incorrectly described tool-call syntax')
+    expect(mocks.get('mock')!.calls[3]!.messages.at(-1)!.content).toContain('tool-call syntax or tool-result safety metadata')
   })
 
   it('re-prompts when the model repeats tool-result safety boilerplate instead of answering', async () => {
