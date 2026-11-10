@@ -88,6 +88,23 @@ describe('executor: the happy path', () => {
     expect((denied[0]!.data as any).content).toContain('expected "edit"')
   })
 
+  it('allows repeated calls to the same tool when each call is explicitly required', async () => {
+    const plan: Plan = {
+      task: 'read two files',
+      subtasks: [sub('s1', 'read both requested files', ['read'])],
+      requiredToolSequences: { s1: ['read', 'read'] },
+    }
+    const { ctx, ran } = await boot({
+      s1: [toolCall('read'), toolCall('read'), text('both files were read')],
+    })
+    const r = await ctx.orchestrator.execute(plan, opts())
+    expect(r.status).toBe('completed')
+    expect(ran).toEqual(['read', 'read'])
+    const events = await ctx.log.read('s')
+    expect(events.filter((e) => e.type === 'tool.call')).toHaveLength(2)
+    expect(events.filter((e) => e.type === 'tool.result' && (e.data as any).ok === true)).toHaveLength(2)
+  })
+
   it('advances the required sequence when a policy hook denies a valid tool attempt', async () => {
     const plan: Plan = {
       task: 'attempt edit then read',
