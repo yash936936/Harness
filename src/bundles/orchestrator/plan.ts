@@ -119,7 +119,7 @@ export function normalizeExplicitToolPlan(
     requiredToolSequences: { [first.id]: requestedTools },
   }
   const adjusted = JSON.stringify(normalized) !== JSON.stringify(plan)
-  return { plan: adjusted ? normalized : plan, adjusted, requestedTools: uniqueTools }
+  return { plan: adjusted ? normalized : plan, adjusted, requestedTools }
 }
 
 /**
