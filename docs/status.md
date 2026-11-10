@@ -8,12 +8,13 @@ This is owner-supplied local test evidence, not a GitHub Actions run. No source 
 
 Added a reproducible owner-run procedure in `docs/BUILD-PLAN.md` for (A) real Ollama embedding retrieval and (B) a controlled prompt-poisoning test using only `qwen2.5-coder:3b-instruct`. The procedure uses a disposable fixture, `--sandbox none`, hash checks, and session-log review. This is preparation only: no live embedding or poisoning run has been performed here. **S7 remains PARTIAL** until both owner-run outputs and the exact session JSONL are reviewed.
 
-## 2026-11-10 S5 provenance review update
+## 2026-11-10 S5 scope decision (D-114)
 
-- The pinned Qwen2.5-Coder-7B-Instruct revision `7b148ce7a59a361780846419d31d271537addf81` contains 14 files at Hugging Face: four Safetensors shards plus LICENSE, README, config/generation config, index, merges, tokenizer JSON/config, vocab, and .gitattributes. Four shard SHA-256 values and per-shard provenance JSON files are committed. No local model files have been downloaded or verified; the other ten files have no recorded local hashes. Preserve the pinned Apache-2.0 LICENSE and inventory all 14 files before distribution.
-- `json-bignum@0.0.3` remains UNDECLARED in package-lock metadata. npm metadata says no license; Snyk and the upstream repository identify MIT. A GitHub lookup for the upstream `0.0.3` tag returned 404, so exact release-tag/tarball license provenance remains unverified. The MIT notice is retained, but no release package or shipped notice bundle has been inspected.
-- Root package metadata has no build/pack script or explicit `files` allowlist. This review therefore does not claim a production package or its dependency/notice contents have been produced.
-- **S5 remains PARTIAL.** Remaining: verify the exact npm tarball/license provenance, determine the actual distribution artifact and production dependency closure, inspect its notice payload, and download/hash-verify all 14 pinned Qwen files. The 7B model must not be used for live acceptance.
+The project uses only `qwen2.5-coder:3b-instruct` for model-driven acceptance and local model workflows. Qwen2.5-Coder-7B-Instruct will not be used, downloaded, verified, packaged, or distributed. Its previously recorded provenance work is historical only. **ENG-08 is OUT OF SCOPE, not passed.** This supersedes the earlier 7B distribution target; it does not authorize redistribution of 3B.
+
+`json-bignum@0.0.3` remains UNDECLARED in package-lock metadata. npm metadata says no license; Snyk and the upstream repository identify MIT. A GitHub lookup for the upstream `0.0.3` tag returned 404, so exact release-tag/tarball license provenance remains unverified. The MIT notice is retained, but no release package or shipped notice bundle has been inspected. Root package metadata has no build/pack script or explicit `files` allowlist.
+
+**S5 remains PARTIAL solely for ENG-04:** verify exact npm tarball/license provenance, define the intended distribution artifact and production dependency closure, and inspect its shipped notice payload. No 7B model artifact work is required.
  
 ## 2026-11-10 S4 disposition: full live coding acceptance blocked by permanent S0 hold
 
