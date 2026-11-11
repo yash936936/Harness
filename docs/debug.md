@@ -1,3 +1,15 @@
+## DBG-113 — extract sandbox command tool factory — 2026-11-11
+
+**Step 0 measurement:** DBG-109 measured `src/bundles/tools-local/index.ts` at 450 lines and 6 exported declarations. It combined the `LocalTools` Cordis service, project file read/edit/create operations, and the isolated command tool factory. Existing `paths.ts`, `bounded-read.ts`, `git-harden.ts`, `risk.ts`, and `types.ts` already separate path policy, bounded reads, Git argument hardening, risk scoring, and configuration contracts.
+
+**Change:** Moved the `run_command` tool definition and execution closure into `tools-local/command.ts` as `createCommandTool`. The service passes the registered sandbox seam, existing timeout/output limits, confidence schema, and its private Git-hardening callback. The service still owns Git configuration inspection, which continues to use the same sandbox provider as the command. `LocalTools` remains one Cordis service; the existing `ctx.localTools` API and tool names/schemas remain unchanged.
+
+**Security invariants preserved by construction:** The extracted factory has no host process API. It calls only `Sandbox.run`, retains no-shell argv, lease-release verification, spawn-error handling, cancellation propagation, timeout handling, exit-code reporting, and independent stdout/stderr byte caps. Git config probes remain inside `ctx.sandbox.run`. No host fallback or sandbox acceptance attempt was added.
+
+**Regression coverage:** Existing `test/tools-local.test.ts` covers sandbox provider routing, no shell, environment allowlisting, cancellation, timeout bounds, output caps, Git command risk and hardening, and fail-closed behavior when command risk is not wired. The branch requires full CI on Ubuntu and Windows.
+
+**Limits:** No local npm command was run. No Docker, WSL, Crabbox, or live sandbox/provider probe was run. D-110 and D-114 are unchanged. The new component document records the current route and limits.
+
 ## DBG-112 — extract pure skill matchers from the skills service — 2026-11-11
 
 **Step 0 measurement:** `src/bundles/skills/index.ts` was 397 lines with 8 exported declarations. It combined skill discovery/validation, tool and system-section registration, resource reads, and two standalone matching algorithms. Existing `frontmatter.ts` (149 lines, 3 exports) and `types.ts` (52 lines, 6 exports) already separate parsing and contracts.
