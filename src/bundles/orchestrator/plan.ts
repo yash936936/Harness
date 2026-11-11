@@ -97,7 +97,7 @@ export function normalizeExplicitToolPlan(
       const beforeChar = task[at - 1]
       const tokenBoundary = (!beforeChar || !/[A-Za-z0-9_]/.test(beforeChar)) && (!after || !/[A-Za-z0-9_]/.test(after))
       const explicit = tokenBoundary && /\b(?:use|using|call|calling|invoke|invoking|attempt|attempting)\s+(?:the\s+)?$/i.test(before)
-      const negativeList = /\b(?:do\s+not|don't|never|must\s+not|avoid)\s+(?:use|call|invoke|attempt)\s+(?:the\s+)?([^.!?\\n]*)$/i.exec(before)
+      const negativeList = /\b(?:do\s+not|don't|never|must\s+not|avoid)\s+(?:use|call|invoke|attempt)\s+(?:the\s+)?([^.!?\r\n]*)$/i.exec(before)
       const negated = !!negativeList && !/\b(?:but|however|instead)\b/i.test(negativeList[1] ?? '')
       if (tokenBoundary && negated) prohibitedTools.add(name)
       else if (explicit) mentions.push({ name, at })
