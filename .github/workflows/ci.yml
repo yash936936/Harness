@@ -4,10 +4,14 @@ on:
   push:
     branches: [main]
   pull_request:
-
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
 jobs:
-  test:
-    name: typecheck + tests (${{ matrix.os }})
+  verify:
+    name: verify (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -22,5 +26,62 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
-      # Tests that need a local Ollama or a real sandbox skip themselves when it is absent.
       - run: npm test
+  docs:
+    name: docs and component drift
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm run docs:components
+      - run: npm run docs:check
+      - run: node scripts/events/failure-report.mjs --check
+        continue-on-error: true
+  security:
+    name: secrets and dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm run ci:secrets
+      - run: npm ci --ignore-scripts
+      - run: npm audit --omit=dev --audit-level=high
+  licenses:
+    name: license inventory
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run license:inventory
+      - name: inventory must be committed
+        run: git diff --exit-code THIRD_PARTY_LICENSES.md
+  not-run:
+    name: acceptance gates NOT run by CI
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          {
+            echo "### Not covered by CI (green here is not acceptance)"
+            echo "- Real Docker/Crabbox sandbox (S0/S1, on permanent hold under D-110)"
+            echo "- Live OpenRouter / Ollama full coding tasks (S4)"
+            echo "- Human-labelled evaluation (S6) and live poisoning/embedding runs (S7)"
+            echo "- Desktop shell measurements (1B.4)"
+          } >> "$GITHUB_STEP_SUMMARY"
+  ci-pass:
+    name: ci-pass
+    if: always()
+    needs: [verify, docs, security, licenses]
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo '${{ toJSON(needs) }}'
+          test "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}" = "false"
