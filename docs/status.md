@@ -1,3 +1,17 @@
+## 2026-11-11 retrieval-rank extraction CI passed; PR review pending
+
+PR #66 extracts bounded, symlink-safe project-file access from `RetrievalRank` into `src/bundles/retrieval-rank/file-access.ts`. The service remains a single Cordis class and delegates through its existing private read/cache wrapper. `index.ts` is reduced from 533 to 462 lines. The component documentation and Step 0 measurements are included.
+
+GitHub Actions run #476 passed on Ubuntu and Windows: install, typecheck, lint, full tests, documentation/component drift, secret scan, production dependency audit, license inventory, and aggregate `ci-pass`. Ubuntu reported 55 test files passed, 2 skipped; 1,133 tests passed, 102 skipped. An earlier run (#474) caught a missing type-only `IndexSkip` import; it was restored before run #476.
+
+**Validation boundary:** No local npm command was run. No sandbox, Docker, WSL, Crabbox, or live-provider acceptance was attempted. D-110 and D-114 are unchanged. PR #66 is open and not merged.
+
+## 2026-11-11 retrieval-rank responsibility extraction in review
+
+PR #66 extracts bounded, symlink-safe project-file access from `RetrievalRank` into `src/bundles/retrieval-rank/file-access.ts`. The service remains a single Cordis class and delegates through its existing private read/cache wrapper. `index.ts` is reduced from 533 to 462 lines. The component documentation and Step 0 candidate measurements are included in this branch.
+
+**Validation boundary:** Main baseline CI run #473 passed on Ubuntu and Windows. PR #66 CI run #474 is pending; no local npm commands were run in this repository-side session. No sandbox/provider acceptance was attempted. D-110 and D-114 are unchanged.
+
 ## 2026-11-11 PR #64 merged; live S7 acceptance still open
 
 PR #64 merged into `main` as commit `9094fc2ddfecaabd89d194135a1a0b9bef05cb2a`. Its planner normalization preserves downstream synthesis subtasks while removing tool grants already absorbed into the required sequence and filtering explicitly prohibited grants. GitHub Actions run #468 passed typecheck, lint, and tests on Ubuntu and Windows.

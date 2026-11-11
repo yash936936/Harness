@@ -1,3 +1,43 @@
+## DBG-111 — extract episodic recording from memory composition — 2026-11-11
+
+**Step 0 measurement:** `src/bundles/memory/index.ts` was 318 lines with 4 exported declarations. It combined the `Memory` Cordis composition service with the log-linked `EpisodicMemory` recorder, `summariseApproach`, and the private field-clipping helper. The semantic tier already lives in `semantic.ts`; storage, hot tier, compaction, derivation, and access are already separate modules.
+
+**Change:** Moved `EpisodicMemory`, `summariseApproach`, and their private clipping helper into `memory/episodic.ts`. `memory/index.ts` remains the `ctx.memory` composition service and re-exports the exact same `EpisodicMemory` and `summariseApproach` names for compatibility. No storage schema, sequence-link rule, redaction, idempotency, query ordering, or public import path was intentionally changed.
+
+**Regression coverage:** Existing `test/memory-episodic.test.ts` imports `EpisodicMemory`'s public behavior through `memory/index.ts` and covers JSONL recovery, idempotent recording, redaction, query filters/order, and log-link verification. `test/memory-integration.test.ts` covers the composed run/record/compaction path. PR CI is required for typecheck, lint, and the full cross-platform suite.
+
+**Limits:** No local npm command was run. No sandbox/provider acceptance was attempted.
+
+## DBG-110 — fix missing IndexSkip type import after extraction — 2026-11-11
+
+**Failure:** Initial PR CI run #474 failed Ubuntu typecheck at `src/bundles/retrieval-rank/index.ts(313,20)`: `IndexSkip` was still used by the indexing result path after its import was removed with the file-reader type.
+
+**Fix:** Restored the type-only `IndexSkip` import from `./types.js`. No runtime code changed. On the corrected head, PR CI run #476 passed typecheck, lint, and tests on Ubuntu and Windows; docs/component checks, secret/dependency checks, license inventory, and aggregate `ci-pass` also passed.
+
+**Test evidence:** Ubuntu: 55 test files passed, 2 skipped; 1,133 tests passed, 102 skipped (1,235 total). `test/retrieval-rank.test.ts` ran 69 tests with 44 skipped on Ubuntu and 45 skipped on Windows. Windows full suite passed.
+
+**Limits:** No local npm command was run. CI is implementation evidence only; no live embedding/provider or sandbox acceptance was attempted.
+
+## DBG-109 — extract retrieval-rank file access responsibility — 2026-11-11
+
+**Step 0 measurements (selected refactor candidates):**
+
+| File | Lines | Exported declarations | Observed responsibility mix |
+|---|---:|---:|---|
+| `src/bundles/tools-local/index.ts` | 450 | 6 | Cordis service plus read/edit/write/command tool factories and path/write orchestration |
+| `src/bundles/policy-gates/index.ts` | 202 | 5 | One policy service; deny rules and scoring signals are already separate modules |
+| `src/bundles/orchestrator/execute.ts` | 282 | 2 | Plan execution, per-subtask prompt/fencing, and bounded agent identity |
+| `src/bundles/retrieval-rank/index.ts` | 533 | 3 | Retrieval service, secure bounded file access, lexical ranking, semantic fusion, and indexing |
+| `src/bundles/memory/index.ts` | 318 | 4 | Memory composition service plus episodic-recording class and shared approach summariser |
+| `src/bundles/model-adapter/index.ts` | 228 | 4 | One LLM service and provider dispatch/egress/budget orchestration |
+| `src/cli/code.ts` | 215 | 5 | CLI task lifecycle, Docker detection, timeout parsing, consent and profile boot |
+
+**Already separated in the low-risk areas:** `egress/index.ts` (145 lines, 4 exports), `input-guard/index.ts` (82 lines, 5 exports) plus `input-guard/patterns.ts` (28 lines, 3 exports), `policy-gates/denylist.ts` (218 lines, 4 exports), and `retrieval-rank/text.ts` (91 lines, 4 exports) / `chunk.ts` (95 lines, 9 exports). These do not justify another split in this pass.
+
+**Change:** Extracted the bounded, symlink-safe project-file reader and path containment helper from `RetrievalRank` into `retrieval-rank/file-access.ts`. The service retains its public methods and reuses the extracted reader through a private cache wrapper. No service class was split by method; no public service exports, ranking rules, limits, or error reasons were intentionally changed.
+
+**Validation boundary:** The existing `test/retrieval-rank.test.ts` covers secret exclusions, root escapes, binary/oversized/unreadable files, stale vector hits, and indexing. GitHub Actions on the refactor PR must validate typecheck, lint, and the full suite on Ubuntu and Windows. No local npm command was run in this repository-side edit session. No sandbox/provider acceptance was attempted.
+
 ## DBG-108 — agent workflow and documentation overlay integration — 2026-11-11
 
 The supplied `harness-overlay.zip` adds repository operating guidance, component-documentation tooling, append-only event logging, a generated failure ledger, and CI checks. The overlay was reviewed against current `main` after PR #64 merged. The integration preserves D-110 and D-114 and updates the context summary to the current S7 state.
