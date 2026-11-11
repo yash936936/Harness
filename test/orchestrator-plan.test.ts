@@ -52,7 +52,7 @@ describe('planner: accepted plans', () => {
     const modelPlan = { subtasks: [
       { id: 's1', goal: 'Search for keywords in package.json', tools: ['search_code'], dependsOn: [] },
       { id: 's2', goal: 'Read package.json', tools: ['read_file'], dependsOn: ['s1'] },
-      { id: 's3', goal: 'Write package.json', tools: ['write_file'], dependsOn: ['s2'] },
+      { id: 's3', goal: 'Write package.json', tools: ['write_file', 'run_command'], dependsOn: ['s2'] },
     ] }
     const task = [
       'Read package.json using read_file with path "package.json".',
