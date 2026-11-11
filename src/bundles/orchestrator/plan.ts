@@ -138,10 +138,10 @@ export function normalizeExplicitToolPlan(
     return { plan: adjusted ? filtered : plan, adjusted, requestedTools: [] }
   }
 
-  // Repeated calls to one read-only tool are often planned as separate file-reading subtasks.
-  // Keep those calls in separate short-lived agents when the planner has already provided one
-  // leading subtask per call. This avoids asking a small model to continue a tool sequence after
-  // it has already emitted a perfectly valid final answer for the first read.
+  // Repeated calls to the same tool may already be planned as separate leading subtasks.
+  // Keep those calls in separate short-lived agents when the planner has provided one subtask
+  // per call. This avoids requiring a model to continue a sequence after it has already emitted
+  // a valid final answer for the first operation.
   const repeatedSingleTool = allowedRequestedTools.length > 1 && allowedRequestedTools.every((name) => name === allowedRequestedTools[0])
   const repeatedTool = allowedRequestedTools[0]!
   const callCandidates = repeatedSingleTool
