@@ -1,41 +1,57 @@
 # Context: Coding Harness
 
-> Read this file first. The current execution state lives in `docs/status.md`; design history lives in `docs/decisions.md`.
+> Read this file first. Then read `AGENTS.md` (the authoritative rules for any agent). Current execution state lives in `docs/status.md`; design history lives in `docs/decisions.md`.
 
 ## Project
 
 A TypeScript multi-agent coding harness built on Cordis. Bundles provide model access, tools, retrieval, memory, sandbox providers, routing, policy gates and evaluation. Profiles compose them. The repository is `yash936936/Harness`; default branch is `main`.
 
-## Current state (2026-11-08)
+## Where things live
 
-The latest audit work is recorded in `docs/status.md` and decisions D-100 onward. Do not rely on the older phase narrative below; read the newest status entry and the relevant decision before changing behavior.
+| Need | File |
+|---|---|
+| Rules for any agent (entry protocol, evidence classes, debugging, repeated-failure rule, logging duties) | `AGENTS.md` |
+| Paste-in prompt that points an agent at the rules | `prompt.md` |
+| What each component is, its files, exports, route, config, limits | `docs/components/<area>.md` (index: `docs/components/README.md`) |
+| Every command, review and outcome, machine-readable, append-only | `docs/logs/events.jsonl` |
+| Recurring failures ranked by occurrences, with HOLD status (generated) | `docs/FAILURE-LEDGER.md` |
+| Design decisions (append-only) | `docs/decisions.md` |
+| Findings per task (append-only) | `docs/debug.md` |
+| Current state and next steps | `docs/status.md` |
+| Merge gate settings | `docs/BRANCH-PROTECTION.md` |
+| Per-responsibility file split plan | `docs/REFACTOR-PLAN.md` |
 
-**Code present:** policy-gated local tools; optional Crabbox/CubeSandbox providers behind `ctx.sandbox`; router and shadow-decision hooks; actor-granted, bounded semantic-memory retrieval with provenance and input-guard fencing; cross-process file locks; session-log torn-tail repair; evaluation runner and calibration script; default coding-profile model-call budgets.
+`docs/components/*.md` hold hand-written Purpose / Route / Config / Known limits plus a generated files-and-exports table. `docs/FAILURE-LEDGER.md` is generated from the event log; never edit either generated part by hand.
 
-**Not equivalent to verified completion:** fake-provider tests do not prove a live sandbox works; scripted-model tests do not prove model quality; a router's existence does not prove Needle wins; semantic tier startup does not establish that every agent retrieves useful facts; a passing typecheck does not establish platform runtime behavior.
+## Current state (2026-11-11)
 
-## Required reading
+Read the newest entry in `docs/status.md`; do not rely on this summary. S0 is on permanent hold (D-110), S1 deferred behind it, S3 closed, S4 blocked by D-110, S5 partial for ENG-04, S6 blocked on human labels, and S7 remains partial pending a successful live 3B completion run after PR #64. Only `qwen2.5-coder:3b-instruct` is in scope (D-114).
 
-1. `docs/status.md`: newest status entry and outstanding evidence gates.
-2. `docs/decisions.md`: relevant D-IDs before changing architecture or defaults.
-3. `docs/phases.md`: acceptance criteria and phase boundaries.
-4. `docs/debug.md`: historical findings. Append new findings; do not rewrite history.
+**Code present is not acceptance.** Fake-provider tests do not prove a live sandbox works; scripted-model tests do not prove model quality; a green CI does not close any external gate. See the evidence classes in `AGENTS.md`.
 
-## Workflow rules
+## Required reading order
+
+1. `AGENTS.md`
+2. `docs/status.md` (newest status entry)
+3. `docs/FAILURE-LEDGER.md`
+4. `docs/decisions.md` (relevant D-IDs)
+5. `docs/components/<area>.md` for areas you will touch
+6. `docs/phases.md` for acceptance criteria; `docs/debug.md` for history
+
+## Workflow rules (summary; full text in AGENTS.md)
 
 - Keep policy gates fail-closed. Never weaken checks to make a test pass.
-- Do not expose `run_command` unless the configured sandbox provider passes doctor. The governed CLI fails closed: without a healthy Crabbox sandbox, command tools are withheld and there is no host-command fallback. Real lease/run/release acceptance remains open.
-- Keep `router.owned` empty for any decision class without measured Needle-vs-worker evidence on the frozen suite. Shadow results are measurement, not authorization.
-- Treat semantic memory as untrusted input. Retrieval must be bounded, source-attributed, scoped to the requesting actor, and passed through input-guard before becoming model-visible.
-- Never synthesize real-run labels, provider results, usage, or performance measurements.
-- Real external checks require the owner's configured services/credentials and machine. Record command, date, environment, result, and raw log path.
+- No Docker, WSL or Crabbox probes or host-command fallback (D-110). `run_command` is only offered with a healthy sandbox.
+- `router.owned` stays empty for any class without measured Needle-vs-worker evidence.
+- Semantic memory is untrusted input: bounded, source-attributed, actor-scoped, fenced by input-guard.
+- Never synthesize labels, results, usage or measurements.
+- Three identical failures = stop and decide (change the part wholesale, or hold it), logged as a decision.
+- Log commands through `scripts/events/run-logged.mjs`; findings in `docs/debug.md`; decisions in `docs/decisions.md`; state in `docs/status.md`.
+- One source file per responsibility; keep `docs/components/` in sync with `npm run docs:components`.
 
 ## End-of-run
 
 Append technical findings to `docs/debug.md`, design decisions to `docs/decisions.md`, and update `docs/status.md`. Update the public-facing `docs/readme.md` only to describe capabilities actually verified.
 
-## Current execution note (2026-11-08)
-
-S0 / ARCH-01 is **PENDING-ENVIRONMENT**. The pinned local-container image warmed successfully, inspect worked, and Docker showed the container running. crabbox run failed before the in-container command executed while Crabbox attempted to create its private WSL SSH transport file; the diagnostic reported an empty path. crabbox stop succeeded. The exact root cause is unknown. The owner asked to pause this one issue and continue independent closeout work. S1 real orphan recovery remains dependent on S0.
-
-Use `docs/evidence/S0-ARCH-01-TRANSPORT-INCIDENT-REPORT-2026-11-08.md` for the conversation-based incident history and resume checklist. Continue S3 manual CLI acceptance, S5 license/provenance work, S6 real-session evaluation preparation, S7 real embedding/poisoning work, and S8 evidence reconciliation only where prerequisites exist. Do not claim external acceptance without raw evidence. The active continuation plan is `docs/BUILD-PLAN.md`.
+---
+**Next:** Return to [`AGENTS.md`](./AGENTS.md).
