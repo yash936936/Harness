@@ -83,7 +83,7 @@ describe('planner: accepted plans', () => {
       },
     ])
     expect(result.plan.requiredToolSequences).toEqual({ s1: ['read_file', 'edit_file'] })
-    expect(result.plan.subtasks.slice(1).map((s) => s.id)).toEqual(['s2'])
+    expect(result.plan.subtasks.slice(1).map((s) => s.id)).toEqual(['s2', 's3'])
     const events = await ctx.log.read('explicit-tools')
     const normalized = events.find((event) => event.type === 'plan.normalized')!.data as any
     expect(normalized.reason).toBe('explicit-tool-sequence')
