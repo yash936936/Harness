@@ -280,6 +280,40 @@ describe('executor: failure policy (D-074)', () => {
     expect(statuses(r)).toEqual(['a:failed', 'b:failed', 'c:failed'])
     expect(r.subtasks.map((s) => s.reason)).toEqual([expect.stringMatching(/max_steps/), expect.stringMatching(/empty answer/), expect.stringMatching(/provider exploded/)])
   })
+  it('does not mark a refusal-shaped response as a completed subtask', async () => {
+    const refusal = "I'm sorry, but I'm unable to assist with that request."
+    const { ctx, mock } = await boot({ s1: [text(refusal)] })
+    const r = await ctx.orchestrator.execute(
+      { task: 'Explain the harmless add function in the source file', subtasks: [sub('s1', 'Explain the add function')] },
+      opts(),
+    )
+    expect(r.status).toBe('failed')
+    expect(r.subtasks[0]).toMatchObject({
+      status: 'failed',
+      attempts: 1,
+      reason: 'finished with a refusal instead of completing the subtask',
+    })
+    expect(r.outputs).toEqual({})
+    expect(mock.calls).toHaveLength(1)
+    expect((await ctx.log.read('s')).at(-1)!.data).toMatchObject({
+      status: 'failed',
+      counts: { completed: 0, failed: 1, blocked: 0, 'not-run': 0 },
+    })
+  })
+
+  it('retries a refusal only when the caller opted into retries and the attempt made no side effects', async () => {
+    const refusal = "I'm sorry, but I'm unable to assist with that request."
+    const { ctx, mock } = await boot({ s1: [text(refusal), text('The add function returns a + b.')] })
+    const r = await ctx.orchestrator.execute(
+      { task: 'Explain the add function', subtasks: [sub('s1', 'Explain the add function')] },
+      opts({ retries: 1 }),
+    )
+    expect(r.status).toBe('completed')
+    expect(r.subtasks[0]).toMatchObject({ status: 'completed', attempts: 2, text: 'The add function returns a + b.' })
+    expect(mock.calls).toHaveLength(2)
+    expect(await evTypes(ctx, 'subtask.retry')).toEqual(['subtask.retry'])
+  })
+
   it('a failed TOOL result alone is not a failed subtask: the model can recover from it', async () => {
     const { ctx } = await boot({ s1: [toolCall('read'), text('recovered')] }) // 'read' is not in s1's list -> tool result is an error
     const r = await ctx.orchestrator.execute({ task: 'T', subtasks: [sub('s1', 'g', ['search'])] }, opts())
