@@ -28,8 +28,8 @@ import { LocalTools, commandRisk, type LocalToolsConfig } from '../bundles/tools
 
 import { EvalRunner, type EvalConfig } from '../bundles/eval-runner/index.js'
 import { ProfileError, missingFrom } from './errors.js'
-import { verifyGates } from './verify-gates.js'
-export { ProfileError, verifyGates }
+import { SELFTEST_SESSION, verifyGates } from './verify-gates.js'
+export { ProfileError, SELFTEST_SESSION, verifyGates }
 
 /** The lowest `confidenceThreshold` the profile accepts. At 0 every real-fs-write with any signal would be auto-approved, which is the gate switched off by another name. */
 /**
@@ -43,8 +43,6 @@ export const DEFAULT_CODING_BUDGETS: BudgetsConfig = {
 }
 
 export const MIN_CONFIDENCE_THRESHOLD = 0.5
-/** The self-test runs under this session id, so it never lands in a real task's log. */
-export const SELFTEST_SESSION = 'profile-coding-selftest'
 
 export interface ProfileCodingConfig {
   /** Required (D-029): consent is per project. */
