@@ -127,7 +127,13 @@ export function normalizeExplicitToolPlan(
   if (goal.length > limits.maxGoalChars) return { plan, adjusted: false, requestedTools }
   const normalized: Plan = {
     task,
-    subtasks: [{ id: first.id, goal, tools: uniqueTools, dependsOn: [] }],
+    // Keep the planner's downstream synthesis/review steps. Replacing the whole
+    // plan with only the first subtask silently discarded work that depended on
+    // the explicit reads (including the actual answer step).
+    subtasks: [
+      { id: first.id, goal, tools: uniqueTools, dependsOn: [] },
+      ...plan.subtasks.slice(1),
+    ],
     requiredToolSequences: { [first.id]: requestedTools },
   }
   const adjusted = JSON.stringify(normalized) !== JSON.stringify(plan)
