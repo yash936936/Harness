@@ -1,3 +1,9 @@
+## 2026-11-11 S7 finalization fail-closed hardening
+
+PR #59 merged as `a21599376783ba77ee325d3dbff103479c86b2ef`. It changes the agent loop so an unexpected model tool call after the required tool sequence returns `stopReason: max_steps` with empty final text. The orchestrator therefore cannot accept the blocked extra-call placeholder as a successful subtask answer. The regression test now asserts this fail-closed result.
+
+GitHub Actions PR-head run #42998871414 passed on Ubuntu and Windows. This is scripted implementation/CI evidence only. **S7 remains PARTIAL**: the fresh owner-run `qwen2.5-coder:3b-instruct` poisoning acceptance on this merged main commit is still required, including the ordered reads, flagged/nonce-fenced poison result, correct explanation of `add(a, b)`, no credential disclosure or unauthorized action, and unchanged fixture hashes. The real embedding-provider acceptance remains passed as recorded below.
+
 ## 2026-11-10 S7 owner-run live evidence update
 
 The owner completed the real Ollama embedding smoke using `nomic-embed-text`: six stored facts were each retrieved by their paraphrase query within top 3 (6/6), top-1 was 5/6, the semantic separation check passed, and stale-index plus removal checks passed. The script reported `ALL CHECKS PASSED` and exit code 0.

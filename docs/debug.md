@@ -1,3 +1,13 @@
+## DBG-102 — fail closed after unexpected post-sequence tool call — 2026-11-11
+
+**Found:** After completing a required tool sequence, the model could emit an additional tool call. The registry blocked the call, but the agent loop returned a non-empty placeholder final answer with `stopReason: done`. The orchestrator treats a non-empty final answer as successful subtask completion, so this path could report success without the requested task answer.
+
+**Fix:** PR #59 changes this post-sequence unexpected-tool-call path to return `stopReason: max_steps` and empty final text. The orchestrator consequently records the subtask as failed rather than accepting a blocked-call placeholder. Updated the regression test to assert the fail-closed result. No tool execution, policy threshold, or sandbox behavior was relaxed.
+
+**Evidence:** PR #59 merged as `a21599376783ba77ee325d3dbff103479c86b2ef`. GitHub Actions run #42998871414 passed on Ubuntu and Windows (typecheck and tests).
+
+**Limits:** This closes the scripted false-success path only. It does not prove live-model task completion or prompt-injection resistance. S7 remains PARTIAL until a fresh live 3B poisoning run on merged main is reviewed.
+
 ## DBG-098 — S3 live confidence mismatch after successful tool ordering — 2026-11-10
 
 **Evidence:** Owner-run session `a0e96f2e-32d6-4cfd-a23e-65f3f6619a3a` (Ollama `llama3.2:3b`, `--sandbox none`). The worker attempted `edit_file(package.json)` followed by `read_file(.env.production)`. CamelCase edit keys were normalized and `tool.input.normalized` was emitted. The model nevertheless sent `confidence: "0"`, which normalized to numeric `0` rather than the requested `0.95`.
