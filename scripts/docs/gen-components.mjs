@@ -64,7 +64,7 @@ for (const area of areas()) {
   else if (next !== doc) problems.push(`stale generated block: docs/components/${area.name}.md`)
   if (/\(open — /.test(next)) console.warn(`warn: docs/components/${area.name}.md still has unfilled hand-written sections`)
   if (!check) fs.writeFileSync(file, next)
-  index.push(`| [${area.name}](${area.name}.md) | ${area.kind} | \`${rel(path.relative(ROOT, area.dir))}/\` |`)
+  index.push(`| \`${area.name}\` | ${area.kind} | \`${rel(path.relative(ROOT, area.dir))}/\` |`)
 }
 const readme = ['# Component docs', '', 'One file per area (bundle, cli, profiles, util). Generated parts stay in sync with `src/`. Hand-written sections document purpose, route, config and known limits.', '', '| Component | Type | Location |', '|---|---|---|', ...index, '', '---', '**Next:** Return to [`context.md`](../../context.md).', ''].join('\n')
 const readmePath = path.join(OUT, 'README.md')
