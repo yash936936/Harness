@@ -5,9 +5,9 @@ This section defines the current sample-prototype scope. Historical runbooks and
 ## Current verified baseline
 
 - Repository: `yash936936/Harness`, default branch `main`.
-- Main commit reviewed for the current S7 follow-up: `3ae191dac3821f7c7b85929274b739db5a326cba`.
+- Main commit reviewed for the current closeout: `8ff85e1caec138190e61eb3c4b11adec8ecfadef` (PR #84 merge).
 - Refactor plan: implementation closed and merged. PRs #66, #67, #71, #72, #73, #74, #75, #77, and #79 are merged. PR #80 was closed without merge and is not counted.
-- PR #81, PR #82, and PR #83 are merged. Current main is `3ae191dac3821f7c7b85929274b739db5a326cba` (PR #83). PR #83 CI run #43082459511 passed all seven jobs, including Ubuntu and Windows verification, documentation/component checks, acceptance-gate reporting, secrets/dependency checks, license inventory, and aggregate `ci-pass`.
+- PR #81, PR #82, PR #83, and PR #84 are merged. Current main is `8ff85e1caec138190e61eb3c4b11adec8ecfadef` (PR #84). PR #84 branch CI run #43087559617 and post-merge main CI run #43087893939 (#527) passed all seven jobs, including Ubuntu and Windows verification, documentation/component checks, acceptance-gate reporting, secrets/dependency checks, license inventory, and aggregate `ci-pass`.
 - No local npm commands were run during this GitHub-connector documentation update. CI evidence is not live provider, model, sandbox, or human-label acceptance.
 
 ## Binding prototype scope
@@ -24,7 +24,7 @@ This section defines the current sample-prototype scope. Historical runbooks and
 | Area | Current disposition | Prototype requirement / close condition |
 |---|---|---|
 | Refactor plan | IMPLEMENTATION CLOSED | No refactor candidate remains queued. |
-| Repository CI | PR #81 BASELINE PASS | Run the full suite again once after the remaining implementation work is complete. Require Ubuntu and Windows verification, typecheck, lint, tests, docs/component checks, security/dependency checks, license inventory, and aggregate `ci-pass`. |
+| Repository CI | PR #84 MERGE CI PASS (#527) | Current main commit `8ff85e1caec138190e61eb3c4b11adec8ecfadef` passed Ubuntu/Windows verification, typecheck, lint, tests, docs/component checks, secrets/dependency checks, license inventory, and aggregate `ci-pass`. Local owner full-suite run remains separately documented; run the final local check/test workflow after focused live checks. |
 | S0 / ARCH-01 | PERMANENT-HOLD (D-110) | No further work unless a new explicit owner decision supersedes D-110. Not a prototype completion blocker under this scope. |
 | S1 | DEFERRED-S0-HOLD | No orphan-recovery real acceptance while S0 is held. |
 | S3 | CLOSED (D-111) | File-tool/policy live acceptance only. Does not imply sandbox, S0, S1, or S4 acceptance. |
@@ -36,9 +36,9 @@ This section defines the current sample-prototype scope. Historical runbooks and
 
 ## Remaining work, in order
 
-### 1. Finish any remaining implementation changes
+### 1. Implementation closeout
 
-Make only changes needed for the sample prototype's documented behavior. Preserve D-110/D-112/D-114 and all fail-closed policy gates. Do not add release packaging or deferred phase work.
+PR #84 is merged and its post-merge CI is green. The explicit-read dependency and evidence-grounding defect is corrected in current main. Do not reopen this implementation item unless the next live rerun provides a concrete regression. Preserve D-110/D-112/D-114 and all fail-closed policy gates.
 
 ### 2. Complete focused S7 live checks
 
@@ -52,7 +52,7 @@ Inventory genuine distinct model-driven sessions. The owner labels each eligible
 
 ### 4. Run all automated tests once after implementation is complete
 
-Run the repository's full check/test workflow after implementation and the focused checks are complete. Require typecheck, lint, full tests, documentation/component checks, security/dependency checks, license inventory, and aggregate `ci-pass` on Ubuntu and Windows. Do not weaken a check to get a green result. The existing PR #81 run #515 is a green baseline, not a substitute for testing any later code changes.
+Run the repository's full check/test workflow after implementation and the focused checks are complete. Require typecheck, lint, full tests, documentation/component checks, security/dependency checks, license inventory, and aggregate `ci-pass` on Ubuntu and Windows. Do not weaken a check to get a green result. The PR #84 merge CI run #527 is green on current main. This is repository CI evidence, not a substitute for the owner-run S7/S6 acceptance checks or the final local check/test workflow.
 
 ## No-go items
 
