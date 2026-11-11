@@ -51,6 +51,14 @@ export function boundedAgentId(runId: string, subtaskId: string): string {
   return `${runId}-h${createHash('sha256').update(subtaskId).digest('hex').slice(0, 16)}`
 }
 
+/**
+ * 4.2 (D-074). Runs a plan's subtasks in order, each in its own short-lived sub-agent whose grant is exactly the tools
+ * the subtask lists (and never more than `allowedTools`). The plan is re-validated and the whole plan checked against the
+ * ceiling BEFORE anything runs, and the full plan is logged in `execute.started` before the first subtask, whatever
+ * produced it. Every subtask ends in a logged terminal state; `execute.finished` is logged even if the run is cut short.
+ * Sequential on purpose: dependencies point only backwards, so plan order is a valid order, and a weak model (D-070)
+ * gains nothing from a concurrency bug.
+ */
 export async function executePlan(deps: ExecutorDeps, plan: Plan, opts: ExecuteOptions): Promise<ExecutionResult> {
   const { ctx } = deps
   const subagents = (ctx.root as Context & { subagents?: Context['subagents'] }).subagents
