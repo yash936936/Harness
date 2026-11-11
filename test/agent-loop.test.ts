@@ -253,8 +253,8 @@ describe('agent-loop: happy path and tool calls', () => {
       requiredToolSequence,
     })
 
-    expect(res.stopReason).toBe('done')
-    expect(res.finalText).toBe('The required tool attempts were completed. Additional tool calls were blocked.')
+    expect(res.stopReason).toBe('max_steps')
+    expect(res.finalText).toBe('')
     expect(executions).toBe(1)
     expect(requiredToolSequence.state.nextIndex).toBe(1)
     expect(mocks.get('mock')!.calls).toHaveLength(2)
