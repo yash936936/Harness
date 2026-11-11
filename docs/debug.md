@@ -1,3 +1,13 @@
+## DBG-121 — define sample-prototype acceptance scope and defer distribution work
+
+**Review:** Re-evaluated the remaining build-plan gates against the owner's stated goal of a sample prototype. The root package is private and has no build/pack/release script; no distributable artifact is defined. D-113 correctly requires exact package and notice evidence for a real release, but producing that evidence without an approved release target would not validate the prototype.
+
+**Disposition in D-115:** No package, release archive, hosted distribution, or model-weight distribution is planned. S5 / ENG-04 release-artifact acceptance is deferred/out of scope, not passed. Keep the existing dependency/license inventory, including the unresolved `json-bignum@0.0.3` tarball provenance, as a future release blocker. Existing GitHub repository visibility is unchanged. D-110, D-112, D-114, and D-109 remain in force.
+
+**Prototype verification retained:** Full automated CI after implementation; focused S7 real embedding-provider and controlled live 3B poisoning checks; and S6 evaluation using at least 10 genuine sessions with owner labels committed before scorer output (20+ when available). S0/S1, full S4, and Phases 7/8 remain held, blocked, or deferred.
+
+**Validation boundary:** Reviewed current main documentation and repository metadata through GitHub. No source code changed and no local tests, live provider/model checks, sandbox probes, or S6 evaluation were run. PR #81 CI run #515 is a passing baseline only.
+
 ## DBG-120 — build-plan audit and closeout refresh — 2026-11-11
 
 **Entry protocol:** Read `context.md`, `AGENTS.md`, current `docs/status.md`, generated failure ledger, newest applicable decisions, current phase plan, and relevant component documentation before editing. Main baseline: `cdec12d4dc04ad3d46bb8b5d0cf20164cb7b361d`.
