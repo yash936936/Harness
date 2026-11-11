@@ -6,6 +6,7 @@ import type { SubAgent } from '../subagent-scope/index.js'
 import { ScopeError } from '../subagent-scope/index.js'
 import { validatePlan } from './plan.js'
 import { subtaskPrompt } from './prompt.js'
+import { looksLikeRefusal } from '../agent-loop/response-guards.js'
 import {
   OrchestratorError,
   type ExecuteOptions,
@@ -186,6 +187,7 @@ export async function executePlan(deps: ExecutorDeps, plan: Plan, opts: ExecuteO
             if (r.stopReason !== 'done') reason = `stopped at ${r.stopReason} without finishing`
             else if (!agent!.requiredToolsComplete) reason = `finished before attempting required tool sequence: ${agent!.requiredToolsRemaining.join(' -> ')}`
             else if (!r.finalText.trim()) reason = 'finished with an empty answer'
+            else if (looksLikeRefusal(r.finalText)) reason = 'finished with a refusal instead of completing the subtask'
             else {
               ok = true
               text = r.finalText

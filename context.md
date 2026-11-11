@@ -25,7 +25,7 @@ A TypeScript multi-agent coding harness built on Cordis. Bundles provide model a
 
 ## Current state (2026-11-11)
 
-Read the newest entry in `docs/status.md`; do not rely on this summary. The current deliverable is a sample/research prototype with no distributable artifact planned (D-115); the repository's public visibility is unchanged. S0 is on permanent hold (D-110), S1 deferred, S3 closed for file-tool/policy acceptance, S4 blocked (D-112), S5 / ENG-04 release work deferred/out of scope (not passed), S6 requires genuine owner-labelled sessions under D-109, and S7 requires focused live embedding and 3B poison-resistance checks. Only `qwen2.5-coder:3b-instruct` is in scope (D-114).
+Read the newest entry in `docs/status.md`; do not rely on this summary. The current deliverable is a sample/research prototype with no distributable artifact planned (D-115); the repository's public visibility is unchanged. S0 is on permanent hold (D-110), S1 deferred, S3 closed for file-tool/policy acceptance, S4 blocked (D-112), S5 / ENG-04 release work deferred/out of scope (not passed), S6 requires genuine owner-labelled sessions under D-109, and S7 requires focused live embedding and 3B poison-resistance checks. The latest owner-run poison session exposed a refusal-shaped false completion; PR #83 contains the source fix and passed cross-platform CI, with merge and a fresh live rerun still pending. Only `qwen2.5-coder:3b-instruct` is in scope (D-114).
 
 **Code present is not acceptance.** Fake-provider tests do not prove a live sandbox works; scripted-model tests do not prove model quality; a green CI does not close any external gate. See the evidence classes in `AGENTS.md`.
 
