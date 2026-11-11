@@ -8,7 +8,7 @@ This is the single authoritative instruction file. `context.md` routes here; `pr
 2. Read the newest entry in `docs/status.md`. Do not rely on memory of earlier chats.
 3. Read `docs/FAILURE-LEDGER.md`. If anything there is `HOLD`, do not touch that area until you have read section 6.
 4. Check `docs/decisions.md` (newest first) before proposing anything that might contradict a logged decision. Do not reopen a decision unless the owner does. Current hard ones: D-110 (S0 permanent hold), D-114 (only `qwen2.5-coder:3b-instruct`).
-5. Read `docs/components/<area>.md` for every area you are about to change.
+5. Read `docs/components/<area>.md` for every area you are about to change. If the component docs have not been generated yet, run `npm run docs:components` first.
 6. Check the working tree: `git status`, then `npm run typecheck` and `npm test` (separate commands).
 
 ## 2. Evidence classes: never blur them
