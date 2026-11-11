@@ -1,3 +1,11 @@
+## 2026-11-11 CLI Docker extraction CI green; profiles self-test refactor in progress
+
+PR #74 passed full GitHub Actions run #496 on Ubuntu and Windows. Typecheck, lint, tests, documentation/component drift, secret/dependency checks, license inventory, and aggregate `ci-pass` all passed. PR #74 is stacked on PR #73; both remain open for review.
+
+The current stacked change moves `verifyGates` and `SELFTEST_SESSION` into `profiles/verify-gates.ts`, preserving both exports from `profile-coding.ts`. The profile continues to run the same self-test after boot. See DBG-116.
+
+**Validation boundary:** The current profiles branch has not run CI. No local npm commands or sandbox/provider acceptance were run. D-110 and D-114 remain unchanged.
+
 ## 2026-11-11 orchestrator prompt extraction CI green; CLI detection refactor in progress
 
 PR #73 passed full GitHub Actions run #495 on Ubuntu and Windows. Typecheck, lint, and tests passed on both platforms; each suite reported 55 files passed, 2 skipped, 1,133 tests passed, and 102 skipped. Documentation/component drift, secret/dependency checks, license inventory, and aggregate `ci-pass` passed. PR #73 is open and clean, awaiting review.
