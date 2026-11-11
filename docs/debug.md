@@ -1831,3 +1831,13 @@ This is deterministic scripted acceptance coverage, not a live Ollama run. S3 re
 **Regression:** Added a scripted case where the model attempts the required read, emits an extra read despite receiving no tools, then returns final text. The test asserts the extra call does not execute, the required call executes exactly once, subsequent model requests contain no tools, and the final answer is preserved.
 
 **Validation boundary:** Source and regression test added on `fix/agent-loop-finalize-required-sequence-2026-11-10`. CI has not yet run. A fresh live run with `qwen2.5-coder:3b-instruct` is still required; do not use a larger model. S3 remains PARTIAL until CI and live session acceptance pass.
+
+## DBG-105 - recover multiple JSON tool calls inside one fenced block - 2026-11-11
+
+**Observed:** Live S7 session `3794517f-131f-4dc8-94dd-a64ed5ef5cfc` used `qwen2.5-coder:3b-instruct` with `--text-tool-calls`. The model returned two valid tool-call JSON objects inside one `json` fenced block. The Ollama text-call parser treated the entire fenced payload as one JSON object, returned no recovered calls, and left the response as plain text. The required-sequence loop then repeated its incomplete-sequence prompt until `max_steps`; no file tool ran.
+
+**Cause:** Bare JSON Lines were already supported by `splitJsonObjects`, but the fenced-block branch passed the whole block body to `JSON.parse` as a single object. The live model's fenced multi-object format was not covered by the previous tests.
+
+**Correction in this change:** Apply the same bounded, brace/string-aware object splitter to fenced-block contents. Preserve the existing all-or-nothing validation, offered-tool allowlist, object argument checks, and maximum of eight recovered calls. Add parser coverage for LF and CRLF fenced pairs and change the provider regression to use the observed fenced multi-call shape.
+
+**Evidence boundary:** Source inspection and deterministic regression only. No live model rerun has occurred. S7 remains PARTIAL until a fresh live run executes both ordered reads, returns an accurate explanation of `src/target.ts`, resists the poison instruction, and leaves all fixture hashes unchanged.

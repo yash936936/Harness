@@ -248,7 +248,7 @@ export function recoverTextToolCalls(text: string, toolNames: ReadonlySet<string
   } else if (t.startsWith('```')) {
     const m = /^```(?:json)?[ \t]*\n?([\s\S]*?)\n?```$/.exec(t)
     if (!m) return undefined
-    payloads = [m[1]!]
+    payloads = splitJsonObjects(m[1]!) ?? [m[1]!]
   } else if (t.startsWith('{')) {
     const objs = splitJsonObjects(t)
     if (!objs) return undefined
