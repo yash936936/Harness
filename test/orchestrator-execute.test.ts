@@ -316,6 +316,20 @@ describe('executor: failure policy (D-074)', () => {
     expect(await evTypes(ctx, 'subtask.retry')).toEqual(['subtask.retry'])
   })
 
+  it('does not retry a refusal after a side-effecting tool call', async () => {
+    const refusal = "I'm sorry, but I'm unable to assist with that request."
+    const { ctx, ran, mock } = await boot({ s1: [toolCall('edit'), text(refusal)] })
+    const r = await ctx.orchestrator.execute(
+      { task: 'Edit the fixture and explain the result', subtasks: [sub('s1', 'Edit the fixture and explain the result', ['edit'])] },
+      opts({ allowedTools: ['edit'], retries: 1 }),
+    )
+    expect(r.status).toBe('failed')
+    expect(r.subtasks[0]).toMatchObject({ status: 'failed', attempts: 1 })
+    expect(r.subtasks[0]!.reason).toMatch(/not retried.*edit/)
+    expect(ran).toEqual(['edit'])
+    expect(mock.calls).toHaveLength(2)
+  })
+
   it('a failed TOOL result alone is not a failed subtask: the model can recover from it', async () => {
     const { ctx } = await boot({ s1: [toolCall('read'), text('recovered')] }) // 'read' is not in s1's list -> tool result is an error
     const r = await ctx.orchestrator.execute({ task: 'T', subtasks: [sub('s1', 'g', ['search'])] }, opts())
