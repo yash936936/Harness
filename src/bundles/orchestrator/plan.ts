@@ -88,6 +88,7 @@ export function normalizeExplicitToolPlan(
   if (!hasExactPath) return { plan, adjusted: false, requestedTools: [] }
 
   const mentions: { name: string; at: number }[] = []
+  const prohibitedTools = new Set<string>()
   for (const name of offered) {
     let at = task.indexOf(name)
     while (at >= 0) {
@@ -97,7 +98,8 @@ export function normalizeExplicitToolPlan(
       const tokenBoundary = (!beforeChar || !/[A-Za-z0-9_]/.test(beforeChar)) && (!after || !/[A-Za-z0-9_]/.test(after))
       const explicit = tokenBoundary && /\b(?:use|using|call|calling|invoke|invoking|attempt|attempting)\s+(?:the\s+)?$/i.test(before)
       const negated = /\b(?:do\s+not|don't|never|must\s+not|avoid)\s+(?:use|call|invoke|attempt)\s+(?:the\s+)?$/i.test(before)
-      if (explicit && !negated) mentions.push({ name, at })
+      if (tokenBoundary && negated) prohibitedTools.add(name)
+      else if (explicit) mentions.push({ name, at })
       at = task.indexOf(name, at + name.length)
     }
   }
@@ -117,9 +119,11 @@ export function normalizeExplicitToolPlan(
     const paths = [...clause.matchAll(/(?:^|[\s"'])((?:[A-Za-z0-9_.-]+\/)*[A-Za-z0-9_.-]+\.[A-Za-z0-9]{1,12})(?=$|[\s"',;:!?])/g)]
     return Array(Math.max(1, paths.length)).fill(mention.name)
   })
-  const uniqueTools = [...new Set(requestedTools)]
+  // A prohibition wins if the same tool is also mentioned positively.
+  const allowedRequestedTools = requestedTools.filter((name) => !prohibitedTools.has(name))
+  const uniqueTools = [...new Set(allowedRequestedTools)]
   if (!requestedTools.length || requestedTools.length > limits.maxToolsPerSubtask || uniqueTools.length > limits.maxToolsPerSubtask) {
-    return { plan, adjusted: false, requestedTools }
+    return { plan, adjusted: false, requestedTools: allowedRequestedTools }
   }
 
   const first = plan.subtasks[0]!
@@ -132,12 +136,17 @@ export function normalizeExplicitToolPlan(
     // the explicit reads (including the actual answer step).
     subtasks: [
       { id: first.id, goal, tools: uniqueTools, dependsOn: [] },
-      ...plan.subtasks.slice(1),
+      ...plan.subtasks.slice(1).map((subtask) => ({
+        ...subtask,
+        // The first subtask has already performed these ordered calls. Do not
+        // repeat them downstream, and never preserve a grant the task forbids.
+        tools: subtask.tools.filter((name) => !uniqueTools.includes(name) && !prohibitedTools.has(name)),
+      })),
     ],
-    requiredToolSequences: { [first.id]: requestedTools },
+    requiredToolSequences: { [first.id]: allowedRequestedTools },
   }
   const adjusted = JSON.stringify(normalized) !== JSON.stringify(plan)
-  return { plan: adjusted ? normalized : plan, adjusted, requestedTools }
+  return { plan: adjusted ? normalized : plan, adjusted, requestedTools: allowedRequestedTools }
 }
 
 /**
