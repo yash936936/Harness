@@ -272,14 +272,11 @@ export class AgentLoop extends Service {
       // complete and no tools are offered. Reject the attempted calls through
       // the registry once, then stop instead of retrying until maxSteps.
       if (sequenceComplete) {
-        return {
-          stopReason: 'done',
-          messages,
-          finalText: 'The required tool attempts were completed. Additional tool calls were blocked.',
-          steps,
-          retries,
-          reflected,
-        }
+        // The model attempted another tool after the required sequence. The
+        // attempt was blocked, but that does not mean the user's task was
+        // completed. Fail closed so the orchestrator cannot accept a
+        // success-shaped placeholder as the subtask result.
+        return { stopReason: 'max_steps', messages, finalText: '', steps, retries, reflected }
       }
     }
 
