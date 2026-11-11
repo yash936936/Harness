@@ -1,3 +1,23 @@
+## DBG-109 — extract retrieval-rank file access responsibility — 2026-11-11
+
+**Step 0 measurements (selected refactor candidates):**
+
+| File | Lines | Exported declarations | Observed responsibility mix |
+|---|---:|---:|---|
+| `src/bundles/tools-local/index.ts` | 450 | 6 | Cordis service plus read/edit/write/command tool factories and path/write orchestration |
+| `src/bundles/policy-gates/index.ts` | 202 | 5 | One policy service; deny rules and scoring signals are already separate modules |
+| `src/bundles/orchestrator/execute.ts` | 282 | 2 | Plan execution, per-subtask prompt/fencing, and bounded agent identity |
+| `src/bundles/retrieval-rank/index.ts` | 533 | 3 | Retrieval service, secure bounded file access, lexical ranking, semantic fusion, and indexing |
+| `src/bundles/memory/index.ts` | 318 | 4 | Two memory services and shared summarisation helper |
+| `src/bundles/model-adapter/index.ts` | 228 | 4 | One LLM service and provider dispatch/egress/budget orchestration |
+| `src/cli/code.ts` | 215 | 5 | CLI task lifecycle, Docker detection, timeout parsing, consent and profile boot |
+
+**Already separated in the low-risk areas:** `egress/index.ts` (145 lines, 4 exports), `input-guard/index.ts` (82 lines, 5 exports) plus `input-guard/patterns.ts` (28 lines, 3 exports), `policy-gates/denylist.ts` (218 lines, 4 exports), and `retrieval-rank/text.ts` (91 lines, 4 exports) / `chunk.ts` (95 lines, 9 exports). These do not justify another split in this pass.
+
+**Change:** Extracted the bounded, symlink-safe project-file reader and path containment helper from `RetrievalRank` into `retrieval-rank/file-access.ts`. The service retains its public methods and reuses the extracted reader through a private cache wrapper. No service class was split by method; no public service exports, ranking rules, limits, or error reasons were intentionally changed.
+
+**Validation boundary:** The existing `test/retrieval-rank.test.ts` covers secret exclusions, root escapes, binary/oversized/unreadable files, stale vector hits, and indexing. GitHub Actions on the refactor PR must validate typecheck, lint, and the full suite on Ubuntu and Windows. No local npm command was run in this repository-side edit session. No sandbox/provider acceptance was attempted.
+
 ## DBG-108 — agent workflow and documentation overlay integration — 2026-11-11
 
 The supplied `harness-overlay.zip` adds repository operating guidance, component-documentation tooling, append-only event logging, a generated failure ledger, and CI checks. The overlay was reviewed against current `main` after PR #64 merged. The integration preserves D-110 and D-114 and updates the context summary to the current S7 state.
