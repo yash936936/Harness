@@ -1,3 +1,13 @@
+## 2026-11-11 sample-prototype scope recorded (D-115)
+
+Defined the current deliverable as a sample/research prototype with no npm package, release archive, hosted distribution, or model-weight distribution planned. The repository's existing public visibility is unchanged. S5 / ENG-04 release-artifact and shipped-notice acceptance is deferred/out of scope, not passed; the dependency/license inventory remains maintained, and the unresolved `json-bignum@0.0.3` archive provenance must be resolved before any future distribution.
+
+The prototype work is now focused on the full automated test suite after implementation, the two targeted S7 live checks (real embedding provider and controlled `qwen2.5-coder:3b-instruct` poison task), and the small S6 genuine-session evaluation under D-109. S0/S1 remain held/deferred under D-110, S4 remains blocked under D-112, S3 remains closed for file-tool/policy acceptance, and Phases 7/8 remain deferred. D-114 remains unchanged.
+
+PR #81's merge CI run #515 passed all seven jobs, including Ubuntu/Windows verification and aggregate `ci-pass`. This is the current repository CI baseline, not live provider/model or S6 acceptance.
+
+**Validation boundary:** Documentation-only scope update through the GitHub connector. No local npm commands, source tests, embedding-provider check, live model run, sandbox probe, or human-labelled evaluation was performed. No runtime code, package metadata, repository visibility, or policy gates changed.
+
 ## 2026-11-11 build-plan audit refreshed; documentation PR CI pending
 
 Audited the entry protocol and refreshed `docs/BUILD-PLAN.md` with a consolidated acceptance ledger and safe next-work order. The live plan is `docs/BUILD-PLAN.md`; no root `build.md` or root `BUILD-PLAN.md` exists on main. The update corrects the stale evaluation sample-size instruction to match D-109 (minimum 10 genuine model-driven sessions, use 20+ when available) and records current S0/S1/S3/S4/S5/S6/S7 and Phase 7/8 dispositions.
