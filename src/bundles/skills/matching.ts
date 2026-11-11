@@ -1,5 +1,5 @@
 // Deterministic keyword and embedding matchers for selecting relevant skills.
-import { SkillsConfigError, type Skill, type SkillMatcher } from './types.js'
+import { SkillsConfigError, type SkillMatcher } from './types.js'
 
 const STOP = new Set('a an and or of to in on is are it its be by for with as at we our do does how what why which that this from than so can not no use when the you your i me my if into out up about any all'.split(' '))
 const wordsOf = (s: string) => new Set((s.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []).filter((w) => w.length > 2 && !STOP.has(w)))
