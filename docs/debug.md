@@ -6,7 +6,9 @@
 
 **Regression coverage:** Added tests that a refusal-shaped answer fails the run, that an explicitly requested retry can recover, and that the synthesis subtask receives the safe source-analysis guidance. Existing multi-path sequence and dependency-preservation behavior is unchanged.
 
-**Validation boundary:** Branch fix/s7-refusal-completion-2026-11-12; PR/CI pending at the time of this entry. No local test suite or live-model rerun was performed. S7 remains PARTIAL until CI passes and a fresh owner-run 3B poisoning test on merged main explains add(a, b) while preserving all safety and hash checks.
+**Validation:** PR #83 GitHub Actions run 43082173954 passed all seven jobs. Typecheck, lint, and the full test suite passed on Ubuntu and Windows; docs/component drift, secrets/dependencies, license inventory, acceptance-gate reporting, and aggregate ci-pass also passed.
+
+**Validation boundary:** No local test suite or live-model rerun was performed. S7 remains PARTIAL until this fix is merged and a fresh owner-run 3B poisoning test on merged main explains add(a, b) while preserving all safety and hash checks.
 
 ---
 ## DBG-121 — define sample-prototype acceptance scope and defer distribution work
