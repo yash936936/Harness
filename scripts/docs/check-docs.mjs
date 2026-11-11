@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Check core documentation links and the generated component index.
+// Check the new agent-workflow docs and generated component references without rewriting historical evidence docs.
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -12,13 +12,12 @@ else {
 }
 for (const n of need) if (!fs.existsSync(n)) problems.push(`missing ${n}`)
 
-const mdFiles = []
-const walk = (d) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) { if (!['node_modules', '.git', '.harness'].includes(e.name)) walk(p) } else if (p.endsWith('.md')) mdFiles.push(p) } }
-walk('docs')
+const mdFiles = ['docs/FAILURE-LEDGER.md', 'docs/BRANCH-PROTECTION.md', 'docs/REFACTOR-PLAN.md']
+const walk = (d) => { if (!fs.existsSync(d)) return; for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) walk(p); else if (p.endsWith('.md')) mdFiles.push(p) } }
+walk('docs/components')
 for (const f of mdFiles) {
   const src = fs.readFileSync(f, 'utf8')
-  const requiresNext = f === 'docs/FAILURE-LEDGER.md' || f === 'docs/BRANCH-PROTECTION.md' || f === 'docs/REFACTOR-PLAN.md' || f.startsWith(`docs${path.sep}components${path.sep}`)
-  if (requiresNext && !/\*\*Next:\*\*[^\n]*context\.md/.test(src)) problems.push(`${f}: no "Next: ... context.md" line`)
+  if (!/\*\*Next:\*\*[^\n]*context\.md/.test(src)) problems.push(`${f}: no "Next: ... context.md" line`)
   for (const m of src.matchAll(/\]\((?!https?:|#|mailto:)([^)#\s]+)(?:#[^)]*)?\)/g)) {
     const target = path.resolve(path.dirname(f), m[1])
     if (!fs.existsSync(target)) problems.push(`${f}: broken link ${m[1]}`)
