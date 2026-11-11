@@ -1,3 +1,15 @@
+## DBG-117 — extract agent-loop response finalization guards — 2026-11-11
+
+**Step 0 measurement:** `src/bundles/agent-loop/index.ts` was 329 lines with 3 exported declarations. It combined the `AgentLoop` Cordis service with two pure response classifiers used only when a required tool sequence is complete. Those classifiers reject pseudo tool-call syntax and copied tool-result safety boilerplate as final answers, so the model must synthesize a real answer from the tool results.
+
+**Change:** Moved `looksLikePseudoToolCall` and `looksLikeToolResultBoilerplate` unchanged into `agent-loop/response-guards.ts`. The service imports the internal helpers. The run loop, provider retry/fallback behavior, system-section ordering, router behavior, required-tool enforcement, and public exports remain in `index.ts`. The service file is now 312 lines; the guard module is 24 lines.
+
+**Regression coverage:** Existing `test/agent-loop.test.ts` covers pseudo-tool-call rejection, legacy and fenced tool-result boilerplate, substantive answers that quote warning text, one retry, and fail-closed repeated boilerplate. No response pattern or retry behavior was changed.
+
+**Tool-registry disposition:** Re-measured `tool-registry/index.ts` at 230 lines with 4 exports and `types.ts` at 84 lines with 11 exports. Registration, AJV validation, allowed-tool and required-sequence enforcement, pre/post policy hooks, execution, output truncation, and logging are all parts of the same call choke point. Splitting methods would fragment the single enforcement boundary; no extraction is justified. Component documentation remains to be added in a dedicated area review.
+
+**Validation boundary:** No local npm command was run. PR #75's CI run #497 passed on Ubuntu and Windows, including typecheck, lint, full tests, docs/component drift, secret/dependency checks, license inventory, and aggregate `ci-pass`. The current agent-loop branch still requires its own full CI. No sandbox/provider acceptance was run. D-110 and D-114 are unchanged.
+
 ## DBG-116 — extract profile-coding policy self-test — 2026-11-11
 
 **Step 0 measurement:** `src/profiles/profile-coding.ts` was 268 lines with 8 exported declarations. It combined profile configuration validation, service composition, missing-service checks, and the live boot-time guardrail self-test. The self-test registers a temporary probe, verifies the deny-list through the real tool registry, checks that `commandRisk` is wired, and removes the probe. This is a distinct boot-verification responsibility from service composition.

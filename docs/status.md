@@ -1,3 +1,11 @@
+## 2026-11-11 profiles self-test CI green; agent-loop response guards in progress
+
+PR #75 passed full GitHub Actions run #497 on Ubuntu and Windows. Typecheck, lint, tests, documentation/component drift, secret/dependency checks, license inventory, and aggregate `ci-pass` passed. The current stacked PR extracts the agent-loop response finalization classifiers into `response-guards.ts`; the run loop and public exports remain unchanged. See DBG-117.
+
+The tool registry was re-measured and deliberately not split: its registration, validation, policy, execution, and audit path is one enforcement choke point. A separate component documentation review remains.
+
+**Validation boundary:** The current agent-loop branch has not run CI. No local npm commands or sandbox/provider acceptance were run. D-110 and D-114 remain unchanged.
+
 ## 2026-11-11 CLI Docker extraction CI green; profiles self-test refactor in progress
 
 PR #74 passed full GitHub Actions run #496 on Ubuntu and Windows. Typecheck, lint, tests, documentation/component drift, secret/dependency checks, license inventory, and aggregate `ci-pass` all passed. PR #74 is stacked on PR #73; both remain open for review.
