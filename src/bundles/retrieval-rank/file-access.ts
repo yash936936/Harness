@@ -5,7 +5,7 @@ import { isGitInternal, isSecretPath } from '../tools-local/paths.js'
 import { looksBinary, splitLines } from './chunk.js'
 import type { IndexSkip } from './types.js'
 
-type FileRead = { ok: true; text: string; lines: string[] } | { ok: false; reason: IndexSkip['reason'] }
+export type FileRead = { ok: true; text: string; lines: string[] } | { ok: false; reason: IndexSkip['reason'] }
 
 function readBoundedFd(fd: number, maxBytes: number): Buffer | undefined {
   const chunks: Buffer[] = []
@@ -21,7 +21,7 @@ function readBoundedFd(fd: number, maxBytes: number): Buffer | undefined {
   return Buffer.concat(chunks, total)
 }
 
-function isInside(root: string, target: string): boolean {
+export function isInside(root: string, target: string): boolean {
   const rel = relative(root, target)
   if (rel === '') return true
   if (isAbsolute(rel)) return false
