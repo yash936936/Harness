@@ -122,13 +122,24 @@ export function normalizeExplicitToolPlan(
   // A prohibition wins if the same tool is also mentioned positively.
   const allowedRequestedTools = requestedTools.filter((name) => !prohibitedTools.has(name))
   const uniqueTools = [...new Set(allowedRequestedTools)]
-  if (!requestedTools.length || requestedTools.length > limits.maxToolsPerSubtask || uniqueTools.length > limits.maxToolsPerSubtask) {
+  if (allowedRequestedTools.length > limits.maxToolsPerSubtask || uniqueTools.length > limits.maxToolsPerSubtask) {
     return { plan, adjusted: false, requestedTools: allowedRequestedTools }
+  }
+  if (!allowedRequestedTools.length) {
+    const filtered: Plan = {
+      ...plan,
+      subtasks: plan.subtasks.map((subtask) => ({
+        ...subtask,
+        tools: subtask.tools.filter((name) => !prohibitedTools.has(name)),
+      })),
+    }
+    const adjusted = JSON.stringify(filtered) !== JSON.stringify(plan)
+    return { plan: adjusted ? filtered : plan, adjusted, requestedTools: [] }
   }
 
   const first = plan.subtasks[0]!
   const goal = 'Perform the required tool calls in order, then complete the overall task.'
-  if (goal.length > limits.maxGoalChars) return { plan, adjusted: false, requestedTools }
+  if (goal.length > limits.maxGoalChars) return { plan, adjusted: false, requestedTools: allowedRequestedTools }
   const normalized: Plan = {
     task,
     // Keep the planner's downstream synthesis/review steps. Replacing the whole
