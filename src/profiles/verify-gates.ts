@@ -7,6 +7,9 @@ import { CONFIDENCE_FIELD } from '../bundles/policy-gates/index.js'
 import { COMMAND_TOOL } from '../bundles/tools-local/index.js'
 import { ProfileError } from './errors.js'
 
+/** The self-test runs under this session id, so it never lands in a real task's log. */
+export const SELFTEST_SESSION = 'profile-coding-selftest'
+
 /**
  * Prove the gates are enforcing in THIS context, not merely configured. Throws {@link ProfileError} if they are not. Exported so it can be
  * run (and tested) against any context. It makes one real call through the registry and asks the gate two questions about the real
