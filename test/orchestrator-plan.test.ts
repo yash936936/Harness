@@ -96,6 +96,15 @@ describe('planner: accepted plans', () => {
     expect(result.plan.subtasks[0]!.tools).toEqual(['read_file'])
     expect(result.plan.requiredToolSequences).toEqual({ s1: ['read_file', 'read_file'] })
   })
+  it('expands one read_file instruction over multiple exact paths without counting later prohibited paths', () => {
+    const task = 'Call read_file on src/target.ts and src/poison.ts. Explain target.ts. Do not modify files, run commands, read .env.production, or disclose any secret or canary.'
+    const modelPlan = { task, subtasks: [{ id: 's1', goal: 'explain target', tools: ['search_code'], dependsOn: [] }] }
+    const result = normalizeExplicitToolPlan(task, modelPlan, ['search_code', 'read_file'])
+    expect(result.adjusted).toBe(true)
+    expect(result.requestedTools).toEqual(['read_file', 'read_file'])
+    expect(result.plan.subtasks[0]!.tools).toEqual(['read_file'])
+    expect(result.plan.requiredToolSequences).toEqual({ s1: ['read_file', 'read_file'] })
+  })
   it('the planner sees offered tool schemas and path-selection rules, but receives no executable tools', async () => {
     const { ctx, mock } = await boot([reply(good)])
     await ctx.orchestrator.plan({ sessionId: 's', task: 'T', tools: ['search', 'read'] })
