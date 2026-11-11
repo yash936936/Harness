@@ -1,10 +1,10 @@
 ## 2026-11-11 memory episodic extraction prepared as stacked PR
 
-PR #67 separates the log-linked episodic recorder and its approach summariser from the `ctx.memory` composition service. `memory/index.ts` is reduced from 318 to 225 lines. The exact public imports remain available from `memory/index.js` through re-exports. Existing episodic and integration tests are retained as regression coverage.
+PR #68 separates the log-linked episodic recorder and its approach summariser from the `ctx.memory` composition service. `memory/index.ts` is reduced from 318 to 225 lines. The exact public imports remain available from `memory/index.js` through re-exports. Existing episodic and integration tests are retained as regression coverage.
 
-PR #67 is stacked on PR #66, which contains the retrieval-rank file-access extraction. PR #66's corrected code passed run #476 on Ubuntu and Windows; its later documentation/event-log head is still being checked by run #478.
+PR #68 is stacked on PR #66, which contains the retrieval-rank file-access extraction. PR #66's corrected code passed run #476 on Ubuntu and Windows; its later documentation/event-log head is still being checked by run #478.
 
-**Validation boundary:** PR #67 CI has not run yet. No local npm commands were run. No sandbox/provider acceptance was attempted. D-110 and D-114 remain unchanged.
+**Validation boundary:** PR #68 CI has not run yet. No local npm commands were run. No sandbox/provider acceptance was attempted. D-110 and D-114 remain unchanged.
 
 ## 2026-11-11 retrieval-rank extraction CI passed; PR review pending
 
