@@ -7,7 +7,7 @@ This section defines the current sample-prototype scope. Historical runbooks and
 - Repository: `yash936936/Harness`, default branch `main`.
 - Main commit reviewed for this scope update: `b923fa5d93d84fb96bc33f8501caa52a84296e24`.
 - Refactor plan: implementation closed and merged. PRs #66, #67, #71, #72, #73, #74, #75, #77, and #79 are merged. PR #80 was closed without merge and is not counted.
-- PR #81 merged as the main commit above. GitHub Actions run #515 passed all seven jobs, including Ubuntu and Windows verification, documentation/component checks, acceptance-gate reporting, secrets/dependency checks, license inventory, and aggregate `ci-pass`.
+- PR #81 and PR #82 are merged. Current main is `b923fa5d93d84fb96bc33f8501caa52a84296e24` (PR #82). Merge CI run #517 passed all seven jobs, including Ubuntu and Windows verification, documentation/component checks, acceptance-gate reporting, secrets/dependency checks, license inventory, and aggregate `ci-pass`. PR #81's earlier run #515 is historical.
 - No local npm commands were run during this GitHub-connector documentation update. CI evidence is not live provider, model, sandbox, or human-label acceptance.
 
 ## Binding prototype scope
