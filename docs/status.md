@@ -1,3 +1,11 @@
+## 2026-11-11 refactor progress: retrieval-rank and memory merged
+
+PR #66 (retrieval-rank file access) merged as `28ad89cd932482a398c4933a3af16e7fd7b181df`. PR #67 (episodic memory) merged as `ffa4fc4fcdf0f70990c6a9fa1270dcbbcc19c0be`. Main CI run #482 passed on Ubuntu and Windows, including typecheck, lint, tests, documentation/component checks, secret scanning, dependency audit, license inventory, and aggregate `ci-pass`.
+
+The next measured area is skills matching: `skills/index.ts` (397 lines, 8 exports) contains pure keyword/embedding matchers alongside the discovery service. This branch extracts those matchers into `skills/matching.ts` while re-exporting them from the existing entry point. See DBG-112.
+
+**Validation boundary:** The skills branch has not yet run CI. No local npm commands or sandbox/provider acceptance were run. D-110 and D-114 remain unchanged.
+
 ## 2026-11-11 retrieval-rank extraction CI passed; PR review pending
 
 PR #66 extracts bounded, symlink-safe project-file access from `RetrievalRank` into `src/bundles/retrieval-rank/file-access.ts`. The service remains a single Cordis class and delegates through its existing private read/cache wrapper. `index.ts` is reduced from 533 to 462 lines. The component documentation and Step 0 measurements are included.
