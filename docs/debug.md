@@ -1,3 +1,22 @@
+## DBG-119 — refactor plan implementation closeout — 2026-11-11
+
+**Disposition:** All candidates and ordering guidance in `docs/REFACTOR-PLAN.md` have been measured and reviewed. All justified behavior-preserving extractions and the required component documentation are merged to `main`. The measured no-split decisions for `model-adapter` and `tool-registry` are recorded with reasons. No candidate remains queued.
+
+**Merged work:**
+- PR #66: retrieval-rank bounded file access (`retrieval-rank/file-access.ts`).
+- PR #67: episodic memory recording (`memory/episodic.ts`).
+- PR #71: skills matcher unused-import correction required by the extracted matcher module.
+- PR #72: sandbox command factory (`tools-local/command.ts`).
+- PR #73: subtask prompt and result fencing (`orchestrator/prompt.ts`).
+- PR #74: Docker capability detection (`cli/docker.ts`).
+- PR #75: profile-coding guard self-test (`profiles/verify-gates.ts`).
+- PR #77: required-sequence response classifiers (`agent-loop/response-guards.ts`).
+- PR #79: tool-registry component documentation; no source split was justified.
+
+**Validation:** Full GitHub Actions passed on Ubuntu and Windows for each implementation PR. Final main run #508 passed 55 test files, 2 skipped; 1,133 tests passed, 102 skipped. Typecheck, lint, docs/component drift, secret/dependency checks, license inventory, and aggregate `ci-pass` passed. No local npm commands were run during connector edits.
+
+**Explicit limits:** This closes only `docs/REFACTOR-PLAN.md`. It does not close unrelated project acceptance gates. No Docker, WSL, Crabbox, live sandbox/provider, or live-model acceptance was run. D-110 and D-114 remain unchanged.
+
 ## DBG-118 — document tool-registry enforcement boundary; no source split justified — 2026-11-11
 
 **Step 0 review:** `src/bundles/tool-registry/index.ts` is 230 lines with 4 exported declarations. `types.ts` is 84 lines with 11 exported declarations. The service is intentionally the single call choke point: it records `tool.call` before work, checks caller grants and required sequence order, normalizes and validates input, runs serial pre-execution policy hooks, executes the tool, runs serial post-execution scanning, bounds output, and records `tool.result`.
