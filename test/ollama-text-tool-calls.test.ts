@@ -94,6 +94,8 @@ describe('textToolCalls: several bare JSON objects (JSON Lines), D-088', () => {
     expect(ok(A + B)?.map((c) => c.name)).toEqual(['lookup_port', 'run_tests'])
     expect(ok(A + '\r\n\r\n' + B + '\n')?.map((c) => c.name)).toEqual(['lookup_port', 'run_tests'])
     expect(ok(A + '\n' + A + '\n' + B)).toHaveLength(3)
+    expect(ok('```json\n' + A + '\n' + B + '\n```')?.map((c) => c.name)).toEqual(['lookup_port', 'run_tests'])
+    expect(ok('```json\r\n' + A + '\r\n' + B + '\r\n```')?.map((c) => c.name)).toEqual(['lookup_port', 'run_tests'])
   })
   it('the observed 7B reply: braces and escaped newlines inside the argument strings do not confuse it', () => {
     const r = ok(OBSERVED_7B)!
@@ -131,7 +133,7 @@ describe('textToolCalls: several bare JSON objects (JSON Lines), D-088', () => {
 
 describe('textToolCalls: in the Ollama provider', () => {
   it('JSON Lines in one reply become real tool calls, in order, with unique ids (D-088)', async () => {
-    const p = new OllamaProvider({ model: 'm', textToolCalls: true, fetch: queued({ content: '{"name": "lookup_port", "arguments": {"service": "a"}}\n{"name": "run_tests", "arguments": {"module": "b"}}' }) })
+    const p = new OllamaProvider({ model: 'm', textToolCalls: true, fetch: queued({ content: '```json\n{"name": "lookup_port", "arguments": {"service": "a"}}\n{"name": "run_tests", "arguments": {"module": "b"}}\n```' }) })
     const r = await call(p)
     expect(r.toolCalls.map((c) => c.name)).toEqual(['lookup_port', 'run_tests'])
     expect(new Set(r.toolCalls.map((c) => c.id)).size).toBe(2)
