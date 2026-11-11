@@ -1,3 +1,13 @@
+## DBG-118 — document tool-registry enforcement boundary; no source split justified — 2026-11-11
+
+**Step 0 review:** `src/bundles/tool-registry/index.ts` is 230 lines with 4 exported declarations. `types.ts` is 84 lines with 11 exported declarations. The service is intentionally the single call choke point: it records `tool.call` before work, checks caller grants and required sequence order, normalizes and validates input, runs serial pre-execution policy hooks, executes the tool, runs serial post-execution scanning, bounds output, and records `tool.result`.
+
+**Disposition:** No source extraction. Splitting registration, validation, execution, or hooks into separate modules would fragment one enforcement boundary and make the call lifecycle harder to audit. The existing `types.ts` already owns the contracts and error types. This is a measured decision not to split, consistent with the plan's one-file-per-responsibility rule.
+
+**Documentation:** Added `docs/components/tool-registry.md` describing the route, configuration, logging, policy, grant, normalization, and output invariants. No source or runtime behavior changed.
+
+**Validation boundary:** PR #78's CI run #505 passed on Ubuntu and Windows, including typecheck, lint, tests, docs/component drift, secret/dependency checks, license inventory, and aggregate `ci-pass`. This docs-only PR still requires CI. No local npm commands or sandbox/provider acceptance were run. D-110 and D-114 are unchanged.
+
 ## DBG-117 — extract agent-loop response finalization guards — 2026-11-11
 
 **Step 0 measurement:** `src/bundles/agent-loop/index.ts` was 329 lines with 3 exported declarations. It combined the `AgentLoop` Cordis service with two pure response classifiers used only when a required tool sequence is complete. Those classifiers reject pseudo tool-call syntax and copied tool-result safety boilerplate as final answers, so the model must synthesize a real answer from the tool results.

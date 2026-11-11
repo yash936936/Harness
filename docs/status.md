@@ -1,3 +1,11 @@
+## 2026-11-11 agent-loop response guard extraction CI green; tool-registry documentation in progress
+
+PR #78 passed full GitHub Actions run #505 on Ubuntu and Windows. Typecheck, lint, tests, documentation/component drift, secret/dependency checks, license inventory, and aggregate `ci-pass` passed. The response guard module preserves the existing patterns and public service API.
+
+The tool registry was measured at 230 lines and reviewed. No source split is justified because its registration, validation, policy, execution, scanning, and audit steps form one enforcement choke point. This docs-only change adds its missing component reference. See DBG-118.
+
+**Validation boundary:** The current docs-only branch has not run CI. No local npm commands or sandbox/provider acceptance were run. D-110 and D-114 remain unchanged.
+
 ## 2026-11-11 profiles self-test CI green; agent-loop response guards in progress
 
 PR #75 passed full GitHub Actions run #497 on Ubuntu and Windows. Typecheck, lint, tests, documentation/component drift, secret/dependency checks, license inventory, and aggregate `ci-pass` passed. The current stacked PR extracts the agent-loop response finalization classifiers into `response-guards.ts`; the run loop and public exports remain unchanged. See DBG-117.
