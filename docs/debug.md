@@ -1,3 +1,13 @@
+## DBG-111 — extract episodic recording from memory composition — 2026-11-11
+
+**Step 0 measurement:** `src/bundles/memory/index.ts` was 318 lines with 4 exported declarations. It combined the `Memory` Cordis composition service with the log-linked `EpisodicMemory` recorder, `summariseApproach`, and the private field-clipping helper. The semantic tier already lives in `semantic.ts`; storage, hot tier, compaction, derivation, and access are already separate modules.
+
+**Change:** Moved `EpisodicMemory`, `summariseApproach`, and their private clipping helper into `memory/episodic.ts`. `memory/index.ts` remains the `ctx.memory` composition service and re-exports the exact same `EpisodicMemory` and `summariseApproach` names for compatibility. No storage schema, sequence-link rule, redaction, idempotency, query ordering, or public import path was intentionally changed.
+
+**Regression coverage:** Existing `test/memory-episodic.test.ts` imports `EpisodicMemory`'s public behavior through `memory/index.ts` and covers JSONL recovery, idempotent recording, redaction, query filters/order, and log-link verification. `test/memory-integration.test.ts` covers the composed run/record/compaction path. PR CI is required for typecheck, lint, and the full cross-platform suite.
+
+**Limits:** No local npm command was run. No sandbox/provider acceptance was attempted.
+
 ## DBG-110 — fix missing IndexSkip type import after extraction — 2026-11-11
 
 **Failure:** Initial PR CI run #474 failed Ubuntu typecheck at `src/bundles/retrieval-rank/index.ts(313,20)`: `IndexSkip` was still used by the indexing result path after its import was removed with the file-reader type.
@@ -18,7 +28,7 @@
 | `src/bundles/policy-gates/index.ts` | 202 | 5 | One policy service; deny rules and scoring signals are already separate modules |
 | `src/bundles/orchestrator/execute.ts` | 282 | 2 | Plan execution, per-subtask prompt/fencing, and bounded agent identity |
 | `src/bundles/retrieval-rank/index.ts` | 533 | 3 | Retrieval service, secure bounded file access, lexical ranking, semantic fusion, and indexing |
-| `src/bundles/memory/index.ts` | 318 | 4 | Two memory services and shared summarisation helper |
+| `src/bundles/memory/index.ts` | 318 | 4 | Memory composition service plus episodic-recording class and shared approach summariser |
 | `src/bundles/model-adapter/index.ts` | 228 | 4 | One LLM service and provider dispatch/egress/budget orchestration |
 | `src/cli/code.ts` | 215 | 5 | CLI task lifecycle, Docker detection, timeout parsing, consent and profile boot |
 
