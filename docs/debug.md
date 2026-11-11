@@ -1,3 +1,13 @@
+## DBG-110 — fix missing IndexSkip type import after extraction — 2026-11-11
+
+**Failure:** Initial PR CI run #474 failed Ubuntu typecheck at `src/bundles/retrieval-rank/index.ts(313,20)`: `IndexSkip` was still used by the indexing result path after its import was removed with the file-reader type.
+
+**Fix:** Restored the type-only `IndexSkip` import from `./types.js`. No runtime code changed. On the corrected head, PR CI run #476 passed typecheck, lint, and tests on Ubuntu and Windows; docs/component checks, secret/dependency checks, license inventory, and aggregate `ci-pass` also passed.
+
+**Test evidence:** Ubuntu: 55 test files passed, 2 skipped; 1,133 tests passed, 102 skipped (1,235 total). `test/retrieval-rank.test.ts` ran 69 tests with 44 skipped on Ubuntu and 45 skipped on Windows. Windows full suite passed.
+
+**Limits:** No local npm command was run. CI is implementation evidence only; no live embedding/provider or sandbox acceptance was attempted.
+
 ## DBG-109 — extract retrieval-rank file access responsibility — 2026-11-11
 
 **Step 0 measurements (selected refactor candidates):**
