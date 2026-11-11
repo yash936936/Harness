@@ -61,13 +61,22 @@ describe('planner: accepted plans', () => {
     const offered = ['edit_file', 'search_code', 'read_file', 'write_file', 'run_command']
     const { ctx } = await boot([reply(modelPlan)], {}, offered)
     const result = await ctx.orchestrator.plan({ sessionId: 'explicit-tools', task, tools: offered })
-    expect(result.plan.subtasks).toEqual([{
-      id: 's1',
-      goal: 'Perform the required tool calls in order, then complete the overall task.',
-      tools: ['read_file', 'edit_file'],
-      dependsOn: [],
-    }])
+    expect(result.plan.subtasks).toEqual([
+      {
+        id: 's1',
+        goal: 'Perform the required tool calls in order, then complete the overall task.',
+        tools: ['read_file', 'edit_file'],
+        dependsOn: [],
+      },
+      {
+        id: 's2',
+        goal: 'Read package.json',
+        tools: ['read_file'],
+        dependsOn: ['s1'],
+      },
+    ])
     expect(result.plan.requiredToolSequences).toEqual({ s1: ['read_file', 'edit_file'] })
+    expect(result.plan.subtasks.slice(1).map((s) => s.id)).toEqual(['s2'])
     const events = await ctx.log.read('explicit-tools')
     const normalized = events.find((event) => event.type === 'plan.normalized')!.data as any
     expect(normalized.reason).toBe('explicit-tool-sequence')
