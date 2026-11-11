@@ -1,3 +1,11 @@
+## 2026-11-11 build-plan audit refreshed; documentation PR CI pending
+
+Audited the entry protocol and refreshed `docs/BUILD-PLAN.md` with a consolidated acceptance ledger and safe next-work order. The live plan is `docs/BUILD-PLAN.md`; no root `build.md` or root `BUILD-PLAN.md` exists on main. The update corrects the stale evaluation sample-size instruction to match D-109 (minimum 10 genuine model-driven sessions, use 20+ when available) and records current S0/S1/S3/S4/S5/S6/S7 and Phase 7/8 dispositions.
+
+The refactor plan is implementation-closed. PR #79 is merged and supplied Tool Registry documentation; PR #80 is closed without merge and is not counted as merged work. Last completed full CI evidence is run #508 on Ubuntu and Windows. Four later docs-only closeout commits have not received a completed fresh run; this docs PR must pass full CI including aggregate `ci-pass`.
+
+**Validation boundary:** GitHub repository content and PR metadata reviewed through the GitHub connector. No local npm commands, source tests, sandbox/provider probes, or live-model acceptance were run. D-110 remains in force; D-114 remains the only accepted model tag. S0/S1/S4 remain held/deferred/blocked and are not attempted here.
+
 ## 2026-11-11 refactor plan complete and merged
 
 All justified extractions and component documentation from `docs/REFACTOR-PLAN.md` are merged to `main`. The plan is marked COMPLETE. Retrieval-rank, memory, skills, tools-local, orchestrator, CLI, profiles, agent-loop, and tool-registry review are recorded in DBG-109 through DBG-119. The model-adapter and tool-registry services were kept intact where further splitting would fragment cohesive responsibilities or the enforcement boundary.
