@@ -36,9 +36,9 @@ const MAX_K = 100
 
 
 
-function readBoundedFd(fd: number, maxBytes: number): Buffer | undefined {
-  const chunks: Buffer[] = []
-pgrep (2.1), chunks from tree-sitter symbols (2.2), scored with BM25; when embeddings (2.3) and
+/**
+ * `ctx.retrievalRank` — the last stage of the retrieval pipeline. Lexical candidates come from
+ * ripgrep (2.1), chunks from tree-sitter symbols (2.2), scored with BM25; when embeddings (2.3) and
  * the vector store (2.4) are available and `weight > 0`, chunks indexed there are fused in with
  * weighted reciprocal-rank fusion. Every semantic failure degrades to BM25 instead of failing the search.
  */
