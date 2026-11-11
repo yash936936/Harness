@@ -4,7 +4,7 @@ Rule (AGENTS.md section 4): one source file per responsibility, not per function
 
 ## Status: IN PROGRESS
 
-Step 0 has been performed for the documented high-risk candidates and the low-risk files listed below. The first justified extraction is the retrieval-rank file-access responsibility; see DBG-109. Remaining candidates stay queued until their own area is measured and the component docs are reviewed.
+Step 0 has been performed for the documented high-risk candidates and the low-risk files listed below. The retrieval-rank file-access and memory episodic extractions are merged (PRs #66 and #67; see DBG-109 and DBG-111). The next measured area is the skills matcher extraction (PR pending; see DBG-112). Remaining candidates stay queued until their own area is measured and component docs are reviewed.
 
 The initial plan was written without a checkout of `src/`. Step 0 measurements for the first candidate set are now recorded in `docs/debug.md` (DBG-109); measure each remaining area before splitting it.
 

@@ -1,3 +1,13 @@
+## DBG-112 — extract pure skill matchers from the skills service — 2026-11-11
+
+**Step 0 measurement:** `src/bundles/skills/index.ts` was 397 lines with 8 exported declarations. It combined skill discovery/validation, tool and system-section registration, resource reads, and two standalone matching algorithms. Existing `frontmatter.ts` (149 lines, 3 exports) and `types.ts` (52 lines, 6 exports) already separate parsing and contracts.
+
+**Change:** Moved `keywordMatcher`, `embeddingMatcher`, their private tokenization/stopword/cosine helpers, and the local embedding interface into `skills/matching.ts`. `skills/index.ts` remains the discovery and progressive-disclosure service and re-exports both matcher factories from the existing entry point. No matcher threshold, scoring, cache, sorting, or failure behavior was intentionally changed.
+
+**Regression coverage:** Existing `test/skills.test.ts` imports both matcher factories from `skills/index.js` and covers keyword overlap, embedding cosine ranking, cache behavior, required `minScore`, and embedding failures. It also covers loading, resource path confinement, redaction, and progressive disclosure.
+
+**Limits:** No local npm command was run. PR CI must pass typecheck, lint, and the full suite on Ubuntu and Windows. No sandbox/provider acceptance was attempted.
+
 ## DBG-111 — extract episodic recording from memory composition — 2026-11-11
 
 **Step 0 measurement:** `src/bundles/memory/index.ts` was 318 lines with 4 exported declarations. It combined the `Memory` Cordis composition service with the log-linked `EpisodicMemory` recorder, `summariseApproach`, and the private field-clipping helper. The semantic tier already lives in `semantic.ts`; storage, hot tier, compaction, derivation, and access are already separate modules.
