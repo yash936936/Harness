@@ -1,3 +1,27 @@
+## 2026-11-11 CLI Docker extraction CI green; profiles self-test refactor in progress
+
+PR #74 passed full GitHub Actions run #496 on Ubuntu and Windows. Typecheck, lint, tests, documentation/component drift, secret/dependency checks, license inventory, and aggregate `ci-pass` all passed. PR #74 is stacked on PR #73; both remain open for review.
+
+The current stacked change moves `verifyGates` and `SELFTEST_SESSION` into `profiles/verify-gates.ts`, preserving both exports from `profile-coding.ts`. The profile continues to run the same self-test after boot. See DBG-116.
+
+**Validation boundary:** The current profiles branch has not run CI. No local npm commands or sandbox/provider acceptance were run. D-110 and D-114 remain unchanged.
+
+## 2026-11-11 orchestrator prompt extraction CI green; CLI detection refactor in progress
+
+PR #73 passed full GitHub Actions run #495 on Ubuntu and Windows. Typecheck, lint, and tests passed on both platforms; each suite reported 55 files passed, 2 skipped, 1,133 tests passed, and 102 skipped. Documentation/component drift, secret/dependency checks, license inventory, and aggregate `ci-pass` passed. PR #73 is open and clean, awaiting review.
+
+The current stacked PR extracts `dockerEngineAvailable()` from `src/cli/code.ts` into `src/cli/docker.ts`, preserving the old import path. No Docker probe is run by this change. See DBG-115.
+
+**Validation boundary:** The current CLI branch has not run CI. No local npm commands or sandbox/provider acceptance were run. D-110 and D-114 remain unchanged.
+
+## 2026-11-11 tools-local extraction merged; orchestrator prompt extraction in progress
+
+PR #72 merged as `1d431ad6c71072f7466eab4fbdc49c20edd0b1a2`. Corrected GitHub Actions run #493 passed on Ubuntu and Windows: 55 test files passed, 2 skipped; 1,133 tests passed, 102 skipped. Typecheck, lint, docs/component drift, secret/dependency checks, license inventory, and aggregate `ci-pass` all passed.
+
+The current refactor moves only subtask prompt and dependency-result fence formatting from `orchestrator/execute.ts` to `orchestrator/prompt.ts`. Execution policy and public entry points remain unchanged. See DBG-114.
+
+**Validation boundary:** The current orchestrator branch has not run CI. No local npm commands or sandbox/provider acceptance were run. D-110 and D-114 remain unchanged.
+
 ## 2026-11-11 skills matcher fix merged; tools-local refactor in progress
 
 PR #71 merged as `7ebe813c7a1726cb32d336609be7496325a3987b`. Its CI run #489 passed on Ubuntu and Windows, including typecheck, lint, full tests, docs/component drift, secret/dependency checks, license inventory, and aggregate `ci-pass`.

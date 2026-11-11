@@ -1,4 +1,3 @@
-import { spawnSync } from 'node:child_process'
 import { statSync } from 'node:fs'
 import { basename, join, resolve } from 'node:path'
 import type { Context } from 'cordis'
@@ -7,6 +6,8 @@ import type { WizardIO } from './io.js'
 import { FileConsentStore } from '../bundles/egress/store.js'
 import { COMMAND_TOOL } from '../bundles/tools-local/index.js'
 import type { ApprovalRequest } from '../bundles/policy-gates/index.js'
+import { dockerEngineAvailable } from './docker.js'
+export { dockerEngineAvailable } from './docker.js'
 
 export type CodeProvider = 'ollama' | 'openrouter'
 export interface CodeTaskOptions {
@@ -24,13 +25,6 @@ export interface CodeTaskOptions {
   dockerAvailable?: boolean
 }
 export interface CodeTaskResult { ok: boolean; sessionId?: string; context?: Context; reason?: string }
-
-export function dockerEngineAvailable(): boolean {
-  const result = spawnSync('docker', ['info', '--format', '{{.ServerVersion}}'], {
-    timeout: 4000, windowsHide: true, stdio: 'ignore', shell: false, env: process.env,
-  })
-  return result.status === 0 && !result.error
-}
 
 const safeProjectId = (value: string) => value.replace(/[^A-Za-z0-9_.-]/g, '-').slice(0, 80) || 'project'
 

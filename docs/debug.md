@@ -1,3 +1,35 @@
+## DBG-116 — extract profile-coding policy self-test — 2026-11-11
+
+**Step 0 measurement:** `src/profiles/profile-coding.ts` was 268 lines with 8 exported declarations. It combined profile configuration validation, service composition, missing-service checks, and the live boot-time guardrail self-test. The self-test registers a temporary probe, verifies the deny-list through the real tool registry, checks that `commandRisk` is wired, and removes the probe. This is a distinct boot-verification responsibility from service composition.
+
+**Change:** Moved `verifyGates` and its `SELFTEST_SESSION` constant into `profiles/verify-gates.ts`. `profile-coding.ts` imports and re-exports both names, preserving their existing public import path. The profile still invokes the self-test after all required services boot. No test probe arguments, action class, policy verdict checks, log session, or cleanup behavior changed.
+
+**Regression coverage:** Existing `test/profile-coding.test.ts` imports `verifyGates` from `profile-coding.js` and covers valid wiring, missing policy service, removed policy service, missing command-risk signal, and the boot self-test log. The compatibility re-export keeps these imports unchanged.
+
+**Validation boundary:** No local npm command was run. PR #74's CI run #496 passed on Ubuntu and Windows, including typecheck, lint, full tests, docs/component drift, secret/dependency checks, license inventory, and aggregate `ci-pass`. The current profiles branch still requires its own full CI. No Docker/WSL/Crabbox or live sandbox/provider probe was run. D-110 and D-114 are unchanged.
+
+## DBG-115 — isolate CLI Docker capability detection — 2026-11-11
+
+**Step 0 re-measurement:** `src/cli/code.ts` was 215 lines with 6 exported declarations. It combined the governed code-task lifecycle with the host Docker capability check and timeout parsing. The timeout parser is a small CLI-option helper used directly by argument parsing; splitting it into another file would be per-function fragmentation. Docker detection is a separate host-environment capability check and is used by the task lifecycle only to decide whether to configure the sandbox.
+
+**Change:** Moved `dockerEngineAvailable()` unchanged into `src/cli/docker.ts`. `code.ts` imports it for the default runtime decision and re-exports it from the old path for import compatibility. The CLI task lifecycle and timeout parser remain in `code.ts`. The detector still invokes `docker info` with the same 4-second timeout, no shell, ignored stdio, and inherited environment. This is a source-only extraction; no Docker command was run as part of this refactor.
+
+**Model-adapter disposition:** Re-measured `model-adapter/index.ts` at 228 lines with 4 exported declarations. Provider implementations, budget reservation, and rate limiting already live in dedicated modules. The remaining `LLMService.complete()` method is a cohesive call lifecycle covering consent, redaction, budget reservation, request/response logging, rate limiting, dispatch, and settlement. Splitting its methods would violate the plan's no-service-class-by-method rule; no further model-adapter extraction is justified.
+
+**Regression coverage:** Existing `test/code-cli.test.ts` exercises the governed CLI lifecycle and imports `parseTimeoutMs` from `cli/code.ts`. The old `dockerEngineAvailable` import path is preserved by re-export. No test calls the detector, avoiding any Docker probe. Full CI on Ubuntu and Windows is required.
+
+**Validation boundary:** No local npm command was run. PR #73's CI run #495 passed on both Ubuntu and Windows, with 55 test files passed, 2 skipped; 1,133 tests passed, 102 skipped. The current CLI branch still requires its own full CI. D-110 and D-114 are unchanged; no Docker, WSL, Crabbox, or live sandbox acceptance was run.
+
+## DBG-114 — extract orchestrator subtask prompt formatting — 2026-11-11
+
+**Step 0 re-measurement:** After PR #72 merged, `src/bundles/orchestrator/execute.ts` was 282 lines with 3 exported declarations. It owned the sequential execution engine, bounded sub-agent identity, and the prompt/fence construction used to pass dependency results and required-tool instructions to workers. The planner is already isolated in `plan.ts`, and the service composition is in `index.ts`.
+
+**Change:** Moved the private dependency-result fence and subtask prompt construction into `orchestrator/prompt.ts`, exporting only the internal `subtaskPrompt` helper needed by `execute.ts`. The execution engine, bounded agent ID export, retry/side-effect policy, event logging, dependency ordering, and terminal-state handling remain in `execute.ts`. The public orchestrator entry point and its exports are unchanged. The execution source is now 255 lines; the prompt module is 33 lines.
+
+**Regression coverage:** Existing `test/orchestrator-execute.test.ts` exercises required-tool prompt clauses, successful result synthesis, dependency-only result passing, truncation, and result-fence escaping. No behavior or prompt wording was changed. Full CI on Ubuntu and Windows is required for this PR.
+
+**Validation boundary:** No local npm command was run. The previous merged PR #72 CI run #493 passed 55 test files and 1,133 tests, with 2 files and 102 tests skipped (including opt-in acceptance coverage). The current branch still requires its own full CI. No Docker, WSL, Crabbox, or live sandbox/provider probe was run. D-110 and D-114 are unchanged.
+
 ## DBG-113 — extract sandbox command tool factory — 2026-11-11
 
 **Step 0 measurement:** DBG-109 measured `src/bundles/tools-local/index.ts` at 450 lines and 6 exported declarations. It combined the `LocalTools` Cordis service, project file read/edit/create operations, and the isolated command tool factory. Existing `paths.ts`, `bounded-read.ts`, `git-harden.ts`, `risk.ts`, and `types.ts` already separate path policy, bounded reads, Git argument hardening, risk scoring, and configuration contracts.
