@@ -15,6 +15,7 @@ import {
   RetrievalRankConfigError,
   type IndexOptions,
   type IndexResult,
+  type IndexSkip,
   type RankHit,
   type RankResult,
   type RankStats,
