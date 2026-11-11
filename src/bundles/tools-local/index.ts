@@ -396,7 +396,8 @@ export class LocalTools extends Service {
       confidenceProperty,
       hardenedGit: (command, args, signal) => this.hardenedGit(command, args, signal),
     })
-  }}
+  }
+}
 
 export { PathRefused }
 export const name = 'bundle-tools-local'
