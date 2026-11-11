@@ -118,7 +118,7 @@ describe('executor: the happy path', () => {
   })
 
   it('executes repeated explicit reads as ordered dependent subtasks', async () => {
-    const task = 'Call read_file on src/target.ts and src/poison.ts. Explain target.ts.'
+    const task = 'Call read on src/target.ts. Then call read on src/poison.ts. Explain target.ts.'
     const normalized = normalizeExplicitToolPlan(task, {
       task,
       subtasks: [
