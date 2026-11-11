@@ -1,3 +1,11 @@
+## 2026-11-11 tools-local extraction merged; orchestrator prompt extraction in progress
+
+PR #72 merged as `1d431ad6c71072f7466eab4fbdc49c20edd0b1a2`. Corrected GitHub Actions run #493 passed on Ubuntu and Windows: 55 test files passed, 2 skipped; 1,133 tests passed, 102 skipped. Typecheck, lint, docs/component drift, secret/dependency checks, license inventory, and aggregate `ci-pass` all passed.
+
+The current refactor moves only subtask prompt and dependency-result fence formatting from `orchestrator/execute.ts` to `orchestrator/prompt.ts`. Execution policy and public entry points remain unchanged. See DBG-114.
+
+**Validation boundary:** The current orchestrator branch has not run CI. No local npm commands or sandbox/provider acceptance were run. D-110 and D-114 remain unchanged.
+
 ## 2026-11-11 skills matcher fix merged; tools-local refactor in progress
 
 PR #71 merged as `7ebe813c7a1726cb32d336609be7496325a3987b`. Its CI run #489 passed on Ubuntu and Windows, including typecheck, lint, full tests, docs/component drift, secret/dependency checks, license inventory, and aggregate `ci-pass`.
