@@ -19,7 +19,6 @@ const confidenceProperty = {
   description: 'Use the exact confidence value requested by the user as a JSON number. Example: if the user requests 0.95, send 0.95 (not 0 and not a quoted string). Do not default or guess. For edit_file only, a strict plain-decimal string is also normalized; other string values remain untrusted and cause the policy gate to hold the write.',
 } as const
 import type { ToolDefinition } from '../tool-registry/types.js'
-import { COMMAND_TOOL } from './risk.js'
 import { GIT_READ_SUBCOMMANDS, hardenGit, repoFilterDrivers, type HardenedGit } from './git-harden.js'
 import { createCommandTool } from './command.js'
 import { FileTooLarge, readBounded } from './bounded-read.js'
