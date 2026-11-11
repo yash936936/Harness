@@ -1,3 +1,17 @@
+## D-115 — Sample prototype scope; no distributable artifact — 2026-11-11
+
+**Decision:** Treat the current Harness deliverable as a sample/research prototype. No npm package, release archive, hosted distribution, or model-weight distribution is planned for this scope. Keep the existing GitHub repository visibility unchanged; this decision does not make the currently public repository private. Do not add packaging, publishing, or release automation merely to satisfy a production distribution gate.
+
+**Acceptance disposition:** S5 / ENG-04 release-artifact and shipped-notice acceptance is DEFERRED / OUT OF SCOPE for this prototype, not passed. Retain the existing third-party dependency and license inventory as maintenance documentation. The unresolved exact `json-bignum@0.0.3` tarball license provenance remains recorded; it must be resolved before any future distributable artifact is created. Any future distribution requires a new explicit owner decision, an identified target, and exact artifact/notice inspection. D-113's evidence standard remains applicable if distribution is later approved.
+
+**Prototype verification scope:** Keep D-110, D-112, D-114, and D-109 unchanged. Required repository verification is the full automated CI suite on the completed implementation. Focused S7 live checks (real embedding provider and controlled live `qwen2.5-coder:3b-instruct` poisoning task) remain the targeted runtime checks. S6 is a prototype-grade behavior evaluation using genuine sessions and owner-authored labels under D-109; it must not be replaced with synthetic data or represented as calibrated. S0/S1, full S4, and Phases 7/8 remain held, blocked, or deferred as already decided.
+
+**Why:** A sample prototype has no release artifact to inspect. Building a distribution pipeline or claiming release-notice acceptance without an intended package would add work without proving the prototype's core behavior. The focused CI, provider, model-safety, and small real-session evaluation checks provide more relevant evidence.
+
+**Supersedes:** Only the requirement in the current S5 work order to choose a distribution target as a prerequisite for prototype closeout. It does not supersede D-113's exact-artifact requirements for a future release, or any other existing decision.
+
+**Affects:** `docs/BUILD-PLAN.md`, `docs/status.md`, `context.md`, and the prototype S5 disposition. No runtime code, package metadata, repository visibility, model artifacts, or policy gates changed.
+
 ## D-114 — Use only Qwen2.5-Coder 3B; exclude 7B artifact work — 2026-11-10
 
 **Decision:** The project will use only the Ollama model `qwen2.5-coder:3b-instruct` for model-driven acceptance and local project workflows. Do not use, download, verify, package, or distribute Qwen2.5-Coder-7B-Instruct. The 7B artifact provenance work is outside the selected prototype scope.
