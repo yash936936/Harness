@@ -1,3 +1,13 @@
+## DBG-116 — extract profile-coding policy self-test — 2026-11-11
+
+**Step 0 measurement:** `src/profiles/profile-coding.ts` was 268 lines with 8 exported declarations. It combined profile configuration validation, service composition, missing-service checks, and the live boot-time guardrail self-test. The self-test registers a temporary probe, verifies the deny-list through the real tool registry, checks that `commandRisk` is wired, and removes the probe. This is a distinct boot-verification responsibility from service composition.
+
+**Change:** Moved `verifyGates` and its `SELFTEST_SESSION` constant into `profiles/verify-gates.ts`. `profile-coding.ts` imports and re-exports both names, preserving their existing public import path. The profile still invokes the self-test after all required services boot. No test probe arguments, action class, policy verdict checks, log session, or cleanup behavior changed.
+
+**Regression coverage:** Existing `test/profile-coding.test.ts` imports `verifyGates` from `profile-coding.js` and covers valid wiring, missing policy service, removed policy service, missing command-risk signal, and the boot self-test log. The compatibility re-export keeps these imports unchanged.
+
+**Validation boundary:** No local npm command was run. PR #74's CI run #496 passed on Ubuntu and Windows, including typecheck, lint, full tests, docs/component drift, secret/dependency checks, license inventory, and aggregate `ci-pass`. The current profiles branch still requires its own full CI. No Docker/WSL/Crabbox or live sandbox/provider probe was run. D-110 and D-114 are unchanged.
+
 ## DBG-115 — isolate CLI Docker capability detection — 2026-11-11
 
 **Step 0 re-measurement:** `src/cli/code.ts` was 215 lines with 6 exported declarations. It combined the governed code-task lifecycle with the host Docker capability check and timeout parsing. The timeout parser is a small CLI-option helper used directly by argument parsing; splitting it into another file would be per-function fragmentation. Docker detection is a separate host-environment capability check and is used by the task lifecycle only to decide whether to configure the sandbox.
