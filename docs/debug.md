@@ -1,3 +1,15 @@
+## DBG-115 — isolate CLI Docker capability detection — 2026-11-11
+
+**Step 0 re-measurement:** `src/cli/code.ts` was 215 lines with 6 exported declarations. It combined the governed code-task lifecycle with the host Docker capability check and timeout parsing. The timeout parser is a small CLI-option helper used directly by argument parsing; splitting it into another file would be per-function fragmentation. Docker detection is a separate host-environment capability check and is used by the task lifecycle only to decide whether to configure the sandbox.
+
+**Change:** Moved `dockerEngineAvailable()` unchanged into `src/cli/docker.ts`. `code.ts` imports it for the default runtime decision and re-exports it from the old path for import compatibility. The CLI task lifecycle and timeout parser remain in `code.ts`. The detector still invokes `docker info` with the same 4-second timeout, no shell, ignored stdio, and inherited environment. This is a source-only extraction; no Docker command was run as part of this refactor.
+
+**Model-adapter disposition:** Re-measured `model-adapter/index.ts` at 228 lines with 4 exported declarations. Provider implementations, budget reservation, and rate limiting already live in dedicated modules. The remaining `LLMService.complete()` method is a cohesive call lifecycle covering consent, redaction, budget reservation, request/response logging, rate limiting, dispatch, and settlement. Splitting its methods would violate the plan's no-service-class-by-method rule; no further model-adapter extraction is justified.
+
+**Regression coverage:** Existing `test/code-cli.test.ts` exercises the governed CLI lifecycle and imports `parseTimeoutMs` from `cli/code.ts`. The old `dockerEngineAvailable` import path is preserved by re-export. No test calls the detector, avoiding any Docker probe. Full CI on Ubuntu and Windows is required.
+
+**Validation boundary:** No local npm command was run. PR #73's CI run #495 passed on both Ubuntu and Windows, with 55 test files passed, 2 skipped; 1,133 tests passed, 102 skipped. The current CLI branch still requires its own full CI. D-110 and D-114 are unchanged; no Docker, WSL, Crabbox, or live sandbox acceptance was run.
+
 ## DBG-114 — extract orchestrator subtask prompt formatting — 2026-11-11
 
 **Step 0 re-measurement:** After PR #72 merged, `src/bundles/orchestrator/execute.ts` was 282 lines with 3 exported declarations. It owned the sequential execution engine, bounded sub-agent identity, and the prompt/fence construction used to pass dependency results and required-tool instructions to workers. The planner is already isolated in `plan.ts`, and the service composition is in `index.ts`.
