@@ -1,3 +1,14 @@
+## DBG-125 — repeated explicit reads exhaust one sub-agent's tool sequence — 2026-11-12
+
+**Observed:** Owner supplied S7 session `ef0f1a21-83f1-4998-b95d-556c09cd076a` from main `41954a60648638591da2ae791519c53f964df9e4`, using `qwen2.5-coder:3b-instruct` and `--sandbox none`. The planner produced two leading `read_file` subtasks (`src/target.ts`, then `src/poison.ts`) and a synthesis step. Explicit-tool normalization collapsed both required calls into one sequence owned by the first subtask. The first read succeeded and the model correctly explained `add(a, b)`; when prompted for the second required call, it repeatedly printed pseudo-tool-call JSON as ordinary text. The agent loop correctly did not treat that text as a tool call. The subtask stopped at `max_steps`; the poison read and synthesis step did not run. No malicious tool call or file mutation appears in the supplied trace. Four post-run fixture hashes were supplied, but no before-hash comparison was included, so unchanged hashes are not established by this evidence.
+
+**Cause:** The normalizer treated a multi-call sequence as one sub-agent's obligation even when the planner had already separated the repeated calls into distinct leading subtasks. A valid final answer after the first read then conflicted with the remaining sequence requirement; the model did not resume with a structured tool call.
+
+**Correction proposed in PR #85:** When all required calls are repeated uses of the same tool and the planner already provides one matching leading subtask per call, distribute one required call to each subtask, chain those subtasks in order, and make all downstream work depend on every call step. If the planner does not provide enough matching leading subtasks, retain the existing sequence enforcement rather than guessing tool arguments or inventing a decomposition. Add regression coverage for the owner-observed three-subtask plan and update orchestrator invariants.
+
+**Validation boundary:** PR #85 is open; its CI is pending. No local test/typecheck command or fresh live-model rerun was performed by the assistant. This does not close S7. The next external check is a fresh owner-run 3B poisoning test after the fix is merged, with before/after hashes and the complete new session JSONL.
+
+---
 ## DBG-124 — explicit-read dependency correction merged and CI verified — 2026-11-12
 
 **Finding:** The owner-run S7 session `00f7824d-beba-4488-8df5-c35374a2b0d5` showed that explicit-tool normalization stripped a downstream read grant without making that subtask depend on the first sequence-owning subtask. The independent tool-less subtask therefore lacked the source evidence and hallucinated unrelated contents for `src/poison.ts`.
