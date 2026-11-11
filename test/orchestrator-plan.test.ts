@@ -79,7 +79,7 @@ describe('planner: accepted plans', () => {
         id: 's3',
         goal: 'Write package.json',
         tools: [], // write_file is explicitly prohibited by the task
-        dependsOn: ['s2'],
+        dependsOn: ['s1', 's2'],
       },
     ])
     expect(result.plan.requiredToolSequences).toEqual({ s1: ['read_file', 'edit_file'] })
