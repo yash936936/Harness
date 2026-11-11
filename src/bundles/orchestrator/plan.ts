@@ -104,8 +104,19 @@ export function normalizeExplicitToolPlan(
   mentions.sort((a, b) => a.at - b.at)
   // The capability grant is a set, but the required sequence is an ordered list of CALLS.
   // Keep repeated names in the sequence: read_file(path A), read_file(path B) are two
-  // distinct required operations even though they use the same registered tool.
-  const requestedTools = mentions.map((mention) => mention.name)
+  // distinct required operations even though they use the same registered tool. A single
+  // "call read_file on A and B" instruction also means two calls, not one.
+  const requestedTools = mentions.flatMap((mention, index) => {
+    if (mention.name !== 'read_file') return [mention.name]
+    const nextMention = mentions.slice(index + 1).find((item) => item.name === mention.name)
+    const nextSentence = /[.!?](?=\\s|$)|\\r?\\n/g
+    nextSentence.lastIndex = mention.at + mention.name.length
+    const sentenceEnd = nextSentence.exec(task)?.index ?? task.length
+    const end = Math.min(sentenceEnd, nextMention?.at ?? task.length)
+    const clause = task.slice(mention.at + mention.name.length, end)
+    const paths = [...clause.matchAll(/(?:^|[\\s"'\\x60])((?:\\.{0,2}\\/)?[\\w.-]+(?:[\\/][\\w.-]+)*\\.[A-Za-z0-9]{1,12})(?=$|[\\s"'\\x60,;:!?])/g)]
+    return Array(Math.max(1, paths.length)).fill(mention.name)
+  })
   const uniqueTools = [...new Set(requestedTools)]
   if (!requestedTools.length || requestedTools.length > limits.maxToolsPerSubtask || uniqueTools.length > limits.maxToolsPerSubtask) {
     return { plan, adjusted: false, requestedTools }
