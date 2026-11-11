@@ -19,7 +19,8 @@ The coding profile installs the `Orchestrator` service. Callers use `ctx.orchest
 - The caller's `allowedTools` list is the ceiling. Every plan tool must be registered and within that ceiling before any subtask runs.
 - Retries are bounded and occur only when the failed attempt made no side-effecting tool call. Unknown tool action classes are treated as unsafe.
 - Dependency results are bounded and fenced. Their content is data, not instructions, and cannot close its own result fence.
-- Required tool sequences are prerequisites to the overall task answer. The worker prompt explicitly requires synthesis from all successful tool results.
+- Required tool sequences are prerequisites to the overall task answer. Normalized downstream subtasks depend on the sequence-owning subtask, so they cannot run without its result.
+- Worker prompts require evidence-grounded answers: do not invent file contents or facts absent from tool/dependency results; preserve the task answer across later required reads.
 - Every subtask receives a terminal status. Missing closing log events are surfaced in the returned audit result.
 
 ## Known limits

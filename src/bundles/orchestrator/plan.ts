@@ -152,7 +152,11 @@ export function normalizeExplicitToolPlan(
         ...subtask,
         // The first subtask has already performed these ordered calls. Do not
         // repeat them downstream, and never preserve a grant the task forbids.
+        // The explicit sequence is centralized in the first subtask. Every later step
+        // must depend on its result; otherwise a tool-less step can run independently
+        // and invent the output of a read it was not granted.
         tools: subtask.tools.filter((name) => !uniqueTools.includes(name) && !prohibitedTools.has(name)),
+        dependsOn: [...new Set([first.id, ...subtask.dependsOn])],
       })),
     ],
     requiredToolSequences: { [first.id]: allowedRequestedTools },

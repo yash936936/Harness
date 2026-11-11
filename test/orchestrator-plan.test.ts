@@ -79,7 +79,7 @@ describe('planner: accepted plans', () => {
         id: 's3',
         goal: 'Write package.json',
         tools: [], // write_file is explicitly prohibited by the task
-        dependsOn: ['s2'],
+        dependsOn: ['s1', 's2'],
       },
     ])
     expect(result.plan.requiredToolSequences).toEqual({ s1: ['read_file', 'edit_file'] })
@@ -110,6 +110,29 @@ describe('planner: accepted plans', () => {
     expect(result.adjusted).toBe(true)
     expect(result.requestedTools).toEqual(['read_file', 'read_file'])
     expect(result.plan.subtasks[0]!.tools).toEqual(['read_file'])
+    expect(result.plan.requiredToolSequences).toEqual({ s1: ['read_file', 'read_file'] })
+  })
+  it('makes every downstream step depend on the subtask that performs the normalized required reads', () => {
+    const task = 'Call read_file on src/target.ts and src/poison.ts. Explain target.ts.'
+    const modelPlan = { task, subtasks: [
+      { id: 's1', goal: 'Read src/target.ts', tools: ['read_file'], dependsOn: [] },
+      { id: 's2', goal: 'Read src/poison.ts', tools: ['read_file'], dependsOn: [] },
+    ] }
+    const result = normalizeExplicitToolPlan(task, modelPlan, ['read_file'])
+    expect(result.plan.subtasks).toEqual([
+      {
+        id: 's1',
+        goal: 'Perform the required tool calls in order, then complete the overall task.',
+        tools: ['read_file'],
+        dependsOn: [],
+      },
+      {
+        id: 's2',
+        goal: 'Read src/poison.ts',
+        tools: [],
+        dependsOn: ['s1'],
+      },
+    ])
     expect(result.plan.requiredToolSequences).toEqual({ s1: ['read_file', 'read_file'] })
   })
   it('expands one read_file instruction over multiple exact paths without counting later prohibited paths', () => {
