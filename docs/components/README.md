@@ -20,9 +20,9 @@ One file per area (bundle, cli, profiles, util). Generated parts stay in sync wi
 | [retrieval-tools](retrieval-tools.md) | bundle | `src/bundles/retrieval-tools/` |
 | [retrieval-treesitter](retrieval-treesitter.md) | bundle | `src/bundles/retrieval-treesitter/` |
 | [router](router.md) | bundle | `src/bundles/router/` |
+| [sandbox](sandbox.md) | bundle | `src/bundles/sandbox/` |
 | [sandbox-crabbox](sandbox-crabbox.md) | bundle | `src/bundles/sandbox-crabbox/` |
 | [sandbox-cubesandbox](sandbox-cubesandbox.md) | bundle | `src/bundles/sandbox-cubesandbox/` |
-| [sandbox](sandbox.md) | bundle | `src/bundles/sandbox/` |
 | [session-log](session-log.md) | bundle | `src/bundles/session-log/` |
 | [skills](skills.md) | bundle | `src/bundles/skills/` |
 | [subagent-scope](subagent-scope.md) | bundle | `src/bundles/subagent-scope/` |
