@@ -1,3 +1,13 @@
+## DBG-120 — build-plan audit and closeout refresh — 2026-11-11
+
+**Entry protocol:** Read `context.md`, `AGENTS.md`, current `docs/status.md`, generated failure ledger, newest applicable decisions, current phase plan, and relevant component documentation before editing. Main baseline: `cdec12d4dc04ad3d46bb8b5d0cf20164cb7b361d`.
+
+**Finding:** The live build plan is `docs/BUILD-PLAN.md`; neither root `build.md` nor root `BUILD-PLAN.md` exists on main. The prior plan accumulated historical runbooks but lacked one current acceptance ledger. Its evaluation guidance also retained a 20+ session threshold that conflicts with D-109's current minimum of 10, using 20+ when available.
+
+**Corrections:** Added a current consolidated acceptance ledger and ordered next-work list. It distinguishes the refactor-plan implementation closeout from whole-project acceptance; records PR #80 as closed/unmerged and PR #79 as merged; carries D-110, D-112, D-114, and D-109 restrictions; updates S3/S4/S5/S6/S7 dispositions; and gives evidence-based close conditions for ENG-04, evaluation, and S7. Historical runbooks remain intact below the new authoritative section.
+
+**Validation boundary:** Repository files and GitHub metadata were inspected through the GitHub connector. No local working tree, npm command, source test, or sandbox/provider/model acceptance was run. The last completed CI evidence remains run #508; it predates the final documentation-only refactor closeout commits. This docs branch requires a fresh full CI run before merge. No generated file was edited by hand. D-110 and D-114 remain unchanged.
+
 ## DBG-119 — refactor plan implementation closeout — 2026-11-11
 
 **Disposition:** All candidates and ordering guidance in `docs/REFACTOR-PLAN.md` have been measured and reviewed. All justified behavior-preserving extractions and the required component documentation are merged to `main`. The measured no-split decisions for `model-adapter` and `tool-registry` are recorded with reasons. No candidate remains queued.
