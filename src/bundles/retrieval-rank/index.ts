@@ -35,8 +35,6 @@ declare module 'cordis' {
 const MAX_QUERY_CHARS = 2000
 const MAX_K = 100
 
-
-
 /**
  * `ctx.retrievalRank` — the last stage of the retrieval pipeline. Lexical candidates come from
  * ripgrep (2.1), chunks from tree-sitter symbols (2.2), scored with BM25; when embeddings (2.3) and
