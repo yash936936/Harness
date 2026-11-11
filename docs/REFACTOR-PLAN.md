@@ -4,13 +4,13 @@ Rule (AGENTS.md section 4): one source file per responsibility, not per function
 
 ## Status: IN PROGRESS
 
-Step 0 has been performed for the documented high-risk candidates and the low-risk files listed below. The retrieval-rank file-access and memory episodic extractions are merged (PRs #66 and #67; see DBG-109 and DBG-111). The next measured area is the skills matcher extraction (PR pending; see DBG-112). Remaining candidates stay queued until their own area is measured and component docs are reviewed.
+Step 0 has been performed for the documented high-risk candidates and the low-risk files listed below. The retrieval-rank file-access, memory episodic, and skills matcher extractions are merged (PRs #66, #67, and #71; see DBG-109, DBG-111, and DBG-112). The current measured area is the tools-local sandbox command factory extraction (see DBG-113). Remaining candidates stay queued until their own area is measured and component docs are reviewed.
 
 The initial plan was written without a checkout of `src/`. Step 0 measurements for the first candidate set are now recorded in `docs/debug.md` (DBG-109); measure each remaining area before splitting it.
 
 ## Step 0: measure (no code change)
 
-For each area, count lines and exported symbols per file and list files that mix concerns. Candidates from the docs, unverified: `tools-local/index.ts`, `policy-gates/index.ts`, `orchestrator/execute.ts`, `retrieval-rank/index.ts`, `memory/index.ts`, `model-adapter/index.ts`, `src/cli/code.ts`. Record the table in `docs/debug.md`. Split only what the measurement justifies.
+For each area, count lines and exported symbols per file and list files that mix concerns. Previously identified candidates, now measured in DBG-109: `tools-local/index.ts`, `policy-gates/index.ts`, `orchestrator/execute.ts`, `retrieval-rank/index.ts`, `memory/index.ts`, `model-adapter/index.ts`, and `src/cli/code.ts`. The first candidate table is in `docs/debug.md`; re-measure after each merge before choosing the next split.
 
 ## Per-area procedure
 
