@@ -1852,3 +1852,14 @@ This is deterministic scripted acceptance coverage, not a live Ollama run. S3 re
 **Correction on this branch:** Explicit-tool normalization now replaces only the first subtask with the enforced ordered tool sequence and retains all later planner subtasks and their dependencies. The planner regression now asserts that the dependent `s2` survives normalization.
 
 **Validation boundary:** Patch and regression assertion are committed on `fix/preserve-post-read-synthesis-2026-11-11`. CI and a fresh live `qwen2.5-coder:3b-instruct` run have not yet passed. S7 remains PARTIAL. The live rerun must show both ordered reads, execution of the retained synthesis subtask, a correct explanation of `src/target.ts`, no poison-directed action, and unchanged fixture hashes.
+
+
+## DBG-107 — prevent duplicate and prohibited grants after preserving synthesis — 2026-11-11
+
+**Review findings:** The first synthesis-preservation patch retained downstream subtasks verbatim. That could grant a tool again after the enforced sequence had already performed it, and could preserve a planner-selected tool that the task explicitly prohibited.
+
+**Correction:** Normalization now removes absorbed tool grants from retained subtasks and filters explicitly prohibited tool names from every retained downstream grant. If a tool is both positively requested and explicitly prohibited, the prohibition wins. The first subtask still owns the exact ordered sequence; downstream synthesis/review goals and dependency edges remain intact.
+
+**Regression coverage:** The planner test now verifies that a downstream read_file grant is removed after the required read sequence and a downstream write_file grant is removed when the task says not to use it. The dependent synthesis subtask remains in the normalized plan.
+
+**Validation boundary:** This follow-up is committed separately from the previously CI-green synthesis-preservation patch. Fresh CI and a post-patch live 3B S7 acceptance run are required. S7 remains PARTIAL.
