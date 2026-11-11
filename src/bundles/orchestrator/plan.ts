@@ -88,6 +88,7 @@ export function normalizeExplicitToolPlan(
   if (!hasExactPath) return { plan, adjusted: false, requestedTools: [] }
 
   const mentions: { name: string; at: number }[] = []
+  const prohibitedTools = new Set<string>()
   for (const name of offered) {
     let at = task.indexOf(name)
     while (at >= 0) {
@@ -96,8 +97,10 @@ export function normalizeExplicitToolPlan(
       const beforeChar = task[at - 1]
       const tokenBoundary = (!beforeChar || !/[A-Za-z0-9_]/.test(beforeChar)) && (!after || !/[A-Za-z0-9_]/.test(after))
       const explicit = tokenBoundary && /\b(?:use|using|call|calling|invoke|invoking|attempt|attempting)\s+(?:the\s+)?$/i.test(before)
-      const negated = /\b(?:do\s+not|don't|never|must\s+not|avoid)\s+(?:use|call|invoke|attempt)\s+(?:the\s+)?$/i.test(before)
-      if (explicit && !negated) mentions.push({ name, at })
+      const negativeList = /\b(?:do\s+not|don't|never|must\s+not|avoid)\s+(?:use|call|invoke|attempt)\s+(?:the\s+)?([^.!?\r\n]*)$/i.exec(before)
+      const negated = !!negativeList && !/\b(?:but|however|instead)\b/i.test(negativeList[1] ?? '')
+      if (tokenBoundary && negated) prohibitedTools.add(name)
+      else if (explicit) mentions.push({ name, at })
       at = task.indexOf(name, at + name.length)
     }
   }
@@ -117,21 +120,45 @@ export function normalizeExplicitToolPlan(
     const paths = [...clause.matchAll(/(?:^|[\s"'])((?:[A-Za-z0-9_.-]+\/)*[A-Za-z0-9_.-]+\.[A-Za-z0-9]{1,12})(?=$|[\s"',;:!?])/g)]
     return Array(Math.max(1, paths.length)).fill(mention.name)
   })
-  const uniqueTools = [...new Set(requestedTools)]
-  if (!requestedTools.length || requestedTools.length > limits.maxToolsPerSubtask || uniqueTools.length > limits.maxToolsPerSubtask) {
-    return { plan, adjusted: false, requestedTools }
+  // A prohibition wins if the same tool is also mentioned positively.
+  const allowedRequestedTools = requestedTools.filter((name) => !prohibitedTools.has(name))
+  const uniqueTools = [...new Set(allowedRequestedTools)]
+  if (allowedRequestedTools.length > limits.maxToolsPerSubtask || uniqueTools.length > limits.maxToolsPerSubtask) {
+    return { plan, adjusted: false, requestedTools: allowedRequestedTools }
+  }
+  if (!allowedRequestedTools.length) {
+    const filtered: Plan = {
+      ...plan,
+      subtasks: plan.subtasks.map((subtask) => ({
+        ...subtask,
+        tools: subtask.tools.filter((name) => !prohibitedTools.has(name)),
+      })),
+    }
+    const adjusted = JSON.stringify(filtered) !== JSON.stringify(plan)
+    return { plan: adjusted ? filtered : plan, adjusted, requestedTools: [] }
   }
 
   const first = plan.subtasks[0]!
   const goal = 'Perform the required tool calls in order, then complete the overall task.'
-  if (goal.length > limits.maxGoalChars) return { plan, adjusted: false, requestedTools }
+  if (goal.length > limits.maxGoalChars) return { plan, adjusted: false, requestedTools: allowedRequestedTools }
   const normalized: Plan = {
     task,
-    subtasks: [{ id: first.id, goal, tools: uniqueTools, dependsOn: [] }],
-    requiredToolSequences: { [first.id]: requestedTools },
+    // Keep the planner's downstream synthesis/review steps. Replacing the whole
+    // plan with only the first subtask silently discarded work that depended on
+    // the explicit reads (including the actual answer step).
+    subtasks: [
+      { id: first.id, goal, tools: uniqueTools, dependsOn: [] },
+      ...plan.subtasks.slice(1).map((subtask) => ({
+        ...subtask,
+        // The first subtask has already performed these ordered calls. Do not
+        // repeat them downstream, and never preserve a grant the task forbids.
+        tools: subtask.tools.filter((name) => !uniqueTools.includes(name) && !prohibitedTools.has(name)),
+      })),
+    ],
+    requiredToolSequences: { [first.id]: allowedRequestedTools },
   }
   const adjusted = JSON.stringify(normalized) !== JSON.stringify(plan)
-  return { plan: adjusted ? normalized : plan, adjusted, requestedTools }
+  return { plan: adjusted ? normalized : plan, adjusted, requestedTools: allowedRequestedTools }
 }
 
 /**
