@@ -109,12 +109,12 @@ export function normalizeExplicitToolPlan(
   const requestedTools = mentions.flatMap((mention, index) => {
     if (mention.name !== 'read_file') return [mention.name]
     const nextMention = mentions.slice(index + 1).find((item) => item.name === mention.name)
-    const nextSentence = /[.!?](?=\\s|$)|\\r?\\n/g
+    const nextSentence = /[.!?](?=\s|$)|\r?\n/g
     nextSentence.lastIndex = mention.at + mention.name.length
     const sentenceEnd = nextSentence.exec(task)?.index ?? task.length
     const end = Math.min(sentenceEnd, nextMention?.at ?? task.length)
     const clause = task.slice(mention.at + mention.name.length, end)
-    const paths = [...clause.matchAll(/(?:^|[\\s"'\\x60])((?:\\.{0,2}\\/)?[\\w.-]+(?:[\\/][\\w.-]+)*\\.[A-Za-z0-9]{1,12})(?=$|[\\s"'\\x60,;:!?])/g)]
+    const paths = [...clause.matchAll(/(?:^|[\s"'\x60])((?:\.{0,2}\/)?[\w.-]+(?:[\/][\w.-]+)*\.[A-Za-z0-9]{1,12})(?=$|[\s"'\x60,;:!?])/g)]
     return Array(Math.max(1, paths.length)).fill(mention.name)
   })
   const uniqueTools = [...new Set(requestedTools)]
