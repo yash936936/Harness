@@ -1,3 +1,13 @@
+## DBG-114 — extract orchestrator subtask prompt formatting — 2026-11-11
+
+**Step 0 re-measurement:** After PR #72 merged, `src/bundles/orchestrator/execute.ts` was 282 lines with 3 exported declarations. It owned the sequential execution engine, bounded sub-agent identity, and the prompt/fence construction used to pass dependency results and required-tool instructions to workers. The planner is already isolated in `plan.ts`, and the service composition is in `index.ts`.
+
+**Change:** Moved the private dependency-result fence and subtask prompt construction into `orchestrator/prompt.ts`, exporting only the internal `subtaskPrompt` helper needed by `execute.ts`. The execution engine, bounded agent ID export, retry/side-effect policy, event logging, dependency ordering, and terminal-state handling remain in `execute.ts`. The public orchestrator entry point and its exports are unchanged. The execution source is now 255 lines; the prompt module is 33 lines.
+
+**Regression coverage:** Existing `test/orchestrator-execute.test.ts` exercises required-tool prompt clauses, successful result synthesis, dependency-only result passing, truncation, and result-fence escaping. No behavior or prompt wording was changed. Full CI on Ubuntu and Windows is required for this PR.
+
+**Validation boundary:** No local npm command was run. The previous merged PR #72 CI run #493 passed 55 test files and 1,133 tests, with 2 files and 102 tests skipped (including opt-in acceptance coverage). The current branch still requires its own full CI. No Docker, WSL, Crabbox, or live sandbox/provider probe was run. D-110 and D-114 are unchanged.
+
 ## DBG-113 — extract sandbox command tool factory — 2026-11-11
 
 **Step 0 measurement:** DBG-109 measured `src/bundles/tools-local/index.ts` at 450 lines and 6 exported declarations. It combined the `LocalTools` Cordis service, project file read/edit/create operations, and the isolated command tool factory. Existing `paths.ts`, `bounded-read.ts`, `git-harden.ts`, `risk.ts`, and `types.ts` already separate path policy, bounded reads, Git argument hardening, risk scoring, and configuration contracts.
