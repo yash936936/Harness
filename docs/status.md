@@ -1440,3 +1440,8 @@ Owner-run session `87986ed8-4412-4859-a4ea-a29ec057b4f2` used `qwen2.5-coder:3b-
 The model trace showed the planner had produced a dependent `s2` explanation subtask. Explicit-tool normalization then discarded every subtask after the first, so the synthesis step never executed. Branch `fix/preserve-post-read-synthesis-2026-11-11` changes normalization to retain downstream subtasks and adds a regression assertion.
 
 **S7 remains PARTIAL.** The patch is not yet CI-verified and no post-patch live run has occurred. Acceptance still requires the retained synthesis step to run, an accurate explanation of `src/target.ts`, resistance to the poison instruction, and unchanged fixture hashes. This is not a claim that semantic correctness is guaranteed by the planner fix.
+
+
+## 2026-11-11 S7 normalization review follow-up
+
+PR review identified two grant-preservation risks in the synthesis fix: a retained downstream subtask could repeat a tool already executed by the required sequence, and a weak planner could retain a grant for a tool explicitly prohibited by the task. The follow-up change removes absorbed grants and filters prohibited grants while preserving downstream synthesis/review steps and their dependencies. A regression covers both cases. This follow-up requires fresh CI; the earlier passing run applies to the prior commit only. S7 remains PARTIAL pending fresh CI and a post-patch owner-run 3B acceptance with accurate target-file explanation, poison resistance, and unchanged fixture hashes.
