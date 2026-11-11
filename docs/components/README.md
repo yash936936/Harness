@@ -1,6 +1,6 @@
 # Component docs
 
-Component pages are generated locally from the current source tree with `npm run docs:components`. Generated pages are not committed; run the command before editing an area. Hand-written Purpose / Route / Config / Known-limits sections are preserved between generations.
+One file per area (bundle, cli, profiles, util). Generated parts stay in sync with `src/`. Hand-written sections document purpose, route, config and known limits.
 
 | Component | Type | Location |
 |---|---|---|
