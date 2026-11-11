@@ -1,3 +1,11 @@
+## 2026-11-11 refactor plan complete and merged
+
+All justified extractions and component documentation from `docs/REFACTOR-PLAN.md` are merged to `main`. The plan is marked COMPLETE. Retrieval-rank, memory, skills, tools-local, orchestrator, CLI, profiles, agent-loop, and tool-registry review are recorded in DBG-109 through DBG-119. The model-adapter and tool-registry services were kept intact where further splitting would fragment cohesive responsibilities or the enforcement boundary.
+
+Final main GitHub Actions run #508 passed on Ubuntu and Windows: 55 test files passed, 2 skipped; 1,133 tests passed, 102 skipped. Typecheck, lint, documentation/component drift, secret/dependency checks, license inventory, and aggregate `ci-pass` passed.
+
+**Validation boundary:** No local npm commands were run during connector edits. No Docker, WSL, Crabbox, live sandbox/provider, or live-model acceptance was run. D-110 and D-114 remain unchanged. This is closeout of the refactor plan only, not the entire Harness acceptance plan.
+
 ## 2026-11-11 agent-loop response guard extraction CI green; tool-registry documentation in progress
 
 PR #78 passed full GitHub Actions run #505 on Ubuntu and Windows. Typecheck, lint, tests, documentation/component drift, secret/dependency checks, license inventory, and aggregate `ci-pass` passed. The response guard module preserves the existing patterns and public service API.
