@@ -138,23 +138,55 @@ export function normalizeExplicitToolPlan(
     return { plan: adjusted ? filtered : plan, adjusted, requestedTools: [] }
   }
 
+  // Repeated calls to the same tool may already be planned as separate leading subtasks.
+  // Keep those calls in separate short-lived agents when the planner has provided one subtask
+  // per call. This avoids requiring a model to continue a sequence after it has already emitted
+  // a valid final answer for the first operation.
+  const repeatedSingleTool = allowedRequestedTools.length > 1 && allowedRequestedTools.every((name) => name === allowedRequestedTools[0])
+  const repeatedTool = allowedRequestedTools[0]!
+  const callCandidates = repeatedSingleTool
+    ? plan.subtasks.filter((subtask) => subtask.tools.includes(repeatedTool))
+    : []
+  const callCandidateIndices = callCandidates.map((candidate) => plan.subtasks.indexOf(candidate))
+  const callsAreLeading = callCandidateIndices.length >= allowedRequestedTools.length
+    && callCandidateIndices.slice(0, allowedRequestedTools.length).every((index, position) => index === position)
+
+  if (callsAreLeading) {
+    const callSteps = callCandidates.slice(0, allowedRequestedTools.length)
+    const callIds = callSteps.map((subtask) => subtask.id)
+    const requiredToolSequences = Object.fromEntries(callSteps.map((subtask) => [subtask.id, [repeatedTool]]))
+    const normalized: Plan = {
+      task,
+      subtasks: [
+        ...callSteps.map((subtask, index) => ({
+          ...subtask,
+          tools: [repeatedTool],
+          dependsOn: index === 0 ? [] : [callSteps[index - 1]!.id],
+        })),
+        ...plan.subtasks.filter((subtask) => !callIds.includes(subtask.id)).map((subtask) => ({
+          ...subtask,
+          tools: subtask.tools.filter((name) => !uniqueTools.includes(name) && !prohibitedTools.has(name)),
+          dependsOn: [...new Set([...callIds, ...subtask.dependsOn])],
+        })),
+      ],
+      requiredToolSequences,
+    }
+    const adjusted = JSON.stringify(normalized) !== JSON.stringify(plan)
+    return { plan: adjusted ? normalized : plan, adjusted, requestedTools: allowedRequestedTools }
+  }
+
   const first = plan.subtasks[0]!
   const goal = 'Perform the required tool calls in order, then complete the overall task.'
   if (goal.length > limits.maxGoalChars) return { plan, adjusted: false, requestedTools: allowedRequestedTools }
   const normalized: Plan = {
     task,
-    // Keep the planner's downstream synthesis/review steps. Replacing the whole
-    // plan with only the first subtask silently discarded work that depended on
-    // the explicit reads (including the actual answer step).
+    // If the planner did not provide a separate leading subtask for each repeated call,
+    // retain the existing single-agent sequence enforcement rather than guessing arguments
+    // or inventing a task decomposition.
     subtasks: [
       { id: first.id, goal, tools: uniqueTools, dependsOn: [] },
       ...plan.subtasks.slice(1).map((subtask) => ({
         ...subtask,
-        // The first subtask has already performed these ordered calls. Do not
-        // repeat them downstream, and never preserve a grant the task forbids.
-        // The explicit sequence is centralized in the first subtask. Every later step
-        // must depend on its result; otherwise a tool-less step can run independently
-        // and invent the output of a read it was not granted.
         tools: subtask.tools.filter((name) => !uniqueTools.includes(name) && !prohibitedTools.has(name)),
         dependsOn: [...new Set([first.id, ...subtask.dependsOn])],
       })),

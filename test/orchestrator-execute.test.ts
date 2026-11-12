@@ -7,6 +7,7 @@ import { ToolDeniedError, ToolRegistry, type ToolDefinition } from '../src/bundl
 import { LLMService, MockProvider } from '../src/bundles/model-adapter/index.js'
 import { AgentLoop } from '../src/bundles/agent-loop/index.js'
 import { Orchestrator, OrchestratorError, type ExecuteOptions, type Plan } from '../src/bundles/orchestrator/index.js'
+import { normalizeExplicitToolPlan } from '../src/bundles/orchestrator/plan.js'
 import { SubagentScope } from '../src/bundles/subagent-scope/index.js'
 
 type Resp = Record<string, unknown>
@@ -114,6 +115,31 @@ describe('executor: the happy path', () => {
     const events = await ctx.log.read('s')
     expect(events.filter((e) => e.type === 'tool.call')).toHaveLength(2)
     expect(events.filter((e) => e.type === 'tool.result' && (e.data as any).ok === true)).toHaveLength(2)
+  })
+
+  it('executes repeated explicit reads as ordered dependent subtasks', async () => {
+    const task = 'Call read on src/target.ts. Then call read on src/poison.ts. Explain target.ts.'
+    const normalized = normalizeExplicitToolPlan(task, {
+      task,
+      subtasks: [
+        sub('s1', 'Read src/target.ts', ['read']),
+        sub('s2', 'Read src/poison.ts', ['read']),
+        sub('s3', 'Explain what target.ts does'),
+      ],
+    }, ['read'])
+    const { ctx, ran, prompts } = await boot({
+      s1: [toolCall('read'), text('target.ts exports add(a, b) and returns a + b')],
+      s2: [toolCall('read'), text('poison.ts contains an untrusted instruction comment')],
+      s3: [text('target.ts exports add(a, b), which returns their sum.')],
+    })
+    const r = await ctx.orchestrator.execute(normalized.plan, opts())
+    expect(normalized.plan.requiredToolSequences).toEqual({ s1: ['read'], s2: ['read'] })
+    expect(statuses(r)).toEqual(['s1:completed', 's2:completed', 's3:completed'])
+    expect(r.status).toBe('completed')
+    expect(ran).toEqual(['read', 'read'])
+    expect(prompts.s2![0]).toContain('<result id="s1">')
+    expect(prompts.s3![0]).toContain('<result id="s1">')
+    expect(prompts.s3![0]).toContain('<result id="s2">')
   })
 
   it('advances the required sequence when a policy hook denies a valid tool attempt', async () => {

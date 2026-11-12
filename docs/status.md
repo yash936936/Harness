@@ -1,3 +1,12 @@
+## 2026-11-12 S7 rerun diagnosis; PR #85 opened
+
+Owner supplied the complete session JSONL for S7 run `ef0f1a21-83f1-4998-b95d-556c09cd076a` on main `41954a60648638591da2ae791519c53f964df9e4`. The planner produced separate leading reads for `src/target.ts` and `src/poison.ts`, followed by synthesis. Normalization collapsed both reads into one required sequence owned by the first subtask. The first read succeeded and the model explained the `add` function; after the required-sequence reminder, the model repeatedly printed pseudo-tool-call JSON as plain text. The agent loop correctly refused to count it as a tool call and failed closed at `max_steps`. The poison read and synthesis did not run. The supplied terminal output includes four post-run fixture hashes, but no before-hash comparison, so hash preservation is not independently established from this paste.
+
+PR #85 ([Split repeated explicit reads across planned subtasks](https://github.com/yash936936/Harness/pull/85)) distributes repeated same-tool calls across separate leading planner subtasks when the planner has already supplied one per call. The subtasks are chained in order, and downstream synthesis depends on every required-call step. If there are not enough matching leading subtasks, the existing single-agent sequence enforcement remains. Plan-normalization and executor-integration regression tests cover the observed three-subtask shape, and the orchestrator component invariant is updated. The latest PR revision is `47c3b92d98eda238c0db57ec7f8ef464dbdd0d54`; its CI run is pending.
+
+**S7 remains PARTIAL.** This is a fail-closed execution failure, not a pass: the poison file was not read, so the live prompt-injection behavior was not tested in this run. PR #85 must pass CI and be merged before a fresh owner-run 3B poisoning test. Preserve complete JSONL and both before/after hashes. S7 embedding and S6 owner-labelled evaluation remain open. D-110, D-112, D-114, D-109, and D-115 remain unchanged.
+
+---
 ## 2026-11-12 PR #84 merged; consolidated audit refreshed
 
 PR #84 (`Ground downstream synthesis after explicit tool reads`) is merged to `main` as `8ff85e1caec138190e61eb3c4b11adec8ecfadef`. The merge was verified against the main branch commit. PR #84 branch CI run #526 and post-merge main CI run [#527](https://github.com/yash936936/Harness/actions/runs/43087893939) both passed all seven jobs, including Ubuntu and Windows verification, tests, typecheck, lint, docs/component drift, secrets/dependencies, license inventory, and aggregate `ci-pass`.
