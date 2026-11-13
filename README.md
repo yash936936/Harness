@@ -22,7 +22,7 @@ npm run check
 npm run docs:check
 ```
 
-CI is currently blocked by a high-severity dependency advisory in the Vercel Sandbox SDK dependency tree. Do not treat the last green run as current CI status. See [STATE.md](docs/STATE.md).
+Audit branch CI run 43516548037 passed on commit `30401b9267fbf5e2578b752f61ba802a2e1dba1c`, including Ubuntu and Windows checks, dependency audit, docs drift, and license inventory. Follow [STATE.md](docs/STATE.md) for the current branch and merge status.
 
 ## Capability boundary
 
