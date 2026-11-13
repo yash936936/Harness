@@ -17,6 +17,7 @@ function deps(over: Omit<WizardDeps, 'consentStore'>): WizardDeps {
 /** Feeds a fixed queue of answers/confirms in call order - mirrors the wizard's own real prompt order exactly. */
 class ScriptedIO implements WizardIO {
   lines: string[] = []
+  confirmCalls: Array<{ prompt: string; options?: ConfirmOptions }> = []
   constructor(
     private answers: string[] = [],
     private confirms: boolean[] = [],
@@ -28,7 +29,8 @@ class ScriptedIO implements WizardIO {
     if (this.answers.length === 0) throw new Error(`ScriptedIO: no more scripted answers, but was asked "${prompt}"`)
     return this.answers.shift()!
   }
-  async confirm(prompt: string, _opts?: ConfirmOptions) {
+  async confirm(prompt: string, opts?: ConfirmOptions) {
+    this.confirmCalls.push({ prompt, options: opts })
     if (this.confirms.length === 0) throw new Error(`ScriptedIO: no more scripted confirms, but was asked "${prompt}"`)
     return this.confirms.shift()!
   }
@@ -108,6 +110,7 @@ describe('runWizard', () => {
     expect(result.aborted).toBe(false)
     const r = result as WizardCompleted
     expect(r.connectionOk).toBe(true)
+    expect(io.confirmCalls[0]?.options?.default).toBe(false)
     expect(r.consentRequired).toBe(true)
     expect(r.consented).toBe(true)
     expect(await r.ctx.egress.hasConsent()).toBe(true)
