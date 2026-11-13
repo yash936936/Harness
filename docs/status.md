@@ -7,7 +7,7 @@
 - Documentation CI no longer generates or rewrites component docs before checking them. Component checks are read-only; unfilled hand-written sections are errors. The failure-ledger `--check` mode compares the committed ledger without writing it, and CI no longer ignores failures.
 - Current status references are reconciled to the merged PR #85 baseline while historical incident entries remain intact.
 
-**Validation boundary:** Changes are being made through the GitHub connector on the branch above. No local typecheck, lint, tests, docs generator, Docker/WSL/Crabbox probe, provider request, or live-model run has been performed in this session. The branch requires full CI before merge.
+**Validation boundary:** Changes were made through the GitHub connector on the branch above. PR #86 CI run #546 found a shebang-order typecheck failure and the component-documentation gaps now exposed by the read-only check. The shebang issue and two stale generated indexes were corrected after that run. The strict docs check remains expected to fail until the 20 missing component docs, missing generated blocks, and open sections are committed. A fresh full CI run is still required. No local typecheck, lint, tests, docs generator, Docker/WSL/Crabbox probe, provider request, or live-model run was performed.
 
 ---
 
