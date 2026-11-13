@@ -176,7 +176,7 @@ describe('command backend (Needle stand-in)', () => {
     await expect(cmd('multiline').decide('agent', { task: 'x', candidates: CANDS })).rejects.toThrow(/invalid JSON/)
   })
 
-  it('validates external backend timeout and digest configuration', () => {
+  it('validates external backend timeout and digest configuration', async () => {
     expect(() => new CommandBackend({ command: process.execPath, timeoutMs: Infinity })).toThrow(/timeoutMs/)
     expect(() => new CommandBackend({ command: process.execPath, expectedSha256: 'bad' })).toThrow(/expectedSha256/)
     await expect(mk({ backendTimeoutMs: 2_147_483_648 })).rejects.toThrow(/backendTimeoutMs/)
