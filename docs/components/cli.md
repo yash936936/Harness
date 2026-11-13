@@ -38,7 +38,7 @@ The package entry point parses `run` and `code` subcommands and dispatches to th
 | `src/cli/run.ts` | `RunArgs`, `RunDeps`, `RunResult` | **(no header comment)** |
 | `src/cli/wizard.ts` | `ProviderKind`, `WizardDeps`, `WizardCompleted`, `WizardAborted`, `WizardResult`, `formatDoctorReport` | **(no header comment)** |
 
-**Imports other areas:** `app-core`, `egress`, `model-adapter`, `model-store`, `policy-gates`, `profiles`, `session-log`, `tools-local`
+**Imports other areas:** `app-core`, `egress`, `model-adapter`, `model-store`, `policy-gates`, `profiles`, `retrieval-tools`, `session-log`, `tools-local`
 
 **Tests:** (none matched by name)
 
