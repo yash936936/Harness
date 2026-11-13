@@ -29,7 +29,7 @@ The target is a governed coding agent that uses cloud-hosted model inference and
 | Append-only owner decisions | `docs/decisions.md` |
 | Current implementation roadmap | `docs/ROADMAP.md` |
 | Current task checklist | `docs/BUILD-PLAN.md` |
-| Component purpose, route, config, limits | `docs/components/<area>.md` |
+| Component index and guides | `docs/components/README.md` and `docs/components/<area>.md` |
 | Append-only technical findings | `docs/debug.md` |
 | Command/review event history | `docs/logs/events.jsonl` |
 | Generated repeated-failure summary | `docs/FAILURE-LEDGER.md` |
