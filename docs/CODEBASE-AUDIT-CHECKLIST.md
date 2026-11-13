@@ -154,6 +154,8 @@ This is a staged, evidence-based audit. Review each file, then each folder, then
 
 | AUD-039 | P1 | `src/bundles/sandbox/types.ts`, `src/bundles/sandbox-vercel/index.ts`, `src/bundles/tools-local/index.ts`, `src/bundles/tools-local/command.ts` | The sandbox contract is one-shot `run(command)` and the Vercel provider creates and deletes a fresh sandbox for every command. A multi-step coding task needs one shared workspace across reads/builds/tests and repeated commands; the current contract cannot preserve that state. `hardenedGit` also makes a separate sandbox call from the command itself. Workspace transfer/result sync cannot be added cleanly without a task-scoped lease/session API or repeated snapshot round-trips. | Confirmed architecture blocker; redesign before workspace transfer
 
+| AUD-040 | P1 | `src/bundles/retrieval-grep/index.ts`, `src/profiles/profile-coding.ts`, `src/bundles/subprocess/index.ts` | `search_code` calls host `Subprocess.run('rg', ...)` through the profile's `Subprocess` service. D-117 explicitly includes project search/inspection in the remote-only command boundary and forbids host subprocess fallback. Filtering only `COMMAND_TOOL` in the CLI does not prevent this host process path. | Confirmed; remove host subprocess path or disable until remote execution is available |
+
 ### Verification corrections
 
 - AUD-009 was withdrawn after tracing execute.finished: the orchestrator emits status completed only when counts.completed equals the total subtask count. The scorer therefore does not accept a partial run. This is why suspected local bugs must be traced across module boundaries.
