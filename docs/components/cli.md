@@ -31,7 +31,7 @@ The package CLI entry point in `index.ts` parses the `run` and `code` subcommand
 
 | File | Exports | Responsibility (first header-comment line) |
 |---|---|---|
-| `src/cli/code.ts` | `CodeProvider`, `CodeTaskOptions`, `CodeTaskResult`, `parseTimeoutMs`, `runCodeTask` | Governed coding-task CLI lifecycle; sandbox execution remains disabled under D-110. |
+| `src/cli/code.ts` | `CodeProvider`, `CodeTaskOptions`, `CodeTaskResult`, `parseTimeoutMs` | Governed coding-task CLI lifecycle; sandbox execution remains disabled under D-110. |
 | `src/cli/index.ts` | - | CLI process entry point and argument parsing. |
 | `src/cli/io.ts` | `AskOptions`, `ConfirmOptions`, `WizardIO`, `TerminalIO` | **(no header comment)** |
 | `src/cli/run.ts` | `RunArgs`, `RunDeps`, `RunResult` | **(no header comment)** |
