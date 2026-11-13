@@ -44,9 +44,17 @@ describe('Vercel Sandbox provider (D-118)', () => {
     const result = await ctx.sandbox.run({ command: ['npm', 'test', '--', 'a b'], cwd: '/vercel/sandbox/project', timeoutMs: 12_000 })
     expect(result).toMatchObject({ provider: 'vercel', leaseId: 'sbx-test-1', exitCode: 7, stdout: 'out', stderr: 'err', released: true })
     expect(f.calls[0]).toEqual(['create', { persistent: false, networkPolicy: 'deny-all', timeout: 12_000 }])
-    expect(f.calls[1]).toEqual(['run', {
-      cmd: 'npm', args: ['test', '--', 'a b'], cwd: '/vercel/sandbox/project',
-    }])
+    const runCall = f.calls[1] as [
+      'run',
+      Parameters<VercelSandboxHandle['runCommand']>[0],
+    ]
+    expect(runCall[0]).toBe('run')
+    expect(runCall[1]).toMatchObject({
+      cmd: 'npm',
+      args: ['test', '--', 'a b'],
+      cwd: '/vercel/sandbox/project',
+    })
+    expect(runCall[1].signal).toBeInstanceOf(AbortSignal)
     expect(f.calls[2]).toEqual(['delete'])
   })
 
