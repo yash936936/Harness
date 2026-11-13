@@ -43,7 +43,7 @@ async function main(): Promise<number> {
           model: { type: 'string' },
           'base-url': { type: 'string' },
           project: { type: 'string', default: basename(process.cwd()) },
-          sandbox: { type: 'string', default: 'auto' },
+          sandbox: { type: 'string', default: 'none' },
           'timeout-ms': { type: 'string' },
           'text-tool-calls': { type: 'boolean', default: false },
         },
@@ -56,14 +56,14 @@ async function main(): Promise<number> {
         io.print(error instanceof Error ? error.message : String(error))
         return 2
       }
-      if (!values.model || !task || (values.provider !== 'ollama' && values.provider !== 'openrouter') || (values.sandbox !== 'auto' && values.sandbox !== 'none') || (values.provider === 'openrouter' && (timeoutMs !== undefined || values['text-tool-calls']))) {
-        io.print('usage: npm run harness -- code --model <tag-or-id> [--provider ollama|openrouter] [--base-url URL] [--project ID] [--sandbox auto|none] [--timeout-ms N (Ollama only)] [--text-tool-calls (Ollama only)] "<task>"')
+      if (!values.model || !task || (values.provider !== 'ollama' && values.provider !== 'openrouter') || values.sandbox !== 'none' || (values.provider === 'openrouter' && (timeoutMs !== undefined || values['text-tool-calls']))) {
+        io.print('usage: npm run harness -- code --model <tag-or-id> [--provider ollama|openrouter] [--base-url URL] [--project ID] [--sandbox none] [--timeout-ms N (Ollama only)] [--text-tool-calls (Ollama only)] "<task>"')
         return 2
       }
       const result = await runCodeTask(io, {
         task, projectId: values.project!, provider: values.provider as CodeProvider, model: values.model,
         ...(values['base-url'] ? { baseUrl: values['base-url'] } : {}),
-        sandbox: values.sandbox as 'auto' | 'none',
+        sandbox: 'none',
         ...(timeoutMs !== undefined ? { timeoutMs } : {}),
         ...(values['text-tool-calls'] ? { textToolCalls: true } : {}),
       })
@@ -83,7 +83,7 @@ async function main(): Promise<number> {
 // stdout is piped rather than a real TTY, writes can be asynchronous, and `process.exit()` can
 // terminate the process before they actually flush - found by hand running this for real (a
 // scripted `WizardIO` in tests never touches real stdout, so nothing in the test suite could have
-// caught this). `rl.close()` inside `io.close()` above is what lets the process exit on its own.
+// caught it). `rl.close()` inside `io.close()` above is what lets the process exit on its own.
 main().then((code) => {
   process.exitCode = code
 })
