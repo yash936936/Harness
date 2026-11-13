@@ -1,5 +1,5 @@
 import { Context } from 'cordis'
-import { mkdtemp, readFile, appendFile, writeFile, symlink } from 'node:fs/promises'
+import { mkdtemp, readFile, appendFile, writeFile, symlink, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -28,13 +28,16 @@ describe('bundle-session-log', () => {
 
   it.skipIf(process.platform === 'win32')('refuses symlinked session files for reads, appends, and torn-tail repair', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'slog-symlink-'))
-    const external = join(dir, '..', 'outside-session-target.txt')
+    const outside = await mkdtemp(join(tmpdir(), 'slog-outside-'))
+    const external = join(outside, 'target.txt')
     await writeFile(external, 'DO NOT MODIFY')
     await symlink(external, join(dir, 'linked.jsonl'))
     const ctx = await boot({ path: dir })
     await expect(ctx.log.read('linked')).rejects.toThrow(/regular non-symlink file/)
     await expect(ctx.log.append('linked', 'overwrite')).rejects.toThrow(/regular non-symlink file/)
     expect(await readFile(external, 'utf8')).toBe('DO NOT MODIFY')
+    await rm(outside, { recursive: true, force: true })
+    await rm(dir, { recursive: true, force: true })
   })
 
   it('persists to JSONL and resumes after a "restart"', async () => {
