@@ -380,7 +380,7 @@ describe('agent-loop: max_steps boundary', () => {
       { maxAttempts: -1 }, { maxAttempts: 1.5 }, { maxAttempts: Number.POSITIVE_INFINITY },
       { baseDelayMs: -1 }, { baseDelayMs: Number.NaN },
       { factor: 0.5 }, { factor: Number.POSITIVE_INFINITY },
-      { maxDelayMs: -1 }, { maxDelayMs: Number.NaN },
+      { maxDelayMs: -1 }, { maxDelayMs: Number.NaN }, { maxDelayMs: 2_147_483_648 },
     ]) {
       await expect(boot({ retry })).rejects.toBeInstanceOf(AgentLoopError)
     }
