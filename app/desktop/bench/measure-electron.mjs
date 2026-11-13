@@ -21,14 +21,16 @@ if (process.platform !== 'win32') {
 }
 
 const here = dirname(fileURLToPath(import.meta.url))
-const appDir = join(here, 'hello-electron')
+const workspace = join(tmpdir(), 'harness-bench-electron-' + process.pid)
+const appDir = join(workspace, 'hello-electron')
 const markerPath = join(tmpdir(), 'harness-bench-electron-marker.txt')
 
 await requireCommand('npx', ['--version'], 'Install Node.js (npm ships npx with it).')
 
-console.log('Scaffolding a minimal Electron app with the official CLI...')
-if (existsSync(appDir)) await rm(appDir, { recursive: true, force: true })
-await run('npx', ['--yes', 'create-electron-app@latest', 'hello-electron'], { cwd: here })
+console.log('Scaffolding a minimal Electron app in an isolated temporary workspace...')
+await rm(workspace, { recursive: true, force: true })
+await mkdir(workspace, { recursive: true })
+await run('npx', ['--yes', 'create-electron-app@latest', 'hello-electron'], { cwd: workspace })
 
 console.log('Patching in a static hello screen and a cold-start marker...')
 await patchElectron(appDir, markerPath)
@@ -73,6 +75,7 @@ await appendResultRow(join(here, 'results.csv'), {
   idleMemoryMB,
   notes: 'hello-world only, no harness core logic added; idle memory is the shell alone, not measured alongside a running core process (see README caveat)',
 })
+await rm(workspace, { recursive: true, force: true })
 
 async function patchElectron(dir, marker) {
   const mainJs = join(dir, 'src', 'main.js')
