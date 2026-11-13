@@ -1,5 +1,5 @@
 import { isAbsolute, relative, resolve, sep } from 'node:path'
-import { existsSync, realpathSync } from 'node:fs'
+import { existsSync, lstatSync, realpathSync } from 'node:fs'
 import { Context, Service } from 'cordis'
 import {
   RetrievalGrepConfigError,
@@ -116,6 +116,7 @@ export class RetrievalGrep extends Service {
   static inject = ['subprocess']
 
   private readonly root: string
+  private readonly rootIdentity: { dev: number; ino: number }
   private readonly rgPath: string
   private readonly extraArgs: string[]
   private readonly maxResults: number
@@ -129,7 +130,14 @@ export class RetrievalGrep extends Service {
     if (!config?.root || !isAbsolute(config.root)) {
       throw new RetrievalGrepConfigError('retrieval-grep: config.root must be an absolute path')
     }
-    this.root = config.root
+    try {
+      this.root = realpathSync(config.root)
+      const rootStat = lstatSync(this.root)
+      if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) throw new Error('not a real directory')
+      this.rootIdentity = { dev: rootStat.dev, ino: rootStat.ino }
+    } catch (error) {
+      throw new RetrievalGrepConfigError(`retrieval-grep: config.root cannot be pinned to a real directory (${error instanceof Error ? error.message : String(error)})`)
+    }
     this.rgPath = config.rgPath ?? 'rg'
     if (typeof this.rgPath !== 'string' || !this.rgPath.trim()) throw new RetrievalGrepConfigError('retrieval-grep: rgPath must be a non-empty executable')
     this.extraArgs = config.extraArgs ?? []
@@ -192,9 +200,14 @@ export class RetrievalGrep extends Service {
     let realRoot: string
     let target: string
     try {
-      realRoot = realpathSync(this.root)
+      const current = lstatSync(this.root)
+      if (!current.isDirectory() || current.isSymbolicLink() || realpathSync(this.root) !== this.root ||
+          (this.rootIdentity.ino !== 0 && (current.ino !== this.rootIdentity.ino || current.dev !== this.rootIdentity.dev))) {
+        return { ok: false, error: { kind: 'path_not_found', detail: 'root identity changed after service construction' } }
+      }
+      realRoot = this.root
     } catch {
-      return { ok: false, error: { kind: 'path_not_found', detail: 'root does not exist' } }
+      return { ok: false, error: { kind: 'path_not_found', detail: 'root does not exist or its identity changed' } }
     }
     try {
       target = realpathSync(resolve(realRoot, path ?? '.'))
