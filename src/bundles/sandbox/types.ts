@@ -12,6 +12,8 @@ export interface SandboxRunRequest {
   command: string[]
   /** Which registered provider. Default: the one registered as default. */
   provider?: string
+  /** Working directory inside the remote sandbox, never a host path. */
+  cwd?: string
   timeoutMs?: number
   signal?: AbortSignal
 }

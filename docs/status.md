@@ -1667,3 +1667,10 @@ PR review identified two grant-preservation risks in the synthesis fix: a retain
 The P2/P3 review is recorded in `docs/AUDIT-CLOSEOUT.md` and DBG-120. The Node engine range now matches the Vite 8 floor in both manifests. Architecture and component docs now describe the implemented cross-process consent-store lock, the input-guard's detect-only role, retrieval-rank's intentionally cohesive service boundary, and the remaining tools-local parent-directory TOCTOU limitation. The latter is mitigated but not fully eliminated by Node's portable filesystem API. S0/S1/S4/S6/S7 acceptance gates remain unchanged.
 
 PR #86 run #566 failed only because `docs/components/README.md` had a stale generator-owned introduction. The index has been corrected to match `scripts/docs/gen-components.mjs`. Ubuntu/Windows typecheck, lint and tests, secrets/dependencies, license inventory, and failure-ledger checks passed on that earlier head. A fresh run on the current head is still required; no local commands were run for this follow-up.
+
+
+## 2026-11-13 D-118 Vercel Sandbox provider selection
+
+The owner selected Vercel Sandbox as the first D-117 cloud provider. A provider adapter and fake-client tests have been added on branch `feat/vercel-sandbox-provider-d118`. The adapter requests an ephemeral, non-persistent sandbox with deny-all network access, forwards argv without shell parsing, and reports cleanup failure as unreleased.
+
+This is provider groundwork, not an enabled coding workflow. The CLI still filters `COMMAND_TOOL`; project transfer and safe result synchronization are not implemented. SDK 3.9.1 is selected for the current Node engine range, with `vercel.com` as its documented API host; live credential-backed verification remains open. No Vercel credentials or live sandbox have been used. S4 remains NOT PASSED. D-110 remains unchanged; no local Docker/WSL/Crabbox or host execution was performed.

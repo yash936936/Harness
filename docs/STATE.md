@@ -50,3 +50,25 @@ The sandbox service already gates remote providers on project consent and host a
 | S7 | OPEN / RECONCILIATION REQUIRED | Existing live evidence still needs reconciliation; do not infer pass |
 | R3 demo | NOT STARTED | Three qualitative sessions and Windows quickstart/demo artifacts remain |
 
+
+
+## D-118 provider selection update — 2026-11-13
+
+Vercel Sandbox is the selected first provider. The initial adapter exists at `src/bundles/sandbox-vercel/index.ts` and is tested with an injected fake SDK client. It explicitly requests `persistent: false` and `networkPolicy: 'deny-all'`, forwards argv as `cmd` plus `args`, and calls `delete()` in a finally path. The sandbox service's existing remote-consent and exact-host allowlist gate runs before provider contact.
+
+**Not yet integrated:** The profile and CLI do not register/select this provider. The command tool remains filtered from the governed CLI. The provider currently runs in a fresh empty sandbox and does not transfer the project workspace or return remote changes. Do not enable `COMMAND_TOOL` until a secret-safe project snapshot and result-sync design is implemented and tested.
+
+| ID | State | Remaining action |
+|---|---|---|
+| R2.2 cloud provider | IN PROGRESS | Adapter added; published SDK 3.9.1 and its `vercel.com` control-plane host selected; add profile registration and live credential-backed doctor/smoke |
+| R2.3 policy integration | NOT STARTED | Keep tool disabled until workspace transfer and result-sync can preserve all policy guarantees |
+| R2.4 audit/egress | PARTIAL | Existing egress gate is reused; provider-specific lifecycle audit events and output redaction coverage remain |
+| R2.6 CLI integration | NOT STARTED | Explicit provider selection and project-transfer consent UX |
+| R2.7 acceptance | NOT STARTED | Live Vercel sandbox plus end-to-end project workflow evidence |
+
+D-110 remains unchanged. No Docker, WSL, Crabbox or host command probes were run. S0 remains PERMANENT-HOLD and S4 is NOT PASSED.
+
+
+### Vercel SDK compatibility note
+
+The implementation targets published `@vercel/sandbox@3.9.1`, not the unreleased 4.0.0 changelog entry. Version 3.9.1 uses the `vercel.com` API host; 4.0.0 changes that host and requires Node 22.19.0, which would exceed the current supported Node floor. The adapter uses explicit host-environment credentials `VERCEL_TOKEN`, `VERCEL_TEAM_ID`, and `VERCEL_PROJECT_ID`. The package is currently loaded lazily and is not yet recorded in package.json/package-lock.json; add it only when a lockfile can be generated and verified.

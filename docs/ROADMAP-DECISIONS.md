@@ -22,3 +22,15 @@ D-116 is a scope decision, not acceptance evidence. It does not close S6 or S7, 
 | D3: evaluation | UNCHANGED: three qualitative demo sessions only; scorer evidence still follows D-109 | D-116 D3 / D-109 |
 
 D-117 supersedes D-116 D1/D2 narrowly. D-110 remains in force for Docker/WSL/Crabbox and host execution. S0 remains PERMANENT-HOLD; S1 remains deferred. S4 is reopened only as a cloud-sandbox acceptance plan and is not passed. D-115 remains unchanged.
+
+
+## D-118 provider selection — 2026-11-13
+
+| Item | Owner disposition | Boundary |
+|---|---|---|
+| First D-117 cloud sandbox | ACCEPTED: Vercel Sandbox | Provider-neutral Harness seam remains open for future providers |
+| Runtime safety | REQUIRED | Non-persistent sandbox, deny-all network policy, argv-only invocation, confirmed delete |
+| CLI command enablement | NOT YET AUTHORIZED BY IMPLEMENTATION EVIDENCE | Keep `COMMAND_TOOL` filtered until safe workspace snapshot/result synchronization and lifecycle audit are complete |
+| Live acceptance | OPEN | Requires real Vercel credentials and end-to-end project workflow evidence |
+
+D-118 selects the provider; it does not claim that command execution is complete or S4 passed.
