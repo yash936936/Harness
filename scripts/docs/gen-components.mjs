@@ -53,7 +53,7 @@ function skeleton(area) {
     '## Config surface and invariants', '(open — config keys, limits, fail-closed behaviour, anything a caller must never assume)', '',
     '## Known limits', '(open — honest list, linked to decision / debug IDs)', '', ''].join('\n')
 }
-fs.mkdirSync(OUT, { recursive: true })
+if (!check) fs.mkdirSync(OUT, { recursive: true })
 const problems = [], index = []
 for (const area of areas()) {
   const file = path.join(OUT, `${area.name}.md`), block = generated(area)
@@ -62,7 +62,7 @@ for (const area of areas()) {
   const next = doc.replace(new RegExp(`${BEGIN}[\\s\\S]*?${END}`), () => block)
   if (!fs.existsSync(file)) problems.push(`missing doc: docs/components/${area.name}.md`)
   else if (next !== doc) problems.push(`stale generated block: docs/components/${area.name}.md`)
-  if (/\(open — /.test(next)) console.warn(`warn: docs/components/${area.name}.md still has unfilled hand-written sections`)
+  if (/\(open — /.test(next)) {\n    const message = `docs/components/${area.name}.md still has unfilled hand-written sections`\n    console.warn(`${check ? 'error' : 'warn'}: ${message}`)\n    if (check) problems.push(message)\n  }
   if (!check) fs.writeFileSync(file, next)
   index.push(`| \`${area.name}\` | ${area.kind} | \`${rel(path.relative(ROOT, area.dir))}/\` |`)
 }
