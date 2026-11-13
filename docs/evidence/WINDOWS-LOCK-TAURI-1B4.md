@@ -1,3 +1,9 @@
+# Historical Windows lock and desktop evidence
+
+> Windows paused-lock acceptance remains a historical result for the documented scenario. Desktop implementation is out of scope for the current sample prototype under D-115. This note is not a current desktop work order. See [STATE.md](../STATE.md).
+
+---
+
 # Windows locking and desktop closeout follow-up
 
 Date: 2026-11-06
