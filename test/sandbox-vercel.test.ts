@@ -99,4 +99,31 @@ describe('Vercel Sandbox provider (D-118)', () => {
   it('rejects invalid provider timeout configuration', () => {
     expect(() => new VercelSandboxProvider({ sandboxTimeoutMs: 0 })).toThrow(/sandboxTimeoutMs/)
   })
+
+  it('deletes the remote sandbox when a command is cancelled', async () => {
+    let started!: () => void
+    const began = new Promise<void>((resolve) => { started = resolve })
+    let deleted = false
+    const client: VercelSandboxClient = {
+      async create() {
+        return {
+          name: 'sbx-cancel',
+          async runCommand() {
+            started()
+            return new Promise<never>(() => {})
+          },
+          async delete() { deleted = true },
+        }
+      },
+    }
+    const ctx = await boot()
+    ctx.sandbox.register(new VercelSandboxProvider({ client }))
+    const controller = new AbortController()
+    const running = ctx.sandbox.run({ command: ['npm', 'test'], signal: controller.signal })
+    await began
+    controller.abort(new Error('test cancellation'))
+    await expect(running).rejects.toThrow('test cancellation')
+    expect(deleted).toBe(true)
+  })
+
 })
