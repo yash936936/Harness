@@ -43,7 +43,7 @@ describe('persistent state no-follow helpers', () => {
     writeFileSync(file, '{"seq":1}\n')
     await appendTextFileNoFollow(file, '{"seq":2}\n')
     expect(await readTextFileNoFollow(file)).toBe('{"seq":1}\n{"seq":2}\n')
-    await truncateFileNoFollow(file, 10)
+    await truncateFileNoFollow(file, 9)
     expect(await readTextFileNoFollow(file)).toBe('{"seq":1}')
   })
 })
