@@ -1,6 +1,6 @@
 # Component docs
 
-One file per area (bundle, cli, profiles, util). Generated parts stay in sync with `src/`. Hand-written sections document purpose, route, config and known limits.
+One file per area (bundle, cli, profiles, util). Hand-written sections document purpose, route, config and known limits. Optional source-inventory blocks can be refreshed with `npm run docs:components`.
 
 | Component | Type | Location |
 |---|---|---|
