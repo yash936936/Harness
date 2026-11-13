@@ -28,7 +28,7 @@ function fake(over: { deleteFails?: boolean; createFails?: boolean; runFails?: E
   return { client, calls }
 }
 
-async function boot(hosts: string[] = ['api.vercel.com'], consent = true) {
+async function boot(hosts: string[] = ['vercel.com'], consent = true) {
   const ctx = new Context()
   await ctx.plugin(EgressPolicy, { projectId: 'test-project', allowedHosts: hosts })
   if (consent) await ctx.egress.grantConsent()
@@ -52,7 +52,7 @@ describe('Vercel Sandbox provider (D-118)', () => {
 
   it('blocks before contacting Vercel without project consent', async () => {
     const f = fake()
-    const ctx = await boot(['api.vercel.com'], false)
+    const ctx = await boot(['vercel.com'], false)
     ctx.sandbox.register(new VercelSandboxProvider({ client: f.client }))
     await expect(ctx.sandbox.run({ command: ['true'] })).rejects.toMatchObject({ kind: 'consent' })
     expect(f.calls).toEqual([])
