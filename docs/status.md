@@ -1,3 +1,17 @@
+## 2026-11-13 D-116 approved; prototype scope frozen
+
+The owner explicitly approved D-116 against the uploaded 2026-11-11 sample-prototype roadmap. The proposal is now preserved at `docs/ROADMAP.md`; the owner dispositions are in `docs/decisions.md` and `docs/ROADMAP-DECISIONS.md`. The compact authoritative table is `docs/STATE.md`.
+
+- **D1 ACCEPTED:** v0 has no command execution. Keep read/plan/edit with policy approvals; D-110 remains in force. No host fallback or Docker/WSL/Crabbox probing.
+- **D2 ACCEPTED WITH RESTRICTION:** `qwen2.5-coder:3b-instruct` remains the default local and headline-demo model. Exactly one stronger free OpenRouter comparison session is permitted, separately labelled. It is not local 8 GB evidence or 3B acceptance evidence.
+- **D3 AMENDED:** three owner-reviewed sessions may support a qualitative demo (clean, denied approval, blocked credential read). They do not authorize scorer output or confusion metrics. D-109's 10 genuine sessions, both owner labels, and committed/hash-recorded labels before scoring remain mandatory for scorer output.
+
+**R1 is closed as a decision-recording phase. R2 and R3 are not closed.** PR #87's core-hardening subset is merged and CI-verified, but remaining roadmap R2 work includes the S7 live rerun and session-scoped approvals. The retrieval-rank split was reviewed and not adopted (DBG-120). R3 has not started: no three-session JSONL set, owner-reviewed demo summary, measured cold-start time, Windows quickstart, or demo script is claimed here. S6/S7 remain open as detailed in `docs/STATE.md`.
+
+PR #87 main merge remains `e8614f12e1a66cbea9adfe230a902e1c72f4b9d4`; post-merge run #576 passed seven jobs. This documentation update is on the PR #88 follow-up branch; PR #88 run #577 passed seven jobs, but the PR must be merged before these docs are on main. Branch protection remains disabled and is still an owner action.
+
+---
+
 ## 2026-11-13 PR #87 merged; R2 hardening verified on main
 
 PR #87 is merged as `e8614f12e1a66cbea9adfe230a902e1c72f4b9d4`. Post-merge Actions run [#576](https://github.com/yash936936/Harness/actions/runs/43432058570) passed all seven jobs on Ubuntu and Windows, including typecheck, lint, tests, docs/component drift, failure-ledger, secrets/dependencies, license inventory, and `ci-pass`.
