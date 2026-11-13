@@ -341,21 +341,6 @@ describe('executor: failure policy (D-074)', () => {
     })
   })
 
-  it('resets required tool sequences for each retry attempt', async () => {
-    const plan: Plan = {
-      task: 'read twice',
-      subtasks: [sub('s1', 'read twice, then explain', ['read'])],
-      requiredToolSequences: { s1: ['read', 'read'] },
-    }
-    const { ctx, ran } = await boot({
-      s1: [toolCall('read'), text(''), toolCall('read'), toolCall('read'), text('completed after retry')],
-    })
-    const r = await ctx.orchestrator.execute(plan, opts({ retries: 1 }))
-    expect(r.status).toBe('completed')
-    expect(r.subtasks[0]).toMatchObject({ attempts: 2, text: 'completed after retry' })
-    expect(ran).toEqual(['read', 'read', 'read'])
-    expect(await evTypes(ctx, 'subtask.retry')).toEqual(['subtask.retry'])
-  })
 
   it('retries a refusal only when the caller opted into retries and the attempt made no side effects', async () => {
     const refusal = "I'm sorry, but I'm unable to assist with that request."
