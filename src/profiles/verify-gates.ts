@@ -3,8 +3,6 @@
  * It verifies the live registry and policy hooks without executing a command or changing project files.
  */
 import type { Context } from 'cordis'
-import { CONFIDENCE_FIELD } from '../bundles/policy-gates/index.js'
-import { COMMAND_TOOL } from '../bundles/tools-local/index.js'
 import { ProfileError } from './errors.js'
 
 /** The self-test runs under this session id, so it never lands in a real task's log. */
@@ -12,11 +10,9 @@ export const SELFTEST_SESSION = 'profile-coding-selftest'
 
 /**
  * Prove the gates are enforcing in THIS context, not merely configured. Throws {@link ProfileError} if they are not. Exported so it can be
- * run (and tested) against any context. It makes one real call through the registry and asks the gate two questions about the real
- * `run_command`; nothing is executed or changed, and it logs only under {@link SELFTEST_SESSION}.
- *  1. The deny-list is live in the registry's `tools/pre-execute` path: a probe tool called with `rm -rf /` must be refused and must not run.
- *  2. `commandRisk` is wired: a shell command at confidence 1 must be held, and the signal must be present and score a read-only command 1.
- *     (A stricter signal of the owner's own is fine; a laxer one that lets the shell through is not.)
+ * run (and tested) against any context. It makes one real call through the registry; nothing is executed or changed, and it logs only under
+ * {@link SELFTEST_SESSION}. The coding profile must not register `run_command` until D-118 workspace transfer, result sync, lifecycle, and policy
+ * acceptance are complete. The self-test therefore proves the deny hook is live and the command capability is absent.
  */
 export async function verifyGates(ctx: Context): Promise<void> {
   const fail = (why: string): never => {
@@ -45,10 +41,5 @@ export async function verifyGates(ctx: Context): Promise<void> {
     off()
   }
 
-  const def = c.tools.list().find((t) => t.name === COMMAND_TOOL)
-  if (!def) return fail(`${COMMAND_TOOL} is not registered, so command risk cannot be checked`)
-  const ask = (args: string[], command: string) => c.policy!.evaluate({ sessionId: SELFTEST_SESSION, tool: def, input: { command, args, [CONFIDENCE_FIELD]: 1 } })
-  if (ask(['-c', 'echo hi'], 'sh').verdict !== 'hold') fail('a shell command at confidence 1 was not held (is commandRisk wired?)')
-  // Wired means PRESENT, not "lets it through": an owner's own stricter signal may legitimately hold a read-only command too.
-  if (!ask(['--version'], 'node').signals?.some((x) => x.name === 'command-risk' && x.score === 1)) fail('the command-risk signal is not wired in')
+  if (c.tools.list().some((t) => t.name === 'run_command')) fail('run_command is registered before D-118 acceptance')
 }
