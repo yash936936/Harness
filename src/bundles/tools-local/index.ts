@@ -22,7 +22,7 @@ import type { ToolDefinition } from '../tool-registry/types.js'
 import { GIT_READ_SUBCOMMANDS, hardenGit, repoFilterDrivers, type HardenedGit } from './git-harden.js'
 import { createCommandTool } from './command.js'
 import { FileTooLarge, readBounded } from './bounded-read.js'
-import { assertSameDir, confine, dirIdentity, isGitInternal, isSecretPath, PathRefused, relNorm } from './paths.js'
+import { assertSameDir, confine, dirIdentity, isGitInternal, isHarnessInternal, isSecretPath, PathRefused, relNorm } from './paths.js'
 import { LocalToolsConfigError, type LocalToolsConfig } from './types.js'
 
 export * from './types.js'
@@ -241,6 +241,7 @@ export class LocalTools extends Service {
       },
       execute: async (input) => {
         const { abs, rel } = this.path(input.path)
+        if (isHarnessInternal(rel)) throw new Error(`"${input.path}" is inside .harness control state and is not readable through this tool`)
         if (isGitInternal(rel)) throw new Error(`"${input.path}" is inside .git and is not readable through this tool`)
         if (!this.allowSecrets && isSecretPath(rel)) throw new Error(`"${input.path}" looks like a secrets file and is not readable through this tool`)
         const text = await this.readText(abs, input.path)
@@ -285,7 +286,9 @@ export class LocalTools extends Service {
       },
       execute: async (input) => {
         const { abs, rel } = this.path(input.path)
+        if (isHarnessInternal(rel)) throw new Error(`"${input.path}" is inside .harness control state and cannot be changed through this tool`)
         if (isGitInternal(rel)) throw new Error(`"${input.path}" is inside .git and cannot be changed through this tool`)
+        if (!this.allowSecrets && isSecretPath(rel)) throw new Error(`"${input.path}" looks like a secrets file and cannot be changed through this tool`)
         if (input.old_string === input.new_string) throw new Error('old_string and new_string are identical; nothing to change')
         const text = await this.readText(abs, input.path)
         // Files written on Windows use CRLF; the model writes LF. Match and write in the file's own line ending.
@@ -346,6 +349,7 @@ export class LocalTools extends Service {
       },
       execute: async (input) => {
         const { abs, rel } = this.path(input.path)
+        if (isHarnessInternal(rel)) throw new Error(`"${input.path}" is inside .harness control state and cannot be written through this tool`)
         if (isGitInternal(rel)) throw new Error(`"${input.path}" is inside .git and cannot be written through this tool`)
         // Early, friendly refusal; the real guarantee is the no-replace create below (BUG-03).
         if (existsSync(abs)) throw new Error(`"${input.path}" already exists; use edit_file to change it`)
