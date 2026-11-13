@@ -63,7 +63,7 @@ export class ModelStore extends Service {
       )
     }
     const nonEmpty = (value: unknown, max: number): value is string =>
-      typeof value === 'string' && value.trim().length > 0 && value.length <= max && !value.includes('\\0')
+      typeof value === 'string' && value.trim().length > 0 && value.length <= max && !value.includes('\0')
     if (!nonEmpty(record.id, 256) || !nonEmpty(record.revision, 512) || !nonEmpty(record.license, 1024) ||
         typeof record.sha256 !== 'string' || !/^[a-f0-9]{64}$/i.test(record.sha256) ||
         (record.sourceDigest !== undefined && (typeof record.sourceDigest !== 'string' || !/^[a-f0-9]{64}$/i.test(record.sourceDigest))) ||
