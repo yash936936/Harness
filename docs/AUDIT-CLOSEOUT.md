@@ -142,7 +142,7 @@ Scope: working prototype only. Statuses below distinguish committed code, CI, an
 ## What is actually closed
 
 - The governed CLI entry point is present: `npm run harness -- code`. It boots the coding profile, absolute current-directory project root, selected provider, orchestrator, approval callback, and session log. The terminal approval request is explicit, and approve/deny is returned by the terminal IO. The ordinary `run` command remains separate.
-- Fail-closed command availability is implemented. Without Docker or when Crabbox doctor fails, `run_command` is excluded and the CLI prints the no-sandbox notice; file tools remain behind their policy gates. There is no host-execution fallback.
+- D-110 is enforced in the governed CLI. Sandbox mode defaults to `none`, `auto` is rejected, Docker capability detection and Crabbox doctor calls are absent, `run_command` is never offered, and there is no host-execution fallback. File tools remain behind their policy gates.
 - D-106 fixes are present in source and covered by regression tests. D-106 reports the tests failed against old code before passing after the fixes.
 - Session-log torn-tail recovery is implemented; the child-process interruption fixture is a process-level regression, not hardware durability proof.
 - GitHub Actions run #63 for main commit `e93ff1edff16b9c643eecf54ec2b3985e5829369` passed on Ubuntu and Windows. Both jobs completed `npm ci`, `npm run typecheck`, and `npm test`. CI does not run `npm run lint` as a distinct step. The job summary does not expose detailed Vitest pass/skip totals, so this closeout does not invent them.
