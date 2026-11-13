@@ -2132,3 +2132,16 @@ This is deterministic scripted acceptance coverage, not a live Ollama run. S3 re
 PR #87 merged to main as `e8614f12e1a66cbea9adfe230a902e1c72f4b9d4`. Post-merge CI run [#576](https://github.com/yash936936/Harness/actions/runs/43432058570) passed all seven jobs. The merged changes centralize model-independent plan normalization for planner and executor, validate memory actor IDs, freeze an independent approval input snapshot, propagate vector-store stale-source deletion errors, and remove stale chunks when a previously indexed path becomes a directory.
 
 R1 D1/D2/D3 remains pending the exact proposal source and explicit owner disposition. R3 remains pending owner-run S7 and S6 evidence. Branch protection remains disabled according to the GitHub branch endpoint; CI success does not make `ci-pass` a required merge check.
+
+
+## DBG-129 — D-116 owner approval and roadmap documentation sync — 2026-11-13
+
+The owner supplied the exact `ROADMAP.md` proposal and explicitly approved D-116 with these dispositions:
+
+- D1 ACCEPT: no command execution in prototype v0; read/plan/edit with policy approvals. D-110 remains in force.
+- D2 ACCEPT WITH RESTRICTION: keep `qwen2.5-coder:3b-instruct` as local/default/headline model; permit one stronger free OpenRouter comparison session only, separately labelled and excluded from local 8 GB and 3B acceptance claims.
+- D3 AMEND: three owner-reviewed sessions may support a qualitative demo, but no scorer output, agreement metrics, or confusion table may be generated from those three. D-109's 10 genuine sessions, both classes, and committed/hash-recorded owner labels before scorer output remain required.
+
+The exact proposal was preserved as `docs/ROADMAP.md`. D-116 was appended to `docs/decisions.md`; `docs/ROADMAP-DECISIONS.md` records each disposition; `docs/STATE.md` is the compact authoritative state table. README, context, status, build plan, and audit closeout were synchronized.
+
+**Evidence boundary:** This records scope approval only. R1 decision recording is closed. R2 remains partial (S7 live rerun and session-scoped approval work remain). R3 has not started; no demo sessions, JSONLs, owner-reviewed summary, or cold-start measurement are claimed. S6/S7 remain open. The retrieval-rank split was reviewed and not adopted under DBG-120. PR #88 remains the documentation follow-up branch until merged; its prior CI run #577 passed seven jobs. No local tests or runtime checks were run during this documentation update.
