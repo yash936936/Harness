@@ -49,7 +49,7 @@ export function relNorm(realRoot: string, abs: string): string {
 
 /* Harness control-plane state is never exposed to model-facing file tools. */
 export function isHarnessInternal(rel: string): boolean {
-  const normalized = rel.replace(/\\\\/g, '/').toLowerCase()
+  const normalized = rel.toLowerCase()
   return normalized === '.harness' || normalized.startsWith('.harness/') || normalized.includes('/.harness/') || normalized.endsWith('/.harness')
 }
 
