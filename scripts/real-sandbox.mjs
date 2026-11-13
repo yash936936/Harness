@@ -1,4 +1,4 @@
-// Runs the REAL crabbox/Docker sandbox test (test/sandbox-real.test.ts). Needs Docker running and `crabbox` on PATH.
-import { spawnSync } from 'node:child_process'
-const r = spawnSync('npx', ['vitest', 'run', 'test/sandbox-real.test.ts'], { stdio: 'inherit', shell: true, env: { ...process.env, HARNESS_REAL_CRABBOX: '1' } })
-process.exit(r.status ?? 1)
+#!/usr/bin/env node
+// D-110: S0 / Docker / WSL / Crabbox is permanently held. Do not probe or retry it.
+console.error('BLOCKED by D-110: real Crabbox sandbox acceptance is permanently on hold. No host probes or workarounds are permitted.')
+process.exitCode = 1
