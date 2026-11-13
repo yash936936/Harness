@@ -3,7 +3,7 @@
 import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 
-const ALLOW = [/^test\//]
+const ALLOW = []
 const PATTERNS = [
   ['openai-style key', /\bsk-[A-Za-z0-9_-]{20,}\b/],
   ['github token', /\b(ghp_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,})\b/],
