@@ -58,6 +58,9 @@ async function tryBreakStale(lockPath: string, staleMs: number): Promise<boolean
     body = JSON.parse(await readFile(lockPath, 'utf8'))
   } catch (error: any) {
     if (error?.code === 'ENOENT') return true
+    // Windows may deny a concurrent read while another process is creating or writing the lock.
+    // Treat sharing/permission contention as a held lock and let the bounded retry loop decide.
+    if (error?.code === 'EPERM' || error?.code === 'EACCES' || error?.code === 'EBUSY') return false
     if (!(error instanceof SyntaxError)) throw error
     // Present but empty or half-written: its owner is either mid-write (young: keep waiting) or died between creating and writing it
     // (old: it must be breakable, or one crash wedges the lock for good). Judged by age below, with no pid to check.
