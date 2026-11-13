@@ -17,7 +17,8 @@ function areas() {
 }
 function walk(dir) { return listDir(dir).flatMap((e) => e.isDirectory() ? walk(path.join(dir, e.name)) : [path.join(dir, e.name)]).sort() }
 function headerComment(src) {
-  const m = src.match(/^\s*(?:\/\*\*?([\s\S]*?)\*\/|((?:\/\/[^\n]*\n?)+))/)
+  const body = src.startsWith('#!') ? src.slice(src.indexOf('\n') + 1) : src
+  const m = body.match(/^\s*(?:\/\*\*?([\s\S]*?)\*\/|((?:\/\/[^\n]*\n?)+))/)
   if (!m) return ''
   return (m[1] ?? m[2]).split('\n').map((l) => l.replace(/^\s*(\*|\/)\/?\s?/, '').trim()).filter(Boolean)[0] ?? ''
 }
