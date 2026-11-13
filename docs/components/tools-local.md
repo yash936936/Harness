@@ -30,20 +30,5 @@ The command factory lives in `command.ts`. Git read-command hardening remains in
 - `commandRisk` must be wired into policy signals; otherwise commands are held.
 - See [STATE.md](../STATE.md) and [ROADMAP.md](../ROADMAP.md).
 
-<!-- BEGIN GENERATED: do not edit between markers -->
-
-### Files and exports
-
-| File | Exports | Responsibility (first header-comment line) |
-|---|---|---|
-| `src/bundles/tools-local/command.ts` | `createRunCommandTool`, `CommandToolDeps` | Sandbox-backed command tool factory. |
-| `src/bundles/tools-local/index.ts` | `LocalTools` | Project-scoped file tools and sandbox-backed command tool. |
-
-**Imports other areas:** `egress`, `input-guard`, `policy-gates`, `sandbox`, `session-log`, `tool-registry`
-
-**Tests:** `test/tools-local.test.ts`, `test/tools-local-races.test.ts`
-
-<!-- END GENERATED -->
-
 ---
 **Next:** Return to [context.md](../../context.md).
