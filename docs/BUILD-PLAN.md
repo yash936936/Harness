@@ -427,3 +427,28 @@ This is not release clearance. The production package has not been built and its
 ## 9. CI repair after PR #39 (2026-11-10)
 
 PR #39 was merged as `1c91e2c23fa3d8021550b891cf7b005d3682e797`, but its Ubuntu and Windows CI jobs both failed in `test/orchestrator-execute.test.ts`. Typecheck and lint passed on both platforms. The only failing assertion expected the pre-change reason `required tool sequence: edit -> read`. With the PR #39 bounded continuation behavior, a model that repeatedly emits pseudo tool-call JSON without making real tool calls now exhausts the agent-loop budget and fails closed with `max_steps`. The test assertion is updated to require that bounded failure while retaining assertions that no tool executed and the subtask did not complete. This is a test expectation correction, not a relaxation of the required-tool safety behavior. CI must be green on both Ubuntu and Windows for the repair commit before closeout.
+
+
+## 10. D-118 Vercel Sandbox implementation
+
+Selected provider: Vercel Sandbox. The initial adapter is in `src/bundles/sandbox-vercel/index.ts`; its contract tests are in `test/sandbox-vercel.test.ts`.
+
+Completed in this slice:
+- Lazy SDK loading with injectable client seam.
+- Explicit `persistent: false` and `networkPolicy: 'deny-all'`.
+- argv-preserving command invocation and timeout forwarding.
+- Remote consent and exact host allowlist enforced by `ctx.sandbox` before SDK calls.
+- Cleanup through `delete()`; deletion failure returns `released: false`.
+- Fake-client tests for lifecycle, policy gate, argv and cleanup behavior.
+
+Remaining before any CLI command enablement:
+1. Verify and pin a compatible `@vercel/sandbox` SDK release against the repository's supported Node engine and lockfile. Do not silently raise the Node engine floor.
+2. Verify the actual SDK API host and auth behavior; update the provider host gate only from verified SDK source/runtime evidence.
+3. Implement a bounded project snapshot that excludes secrets, credentials, `.harness` state, dependency caches and unsafe symlinks. Preserve only the Git metadata required for approved local Git operations, with credential-bearing config removed.
+4. Add cwd confinement inside the remote workspace.
+5. Implement safe result synchronization for changed/new/deleted files, including path traversal, symlink, size, binary-file and concurrent-change protections. The existing policy approval must cover the exact command and any resulting project writes.
+6. Add append-only lifecycle audit events and ensure the model-visible result exactly matches redacted, bounded logged output.
+7. Add cancellation and timeout cleanup tests, live Vercel smoke, and end-to-end build/test/Git acceptance.
+8. Only then register the provider in profile-coding, add explicit CLI selection/consent UX, and expose `COMMAND_TOOL`.
+
+Do not run Docker, WSL, Crabbox or host command probes. Do not mark S4 passed based on fake-client tests or a provider-only smoke test.
