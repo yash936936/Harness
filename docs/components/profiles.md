@@ -26,3 +26,6 @@ Callers use `bootProfileMinimal(config)` or `bootProfileCoding(config)`. The gov
 - D-110 permanently holds Docker/WSL/Crabbox S0 and prohibits host fallback.
 - A profile self-test and fake provider test are not live cloud acceptance.
 - See [STATE.md](../STATE.md).
+
+---
+**Next:** Return to [context.md](../../context.md).
