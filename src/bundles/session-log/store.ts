@@ -116,7 +116,7 @@ export class JsonlStore implements SessionStore {
     }
   }
 
-  /** Repair a malformed final non-empty line using the same no-follow file handle. */
+  /** Repair only the final line using a no-follow file handle; do not rescan the full history on every append. */
   private async repairTornTail(sessionId: string): Promise<void> {
     let fh
     try {
@@ -126,21 +126,40 @@ export class JsonlStore implements SessionStore {
       throw e
     }
     try {
-      const text = await fh.readFile({ encoding: 'utf8' })
-      const lines = text.split('\n')
-      let last = lines.length - 1
-      while (last >= 0 && !lines[last]!.trim()) last--
-      for (let i = 0; i <= last; i++) {
-        try {
-          JSON.parse(lines[i]!)
-        } catch {
-          if (i !== last) throw new Error(`Corrupt session log ${sessionId}: line ${i + 1} is not valid JSON`)
-          const end = lines.slice(0, i).join('\n').length + (i > 0 ? 1 : 0)
-          await fh.truncate(end)
+      const size = (await fh.stat()).size
+      if (size === 0) return
+      const last = Buffer.alloc(1)
+      await fh.read(last, 0, 1, size - 1)
+      if (last[0] === 0x0a) return
+
+      // Locate the beginning of the unterminated tail with bounded reverse reads.
+      let cursor = size
+      let tailStart = 0
+      const chunkSize = 64 * 1024
+      while (cursor > 0) {
+        const chunkStart = Math.max(0, cursor - chunkSize)
+        const chunk = Buffer.alloc(cursor - chunkStart)
+        await fh.read(chunk, 0, chunk.length, chunkStart)
+        const newline = chunk.lastIndexOf(0x0a)
+        if (newline >= 0) {
+          tailStart = chunkStart + newline + 1
+          break
+        }
+        cursor = chunkStart
+      }
+
+      const tail = Buffer.alloc(size - tailStart)
+      await fh.read(tail, 0, tail.length, tailStart)
+      try {
+        JSON.parse(tail.toString('utf8'))
+        await fh.appendFile('\n', 'utf8')
+      } catch (error) {
+        if (error instanceof SyntaxError) {
+          await fh.truncate(tailStart)
           return
         }
+        throw error
       }
-      if (last >= 0 && !text.endsWith('\n')) await fh.appendFile('\n', 'utf8')
     } finally {
       await fh.close()
     }
