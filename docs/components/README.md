@@ -25,6 +25,7 @@ One file per area (bundle, cli, profiles, util). Generated parts stay in sync wi
 | `sandbox` | bundle | `src/bundles/sandbox/` |
 | `sandbox-crabbox` | bundle | `src/bundles/sandbox-crabbox/` |
 | `sandbox-cubesandbox` | bundle | `src/bundles/sandbox-cubesandbox/` |
+| `sandbox-vercel` | bundle | `src/bundles/sandbox-vercel/` |
 | `session-log` | bundle | `src/bundles/session-log/` |
 | `skills` | bundle | `src/bundles/skills/` |
 | `subagent-scope` | bundle | `src/bundles/subagent-scope/` |
