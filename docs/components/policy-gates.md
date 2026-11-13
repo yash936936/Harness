@@ -16,6 +16,7 @@ The coding profile installs the policy hooks before local tools are registered. 
 - Independent risk signals are combined conservatively. Missing or invalid signals fail closed.
 - External side effects and unknown or unsafe actions are held or denied according to the policy rules.
 - Approval is scoped to the exact request and is not a blanket grant for later operations.
+- Approval requests carry a deep-cloned, recursively frozen input snapshot. An approver cannot mutate the live tool input or silently change the operation after the approval prompt.
 - Command risk must be wired into the profile; without it, command execution is held.
 
 ## Known limits

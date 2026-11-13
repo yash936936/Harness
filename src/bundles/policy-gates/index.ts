@@ -20,6 +20,17 @@ declare module 'cordis' {
 export const CONFIDENCE_FIELD = 'confidence'
 export const confidenceProperty = { type: 'number', minimum: 0, maximum: 1, description: 'Your confidence (0 to 1) that this write is correct and safe.' } as const
 
+function immutableSnapshot<T>(value: T): T {
+  const snapshot = structuredClone(value)
+  const freeze = (item: unknown): void => {
+    if (!item || typeof item !== 'object' || Object.isFrozen(item)) return
+    for (const child of Object.values(item as Record<string, unknown>)) freeze(child)
+    Object.freeze(item)
+  }
+  freeze(snapshot)
+  return snapshot
+}
+
 interface Pending {
   req: ApprovalRequest
   settle(d: ApprovalDecision, outcome: 'approved' | 'denied' | 'timeout'): void
@@ -126,7 +137,7 @@ export class PolicyGates extends Service {
       tool: ev.tool.name,
       class: d.class,
       reason: d.reason,
-      input: ev.input,
+      input: immutableSnapshot(ev.input),
       ...(d.score !== undefined ? { score: d.score } : {}),
       requestedAt: new Date().toISOString(),
     })
