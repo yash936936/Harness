@@ -1,3 +1,13 @@
+## 2026-11-13 PR #87 merged; R2 hardening verified on main
+
+PR #87 is merged as `e8614f12e1a66cbea9adfe230a902e1c72f4b9d4`. Post-merge Actions run [#576](https://github.com/yash936936/Harness/actions/runs/43432058570) passed all seven jobs on Ubuntu and Windows, including typecheck, lint, tests, docs/component drift, failure-ledger, secrets/dependencies, license inventory, and `ci-pass`.
+
+R2 changes now on main: shared model-independent plan validation and explicit-tool normalization are used by both planner and executor; malformed `subagent:<id>` memory grants are rejected; approval callbacks receive a deep-cloned, recursively frozen input snapshot; and retrieval indexing propagates vector-store deletion failures, including stale entries when a previously indexed file path becomes a directory.
+
+R0.1, R0.2 workflow changes, and R0.3 component documentation remain verified. GitHub still reports `main.protected=false`; the owner must configure required `ci-pass` and PR-only merge rules. R1 remains pending because the D1/D2/D3 roadmap source is unavailable. R3 remains owner-run: no live S7 embedding/poisoning or S6 genuine-session evidence was run or fabricated.
+
+---
+
 ## 2026-11-13 R0-R3 repair-order review
 
 **Verified main baseline:** PR #86 is merged as `b35f39b05ef8438a996eeeb3981f1037b5b0b520`. Post-merge Actions run [#570](https://github.com/yash936936/Harness/actions/runs/43429109908) passed all seven jobs, including Ubuntu and Windows verification, documentation/component drift, failure-ledger, secrets/dependencies, license inventory, and aggregate `ci-pass`.

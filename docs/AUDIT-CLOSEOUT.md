@@ -6,7 +6,7 @@
 | R0.2 CI integrity | CODE FIXES CLOSED; MERGE GATE OPEN | Docs/component and failure-ledger checks are read-only and blocking. Post-merge run #570 passed all seven jobs. GitHub reports `main.protected=false`; no required check is enforced until the owner applies branch protection. |
 | R0.3 Documentation synchronization | 29 COMPONENT AREAS PRESENT; DRIFT CHECK PASS | All 29 areas are in the component index and the main CI docs check passed. Top-level documentation is synchronized in the repair branch. Historical status/debug/decision logs are preserved. |
 | R1 Owner decisions | BLOCKED, NO DECISION RECORDED | The referenced roadmap with D1/D2/D3 is absent from the current Git tree and could not be found among available project files. No D1/D2/D3 position has been inferred. Re-upload the exact roadmap and record owner disposition explicitly. |
-| R2 Core hardening | REVIEWED; PR #87 CI PASS (#573), PR OPEN | Planner and executor now share one pure plan normalization path. Memory grant creation rejects malformed scoped actor IDs. Retrieval stale-index cleanup returns vector-store delete errors instead of reporting success. Approval behavior reviewed as fail-closed; approvers receive a deep-cloned, recursively frozen input snapshot. Local file writes retain a documented residual parent-directory TOCTOU race. |
+| R2 Core hardening | MERGED IN PR #87; CI PASS (#575 and post-merge #576) | Planner and executor now share one pure plan normalization path. Memory grant creation rejects malformed scoped actor IDs. Retrieval stale-index cleanup returns vector-store delete errors instead of reporting success. Approval behavior reviewed as fail-closed; approvers receive a deep-cloned, recursively frozen input snapshot. Local file writes retain a documented residual parent-directory TOCTOU race. |
 | R3 Prototype acceptance | OPEN, OWNER-RUN REQUIRED | S7 embedding needs local Ollama `nomic-embed-text`; poisoning needs the exact `qwen2.5-coder:3b-instruct` and disposable fixture; S6 needs at least 10 genuine sessions and owner-authored labels hashed before scoring. No such evidence was available or fabricated. |
 
 **Branch protection owner action:** require PRs for `main`, require `ci-pass`, require branches up to date, block force pushes/deletions, and disable admin bypass. The current integration has read-only repository inspection and cannot apply this setting.
@@ -16,9 +16,9 @@
 ## Verified repository baseline
 
 - Repository: `yash936936/Harness`, branch: `main`.
-- Current main: `b35f39b05ef8438a996eeeb3981f1037b5b0b520`, merge commit for PR #86.
-- PR #86 is merged. It enforces D-110 in the governed CLI, adds the missing component guides, makes docs/failure-ledger CI checks read-only and blocking, and records the P2/P3 follow-up.
-- Post-merge main CI run [#570 / 43429109908](https://github.com/yash936936/Harness/actions/runs/43429109908) after PR #86 passed all seven jobs: Ubuntu verification, Windows verification, secrets/dependencies, license inventory, docs/component drift, acceptance-gates-not-run reporting, and aggregate `ci-pass`.
+- Current main: `e8614f12e1a66cbea9adfe230a902e1c72f4b9d4`, merge commit for PR #87.
+- PR #86 and PR #87 are merged. PR #87 adds shared plan normalization, memory grant ID validation, immutable approval snapshots, and checked stale-index cleanup.
+- Post-merge main CI run [#576 / 43432058570](https://github.com/yash936936/Harness/actions/runs/43432058570) after PR #87 passed all seven jobs: Ubuntu verification, Windows verification, secrets/dependencies, license inventory, docs/component drift, acceptance-gates-not-run reporting, and aggregate `ci-pass`.
 - GitHub reports `main.protected=false` and `protection.enabled=false`. Required status checks are not enforced by branch protection yet.
 - CI verifies automated checks on the merged source. It does not prove live-model behavior, live embedding behavior, sandbox execution, or human evaluation.
 - No local commands or tests were executed by the assistant during this connector-based audit update. Owner-supplied local test evidence is identified separately below.

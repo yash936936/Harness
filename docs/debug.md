@@ -2125,3 +2125,10 @@ This is deterministic scripted acceptance coverage, not a live Ollama run. S3 re
 **Approval integrity follow-up:** approval requests now receive a deep-cloned, recursively frozen copy of the tool input rather than the live input object. This prevents an approver callback from mutating the pending operation after seeing the request. A regression test checks identity separation, nested immutability, and unchanged execution input.
 
 **R2 verification:** PR #87 CI run [#573](https://github.com/yash936936/Harness/actions/runs/43431111273) passed all seven jobs, including Ubuntu and Windows typecheck/lint/test, docs/component drift, failure-ledger, secrets/dependencies, license inventory, and aggregate `ci-pass`. The preceding run #571 exposed the expected-error-message mismatch for non-sub-agent actor IDs; the code now preserves that established message and separately rejects malformed `subagent:<id>` values. Run #572 was superseded/cancelled. No local commands were run.
+
+
+## DBG-128 — PR #87 merged; R2 core hardening on main — 2026-11-13
+
+PR #87 merged to main as `e8614f12e1a66cbea9adfe230a902e1c72f4b9d4`. Post-merge CI run [#576](https://github.com/yash936936/Harness/actions/runs/43432058570) passed all seven jobs. The merged changes centralize model-independent plan normalization for planner and executor, validate memory actor IDs, freeze an independent approval input snapshot, propagate vector-store stale-source deletion errors, and remove stale chunks when a previously indexed path becomes a directory.
+
+R1 D1/D2/D3 remains pending the exact proposal source and explicit owner disposition. R3 remains pending owner-run S7 and S6 evidence. Branch protection remains disabled according to the GitHub branch endpoint; CI success does not make `ci-pass` a required merge check.
