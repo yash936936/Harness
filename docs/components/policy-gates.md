@@ -26,3 +26,6 @@ The coding profile installs policy hooks before local tools. Tool-registry invok
 - Policy tests prove deterministic decisions for fixtures, not safe live-model behavior.
 - D-117/D-118 require command execution only through the selected remote cloud sandbox. D-110 still holds Docker/WSL/Crabbox S0 and prohibits host execution.
 - See [STATE.md](../STATE.md).
+
+---
+**Next:** Return to [context.md](../../context.md).
