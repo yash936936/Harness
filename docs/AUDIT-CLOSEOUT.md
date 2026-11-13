@@ -9,6 +9,9 @@
 - The CI result verifies the merged source on both operating systems. It does not prove live-model behavior, live embedding behavior, sandbox execution, or human evaluation.
 - No local commands or tests were executed by the assistant during this connector-based audit update. Owner-supplied local test evidence is identified separately below.
 
+- P1 follow-up: PR #86 proposes enforcing D-110 in the CLI and making documentation/failure-ledger CI checks read-only and blocking. It is not merged and is not part of the main baseline above. Its CI must pass before merge; the stricter docs check is expected to expose component docs missing from the committed tree.
+
+
 ## Current acceptance ledger
 
 | Area | Current status | Evidence and outstanding work |
