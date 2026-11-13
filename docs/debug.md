@@ -4,7 +4,7 @@
 
 **Corrections:** Moved the CLI comment below the shebang, taught the component-doc header parser to inspect the first comment after a shebang, removed the obsolete `runCodeTask` export from the generated CLI inventory, and regenerated the sorted component index. The failure-ledger check is now scheduled with `if: always()` so it runs even when the docs check fails.
 
-**Remaining:** The strict read-only docs check correctly remains red until the missing component docs, missing generated blocks, and open hand-written sections are committed. Do not restore the old generate-then-check CI sequence or weaken the check to hide this. The branch has not yet had a fresh complete CI run after these corrections.
+**Follow-up correction:** Added all 20 missing component guides with completed hand-written sections and refreshed the component index. The generator now permits hand-maintained guides without a generated inventory block; when a block is present, its content is still checked for drift. The committed failure ledger was regenerated from the current event log. Both fixes preserve a read-only CI check and do not restore generate-before-check behavior. Run #564 is queued against this updated branch; no job results are available yet.
 
 **Validation:** PR #86 run #546 confirmed the Ubuntu typecheck failure and the documentation failures. Secrets/dependency and license jobs passed in that run. The typecheck cause was corrected after the run; the correction has not yet been validated by a subsequent complete run. No local typecheck, lint, test suite, or sandbox/provider/live-model command was run.
 
