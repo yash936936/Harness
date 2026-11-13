@@ -113,7 +113,6 @@ export class FileCredentialStore implements CredentialStore {
       try {
         const key = await readBufferFileNoFollow(this.keyPath)
         if (key.length !== 32) throw new Error(`credentials: encryption key ${this.keyPath} must contain exactly 32 bytes`)
-        if (process.platform !== 'win32') await chmod(this.keyPath, 0o600)
         return key
       } catch (e: any) {
         if (e?.code !== 'ENOENT') throw e
