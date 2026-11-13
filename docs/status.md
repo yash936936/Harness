@@ -1,3 +1,15 @@
+## 2026-11-13 D-117 accepted: cloud-only command execution
+
+The owner selected remote cloud command execution with the full development command scope. D-117 supersedes D-116 D1/D2 narrowly and supersedes D-114 only for model-driven testing provider scope. The governed coding CLI is to run commands only through an explicit remote cloud SandboxProvider. Host execution, local fallback, and automatic local sandbox selection are prohibited.
+
+The command scope includes project inspection/search, dependency installation, builds, tests, and Git operations, all subject to existing policy gates, hard denials, risk classification, immutable approval snapshots, argv-only invocation, resource/time/output limits, and verified lease cleanup. Model-provider egress and sandbox-provider egress are separate remote destinations with independent project consent and host allowlists. Sandbox network access remains disabled by default. Audit logs must include provider/host/lease, argv/cwd, policy/approval, timing, exit status, bounded redacted output, timeout/cancellation, and release status.
+
+D-110 remains unchanged: no Docker/WSL/Crabbox probes, retries, workarounds, or host fallback. S0 remains PERMANENT-HOLD and S1 remains deferred. S4 is reopened only as a cloud-sandbox acceptance track, not passed. No cloud sandbox provider has yet been selected or verified. Current Ollama provider code does not establish API-key authentication for Ollama cloud; verify before enabling that route. D-116 D3 and D-109 remain unchanged.
+
+See docs/architecture.md, docs/ROADMAP.md, docs/BUILD-PLAN.md, and docs/STATE.md for the architecture, implementation phases, and current state.
+
+---
+
 ## 2026-11-13 D-116 approved; prototype scope frozen
 
 The owner explicitly approved D-116 against the uploaded 2026-11-11 sample-prototype roadmap. The proposal is now preserved at `docs/ROADMAP.md`; the owner dispositions are in `docs/decisions.md` and `docs/ROADMAP-DECISIONS.md`. The compact authoritative table is `docs/STATE.md`.
