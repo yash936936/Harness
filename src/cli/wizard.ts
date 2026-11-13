@@ -88,7 +88,7 @@ export async function runWizard(io: WizardIO, deps: WizardDeps = {}): Promise<Wi
 
   let acknowledgeRemote = true
   if (provider.egress?.remote) {
-    acknowledgeRemote = await io.confirm(`About to contact ${provider.egress.host} to test the connection. Continue?`, { default: true })
+    acknowledgeRemote = await io.confirm(`About to contact ${provider.egress.host} to test the connection. Continue?`, { default: false })
   }
 
   io.print('Testing connection...')
