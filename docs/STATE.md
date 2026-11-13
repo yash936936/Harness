@@ -20,7 +20,7 @@ Updated 2026-11-14. This is the single compact source of truth for current scope
 | Core harness, profiles, tools, policy gates, retrieval, memory, orchestrator | Implemented; CI-tested | Does not establish live model quality or external acceptance. |
 | Sandbox service and provider contract | Implemented | Provider presence is not live execution proof. |
 | Vercel Sandbox adapter | Implemented, fake-client tested | Requests non-persistent, deny-all sandbox; argv command; delete in cleanup. Not live-verified. |
-| Vercel SDK dependency | Not integrated in package manifest/lockfile | Resolve compatibility/security, then add and verify a reproducible lockfile. |
+| Vercel SDK dependency | Present in root package manifest/lockfile | Resolve the nested Zod advisory without suppressing audit or breaking SDK compatibility. |
 | Project workspace transfer | Not implemented | No project files are currently transferred to the Vercel sandbox. |
 | Result synchronization | Not implemented | No remote changes are safely collected/applied to the local project. |
 | Provider lifecycle audit | Incomplete | Add events for request, lease, command, timeout/cancel, cleanup, and failures. |
