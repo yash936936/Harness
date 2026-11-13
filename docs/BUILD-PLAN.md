@@ -1,3 +1,9 @@
+## D-116 owner-approved scope (2026-11-13)
+
+D-116 is recorded in `docs/decisions.md`. D1 is accepted: no command execution in v0; D-110 remains unchanged. D2 is accepted with restriction: one stronger free OpenRouter comparison session is permitted, but 3B remains the default local/headline model and the comparison is not local 8 GB or 3B acceptance evidence. D3 is amended: three owner-reviewed demo sessions are qualitative only; no scorer output or confusion table is permitted from three sessions. D-109's 10 genuine sessions, both good/bad owner labels, and labels committed and hashed before scorer output remain mandatory for scoring.
+
+R1 is closed as a decision-recording phase. **R2 remains partial:** PR #87 hardening is merged and CI-verified, but the S7 live rerun and session-scoped approval work remain outstanding. The proposed retrieval-rank split was reviewed and not adopted (DBG-120). **R3 has not started:** no demo JSONLs, owner-reviewed summary, measured cold-start time, Windows quickstart, or demo script are claimed. See `docs/STATE.md` for the authoritative compact state table. S6 and S7 remain open.
+
 # Build plan closeout and remaining work (2026-11-13)
 
 This section defines the current sample-prototype scope. Historical runbooks and evidence remain below for audit history. This is not a claim that every acceptance phase or production capability is complete.
@@ -5,9 +11,9 @@ This section defines the current sample-prototype scope. Historical runbooks and
 ## Current verified baseline
 
 - Repository: `yash936936/Harness`, default branch `main`.
-- Main commit reviewed for this repair-order pass: `b35f39b05ef8438a996eeeb3981f1037b5b0b520` (PR #86 merge).
+- Main commit reviewed for this repair-order pass: `e8614f12e1a66cbea9adfe230a902e1c72f4b9d4` (PR #87 merge).
 - Refactor plan: implementation closed and merged. PRs #66, #67, #71, #72, #73, #74, #75, #77, and #79 are merged. PR #80 was closed without merge and is not counted.
-- PRs #81 through #86 are merged. Current main is `b35f39b05ef8438a996eeeb3981f1037b5b0b520` (PR #86). Post-merge main CI run [#570 / 43429109908](https://github.com/yash936936/Harness/actions/runs/43429109908) passed all seven jobs, including Ubuntu and Windows verification, documentation/component checks, acceptance-gate reporting, secrets/dependency checks, license inventory, and aggregate `ci-pass`.
+- PRs #81 through #87 are merged. Current main is `e8614f12e1a66cbea9adfe230a902e1c72f4b9d4` (PR #87). Post-merge main CI run [#576 / 43432058570](https://github.com/yash936936/Harness/actions/runs/43432058570) passed all seven jobs, including Ubuntu and Windows verification, documentation/component checks, acceptance-gate reporting, secrets/dependency checks, license inventory, and aggregate `ci-pass`.
 - GitHub reports `main.protected=false`; the merge gate has not been applied.
 - No local npm commands were run during this GitHub-connector documentation update. CI evidence is not live provider, model, sandbox, or human-label acceptance.
 
@@ -18,9 +24,9 @@ This section defines the current sample-prototype scope. Historical runbooks and
 | R0.1 Security and execution scope | CLOSED under D-110 | PR #86 merged; CLI no longer probes Docker/Crabbox and does not expose host command execution. Regression test covers the restriction. |
 | R0.2 CI integrity | CODE FIXES MERGED; BRANCH PROTECTION OPEN | Main CI run #570 is green. GitHub reports branch protection disabled; owner must configure the `ci-pass` required check and PR-only merge policy. |
 | R0.3 Documentation synchronization | 29 COMPONENT GUIDES PRESENT; CI CHECK PASS | All 29 component areas are indexed and component drift check passed. Top-level docs are synchronized in this repair branch. Histories remain append-only. |
-| R1 Owner decisions | BLOCKED ON SOURCE/OWNER INPUT | The referenced roadmap proposal containing D1/D2/D3 is not available in the repo or current project files. No decision has been inferred. See `docs/ROADMAP-DECISIONS.md`. |
-| R2 Core hardening | REVIEWED; PATCH CI PASS (#573) | Shared pure plan normalization is now used by planner and executor; memory grants reject malformed actor IDs; stale retrieval-index cleanup reports vector-store deletion failures. Approval handling remains fail-closed. Filesystem race residual is documented. |
-| R3 Prototype acceptance | OWNER-RUN EVIDENCE REQUIRED | S7 embedding/poison checks need local Ollama and the exact 3B model. S6 needs 10+ genuine sessions and owner-authored labels committed/hash-verified before scoring. No acceptance evidence was synthesized. |
+| R1 Owner decisions | CLOSED: D-116 RECORDED | Owner approved D1 (no command execution), D2 (one restricted OpenRouter comparison), and amended D3 (three qualitative demo sessions only). See `docs/decisions.md` and `docs/ROADMAP-DECISIONS.md`. |
+| R2 Core hardening | PARTIAL: PR #87 SUBSET MERGED; CI PASS (#575/#576) | Shared plan normalization, memory actor validation, immutable approval snapshots, and stale-index deletion error handling are merged. S7 live rerun and session-scoped approval work remain. Retrieval-rank split was reviewed and not adopted (DBG-120); filesystem race residual remains documented. |
+| R3 Prototype acceptance | NOT STARTED: OWNER-RUN DEMO REQUIRED | Need three complete session JSONLs (clean, approval denied, credential read blocked), owner-reviewed summary, measured cold-start time, Windows 8 GB quickstart, and demo script. Three sessions are qualitative only; scorer output still requires D-109's 10 genuine labelled sessions. No evidence is fabricated. |
 
 ## Binding prototype scope
 

@@ -1,3 +1,27 @@
+## 2026-11-13 D-116 approved; prototype scope frozen
+
+The owner explicitly approved D-116 against the uploaded 2026-11-11 sample-prototype roadmap. The proposal is now preserved at `docs/ROADMAP.md`; the owner dispositions are in `docs/decisions.md` and `docs/ROADMAP-DECISIONS.md`. The compact authoritative table is `docs/STATE.md`.
+
+- **D1 ACCEPTED:** v0 has no command execution. Keep read/plan/edit with policy approvals; D-110 remains in force. No host fallback or Docker/WSL/Crabbox probing.
+- **D2 ACCEPTED WITH RESTRICTION:** `qwen2.5-coder:3b-instruct` remains the default local and headline-demo model. Exactly one stronger free OpenRouter comparison session is permitted, separately labelled. It is not local 8 GB evidence or 3B acceptance evidence.
+- **D3 AMENDED:** three owner-reviewed sessions may support a qualitative demo (clean, denied approval, blocked credential read). They do not authorize scorer output or confusion metrics. D-109's 10 genuine sessions, both owner labels, and committed/hash-recorded labels before scoring remain mandatory for scorer output.
+
+**R1 is closed as a decision-recording phase. R2 and R3 are not closed.** PR #87's core-hardening subset is merged and CI-verified, but remaining roadmap R2 work includes the S7 live rerun and session-scoped approvals. The retrieval-rank split was reviewed and not adopted (DBG-120). R3 has not started: no three-session JSONL set, owner-reviewed demo summary, measured cold-start time, Windows quickstart, or demo script is claimed here. S6/S7 remain open as detailed in `docs/STATE.md`.
+
+PR #87 main merge remains `e8614f12e1a66cbea9adfe230a902e1c72f4b9d4`; post-merge run #576 passed seven jobs. This documentation update is on the PR #88 follow-up branch; PR #88 run #577 passed seven jobs, but the PR must be merged before these docs are on main. Branch protection remains disabled and is still an owner action.
+
+---
+
+## 2026-11-13 PR #87 merged; R2 hardening verified on main
+
+PR #87 is merged as `e8614f12e1a66cbea9adfe230a902e1c72f4b9d4`. Post-merge Actions run [#576](https://github.com/yash936936/Harness/actions/runs/43432058570) passed all seven jobs on Ubuntu and Windows, including typecheck, lint, tests, docs/component drift, failure-ledger, secrets/dependencies, license inventory, and `ci-pass`.
+
+R2 changes now on main: shared model-independent plan validation and explicit-tool normalization are used by both planner and executor; malformed `subagent:<id>` memory grants are rejected; approval callbacks receive a deep-cloned, recursively frozen input snapshot; and retrieval indexing propagates vector-store deletion failures, including stale entries when a previously indexed file path becomes a directory.
+
+R0.1, R0.2 workflow changes, and R0.3 component documentation remain verified. GitHub still reports `main.protected=false`; the owner must configure required `ci-pass` and PR-only merge rules. R1 remains pending because the D1/D2/D3 roadmap source is unavailable. R3 remains owner-run: no live S7 embedding/poisoning or S6 genuine-session evidence was run or fabricated.
+
+---
+
 ## 2026-11-13 R0-R3 repair-order review
 
 **Verified main baseline:** PR #86 is merged as `b35f39b05ef8438a996eeeb3981f1037b5b0b520`. Post-merge Actions run [#570](https://github.com/yash936936/Harness/actions/runs/43429109908) passed all seven jobs, including Ubuntu and Windows verification, documentation/component drift, failure-ledger, secrets/dependencies, license inventory, and aggregate `ci-pass`.

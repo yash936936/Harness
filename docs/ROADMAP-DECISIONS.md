@@ -1,15 +1,13 @@
 # Roadmap decision register: D1-D3
 
-**Status: pending source and owner disposition.** This file is a tracking note, not an acceptance decision.
+**Status: OWNER DECISIONS RECORDED under D-116 (2026-11-13).** The proposal source is preserved in [`docs/ROADMAP.md`](ROADMAP.md).
 
-The repair order refers to D1, D2, and D3 in an uploaded roadmap proposal. The current `main` Git tree contains no `ROADMAP.md` or equivalent proposal file, and the referenced upload was not available in the current project-file search. The exact proposal wording, rationale, constraints, and trade-offs therefore cannot be reviewed from source evidence in this pass.
-
-| Proposal item | Source wording | Disposition | Reason / next action |
+| Proposal item | Source wording | Owner disposition | Recorded decision |
 |---|---|---|---|
-| D1 | Not available | PENDING | Re-supply the exact roadmap section and obtain the owner's explicit accept/amend/reject decision. |
-| D2 | Not available | PENDING | Re-supply the exact roadmap section and obtain the owner's explicit accept/amend/reject decision. |
-| D3 | Not available | PENDING | Re-supply the exact roadmap section and obtain the owner's explicit accept/amend/reject decision. |
+| D1 | Command execution in the prototype | ACCEPT option (a) | No command execution in v0. Read/plan/edit with policy approvals. D-110 remains in force; no host fallback or sandbox probing. |
+| D2 | Worker model for acceptance | ACCEPT option (b), restricted | Keep `qwen2.5-coder:3b-instruct` as local/default/headline model. Permit exactly one stronger free OpenRouter comparison session, separately labelled and excluded from local 8 GB and 3B acceptance evidence. |
+| D3 | Evaluation size | AMEND option (a) | Three owner-reviewed demo sessions are qualitative only. No scorer output, agreement metrics, or confusion table from three sessions. D-109's ten genuine sessions and label-before-scorer rules remain mandatory for scorer output. |
 
-Do not infer these proposal items from similarly numbered repository decisions such as D-109 through D-115. The `D1`/`D2`/`D3` labels are proposal-local identifiers until the source is recovered. No existing decision in `docs/decisions.md` is amended or superseded by this register.
+The owner explicitly approved these dispositions on 2026-11-13. Full rationale, restrictions, unchanged decisions, and affected documents are recorded in the append-only D-116 entry in [`docs/decisions.md`](decisions.md).
 
-**Required closeout:** attach or commit the exact roadmap proposal, review each item's full text and dependencies, then record the owner's explicit disposition and rationale in the append-only `docs/decisions.md`. Update this register with links to those decision IDs.
+D-116 is a scope decision, not acceptance evidence. It does not close S6 or S7, does not authorize command execution, and does not reopen S0/S1/S4. The one-session OpenRouter comparison is not the headline local demonstration.
