@@ -15,7 +15,7 @@ Updated 2026-11-14. This status describes the first D-118 provider adapter, not 
 
 ## Not implemented
 
-- Root package dependency/lockfile integration for `@vercel/sandbox`.
+- Dependency is already declared in the root manifest/lockfile; resolve the nested Zod advisory.
 - Secret-safe project snapshot creation and upload.
 - Sensitive-file exclusion, symlink/path traversal defenses, and transfer size/count limits.
 - Remote result collection, validation, conflict detection, and safe application.
