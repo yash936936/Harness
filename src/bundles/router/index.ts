@@ -31,6 +31,8 @@ export interface RouterConfig {
   shadowTool?: boolean
   /** Max tools offered for the `tool` class (D-026: top five). Default 5. */
   maxToolCandidates?: number
+  /** Number of recent decisions retained for stats. Default 1000; older rows are discarded. */
+  maxRows?: number
 }
 
 function emptyBySource(): Record<Source, number> {
@@ -49,6 +51,7 @@ export class Router extends Service {
   private readonly owned: Set<DecisionClass>
   private readonly timeoutMs: number
   private readonly maxTools: number
+  private readonly maxRows: number
   private failures = 0
   private readonly rows: RouteDecision[] = []
 
@@ -58,6 +61,8 @@ export class Router extends Service {
     this.owned = new Set(config.owned ?? [])
     this.timeoutMs = config.backendTimeoutMs ?? 5000
     this.maxTools = config.maxToolCandidates ?? 5
+    this.maxRows = config.maxRows ?? 1000
+    if (!Number.isSafeInteger(this.maxRows) || this.maxRows < 1) throw new Error('router: maxRows must be a positive safe integer')
     if (!Number.isSafeInteger(this.timeoutMs) || this.timeoutMs < 1 || this.timeoutMs > 2_147_483_647) throw new Error('router: backendTimeoutMs must be from 1 to 2147483647 milliseconds')
     if (!Number.isSafeInteger(this.maxTools) || this.maxTools < 1) throw new Error('router: maxToolCandidates must be a positive safe integer')
     if ((config.owned ?? []).some((value) => !DECISION_CLASSES.includes(value))) throw new Error('router: owned contains an unknown decision class')
@@ -136,6 +141,7 @@ export class Router extends Service {
   async decide(cls: DecisionClass, req: RouteRequest): Promise<RouteDecision> {
     const d = await this.resolve(cls, req, this.chain(cls))
     this.rows.push(d)
+    if (this.rows.length > this.maxRows) this.rows.splice(0, this.rows.length - this.maxRows)
     if (req.sessionId && this.config.onDecision) {
       try { await this.config.onDecision(req.sessionId, d) } catch { /* a logging hook must never break routing */ }
     }
@@ -151,7 +157,7 @@ export class Router extends Service {
     return this.resolve(cls, req, this.config.needle ? [this.config.needle] : [], false)
   }
 
-  /** Requests saved per task is recorded here and in the session log (`router.decision`). */
+  /** Stats cover only the most recent `maxRows` decisions; older rows are discarded to bound memory. */
   stats(): RouterStats {
     const byClass = {} as RouterStats['byClass']
     for (const c of DECISION_CLASSES) byClass[c] = { decisions: 0, avgLatencyMs: 0, bySource: emptyBySource() }
