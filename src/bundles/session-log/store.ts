@@ -1,5 +1,5 @@
 import { constants as fsConstants } from 'node:fs'
-import { appendFile, lstat, mkdir, open, readdir } from 'node:fs/promises'
+import { lstat, mkdir, open, readdir } from 'node:fs/promises'
 import { withFileLock } from '../../util/filelock.js'
 import { join } from 'node:path'
 import type { SessionEvent, SessionStore } from './types.js'
