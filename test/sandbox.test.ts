@@ -37,7 +37,7 @@ const crab = (ctx: Context, file: string, cfg: Record<string, unknown> = {}) =>
 describe('5.1 crabbox provider (fake CLI)', () => {
   it('leases, runs, returns output, and confirms the lease released', async () => {
     const s = state(); const ctx = await boot()
-    ctx.sandbox.register(crab(ctx, s.file))
+    ctx.sandbox.register(crab(ctx, s.file), { default: true })
     const r = await ctx.sandbox.run({ command: ['echo', 'hi'] })
     expect(r.exitCode).toBe(0)
     expect(r.stdout.trim()).toBe('echo hi')
@@ -75,7 +75,7 @@ describe('5.1 crabbox provider (fake CLI)', () => {
   })
   it('passes the container runtime on warmup, only for a local provider', async () => {
     const s = state(); const ctx = await boot()
-    ctx.sandbox.register(crab(ctx, s.file, { runtime: 'docker' }))
+    ctx.sandbox.register(crab(ctx, s.file, { runtime: 'docker' }), { default: true })
     await ctx.sandbox.run({ command: ['true'] })
     const warm = s.read().calls.find((c) => c[0] === 'warmup')!
     expect(warm).toContain('--local-container-runtime'); expect(warm[warm.indexOf('--local-container-runtime') + 1]).toBe('docker')
@@ -91,7 +91,7 @@ describe('5.1 crabbox provider (fake CLI)', () => {
     try {
       for (const key of keys) process.env[key] = expected[key]
       const s = state(); const ctx = await boot()
-      await ctx.sandbox.register(crab(ctx, s.file))
+      await ctx.sandbox.register(crab(ctx, s.file), { default: true })
       await ctx.sandbox.run({ command: ['true'] })
       expect(s.read().forwardedUserDirs).toEqual(expected)
     } finally {
@@ -103,7 +103,7 @@ describe('5.1 crabbox provider (fake CLI)', () => {
   })
   it('a failing command is a normal result and the lease is still released', async () => {
     const s = state({ failRun: true }); const ctx = await boot()
-    ctx.sandbox.register(crab(ctx, s.file))
+    ctx.sandbox.register(crab(ctx, s.file), { default: true })
     const r = await ctx.sandbox.run({ command: ['false'] })
     expect(r.exitCode).toBe(7)
     expect(r.released).toBe(true)
@@ -115,7 +115,7 @@ describe('5.1 crabbox provider (fake CLI)', () => {
       warmupStdout: 'private WSL SSH transport setup failed',
       warmupStderr: 'cannot create : Directory nonexistent',
     }); const ctx = await boot()
-    ctx.sandbox.register(crab(ctx, s.file))
+    ctx.sandbox.register(crab(ctx, s.file), { default: true })
     const error = await ctx.sandbox.run({ command: ['echo'] }).then(() => undefined, (reason) => reason)
     expect(error).toMatchObject({ kind: 'unreachable' })
     expect(error.message).toContain('private WSL SSH transport setup failed')
@@ -126,7 +126,7 @@ describe('5.1 crabbox provider (fake CLI)', () => {
   })
   it('reports released:false (not true) when the lease is still listed after stop', async () => {
     const s = state({ stopNoop: true }); const ctx = await boot()
-    ctx.sandbox.register(crab(ctx, s.file))
+    ctx.sandbox.register(crab(ctx, s.file), { default: true })
     const r = await ctx.sandbox.run({ command: ['echo'] })
     expect(r.released).toBe(false)
     expect(r.releaseNote).toMatch(/still listed/)
@@ -134,7 +134,7 @@ describe('5.1 crabbox provider (fake CLI)', () => {
   })
   it('crabbox binary missing: unreachable error, no throw of a raw spawn error', async () => {
     const ctx = await boot()
-    ctx.sandbox.register(new CrabboxProvider(ctx.subprocess, { bin: 'definitely-not-a-real-binary-xyz' }))
+    ctx.sandbox.register(new CrabboxProvider(ctx.subprocess, { bin: 'definitely-not-a-real-binary-xyz' }), { default: true })
     await expect(ctx.sandbox.run({ command: ['echo'] })).rejects.toBeInstanceOf(SandboxError)
   })
   it('doctor enforces the version pin', async () => {
@@ -157,7 +157,7 @@ describe('5.1 crabbox provider (fake CLI)', () => {
     expect(crab(ctx, s.file).destination).toBe('local')
     const remote = crab(ctx, s.file, { provider: 'hetzner' })
     expect(remote.destination).toBe('remote')
-    ctx.sandbox.register(remote)
+    ctx.sandbox.register(remote, { default: true })
     await expect(ctx.sandbox.run({ command: ['echo'] })).rejects.toMatchObject({ kind: 'consent' })
     expect(s.read().calls).toEqual([])
     await ctx.egress.grantConsent()
@@ -187,7 +187,7 @@ describe('5.2 cubesandbox provider (fake E2B client)', () => {
   const cfg = (client: CubeClient, extra: Record<string, unknown> = {}) => ({ apiUrl: 'https://cube.example.internal:3000', template: 't', client, ...extra })
   it('creates, runs a quoted argv, kills, and measures boot', async () => {
     const { client, events } = fakeClient(); const ctx = await boot({ consent: true, hosts: ['cube.example.internal'] })
-    ctx.sandbox.register(new CubeSandboxProvider(cfg(client)))
+    ctx.sandbox.register(new CubeSandboxProvider(cfg(client)), { default: true })
     const r = await ctx.sandbox.run({ command: ['echo', "it's"] })
     expect(r.stdout).toBe('out')
     expect(r.released).toBe(true)
@@ -196,14 +196,14 @@ describe('5.2 cubesandbox provider (fake E2B client)', () => {
   })
   it('flags a boot slower than the budget without failing the run', async () => {
     const { client } = fakeClient({ bootDelay: 60 }); const ctx = await boot({ consent: true, hosts: ['cube.example.internal'] })
-    ctx.sandbox.register(new CubeSandboxProvider(cfg(client, { bootBudgetMs: 10 })))
+    ctx.sandbox.register(new CubeSandboxProvider(cfg(client, { bootBudgetMs: 10 })), { default: true })
     const r = await ctx.sandbox.run({ command: ['true'] })
     expect(r.exitCode).toBe(0)
     expect(r.releaseNote).toMatch(/slow boot/)
   })
   it('a failed kill is reported as released:false', async () => {
     const { client } = fakeClient({ failKill: true }); const ctx = await boot({ consent: true, hosts: ['cube.example.internal'] })
-    ctx.sandbox.register(new CubeSandboxProvider(cfg(client)))
+    ctx.sandbox.register(new CubeSandboxProvider(cfg(client)), { default: true })
     const r = await ctx.sandbox.run({ command: ['true'] })
     expect(r.released).toBe(false)
     expect(r.releaseNote).toMatch(/kill failed/)
@@ -215,7 +215,7 @@ describe('5.2 cubesandbox provider (fake E2B client)', () => {
     let killed = false
     const client: CubeClient = { create: () => new Promise((resolve) => { resolveCreate = resolve; ready() }) }
     const ctx = await boot({ consent: true, hosts: ['cube.example.internal'] })
-    ctx.sandbox.register(new CubeSandboxProvider({ apiUrl: 'https://cube.example.internal', template: 't', client }))
+    ctx.sandbox.register(new CubeSandboxProvider({ apiUrl: 'https://cube.example.internal', template: 't', client }), { default: true })
     const controller = new AbortController()
     const running = ctx.sandbox.run({ command: ['true'], signal: controller.signal })
     await createStarted
@@ -240,7 +240,7 @@ describe('5.2 cubesandbox provider (fake E2B client)', () => {
       },
     }
     const ctx = await boot({ consent: true, hosts: ['cube.example.internal'] })
-    ctx.sandbox.register(new CubeSandboxProvider({ apiUrl: 'https://cube.example.internal', template: 't', client }))
+    ctx.sandbox.register(new CubeSandboxProvider({ apiUrl: 'https://cube.example.internal', template: 't', client }), { default: true })
     const controller = new AbortController()
     const running = ctx.sandbox.run({ command: ['true'], signal: controller.signal })
     await began
@@ -251,16 +251,16 @@ describe('5.2 cubesandbox provider (fake E2B client)', () => {
 
   it('server unreachable: clear error', async () => {
     const { client } = fakeClient({ failCreate: true }); const ctx = await boot({ consent: true, hosts: ['cube.example.internal'] })
-    ctx.sandbox.register(new CubeSandboxProvider(cfg(client)))
+    ctx.sandbox.register(new CubeSandboxProvider(cfg(client)), { default: true })
     await expect(ctx.sandbox.run({ command: ['true'] })).rejects.toMatchObject({ kind: 'unreachable' })
   })
   it('is always remote: blocked without consent, blocked off the allowlist, nothing created', async () => {
     const { client, events } = fakeClient()
     const noConsent = await boot({ hosts: ['cube.example.internal'] })
-    noConsent.sandbox.register(new CubeSandboxProvider(cfg(client)))
+    noConsent.sandbox.register(new CubeSandboxProvider(cfg(client)), { default: true })
     await expect(noConsent.sandbox.run({ command: ['true'] })).rejects.toMatchObject({ kind: 'consent' })
     const offList = await boot({ consent: true, hosts: ['other.host'] })
-    offList.sandbox.register(new CubeSandboxProvider(cfg(client)))
+    offList.sandbox.register(new CubeSandboxProvider(cfg(client)), { default: true })
     await expect(offList.sandbox.run({ command: ['true'] })).rejects.toMatchObject({ name: 'EgressError' })
     expect(events).toEqual([])
   })
@@ -277,22 +277,22 @@ describe('ctx.sandbox seam', () => {
   it('unknown provider, empty command, duplicate registration, status', async () => {
     const s = state(); const ctx = await boot()
     await expect(ctx.sandbox.run({ command: ['x'] })).rejects.toMatchObject({ kind: 'unknown-provider' })
-    ctx.sandbox.register(crab(ctx, s.file))
+    ctx.sandbox.register(crab(ctx, s.file), { default: true })
     await expect(ctx.sandbox.run({ command: [] })).rejects.toMatchObject({ kind: 'config' })
-    expect(() => ctx.sandbox.register(crab(ctx, s.file))).toThrow(SandboxError)
+    expect(() => ctx.sandbox.register(crab(ctx, s.file), { default: true })).toThrow(SandboxError)
     expect(ctx.sandbox.status()).toEqual([{ name: 'crabbox', destination: 'local', host: undefined, default: true }])
   })
   it('doctor never creates or probes a remote sandbox without consent and host allowlisting', async () => {
     const { client, events } = fakeClient()
     const noConsent = await boot({ hosts: ['cube.example.internal'] })
-    noConsent.sandbox.register(new CubeSandboxProvider({ apiUrl: 'https://cube.example.internal', template: 't', client }))
+    noConsent.sandbox.register(new CubeSandboxProvider({ apiUrl: 'https://cube.example.internal', template: 't', client }), { default: true })
     const denied = await noConsent.sandbox.doctor()
     expect(denied.cubesandbox?.ok).toBe(false)
     expect(denied.cubesandbox?.detail).toMatch(/has not consented/)
     expect(events).toEqual([])
 
     const offList = await boot({ consent: true, hosts: ['other.host'] })
-    offList.sandbox.register(new CubeSandboxProvider({ apiUrl: 'https://cube.example.internal', template: 't', client }))
+    offList.sandbox.register(new CubeSandboxProvider({ apiUrl: 'https://cube.example.internal', template: 't', client }), { default: true })
     const blocked = await offList.sandbox.doctor()
     expect(blocked.cubesandbox?.ok).toBe(false)
     expect(blocked.cubesandbox?.detail).toMatch(/not in the allowlist/)
@@ -303,7 +303,7 @@ describe('ctx.sandbox seam', () => {
     const s = state(); const { client, events } = fakeClient()
     const ctx = await boot({ consent: true, hosts: ['cube.example.internal'] })
     ctx.sandbox.register(crab(ctx, s.file), { default: true })
-    ctx.sandbox.register(new CubeSandboxProvider({ apiUrl: 'https://cube.example.internal', template: 't', client }))
+    ctx.sandbox.register(new CubeSandboxProvider({ apiUrl: 'https://cube.example.internal', template: 't', client }), { default: true })
     expect((await ctx.sandbox.run({ command: ['echo'] })).provider).toBe('crabbox')
     expect((await ctx.sandbox.run({ command: ['echo'], provider: 'cubesandbox' })).provider).toBe('cubesandbox')
     expect(events).toContain('create')
