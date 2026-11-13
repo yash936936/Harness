@@ -1,3 +1,7 @@
+> **Historical inventory snapshot:** the counts below were generated from the 2026-11-10 lockfile. They are not the current dependency inventory. Use [THIRD_PARTY_LICENSES.generated.md](THIRD_PARTY_LICENSES.generated.md) for the generated inventory from the current lockfile. This file preserves the separately researched json-bignum provenance note; it is not a legal conclusion or shipped-artifact inventory.
+
+---
+
 # Third-party dependency license inventory
 
 Generated from the current committed root package-lock.json on 2026-11-10 (157 package entries). This is lockfile metadata only. It is not a legal conclusion and does not identify the exact files included in a future shipped artifact.
