@@ -695,6 +695,22 @@ describe.skipIf(!hasRg)('indexing', () => {
     spy.mockRestore()
   })
 
+  it('removes stale chunks when an indexed file path is replaced by a directory', async () => {
+    const dir = join(root, 'src/replaced')
+    mkdirSync(dir, { recursive: true })
+    const f = join(dir, 'entry.ts')
+    writeFileSync(f, `export function prior() {\n  return 1\n}\n`)
+    const b = await boot({ provider: new HashingEmbeddingProvider({ dimensions: 64 }) })
+    await b.rank.indexFiles(['src/replaced/entry.ts'])
+    const c = await col(b)
+    expect(((await c.count()) as { count: number }).count).toBe(1)
+    rmSync(f)
+    mkdirSync(f)
+    const r = await b.rank.indexFiles(['src/replaced/entry.ts'])
+    expect(r.ok && r.skipped).toEqual([{ file: 'src/replaced/entry.ts', reason: 'not_a_file' }])
+    expect(((await c.count()) as { count: number }).count).toBe(0)
+  })
+
   it('a file that has since become unreadable has its old chunks removed', async () => {
     const dir = join(root, 'src/gone')
     mkdirSync(dir, { recursive: true })

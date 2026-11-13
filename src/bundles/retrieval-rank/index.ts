@@ -319,7 +319,7 @@ export class RetrievalRank extends Service {
       const f = this.readFile(rel, realRoot)
       if (!f.ok) {
         skipped.push({ file: String(rel), reason: f.reason })
-        if (f.reason === 'unreadable' || f.reason === 'binary' || f.reason === 'too_large' || f.reason === 'secret' || f.reason === 'excluded') gone.push(rel)
+        if (f.reason === 'unreadable' || f.reason === 'not_a_file' || f.reason === 'binary' || f.reason === 'too_large' || f.reason === 'secret' || f.reason === 'excluded') gone.push(rel)
         continue
       }
       prepared.push({ file: rel, chunks: await this.chunksOf(rel, f) })
