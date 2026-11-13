@@ -1,5 +1,6 @@
 import { Service, type Context } from 'cordis'
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { mkdir, rename, writeFile } from 'node:fs/promises'
+import { assertNoSymlinkParents, readTextFileNoFollow } from '../../util/secure-file.js'
 import { withFileLock } from '../../util/filelock.js'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
@@ -228,7 +229,7 @@ export class MemorySemantic extends Service {
     this.facts = []
     if (this.dir) {
       try {
-        const parsed = JSON.parse(await readFile(this.file, 'utf8'))
+        const parsed = JSON.parse(await readTextFileNoFollow(this.file))
         if (!Array.isArray(parsed)) throw new Error('not an array')
         for (const [index, fact] of parsed.entries()) {
           if (!fact || typeof fact !== 'object' || Array.isArray(fact) || fact.tier !== 'semantic' ||
@@ -259,16 +260,21 @@ export class MemorySemantic extends Service {
       const list = structuredClone(await this.load())
       if (!fn(list)) return
       if (this.dir) {
+        await assertNoSymlinkParents(this.file)
         await mkdir(this.dir, { recursive: true })
+        await assertNoSymlinkParents(this.file)
         const tmp = `${this.file}.${process.pid}.${randomUUID()}.tmp`
-        await writeFile(tmp, JSON.stringify(list, null, 2), 'utf8')
+        await writeFile(tmp, JSON.stringify(list, null, 2), 'utf8', { flag: 'wx' })
+        await assertNoSymlinkParents(this.file)
         await rename(tmp, this.file)
       }
       this.facts = list
     }
     const job = this.queue.then(async () => {
       if (!this.dir) return work()
+      await assertNoSymlinkParents(this.file)
       await mkdir(this.dir, { recursive: true })
+      await assertNoSymlinkParents(this.file)
       return withFileLock(`${this.file}.lock`, work)
     })
     this.queue = job.catch(() => {})
