@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context, Service } from 'cordis'
@@ -285,6 +285,20 @@ describe.skipIf(!hasRg)('RetrievalGrep with real ripgrep', () => {
       const r = await g.search(Q, { path })
       expect(r.ok ? 'ok' : r.error.kind, path).toBe('outside_root')
     }
+  })
+
+  it('keeps the originally resolved root when the configured root symlink is replaced', async () => {
+    const configured = join(base, 'configured-root')
+    const replacement = join(base, 'replacement-root')
+    mkdirSync(replacement, { recursive: true })
+    writeFileSync(join(replacement, 'replacement.txt'), `${Q}\\n`)
+    try { symlinkSync(root, configured, 'dir') } catch { return }
+    const g = await boot({ root: configured })
+    unlinkSync(configured)
+    symlinkSync(replacement, configured, 'dir')
+    const found = okResults(await g.search(Q)).results.map((x) => x.file)
+    expect(found).toContain('README.md')
+    expect(found).not.toContain('replacement.txt')
   })
 
   it('refuses a path that is a symlink to outside root', async () => {
