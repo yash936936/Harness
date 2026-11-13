@@ -544,3 +544,12 @@ checked).
 
 ---
 **Next:** Return to [`context.md`](../context.md).
+
+
+## Repair-order hardening notes — 2026-11-13
+
+- The governed CLI is bound to D-110: sandbox disabled, no Docker/WSL/Crabbox capability probes, no `run_command`, and no host fallback. See `docs/BRANCH-PROTECTION.md` for the separate merge-gate state.
+- Orchestrator validation and explicit-tool sequence normalization are model-independent and composed in `normalizePlan`. Both planner output and caller-supplied plans pass through the same normalization before any subtask executes.
+- Memory grant creation validates the complete `subagent:<id>` namespace and ID syntax. Prefix-only malformed actors remain classified as scoped actors and fail closed when no grant exists.
+- Retrieval indexing returns vector-store errors when stale-source deletion fails instead of silently returning success. Secure file access, chunking, BM25, and index lifecycle remain split across `file-access.ts`, `chunk.ts`, `text.ts`, and `index.ts`.
+- Filesystem writes still have a residual parent-directory TOCTOU race against a hostile same-user process. Symlink-aware path resolution and directory identity checks reduce exposure but do not provide an `openat`/`renameat`-style atomic directory-relative boundary.

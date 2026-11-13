@@ -25,10 +25,7 @@ A TypeScript multi-agent coding harness built on Cordis. Bundles provide model a
 
 ## Current state (2026-11-13)
 
-Read the newest entry in `docs/status.md`; do not rely on this summary. The current deliverable is a sample/research prototype with no distributable artifact planned (D-115); the repository's public visibility is unchanged. S0 is on permanent hold (D-110), S1 deferred, S3 closed for file-tool/policy acceptance, S4 blocked (D-112), S5 / ENG-04 release work deferred/out of scope (not passed), S6 requires genuine owner-labelled sessions under D-109, and S7 requires focused live embedding and 3B poison-resistance checks. PRs #83, #84, and #85 are merged. Current main is 9ddfdd94710b3c05c593dc93228e18a810c2f5aa and post-merge CI run #541 passed all seven jobs. PR #85 distributes repeated explicit reads across planned subtasks; S7 still requires a fresh owner-run retest. S7 poisoning remains PARTIAL pending a fresh owner-run rerun; S7 embedding and S6 evaluation also remain open. See docs/AUDIT-CLOSEOUT.md for the consolidated current audit. Only `qwen2.5-coder:3b-instruct` is in scope (D-114).
-
-**Code present is not acceptance.** Fake-provider tests do not prove a live sandbox works; scripted-model tests do not prove model quality; a green CI does not close any external gate. See the evidence classes in `AGENTS.md`.
-
+Read the newest entry in `docs/status.md`; do not rely on this summary. The deliverable remains a sample/research prototype with no distribution planned (D-115). PR #86 is merged; current main is `b35f39b05ef8438a996eeeb3981f1037b5b0b520`, and post-merge CI run #570 passed all seven jobs. The CLI enforces D-110 with sandbox disabled, no Docker/WSL/Crabbox probes, no command tool, and no host fallback. S0 remains PERMANENT-HOLD, S1 deferred, S3 closed for file-tool/policy acceptance, S4 blocked, S5 out of scope, S6 open pending genuine owner labels, and S7 open pending focused live embedding and 3B poisoning checks. `main` branch protection is disabled and remains an owner-side merge-gate action. The separate repair-order branch contains R2 hardening changes awaiting CI. R1 roadmap decisions D1-D3 remain unrecorded because the referenced roadmap source is not present in the repository or available project files. Only `qwen2.5-coder:3b-instruct` is in scope (D-114).
 ## Required reading order
 
 1. `AGENTS.md`

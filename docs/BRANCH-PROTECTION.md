@@ -21,3 +21,8 @@ Real sandbox, live providers, human-labelled evaluation and desktop measurements
 
 ---
 **Next:** Return to [`context.md`](../context.md).
+
+
+## Observed repository state — 2026-11-13
+
+The GitHub branch endpoint currently reports `main.protected=false` and `protection.enabled=false`. The `ci-pass` workflow passed in post-merge run #570, but that does **not** mean the status check is required before merges. The owner must apply the settings above in GitHub repository settings or with an authenticated GitHub CLI session, then re-query the protection endpoint and log the verified result. This chat's GitHub integration can read the setting but does not expose a branch-protection write action.
