@@ -1,3 +1,9 @@
+# Historical S0 evidence only
+
+> This is a historical Crabbox evidence record. D-110 now places S0 on PERMANENT HOLD. Do not run the commands or resume checklist below. No further Docker/WSL/Crabbox probes, retries, or workarounds are allowed. Current state: [STATE.md](../STATE.md).
+
+---
+
 # Phase 5.1 real Crabbox evidence
 
 **Status: BLOCKED-HARDWARE.** PR #12 merged a fake-CLI-tested fix forwarding APPDATA/LOCALAPPDATA and XDG state/cache roots. The actual Harness-to-Crabbox lease/run/release has not been run after that fix. Unit tests use fake providers and do not prove a container ran.
