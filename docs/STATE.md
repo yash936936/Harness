@@ -20,7 +20,7 @@ Updated 2026-11-14. This is the single compact source of truth for current scope
 | Core harness, profiles, tools, policy gates, retrieval, memory, orchestrator | Implemented; CI-tested | Does not establish live model quality or external acceptance. |
 | Sandbox service and provider contract | Implemented | Provider presence is not live execution proof. |
 | Vercel Sandbox adapter | Implemented, fake-client tested | Requests non-persistent, deny-all sandbox; argv command; delete in cleanup. Not live-verified. |
-| Vercel SDK dependency | Present in root package manifest/lockfile | Resolve the nested Zod advisory without suppressing audit or breaking SDK compatibility. |
+| Vercel SDK dependency | Scoped override pins nested `@vercel/cli-config` Zod to 4.6.7 | `npm audit --omit=dev --audit-level=high` passes on the audit branch; no audit suppression or SDK downgrade. |
 | Project workspace transfer | Not implemented | No project files are currently transferred to the Vercel sandbox. |
 | Result synchronization | Not implemented | No remote changes are safely collected/applied to the local project. |
 | Provider lifecycle audit | Incomplete | Add events for request, lease, command, timeout/cancel, cleanup, and failures. |
@@ -42,13 +42,13 @@ Updated 2026-11-14. This is the single compact source of truth for current scope
 
 ## Current CI and repository controls
 
-- Main baseline inspected for this documentation pass: `50d0bb139f0103012de6bf36d48a0f1ee67e1126`.
-- The latest observed CI run (#613) is failing in `secrets and dependencies` at `npm audit --omit=dev --audit-level=high`; the aggregate `ci-pass` is therefore red. The reported vulnerable path is the nested `zod@4.1.11` under `@vercel/cli-config@0.3.1`, pulled by `@vercel/oidc@4.0.0` / `@vercel/sandbox@3.9.1`. Do not force-downgrade the Vercel SDK without compatibility evidence.
+- Main baseline for the audit branch: `81d7bf837254b8526b60aa240d6a31923647a890`.
+- Audit branch CI run `43516548037` passed on commit `30401b9267fbf5e2578b752f61ba802a2e1dba1c`: Ubuntu and Windows install, typecheck, lint, and tests; docs/component drift; secret scan; dependency audit; and license inventory. The run does not update `main`; PR #92 remains a draft and unmerged.
 - GitHub reports `main.protected=false`. The owner must enable PR-only merging, require `ci-pass`, require up-to-date branches, block force pushes/deletions, and disable admin bypass.
 
 ## Ordered moving-forward plan
 
-1. **Resolve CI dependency security without breaking Vercel compatibility.** Identify a supported dependency resolution or SDK version; regenerate the lockfile; run install, audit, typecheck, tests, and CI. No audit suppression.
+1. **Keep the CI/security baseline green.** The nested Zod advisory is resolved on the audit branch with a scoped `@vercel/cli-config` override to 4.6.7. Re-run all checks after remaining audit changes; do not suppress audit or downgrade the Vercel SDK.
 2. **Complete workspace transfer design.** Define a deterministic project snapshot, exclude secrets and sensitive paths, reject symlinks/path traversal, bound file count/size, and preserve Git metadata safely.
 3. **Implement safe result synchronization.** Collect a bounded patch/result manifest, validate paths and hashes, detect local conflicts, and apply only after policy/approval. Never overwrite unrelated local changes.
 4. **Add lifecycle audit and failure handling.** Log consent, provider host, lease, command argv/cwd, approval, timestamps, exit, bounded redacted output, timeout/cancel, and verified cleanup. Cleanup failure is task failure.
