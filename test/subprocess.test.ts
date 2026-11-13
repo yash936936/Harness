@@ -37,9 +37,14 @@ describe('subprocess: configuration validation', () => {
   it('rejects non-finite or negative output, timeout and kill-grace limits', async () => {
     await expect(boot({ maxOutputBytes: NaN })).rejects.toBeInstanceOf(SubprocessError)
     await expect(boot({ timeoutMs: Infinity })).rejects.toBeInstanceOf(SubprocessError)
+    await expect(boot({ timeoutMs: 2_147_483_648 })).rejects.toBeInstanceOf(SubprocessError)
+    await expect(boot({ maxOutputBytes: 100_000_001 })).rejects.toBeInstanceOf(SubprocessError)
     const ctx = await boot()
     await expect(ctx.subprocess.run(NODE, ['-e', '0'], { maxOutputBytes: Infinity })).rejects.toBeInstanceOf(SubprocessError)
     await expect(ctx.subprocess.run(NODE, ['-e', '0'], { timeoutMs: -1 })).rejects.toBeInstanceOf(SubprocessError)
+    await expect(ctx.subprocess.run(NODE, ['-e', '0'], { timeoutMs: 2_147_483_648 })).rejects.toBeInstanceOf(SubprocessError)
+    await expect(ctx.subprocess.run(NODE, ['-e', '0'], { killGraceMs: 2_147_483_648 })).rejects.toBeInstanceOf(SubprocessError)
+    await expect(ctx.subprocess.run(NODE, ['-e', '0'], { maxOutputBytes: 100_000_001 })).rejects.toBeInstanceOf(SubprocessError)
     await expect(ctx.subprocess.run(NODE, ['-e', '0'], { killGraceMs: NaN })).rejects.toBeInstanceOf(SubprocessError)
   })
 

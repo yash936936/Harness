@@ -12,6 +12,8 @@ declare module 'cordis' {
 
 const DEFAULT_MAX_OUTPUT = 1_000_000
 const DEFAULT_KILL_GRACE_MS = 2000
+const MAX_TIMER_MS = 2_147_483_647
+const MAX_OUTPUT_BYTES = 100_000_000
 const WINDOWS = process.platform === 'win32'
 
 /**
@@ -70,8 +72,8 @@ export class Subprocess extends Service {
     this.baseAllowlist = new Set(allowlist)
     this.defaultTimeoutMs = config.timeoutMs ?? 0
     this.defaultMaxOutput = config.maxOutputBytes ?? DEFAULT_MAX_OUTPUT
-    if (!Number.isSafeInteger(this.defaultTimeoutMs) || this.defaultTimeoutMs < 0) throw new SubprocessError('config', 'subprocess: timeoutMs must be a non-negative safe integer (0 disables the timeout)')
-    if (!Number.isSafeInteger(this.defaultMaxOutput) || this.defaultMaxOutput < 0) throw new SubprocessError('config', 'subprocess: maxOutputBytes must be a non-negative safe integer')
+    if (!Number.isSafeInteger(this.defaultTimeoutMs) || this.defaultTimeoutMs < 0 || this.defaultTimeoutMs > MAX_TIMER_MS) throw new SubprocessError('config', 'subprocess: timeoutMs must be from 0 to 2147483647 milliseconds (0 disables the timeout)')
+    if (!Number.isSafeInteger(this.defaultMaxOutput) || this.defaultMaxOutput < 0 || this.defaultMaxOutput > MAX_OUTPUT_BYTES) throw new SubprocessError('config', 'subprocess: maxOutputBytes must be from 0 to 100000000')
   }
 
   /** Run `command` with `args`. Never throws for a failure the caller needs to see — see the class doc. */
@@ -102,9 +104,9 @@ export class Subprocess extends Service {
     const maxOutput = opts.maxOutputBytes ?? this.defaultMaxOutput
     const timeoutMs = opts.timeoutMs ?? this.defaultTimeoutMs
     const killGraceMs = opts.killGraceMs ?? DEFAULT_KILL_GRACE_MS
-    if (!Number.isSafeInteger(maxOutput) || maxOutput < 0) throw new SubprocessError('config', 'subprocess: maxOutputBytes must be a non-negative safe integer')
-    if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 0) throw new SubprocessError('config', 'subprocess: timeoutMs must be a non-negative safe integer')
-    if (!Number.isSafeInteger(killGraceMs) || killGraceMs < 0) throw new SubprocessError('config', 'subprocess: killGraceMs must be a non-negative safe integer')
+    if (!Number.isSafeInteger(maxOutput) || maxOutput < 0 || maxOutput > MAX_OUTPUT_BYTES) throw new SubprocessError('config', 'subprocess: maxOutputBytes must be from 0 to 100000000')
+    if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 0 || timeoutMs > MAX_TIMER_MS) throw new SubprocessError('config', 'subprocess: timeoutMs must be from 0 to 2147483647 milliseconds')
+    if (!Number.isSafeInteger(killGraceMs) || killGraceMs < 0 || killGraceMs > MAX_TIMER_MS) throw new SubprocessError('config', 'subprocess: killGraceMs must be from 0 to 2147483647 milliseconds')
     if (typeof command !== 'string' || !command.trim() || !Array.isArray(args) || args.some((arg) => typeof arg !== 'string')) {
       throw new SubprocessError('config', 'subprocess: command must be non-empty and args must be strings')
     }

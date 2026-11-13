@@ -278,6 +278,8 @@ describe('governed CLI policy acceptance', () => {
       expect(offeredToolNames).toContain('edit_file')
       expect(offeredToolNames).toContain('read_file')
       expect(offeredToolNames).not.toContain('run_command')
+      expect(offeredToolNames).not.toContain('search_code')
+      expect(offeredToolNames).not.toContain('list_code_files')
       expect(prompts).toHaveLength(1)
       expect(prompts[0]).toContain('Approve this exact operation?')
       expect(output.join('\n')).toContain('no sandbox: commands disabled, file tools still gated')

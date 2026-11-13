@@ -101,7 +101,7 @@ Generated from package-lock.json (272 package entries). Lockfile metadata only; 
 | `@types/estree` | 1.0.10 | MIT |
 | `@types/node` | 22.20.4 | MIT |
 | `@vercel/cli-config` | 0.3.1 | Apache-2.0 |
-| `@vercel/cli-config/node_modules/zod` | 4.1.11 | MIT |
+| `@vercel/cli-config/node_modules/zod` | 4.6.7 | MIT |
 | `@vercel/cli-exec` | 1.0.1 | Apache-2.0 |
 | `@vercel/detect-agent` | 1.2.5 | Apache-2.0 |
 | `@vercel/oidc` | 4.0.0 | Apache-2.0 |

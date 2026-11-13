@@ -46,6 +46,25 @@ const req = (over: Partial<CompletionRequest> = {}): CompletionRequest => ({
 })
 const types = async (ctx: Context) => (await ctx.log.read('s')).map((e) => e.type)
 
+describe('custom provider egress contract', () => {
+  it('rejects a custom provider that omits egress metadata', () => {
+    const ctx = new Context()
+    const service = new LLMService(ctx, {})
+    expect(() => service.register('unknown-network', { complete: async () => ({ model: 'm', text: 'ok', content: [], toolCalls: [], stopReason: 'end_turn', usage: { inputTokens: 0, outputTokens: 0 } }) } as any)).toThrow(/must declare egress metadata/)
+  })
+
+  it('snapshots provider egress metadata at registration', async () => {
+    const ctx = await boot()
+    const egress = { host: 'remote.example', remote: true }
+    const provider = { egress, complete: async () => ({ model: 'm', text: 'ok', content: [{ type: 'text' as const, text: 'ok' }], toolCalls: [], stopReason: 'end_turn' as const, usage: { inputTokens: 1, outputTokens: 1 } }) }
+    ctx.llm.register('custom-remote', provider as any)
+    egress.remote = false
+    await ctx.egress.grantConsent()
+    // Binding-level consent remains false, and the immutable registered metadata still requires it.
+    await expect(ctx.llm.complete(req({ provider: 'custom-remote' }))).rejects.toMatchObject({ kind: 'consent' })
+  })
+})
+
 describe('ollama provider (mocked HTTP)', () => {
   it('sends the right request and maps text + usage', async () => {
     const { f, calls } = fakeFetch(() => json(200, okBody()))
@@ -272,7 +291,7 @@ describe('ctx.llm service', () => {
 
   it('wraps unexpected provider exceptions as LLMError(unknown) and logs them', async () => {
     const ctx = await boot()
-    ctx.llm.register('m', { complete: async () => { throw new RangeError('bug') } }, { default: true })
+    ctx.llm.register('m', { egress: { host: 'localhost', remote: false }, complete: async () => { throw new RangeError('bug') } }, { default: true })
     await expect(ctx.llm.complete(req())).rejects.toMatchObject({ kind: 'unknown', retryable: false })
     expect(await types(ctx)).toEqual(['model.request', 'model.error'])
   })

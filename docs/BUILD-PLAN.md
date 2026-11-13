@@ -4,7 +4,7 @@ Updated 2026-11-14. This file is the short execution checklist. The full sequenc
 
 ## Current work queue
 
-- [ ] **B0: Fix CI dependency audit.** Resolve the high-severity nested Zod advisory under the selected Vercel SDK without `--force`, audit suppression, or an unverified downgrade. Regenerate and verify the lockfile.
+- [x] **B0: Fix CI dependency audit.** A scoped npm override pins nested `@vercel/cli-config` Zod to 4.6.7 without `--force` or audit suppression. Audit branch CI run 43516548037 passed; main remains unchanged until PR #92 is merged.
 - [ ] **B1: Workspace snapshot.** Define and implement deterministic project transfer. Exclude credentials/secrets, reject symlink/path traversal, bound size/count, and preserve only required Git metadata.
 - [ ] **B2: Result synchronization.** Collect a bounded change manifest; validate paths and hashes; detect local conflicts; apply changes only through the governed write path.
 - [ ] **B3: Lifecycle audit.** Add redacted events for consent, provider, lease, command, approval, timeout/cancel, result, and cleanup. Cleanup failure must fail the task.

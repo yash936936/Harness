@@ -104,6 +104,15 @@ describe('router chain', () => {
     expect(observed?.aborted).toBe(true)
   })
 
+  it('shadow probes never mutate decision or failure statistics', async () => {
+    const needle = fixed('needle', () => { throw new Error('shadow failure') })
+    const ctx = await mk({ needle, worker: fixed('worker', 'b', 1), owned: ['agent'] })
+    const before = ctx.router.stats()
+    const result = await ctx.router.shadow('agent', { task: 'apples', candidates: CANDS })
+    expect(result).toMatchObject({ source: 'none', choice: null })
+    expect(ctx.router.stats()).toEqual(before)
+  })
+
   it('an owned class goes to Needle first and records a saved request', async () => {
     const needle = fixed('needle', 'a'); const worker = fixed('worker', 'b', 1)
     const ctx = await mk({ needle, worker, owned: ['agent'] })
@@ -176,9 +185,11 @@ describe('command backend (Needle stand-in)', () => {
     await expect(cmd('multiline').decide('agent', { task: 'x', candidates: CANDS })).rejects.toThrow(/invalid JSON/)
   })
 
-  it('validates external backend timeout and digest configuration', () => {
+  it('validates external backend timeout and digest configuration', async () => {
     expect(() => new CommandBackend({ command: process.execPath, timeoutMs: Infinity })).toThrow(/timeoutMs/)
+    expect(() => new CommandBackend({ command: process.execPath, timeoutMs: 2_147_483_648 })).toThrow(/timeoutMs/)
     expect(() => new CommandBackend({ command: process.execPath, expectedSha256: 'bad' })).toThrow(/expectedSha256/)
+    await expect(mk({ backendTimeoutMs: 2_147_483_648 })).rejects.toThrow(/backendTimeoutMs/)
   })
 
   it('missing files = unavailable, silently skipped by the router', async () => {

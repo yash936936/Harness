@@ -90,8 +90,8 @@ export class AgentLoop extends Service {
     if (!Number.isSafeInteger(this.retry.maxAttempts) || this.retry.maxAttempts < 0 ||
       !Number.isFinite(this.retry.baseDelayMs) || this.retry.baseDelayMs < 0 ||
       !Number.isFinite(this.retry.factor) || this.retry.factor < 1 ||
-      !Number.isFinite(this.retry.maxDelayMs) || this.retry.maxDelayMs < 0) {
-      throw new AgentLoopError('agent-loop: retry maxAttempts must be a non-negative safe integer; delays must be finite and non-negative; factor must be finite and at least 1')
+      !Number.isFinite(this.retry.maxDelayMs) || this.retry.maxDelayMs < 0 || this.retry.maxDelayMs > 2_147_483_647) {
+      throw new AgentLoopError('agent-loop: retry maxAttempts must be a non-negative safe integer; delays must be finite and non-negative (maxDelayMs <= 2147483647); factor must be finite and at least 1')
     }
   }
 

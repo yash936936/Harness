@@ -13,7 +13,7 @@ import { Sandbox } from '../src/bundles/sandbox/index.js'
 import { PolicyGates, type ApprovalDecision, type PolicyConfig } from '../src/bundles/policy-gates/index.js'
 import { COMMAND_TOOL, LocalTools, commandRisk, type LocalToolsConfig } from '../src/bundles/tools-local/index.js'
 import type { ToolCallEvent } from '../src/bundles/tool-registry/index.js'
-import { isSecretPath } from '../src/bundles/tools-local/paths.js'
+import { isHarnessInternal, isSecretPath } from '../src/bundles/tools-local/paths.js'
 
 const dirs: string[] = []
 afterEach(() => {
@@ -51,7 +51,7 @@ async function boot(config: LocalToolsConfig = {}, policy?: PolicyConfig | false
   await ctx.plugin(EgressPolicy, { projectId: 'tools-local-test' })
   await ctx.plugin(Sandbox)
   // Explicit test double only. Production run_command never invokes ctx.subprocess directly.
-  ctx.sandbox.register({ name: 'test-double', destination: 'local', doctor: async () => ({ ok: true, detail: 'test double' }), run: async (req) => { const r = await ctx.subprocess.run(req.command[0]!, req.command.slice(1), { timeoutMs: req.timeoutMs, cwd: root, envAllowlist: providerEnvAllowlist, maxOutputBytes: 100_000, signal: req.signal }); return { provider: 'test-double', leaseId: 'test-lease', exitCode: r.exitCode, ...(r.spawnError ? { spawnError: r.spawnError } : {}), stdout: r.stdout, stderr: r.stderr, timedOut: r.timedOut, aborted: r.aborted, durationMs: r.durationMs, released: true } } })
+  ctx.sandbox.register({ name: 'test-double', destination: 'local', doctor: async () => ({ ok: true, detail: 'test double' }), run: async (req) => { const r = await ctx.subprocess.run(req.command[0]!, req.command.slice(1), { timeoutMs: req.timeoutMs, cwd: root, envAllowlist: providerEnvAllowlist, maxOutputBytes: 100_000, signal: req.signal }); return { provider: 'test-double', leaseId: 'test-lease', exitCode: r.exitCode, ...(r.spawnError ? { spawnError: r.spawnError } : {}), stdout: r.stdout, stderr: r.stderr, timedOut: r.timedOut, aborted: r.aborted, durationMs: r.durationMs, released: true } } }, { default: true })
   await ctx.plugin(LocalTools, { ...config, root })
   if (policy !== false && policy !== undefined) await ctx.plugin(PolicyGates, { projectRoot: root, approvalTimeoutMs: 400, ...policy })
   const call = (name: string, input: unknown) => ctx.tools.call(name, input, { sessionId: 's' })
@@ -80,6 +80,8 @@ describe('local file path protections', () => {
     ]
     for (const path of paths) expect(isSecretPath(path), path).toBe(true)
     for (const path of ['src/index.ts', 'README.md', 'package.json']) expect(isSecretPath(path), path).toBe(false)
+    for (const path of ['.harness', '.harness/consent.json', '.harness/sessions/s1.jsonl', 'src/.harness/state.json']) expect(isHarnessInternal(path), path).toBe(true)
+    for (const path of ['src/index.ts', 'README.md', 'package.json']) expect(isHarnessInternal(path), path).toBe(false)
   })
 })
 
@@ -151,6 +153,8 @@ describe('read_file', () => {
     writeFileSync(join(root, 'bin.dat'), Buffer.from([1, 2, 0, 3]))
     put(root, 'big.txt', 'y'.repeat(2000))
     put(root, '.git/config', '[core]')
+    put(root, '.harness/consent.json', '{"tools-local-test":{"projectId":"tools-local-test","consented":false,"decidedAt":"2026-11-14T00:00:00.000Z"}}')
+    put(root, '.harness/sessions/s1.jsonl', '{"seq":1,"type":"model.request"}')
     put(root, '.env', 'KEY=1')
     put(root, '.aws/credentials', 'AWS_SECRET_ACCESS_KEY=hidden')
     put(root, 'server.pem', 'k')
@@ -166,6 +170,8 @@ describe('read_file', () => {
     await bad('../outside.txt', /outside the project/)
     await bad('/etc/hostname', /outside the project/)
     await bad('.git/config', /\.git/)
+    await bad('.harness/consent.json', /\.harness control state/)
+    await bad('.harness/sessions/s1.jsonl', /\.harness control state/)
     await bad('.env', /secrets/)
     await bad('.aws/credentials', /secrets/)
     await bad('server.pem', /secrets/)
@@ -190,6 +196,19 @@ describe('read_file', () => {
 })
 
 describe('edit_file', () => {
+  it('cannot edit or create files in Harness control state, including the file-backed user-consent record', async () => {
+    const { root, call } = await boot()
+    const consent = '{"tools-local-test":{"projectId":"tools-local-test","consented":false,"decidedAt":"2026-11-14T00:00:00.000Z"}}'
+    put(root, '.harness/consent.json', consent)
+    const edit = await call('edit_file', { path: '.harness/consent.json', old_string: '"consented":false', new_string: '"consented":true', confidence: 1 })
+    expect(edit.ok).toBe(false)
+    expect(edit.content).toMatch(/\.harness control state/)
+    expect(cat(root, '.harness/consent.json')).toBe(consent)
+    const write = await call('write_file', { path: '.harness/new-state.json', content: '{"consented":true}' })
+    expect(write.ok).toBe(false)
+    expect(write.content).toMatch(/\.harness control state/)
+    expect(existsSync(join(root, '.harness', 'new-state.json'))).toBe(false)
+  })
   it('tells models to preserve the exact requested numeric confidence', async () => {
     const { ctx } = await boot()
     const tool = ctx.tools.list().find((item) => item.name === 'edit_file')!

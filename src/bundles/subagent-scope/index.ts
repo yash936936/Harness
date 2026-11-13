@@ -154,6 +154,11 @@ export class SubagentScope extends Service {
           if (!scope.tools.has(t)) throw new ScopeError(`sub-agent "${scope.id}": run asked for tool "${t}" outside its grant`)
         }
         const { sessionId, tools: _t, system, maxSteps, lesson, ...rest } = opts
+        // Required tool sequences are per agent.run attempt, not per scope lifetime. Orchestrator retries
+        // reuse the same scoped agent, so each attempt must begin at index zero.
+        if (scope.requiredToolSequence) {
+          scope.requiredToolSequence = { tools: [...scope.requiredToolSequence.tools], state: { nextIndex: 0 } }
+        }
         const runOpts = {
           ...rest,
           sessionId: sessionId ?? spec.sessionId,

@@ -39,6 +39,7 @@ export function contentLength(input: unknown): number | undefined {
 
 const CRITICAL: [RegExp, number, string][] = [
   [/(^|\/)\.git(\/|$)/, 0.1, 'git internals'],
+  [/(^|\/)\.harness(\/|$)/, 0.1, 'Harness control state'],
   [/(^|\/)\.github\/|(^|\/)\.gitlab-ci/, 0.3, 'CI configuration'],
   [/(^|\/)node_modules\//, 0.3, 'vendored dependencies'],
   [/(^|\/)(package-lock\.json|yarn\.lock|pnpm-lock\.yaml|cargo\.lock|poetry\.lock|gemfile\.lock|go\.sum)$/, 0.4, 'lockfile'],

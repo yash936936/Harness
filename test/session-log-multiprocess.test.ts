@@ -24,6 +24,14 @@ function worker(dir: string, sid: string, count: number, tag: string, mode = '')
 const seqsOf = (dir: string, sid: string) => readFileSync(join(dir, `${sid}.jsonl`), 'utf8').trim().split('\n').map((l) => JSON.parse(l).seq as number)
 
 describe('BUG-07: concurrent processes on one session log', () => {
+  it('rejects invalid lock timing configuration before waiting', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'lock-options-'))
+    dirs.push(dir)
+    const lock = join(dir, 'test.lock')
+    await expect(withFileLock(lock, async () => 'x', { staleMs: 0 })).rejects.toThrow(/staleMs/)
+    await expect(withFileLock(lock, async () => 'x', { timeoutMs: 2_147_483_648 })).rejects.toThrow(/timeoutMs/)
+    await expect(withFileLock(lock, async () => 'x', { retryMs: 0 })).rejects.toThrow(/retryMs/)
+  })
   it('control: WITHOUT the cross-process lock, processes produce duplicate sequence numbers (so the next test means something)', async () => {
     const dir = tmp()
     await Promise.all(['a', 'b', 'c'].map((t) => worker(dir, 's', 40, t, 'nolock')))

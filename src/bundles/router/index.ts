@@ -58,7 +58,7 @@ export class Router extends Service {
     this.owned = new Set(config.owned ?? [])
     this.timeoutMs = config.backendTimeoutMs ?? 5000
     this.maxTools = config.maxToolCandidates ?? 5
-    if (!Number.isSafeInteger(this.timeoutMs) || this.timeoutMs < 1) throw new Error('router: backendTimeoutMs must be a positive safe integer')
+    if (!Number.isSafeInteger(this.timeoutMs) || this.timeoutMs < 1 || this.timeoutMs > 2_147_483_647) throw new Error('router: backendTimeoutMs must be from 1 to 2147483647 milliseconds')
     if (!Number.isSafeInteger(this.maxTools) || this.maxTools < 1) throw new Error('router: maxToolCandidates must be a positive safe integer')
     if ((config.owned ?? []).some((value) => !DECISION_CLASSES.includes(value))) throw new Error('router: owned contains an unknown decision class')
     // ARCH-02: hand the agent loop this router whenever both exist, in either boot order. Neither requires the other.
@@ -81,7 +81,7 @@ export class Router extends Service {
   }
 
   /** The decision in `decide`'s chain order, without recording it. Shared by `decide` and `shadow`. */
-  private async resolve(cls: DecisionClass, req: RouteRequest, chain: RouterBackend[]): Promise<RouteDecision> {
+  private async resolve(cls: DecisionClass, req: RouteRequest, chain: RouterBackend[], trackFailures = true): Promise<RouteDecision> {
     const start = Date.now()
     let candidates = req.candidates
     if (cls === 'tool') candidates = candidates.filter((c) => c.allowed === true).slice(0, this.maxTools)
@@ -112,12 +112,12 @@ export class Router extends Service {
             timeout,
           ])
           if (ans === null || ans === undefined) { skipped.push({ source: b.name, why: 'abstained' }); continue }
-          if (!ids.has(ans)) { this.failures++; skipped.push({ source: b.name, why: 'answered an id that was not offered' }); continue }
+          if (!ids.has(ans)) { if (trackFailures) this.failures++; skipped.push({ source: b.name, why: 'answered an id that was not offered' }); continue }
           choice = ans
           source = b.name
           break
         } catch (e: any) {
-          this.failures++
+          if (trackFailures) this.failures++
           skipped.push({ source: b.name, why: String(e?.message ?? e).slice(0, 80) })
         } finally {
           if (timer) clearTimeout(timer)
@@ -148,7 +148,7 @@ export class Router extends Service {
    * is ever owned. `choice: null` when Needle is absent, unavailable, abstains, fails or answers an id that was not offered.
    */
   async shadow(cls: DecisionClass, req: RouteRequest): Promise<RouteDecision> {
-    return this.resolve(cls, req, this.config.needle ? [this.config.needle] : [])
+    return this.resolve(cls, req, this.config.needle ? [this.config.needle] : [], false)
   }
 
   /** Requests saved per task is recorded here and in the session log (`router.decision`). */

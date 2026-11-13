@@ -22,10 +22,10 @@ npm run check
 npm run docs:check
 ```
 
-CI is currently blocked by a high-severity dependency advisory in the Vercel Sandbox SDK dependency tree. Do not treat the last green run as current CI status. See [STATE.md](docs/STATE.md).
+Audit branch CI run 43516548037 passed on commit `30401b9267fbf5e2578b752f61ba802a2e1dba1c`, including Ubuntu and Windows checks, dependency audit, docs drift, and license inventory. Follow [STATE.md](docs/STATE.md) for the current branch and merge status.
 
 ## Capability boundary
 
 The governed coding flow supports policy-gated project file operations. Cloud command execution is not yet exposed through the CLI. Do not use host subprocess execution as a substitute. The example cloud workflow is intentionally omitted until workspace transfer and result synchronization are safe and integrated.
 
-Original project code is licensed under Apache-2.0. Third-party dependencies and model artifacts retain their own terms; see [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).
+Original project code is licensed under Apache-2.0. Third-party dependencies and model artifacts retain their own terms; see [generated dependency inventory](THIRD_PARTY_LICENSES.generated.md).

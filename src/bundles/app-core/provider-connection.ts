@@ -44,7 +44,7 @@ export interface TestConnectionOptions {
  * Remote and unknown providers keep the short "does it answer at all" deadline.
  */
 export function defaultConnectionTimeoutMs(provider: LLMProvider): number {
-  return provider.egress && !provider.egress.remote ? 120_000 : 20_000
+  return provider.egress.remote ? 20_000 : 120_000
 }
 
 const PROBE_REQUEST: ProviderRequest = {
@@ -80,12 +80,16 @@ export async function testProviderConnection(
   provider: LLMProvider,
   opts: TestConnectionOptions = {},
 ): Promise<ProviderConnectionResult> {
-  if (provider.egress?.remote && !opts.acknowledgeRemote) {
+  const egress = provider.egress
+  if (!egress || typeof egress.host !== 'string' || !egress.host.trim() || typeof egress.remote !== 'boolean') {
+    return { ok: false, error: { kind: 'config', message: 'provider must declare egress metadata (host and remote flag) before a connection test' } }
+  }
+  if (egress.remote && !opts.acknowledgeRemote) {
     return {
       ok: false,
       error: {
         kind: 'consent',
-        message: `refused to contact ${provider.egress.host} for a connection test without acknowledging the remote call (pass acknowledgeRemote: true once the user confirms) - this is a one-off setup check, separate from the project's ongoing egress consent.`,
+        message: `refused to contact ${egress.host} for a connection test without acknowledging the remote call (pass acknowledgeRemote: true once the user confirms) - this is a one-off setup check, separate from the project's ongoing egress consent.`,
       },
     }
   }

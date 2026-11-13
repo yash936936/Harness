@@ -66,7 +66,7 @@ export class PolicyGates extends Service {
     this.threshold = config.confidenceThreshold ?? 0.8
     if (!(this.threshold >= 0 && this.threshold <= 1)) throw new PolicyError('policy: confidenceThreshold must be between 0 and 1')
     this.timeoutMs = config.approvalTimeoutMs ?? 120_000
-    if (!Number.isSafeInteger(this.timeoutMs) || this.timeoutMs < 1) throw new PolicyError('policy: approvalTimeoutMs must be a positive safe integer')
+    if (!Number.isSafeInteger(this.timeoutMs) || this.timeoutMs < 1 || this.timeoutMs > 2_147_483_647) throw new PolicyError('policy: approvalTimeoutMs must be from 1 to 2147483647 milliseconds')
     this.signals = [...BUILTIN_SIGNALS, ...(config.signals ?? [])]
     this.rules = [...BUILTIN_DENY_RULES, ...(config.extraDenyRules ?? [])]
     ctx.on('tools/pre-execute', (ev: ToolCallEvent) => this.gate(ev))

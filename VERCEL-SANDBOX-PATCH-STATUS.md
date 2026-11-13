@@ -15,7 +15,7 @@ Updated 2026-11-14. This status describes the first D-118 provider adapter, not 
 
 ## Not implemented
 
-- Dependency is already declared in the root manifest/lockfile; resolve the nested Zod advisory.
+- Dependency is declared in the root manifest/lockfile; a scoped override pins nested Zod to 4.6.7 and the audit branch CI dependency check passes.
 - Secret-safe project snapshot creation and upload.
 - Sensitive-file exclusion, symlink/path traversal defenses, and transfer size/count limits.
 - Remote result collection, validation, conflict detection, and safe application.
@@ -25,7 +25,7 @@ Updated 2026-11-14. This status describes the first D-118 provider adapter, not 
 
 ## Security and CI blockers
 
-The latest observed CI run (#613) fails at `npm audit --omit=dev --audit-level=high`. The reported vulnerable dependency is nested `zod@4.1.11` under `@vercel/cli-config@0.3.1`, pulled by the selected `@vercel/sandbox@3.9.1` tree. Do not suppress the audit or force-downgrade the SDK without verifying compatibility.
+Audit branch CI run 43516548037 passed `npm audit --omit=dev --audit-level=high` with the nested Zod override. This verifies dependency audit only; it does not prove live Vercel execution. Main remains unchanged until PR #92 merges.
 
 ## Enablement rule
 

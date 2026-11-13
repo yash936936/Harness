@@ -32,8 +32,9 @@ export class Sandbox extends Service {
     if (provider.destination === 'remote' && (typeof provider.host !== 'string' || !provider.host.trim())) {
       throw new SandboxError('config', `sandbox: remote provider "${provider.name}" must declare the host it reaches, so egress can allowlist it`)
     }
+    if (opts.default !== undefined && typeof opts.default !== 'boolean') throw new SandboxError('config', 'sandbox: default must be a boolean')
     this.providers.set(provider.name, provider)
-    if (opts.default || this.defaultName === undefined) this.defaultName = provider.name
+    if (opts.default === true) this.defaultName = provider.name
   }
 
   has(name: string): boolean {
@@ -83,8 +84,8 @@ export class Sandbox extends Service {
     if (req.cwd !== undefined && (typeof req.cwd !== 'string' || !req.cwd.trim() || req.cwd.includes('\0') || req.cwd.length > 4096)) {
       throw new SandboxError('config', 'sandbox: cwd must be a non-empty path of at most 4096 characters without NUL')
     }
-    if (req.timeoutMs !== undefined && (!Number.isSafeInteger(req.timeoutMs) || req.timeoutMs < 0)) {
-      throw new SandboxError('config', 'sandbox: timeoutMs must be a non-negative safe integer')
+    if (req.timeoutMs !== undefined && (!Number.isSafeInteger(req.timeoutMs) || req.timeoutMs < 1 || req.timeoutMs > 2_147_483_647)) {
+      throw new SandboxError('config', 'sandbox: timeoutMs must be an integer from 1 to 2147483647 milliseconds')
     }
     req.signal?.throwIfAborted()
     await this.assertRemoteAllowed(p)

@@ -238,6 +238,7 @@ describe('evaluate: confidence scoring for real-fs-write (5.4)', () => {
     const ctx = new Context()
     await ctx.plugin(SessionLog, { memory: true }); await ctx.plugin(ToolRegistry)
     await expect(ctx.plugin(PolicyGates, { confidenceThreshold: 2 })).rejects.toThrow(/between 0 and 1/)
+    await expect(ctx.plugin(PolicyGates, { approvalTimeoutMs: 2_147_483_648 })).rejects.toThrow(/approvalTimeoutMs/)
   })
 })
 

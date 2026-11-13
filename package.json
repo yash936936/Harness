@@ -19,7 +19,6 @@
     "smoke:openrouter": "tsx scripts/smoke-openrouter.ts",
     "license:inventory": "tsx scripts/license-inventory.ts",
     "verify:model-artifact": "tsx scripts/verify-model-artifact.ts",
-    "test:real-sandbox": "node scripts/real-sandbox.mjs",
     "docs:components": "node scripts/docs/gen-components.mjs",
     "docs:check": "node scripts/docs/gen-components.mjs --check && node scripts/docs/check-docs.mjs",
     "events:report": "node scripts/events/failure-report.mjs",

@@ -74,8 +74,8 @@ export interface EgressInfo {
 
 /** The whole plug-and-play contract. A new provider implements only this. */
 export interface LLMProvider {
-  /** Optional. Providers that reach a network host declare it so the service can enforce consent. */
-  readonly egress?: EgressInfo
+  /** Required: every provider must declare its data destination so consent cannot be skipped by omission. */
+  readonly egress: EgressInfo
   complete(req: ProviderRequest, signal?: AbortSignal): Promise<Omit<CompletionResponse, 'provider'>>
   /**
    * Optional. Model IDs the provider's own host currently knows about (e.g.

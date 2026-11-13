@@ -341,6 +341,7 @@ describe('executor: failure policy (D-074)', () => {
     })
   })
 
+
   it('retries a refusal only when the caller opted into retries and the attempt made no side effects', async () => {
     const refusal = "I'm sorry, but I'm unable to assist with that request."
     const { ctx, mock } = await boot({ s1: [text(refusal), text('The add function returns a + b.')] })

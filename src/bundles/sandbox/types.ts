@@ -10,7 +10,7 @@ export class SandboxError extends Error {
 export interface SandboxRunRequest {
   /** argv, no shell. A provider that must go through a shell quotes it itself. */
   command: string[]
-  /** Which registered provider. Default: the one registered as default. */
+  /** Which registered provider. Omit only when a provider was explicitly registered as default. */
   provider?: string
   /** Working directory inside the remote sandbox, never a host path. */
   cwd?: string

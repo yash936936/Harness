@@ -37,10 +37,43 @@ async function boot(hosts: string[] = ['vercel.com'], consent = true) {
 }
 
 describe('Vercel Sandbox provider (D-118)', () => {
+  it('waits for a late create to settle and confirms deletion after cancellation', async () => {
+    const ctx = await boot()
+    let resolveCreate!: (handle: VercelSandboxHandle) => void
+    let deleted = 0
+    const client: VercelSandboxClient = { create: async () => new Promise<VercelSandboxHandle>((resolve) => { resolveCreate = resolve }) }
+    const provider = new VercelSandboxProvider({ client })
+    const controller = new AbortController()
+    const running = provider.run({ command: ['true'], signal: controller.signal })
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    controller.abort(new Error('cancelled by test'))
+    resolveCreate({ name: 'late-lease', async runCommand() { throw new Error('must not run') }, async delete() { deleted++ } })
+    await expect(running).rejects.toThrow('cancelled by test')
+    expect(deleted).toBe(1)
+    await ctx.fiber.dispose()
+  })
+
+  it('reports late-delete failure instead of swallowing a leaked lease', async () => {
+    let resolveCreate!: (handle: VercelSandboxHandle) => void
+    const client: VercelSandboxClient = { create: async () => new Promise<VercelSandboxHandle>((resolve) => { resolveCreate = resolve }) }
+    const provider = new VercelSandboxProvider({ client })
+    const controller = new AbortController()
+    const running = provider.run({ command: ['true'], signal: controller.signal })
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    controller.abort(new Error('cancelled by test'))
+    resolveCreate({ name: 'late-lease', async runCommand() { throw new Error('must not run') }, async delete() { throw new Error('late delete refused') } })
+    await expect(running).rejects.toThrow(/deletion was not confirmed.*late delete refused/)
+  })
+
+  it('rejects timer values above the Node timeout maximum', async () => {
+    const provider = new VercelSandboxProvider({ client: fake().client })
+    await expect(provider.run({ command: ['true'], timeoutMs: 2_147_483_648 })).rejects.toMatchObject({ kind: 'config' })
+  })
+
   it('uses argv, deny-all networking, non-persistent sandboxes and confirms deletion', async () => {
     const f = fake()
     const ctx = await boot()
-    ctx.sandbox.register(new VercelSandboxProvider({ client: f.client }))
+    ctx.sandbox.register(new VercelSandboxProvider({ client: f.client }), { default: true })
     const result = await ctx.sandbox.run({ command: ['npm', 'test', '--', 'a b'], cwd: '/vercel/sandbox/project', timeoutMs: 12_000 })
     expect(result).toMatchObject({ provider: 'vercel', leaseId: 'sbx-test-1', exitCode: 7, stdout: 'out', stderr: 'err', released: true })
     expect(f.calls[0]).toEqual(['create', { persistent: false, networkPolicy: 'deny-all', timeout: 12_000 }])
@@ -61,7 +94,7 @@ describe('Vercel Sandbox provider (D-118)', () => {
   it('blocks before contacting Vercel without project consent', async () => {
     const f = fake()
     const ctx = await boot(['vercel.com'], false)
-    ctx.sandbox.register(new VercelSandboxProvider({ client: f.client }))
+    ctx.sandbox.register(new VercelSandboxProvider({ client: f.client }), { default: true })
     await expect(ctx.sandbox.run({ command: ['true'] })).rejects.toMatchObject({ kind: 'consent' })
     expect(f.calls).toEqual([])
   })
@@ -69,7 +102,7 @@ describe('Vercel Sandbox provider (D-118)', () => {
   it('blocks before contacting Vercel when the API host is not allowlisted', async () => {
     const f = fake()
     const ctx = await boot(['other.example'])
-    ctx.sandbox.register(new VercelSandboxProvider({ client: f.client }))
+    ctx.sandbox.register(new VercelSandboxProvider({ client: f.client }), { default: true })
     await expect(ctx.sandbox.run({ command: ['true'] })).rejects.toMatchObject({ name: 'EgressError' })
     expect(f.calls).toEqual([])
   })
@@ -77,7 +110,7 @@ describe('Vercel Sandbox provider (D-118)', () => {
   it('reports deletion failure as released false', async () => {
     const f = fake({ deleteFails: true })
     const ctx = await boot()
-    ctx.sandbox.register(new VercelSandboxProvider({ client: f.client }))
+    ctx.sandbox.register(new VercelSandboxProvider({ client: f.client }), { default: true })
     const result = await ctx.sandbox.run({ command: ['true'] })
     expect(result.released).toBe(false)
     expect(result.releaseNote).toContain('delete refused')
@@ -86,7 +119,7 @@ describe('Vercel Sandbox provider (D-118)', () => {
   it('still attempts deletion when command execution fails', async () => {
     const f = fake({ runFails: new Error('command timed out') })
     const ctx = await boot()
-    ctx.sandbox.register(new VercelSandboxProvider({ client: f.client }))
+    ctx.sandbox.register(new VercelSandboxProvider({ client: f.client }), { default: true })
     const result = await ctx.sandbox.run({ command: ['npm', 'test'] })
     expect(result.timedOut).toBe(true)
     expect(result.stderr).toContain('command timed out')
@@ -106,7 +139,7 @@ describe('Vercel Sandbox provider (D-118)', () => {
       },
     }
     const ctx = await boot()
-    ctx.sandbox.register(new VercelSandboxProvider({ client }))
+    ctx.sandbox.register(new VercelSandboxProvider({ client }), { default: true })
     const result = await ctx.sandbox.run({ command: ['sleep', 'forever'], timeoutMs: 20 })
     expect(result).toMatchObject({ timedOut: true, released: true, exitCode: null })
     expect(result.stderr).toContain('timed out after 20ms')
@@ -116,7 +149,7 @@ describe('Vercel Sandbox provider (D-118)', () => {
   it('rejects invalid argv and timeout values', async () => {
     const f = fake()
     const ctx = await boot()
-    ctx.sandbox.register(new VercelSandboxProvider({ client: f.client }))
+    ctx.sandbox.register(new VercelSandboxProvider({ client: f.client }), { default: true })
     await expect(ctx.sandbox.run({ command: [''] })).rejects.toMatchObject({ kind: 'config' })
     await expect(ctx.sandbox.run({ command: ['echo', 'bad\0arg'] })).rejects.toMatchObject({ kind: 'config' })
     await expect(ctx.sandbox.run({ command: ['true'], timeoutMs: 0 })).rejects.toMatchObject({ kind: 'config' })
@@ -140,7 +173,7 @@ describe('Vercel Sandbox provider (D-118)', () => {
       },
     }
     const ctx = await boot()
-    ctx.sandbox.register(new VercelSandboxProvider({ client, maxOutputBytes: 3 }))
+    ctx.sandbox.register(new VercelSandboxProvider({ client, maxOutputBytes: 3 }), { default: true })
     const result = await ctx.sandbox.run({ command: ['true'] })
     expect(result.stdout).toBe('abc\n[output truncated by Vercel provider]')
     expect(result.stderr).toBe('uvw\n[output truncated by Vercel provider]')
@@ -163,7 +196,7 @@ describe('Vercel Sandbox provider (D-118)', () => {
       },
     }
     const ctx = await boot()
-    ctx.sandbox.register(new VercelSandboxProvider({ client }))
+    ctx.sandbox.register(new VercelSandboxProvider({ client }), { default: true })
     const controller = new AbortController()
     const running = ctx.sandbox.run({ command: ['npm', 'test'], signal: controller.signal })
     await began

@@ -7,7 +7,7 @@ import { OpenAICompatibleProvider, type OpenAICompatibleConfig } from './provide
 import { Budgets, BudgetExceededError, type BudgetsConfig } from '../app-core/budgets.js'
 import { BudgetGate, type CallReservation } from './budget-gate.js'
 import { RateLimiter, type RateLimiterConfig } from './rate-limiter.js'
-import { LLMError, type CompletionRequest, type CompletionResponse, type LLMProvider } from './types.js'
+import { LLMError, type CompletionRequest, type CompletionResponse, type EgressInfo, type LLMProvider } from './types.js'
 
 export * from './types.js'
 export { OllamaProvider, recoverTextToolCalls, resolveBaseUrl, type OllamaConfig } from './providers/ollama.js'
@@ -65,6 +65,7 @@ declare module 'cordis' {
 export class LLMService extends Service {
   static inject = ['log', 'egress']
   private providers = new Map<string, LLMProvider>()
+  private providerEgress = new Map<string, EgressInfo>()
   private defaultName?: string
   private readonly egressConsent: boolean
   private gate?: BudgetGate
@@ -77,12 +78,16 @@ export class LLMService extends Service {
     if (config.budgets) this.gate = new BudgetGate(new Budgets(config.budgets), config.reserveOutputTokens)
     if (config.rateLimit) this.limiter = new RateLimiter(config.rateLimit)
     if (config.ollama) {
-      this.providers.set('ollama', new OllamaProvider(config.ollama))
+      const provider = new OllamaProvider(config.ollama)
+      this.providers.set('ollama', provider)
+      this.providerEgress.set('ollama', Object.freeze({ ...provider.egress }))
       this.defaultName ??= 'ollama'
     }
     if (config.openaiCompatible) {
       const name = config.openaiCompatible.name ?? 'openai-compatible'
-      this.providers.set(name, new OpenAICompatibleProvider({ ...config.openaiCompatible, name }))
+      const provider = new OpenAICompatibleProvider({ ...config.openaiCompatible, name })
+      this.providers.set(name, provider)
+      this.providerEgress.set(name, Object.freeze({ ...provider.egress }))
       this.defaultName ??= name
     }
   }
@@ -90,10 +95,18 @@ export class LLMService extends Service {
   /** Register a provider. Returns a disposer; use inside `ctx.effect` so it unregisters with its plugin. */
   register(name: string, provider: LLMProvider, opts: { default?: boolean } = {}): () => void {
     if (this.providers.has(name)) throw new LLMError('config', `provider "${name}" is already registered`, name)
+    const info = provider?.egress
+    if (!info || typeof info.host !== 'string' || !info.host.trim() || typeof info.remote !== 'boolean') {
+      throw new LLMError('config', `provider "${name}" must declare egress metadata (host and remote flag)`, name)
+    }
     this.providers.set(name, provider)
+    this.providerEgress.set(name, Object.freeze({ host: info.host, remote: info.remote }))
     if (opts.default) this.defaultName = name
     return () => {
-      if (this.providers.get(name) === provider) this.providers.delete(name)
+      if (this.providers.get(name) === provider) {
+        this.providers.delete(name)
+        this.providerEgress.delete(name)
+      }
       if (this.defaultName === name) this.defaultName = undefined
     }
   }
@@ -132,9 +145,10 @@ export class LLMService extends Service {
 
     const { sessionId, provider: _p, actor, ...rest } = request
     const log = this.ctx.log
-    const egress = provider.egress
+    const egress = this.providerEgress.get(name)
+    if (!egress) throw new LLMError('config', `provider "${name}" has no validated egress metadata`, name)
 
-    if (egress?.remote) {
+    if (egress.remote) {
       // Two independent gates, both required (1B.1, D-029): this binding must be configured
       // to attempt remote calls (`egressConsent`, D-022) AND the project must have an actual,
       // persisted consent record — a project that was never asked sends nothing, whatever
