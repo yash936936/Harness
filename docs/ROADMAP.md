@@ -24,7 +24,7 @@ Given an explicitly selected project and task, Harness plans work, reads and edi
 
 | Phase | Goal | Exit evidence |
 |---|---|---|
-| 0. CI/security baseline | Resolve the Vercel dependency audit failure without weakening policy or breaking SDK compatibility. | Clean install, npm audit at configured severity, typecheck, lint, tests, green `ci-pass`. |
+| 0. CI/security baseline | Keep dependency security and cross-platform CI green without weakening policy or breaking SDK compatibility. | Audit branch passed clean install, npm audit, typecheck, lint, tests, docs drift, license inventory, and `ci-pass` on 2026-11-14; re-run after subsequent audit changes. |
 | 1. Workspace snapshot | Build a deterministic, secret-safe project archive and manifest. | Tests for secret exclusion, symlink/path traversal, size/count limits, stable hashes, and safe Git metadata. |
 | 2. Result synchronization | Collect and validate remote changes and apply them safely. | Tests for traversal, symlink, conflict, truncation, tampering, and no-overwrite behavior. |
 | 3. Lifecycle audit | Add structured provider and command lifecycle events. | Tests for event ordering, redaction, timeout/cancel, failed command, and failed cleanup. |
