@@ -77,7 +77,7 @@ export class JsonlEpisodeStore implements EpisodeStore {
   async all(): Promise<Episode[]> {
     let text: string
     try {
-      text = await readFile(this.file, 'utf8')
+      text = await readTextFileNoFollow(this.file)
     } catch (err: any) {
       if (err?.code === 'ENOENT') return []
       throw err
