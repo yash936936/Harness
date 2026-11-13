@@ -83,6 +83,15 @@ describe('subagent-scope: spawn validation', () => {
     expect(ran).toEqual(['read', 'read', 'read'])
   })
 
+  it('closed scope objects are released while their handles remain closed', async () => {
+    const { ctx } = await boot()
+    const a = await ctx.subagents.spawn({ id: 'released', sessionId: 's', tools: ['search'] })
+    await a.close()
+    expect(a.closed).toBe(true)
+    expect(ctx.subagents.list()).toEqual([])
+    await expect(ctx.subagents.spawn({ id: 'released', sessionId: 's', tools: ['search'] })).rejects.toThrow(/already exists/)
+  })
+
   it('spawn and close are session-log events', async () => {
     const { ctx } = await boot()
     const a = await ctx.subagents.spawn({ id: 'a', sessionId: 's', tools: ['search', 'search'] })
