@@ -102,7 +102,7 @@ export async function withFileLock<T>(lockPath: string, fn: () => Promise<T>, op
       if (e?.code !== 'EEXIST' && e?.code !== 'EPERM' && e?.code !== 'EACCES' && e?.code !== 'EBUSY') throw e
       if (await tryBreakStale(lockPath, staleMs)) continue
       if (Date.now() - start >= timeoutMs) throw new LockTimeoutError(lockPath, Date.now() - start)
-      await sleep(retryMs + Math.floor(Math.random() * retryMs))
+      await sleep(Math.min(maxTimerMs, retryMs + Math.floor(Math.random() * retryMs)))
     }
   }
 
