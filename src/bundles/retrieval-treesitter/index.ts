@@ -249,6 +249,8 @@ export class RetrievalTreesitter extends Service {
     this.grammarDir = config.grammarDir ?? defaultGrammarDir()
     this.maxBytes = config.maxBytes ?? 524_288
     this.maxSymbols = config.maxSymbols ?? 2000
+    if (!Number.isSafeInteger(this.maxBytes) || this.maxBytes < 1) throw new RetrievalTreesitterConfigError('retrieval-treesitter: maxBytes must be a positive safe integer')
+    if (!Number.isSafeInteger(this.maxSymbols) || this.maxSymbols < 1) throw new RetrievalTreesitterConfigError('retrieval-treesitter: maxSymbols must be a positive safe integer')
     // WASM-side memory is not garbage collected: free it when the plugin goes away.
     this.ctx.effect(() => () => this.disposeAll())
   }
@@ -263,8 +265,9 @@ export class RetrievalTreesitter extends Service {
     if (!language || !this.allowed.has(language)) {
       return { ok: false, error: { kind: 'unsupported_language', detail: target.filename ?? target.language } }
     }
-    if (source.length > this.maxBytes) {
-      return { ok: false, error: { kind: 'too_large', detail: `${source.length} > ${this.maxBytes}` } }
+    const sourceBytes = Buffer.byteLength(source, 'utf8')
+    if (sourceBytes > this.maxBytes) {
+      return { ok: false, error: { kind: 'too_large', detail: `${sourceBytes} > ${this.maxBytes} bytes` } }
     }
 
     let parser: Parser
