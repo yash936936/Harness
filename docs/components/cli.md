@@ -25,5 +25,23 @@ The package CLI entry point in `index.ts` parses the `run` and `code` subcommand
 - The removed Docker capability probe must not be reintroduced unless the owner explicitly supersedes D-110 with a new decision.
 - The CLI is a process entry point; callers embedding the profile directly should use the profile APIs rather than invoking CLI lifecycle helpers.
 
+<!-- BEGIN GENERATED: do not edit between markers -->
+
+### Files and exports
+
+| File | Exports | Responsibility (first header-comment line) |
+|---|---|---|
+| `src/cli/code.ts` | `CodeProvider`, `CodeTaskOptions`, `CodeTaskResult`, `parseTimeoutMs`, `runCodeTask` | **(no header comment)** |
+| `src/cli/index.ts` | - | **(no header comment)** |
+| `src/cli/io.ts` | `AskOptions`, `ConfirmOptions`, `WizardIO`, `TerminalIO` | **(no header comment)** |
+| `src/cli/run.ts` | `RunArgs`, `RunDeps`, `RunResult` | **(no header comment)** |
+| `src/cli/wizard.ts` | `ProviderKind`, `WizardDeps`, `WizardCompleted`, `WizardAborted`, `WizardResult`, `formatDoctorReport` | **(no header comment)** |
+
+**Imports other areas:** `egress`, `policy-gates`, `profiles`, `tools-local`
+
+**Tests:** `test/code-cli.test.ts`
+
+<!-- END GENERATED -->
+
 ---
 **Next:** Return to [`context.md`](../../context.md).
