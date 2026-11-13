@@ -1,3 +1,4 @@
+import { constants as fsConstants } from 'node:fs'
 import { open, readFile, stat, unlink } from 'node:fs/promises'
 import { randomBytes } from 'node:crypto'
 
@@ -50,12 +51,15 @@ async function tryBreakStale(lockPath: string, staleMs: number): Promise<boolean
   let body: { pid?: number } = {}
   try {
     before = await stat(lockPath)
-  } catch {
-    return true // vanished between our attempts: just retry
+  } catch (error: any) {
+    if (error?.code === 'ENOENT') return true // vanished between our attempts: just retry
+    throw error
   }
   try {
     body = JSON.parse(await readFile(lockPath, 'utf8'))
-  } catch {
+  } catch (error: any) {
+    if (error?.code === 'ENOENT') return true
+    if (error?.code !== 'SyntaxError') throw error
     // Present but empty or half-written: its owner is either mid-write (young: keep waiting) or died between creating and writing it
     // (old: it must be breakable, or one crash wedges the lock for good). Judged by age below, with no pid to check.
     body = {}
@@ -69,8 +73,9 @@ async function tryBreakStale(lockPath: string, staleMs: number): Promise<boolean
     if (now.ino !== before.ino || now.mtimeMs !== before.mtimeMs) return false // someone re-took it: not ours to break
     await unlink(lockPath)
     return true
-  } catch {
-    return true // already gone
+  } catch (error: any) {
+    if (error?.code === 'ENOENT') return true // already gone
+    throw error
   }
 }
 
@@ -78,6 +83,10 @@ export async function withFileLock<T>(lockPath: string, fn: () => Promise<T>, op
   const staleMs = opts.staleMs ?? 30_000
   const timeoutMs = opts.timeoutMs ?? 10_000
   const retryMs = opts.retryMs ?? 10
+  const maxTimerMs = 2_147_483_647
+  if (!Number.isSafeInteger(staleMs) || staleMs < 1 || staleMs > maxTimerMs) throw new RangeError('file lock: staleMs must be an integer from 1 to 2147483647')
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 0 || timeoutMs > maxTimerMs) throw new RangeError('file lock: timeoutMs must be an integer from 0 to 2147483647')
+  if (!Number.isSafeInteger(retryMs) || retryMs < 1 || retryMs > maxTimerMs) throw new RangeError('file lock: retryMs must be an integer from 1 to 2147483647')
   const token = randomBytes(8).toString('hex')
   const start = Date.now()
 
