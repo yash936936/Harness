@@ -23,7 +23,7 @@ Updated 2026-11-14. This file is a concise current closeout summary. Detailed hi
 |---|---|
 | Core harness, profiles, tools, retrieval, memory, orchestration, policy | Implemented and automated-test covered; live model behavior is separate |
 | Vercel adapter | Implemented; fake-client tested; not live-verified |
-| Vercel SDK dependency | Not in root manifest/lockfile; dependency audit must be resolved before integration |
+| Vercel SDK dependency | Present in root manifest/lockfile; dependency audit is currently failing |
 | Workspace transfer | Not implemented |
 | Result synchronization | Not implemented |
 | Provider lifecycle audit | Incomplete |
