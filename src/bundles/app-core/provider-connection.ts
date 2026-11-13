@@ -44,7 +44,7 @@ export interface TestConnectionOptions {
  * Remote and unknown providers keep the short "does it answer at all" deadline.
  */
 export function defaultConnectionTimeoutMs(provider: LLMProvider): number {
-  return provider.egress && !provider.egress.remote ? 120_000 : 20_000
+  return provider.egress.remote ? 20_000 : 120_000
 }
 
 const PROBE_REQUEST: ProviderRequest = {
