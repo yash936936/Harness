@@ -178,6 +178,7 @@ describe('command backend (Needle stand-in)', () => {
 
   it('validates external backend timeout and digest configuration', async () => {
     expect(() => new CommandBackend({ command: process.execPath, timeoutMs: Infinity })).toThrow(/timeoutMs/)
+    expect(() => new CommandBackend({ command: process.execPath, timeoutMs: 2_147_483_648 })).toThrow(/timeoutMs/)
     expect(() => new CommandBackend({ command: process.execPath, expectedSha256: 'bad' })).toThrow(/expectedSha256/)
     await expect(mk({ backendTimeoutMs: 2_147_483_648 })).rejects.toThrow(/backendTimeoutMs/)
   })
