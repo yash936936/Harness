@@ -42,7 +42,9 @@ describe('boot', () => {
       expect((ctx as any)[s], s).toBeTruthy()
     expect((ctx as any).skills).toBeUndefined() // never auto-discovered
     const by = Object.fromEntries(ctx.tools.list().map((t) => [t.name, t.actionClass]))
-    expect(by).toEqual({ search_code: 'read-only', list_code_files: 'read-only', read_file: 'read-only', edit_file: 'real-fs-write', write_file: 'real-fs-write' })
+    expect(by).toEqual({ read_file: 'read-only', edit_file: 'real-fs-write', write_file: 'real-fs-write' })
+    expect(by).not.toHaveProperty('search_code')
+    expect(by).not.toHaveProperty('list_code_files')
     expect(by).not.toHaveProperty('run_command')
     expect(by).not.toHaveProperty('__profile_selftest') // the probe is gone
   })
