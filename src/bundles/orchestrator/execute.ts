@@ -4,7 +4,7 @@ import { AgentLoopError } from '../agent-loop/index.js'
 import { LLMError } from '../model-adapter/index.js'
 import type { SubAgent } from '../subagent-scope/index.js'
 import { ScopeError } from '../subagent-scope/index.js'
-import { validatePlan } from './plan.js'
+import { normalizePlan } from './plan.js'
 import { subtaskPrompt } from './prompt.js'
 import { looksLikeRefusal } from '../agent-loop/response-guards.js'
 import {
@@ -79,10 +79,10 @@ export async function executePlan(deps: ExecutorDeps, plan: Plan, opts: ExecuteO
   for (const t of ceiling) if (!ctx.tools.has(t)) throw new OrchestratorError(`orchestrator: allowed tool "${t}" is not registered`)
   // Re-validate: a plan can be hand-written or loaded from disk, not only produced by plan(). Using the ceiling as the
   // "registered" set also rejects any subtask that lists a tool outside it, up front, for the whole plan.
-  const checked = validatePlan(plan?.task ?? '', { subtasks: plan?.subtasks }, ceiling, deps.limits)
-  if (!plan?.task?.trim()) throw new OrchestratorError('orchestrator: plan.task must be a non-empty string')
-  if (!checked.ok) throw new OrchestratorError(`orchestrator: plan rejected before running anything: ${checked.errors.join('; ')}`)
-  const valid: Plan = { ...checked.plan }
+  if (typeof plan?.task !== 'string' || !plan.task.trim()) throw new OrchestratorError('orchestrator: plan.task must be a non-empty string')
+  const normalized = normalizePlan(plan.task, { subtasks: plan.subtasks }, [...ceiling], deps.limits)
+  if (!normalized.ok) throw new OrchestratorError(`orchestrator: plan rejected before running anything: ${normalized.errors.join('; ')}`)
+  const valid: Plan = { ...normalized.plan }
   if (plan.requiredToolSequences !== undefined) {
     const sequences = plan.requiredToolSequences
     if (!sequences || typeof sequences !== 'object' || Array.isArray(sequences)) {
@@ -95,9 +95,10 @@ export async function executePlan(deps: ExecutorDeps, plan: Plan, opts: ExecuteO
       if (!Array.isArray(sequence) || sequence.length === 0 || sequence.length > deps.limits.maxToolsPerSubtask || sequence.some((name) => typeof name !== 'string' || !st.tools.includes(name))) {
         throw new OrchestratorError(`orchestrator: required tool sequence for "${id}" must be a non-empty ordered list contained in that subtask's tools`)
       }
+      if (valid.requiredToolSequences?.[id] && JSON.stringify(valid.requiredToolSequences[id]) !== JSON.stringify(sequence)) throw new OrchestratorError(`orchestrator: supplied required tool sequence for "${id}" conflicts with task normalization`)
       normalizedSequences[id] = [...sequence]
     }
-    if (Object.keys(normalizedSequences).length) valid.requiredToolSequences = normalizedSequences
+    if (Object.keys(normalizedSequences).length) valid.requiredToolSequences = { ...valid.requiredToolSequences, ...normalizedSequences }
   }
 
   const sid = opts.sessionId
@@ -108,6 +109,7 @@ export async function executePlan(deps: ExecutorDeps, plan: Plan, opts: ExecuteO
       throw new InfraError(err)
     }
   }
+  if (normalized.adjusted) await log('execute.normalized', { reason: 'explicit-tool-sequence', requestedTools: normalized.requestedTools, suppliedPlan: normalized.modelPlan, plan: valid })
   await log('execute.started', { plan: valid, onFailure, retries, allowedTools: [...ceiling] })
 
   const results = new Map<string, SubtaskResult>()

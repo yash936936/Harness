@@ -419,7 +419,11 @@ export class RetrievalRank extends Service {
       progress()
     }
 
-    for (const f of gone) await col.deleteSource(f)
+    for (const f of gone) {
+      opts.signal?.throwIfAborted()
+      const deleted = await col.deleteSource(f)
+      if (!deleted.ok) return { ok: false, error: { kind: 'vectorstore', detail: `${deleted.error.kind}: ${deleted.error.detail}` } }
+    }
     return result({ embeddedChunks, reusedFiles, reusedChunks, embeddedFiles })
   }
 

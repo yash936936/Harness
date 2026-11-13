@@ -2,7 +2,7 @@ import { Context, Service } from 'cordis'
 import '../session-log/index.js'
 import '../tool-registry/index.js'
 import '../agent-loop/index.js'
-import { DEFAULT_LIMITS, extractJson, normalizeExplicitToolPlan, planSchema, plannerSystem, validatePlan } from './plan.js'
+import { DEFAULT_LIMITS, extractJson, normalizePlan, planSchema, plannerSystem } from './plan.js'
 import { executePlan } from './execute.js'
 import { OrchestratorError, PlanError, type ExecuteOptions, type ExecutionResult, type OrchestratorConfig, type Plan, type PlanOptions, type PlanResult, type PlannerLimits } from './types.js'
 
@@ -95,22 +95,16 @@ export class Orchestrator extends Service {
         ...(opts.signal ? { signal: opts.signal } : {}),
       })
       const parsed = extractJson(res.finalText)
-      const checked = parsed.ok ? validatePlan(opts.task, parsed.value, registered, this.limits) : { ok: false as const, errors: [parsed.error] }
-      if (checked.ok) {
-        const normalized = normalizeExplicitToolPlan(opts.task, checked.plan, offered, this.limits)
-        if (normalized.adjusted) {
-          await this.ctx.log.append(opts.sessionId, 'plan.normalized', {
-            reason: 'explicit-tool-sequence',
-            requestedTools: normalized.requestedTools,
-            modelPlan: checked.plan,
-            plan: normalized.plan,
-          }, ACTOR)
-        }
-        // Logged BEFORE returning, so the effective plan is inspectable whatever execution later does.
+      const normalized = parsed.ok ? normalizePlan(opts.task, parsed.value, offered, this.limits) : { ok: false as const, errors: [parsed.error] }
+      if (normalized.ok) {
+        if (normalized.adjusted) await this.ctx.log.append(opts.sessionId, 'plan.normalized', {
+          reason: 'explicit-tool-sequence', requestedTools: normalized.requestedTools,
+          modelPlan: normalized.modelPlan, plan: normalized.plan,
+        }, ACTOR)
         await this.ctx.log.append(opts.sessionId, 'plan.created', { plan: normalized.plan, attempts, offeredTools: offered }, ACTOR)
         return { plan: normalized.plan, attempts }
       }
-      errors = checked.errors
+      errors = normalized.errors
       if (attempts > maxRepairs) break
       prompt = [
         opts.task,

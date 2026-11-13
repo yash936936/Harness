@@ -1,5 +1,6 @@
 /** Actors that are sub-agents (`subagent-scope`) are named `subagent:<id>`. Kept here so memory needs no import of that bundle. */
 export const SCOPED_ACTOR_PREFIX = 'subagent:'
+const MEMORY_ACTOR_RE = /^subagent:[A-Za-z0-9_-]{1,64}$/
 
 export function isScopedActor(actor: string | undefined): actor is string {
   return typeof actor === 'string' && actor.startsWith(SCOPED_ACTOR_PREFIX)
@@ -22,7 +23,7 @@ export class MemoryAccess {
   private semanticActors = new Set<string>()
 
   grant(actor: string, grant: MemoryGrant = { hot: 'global' }): void {
-    if (!isScopedActor(actor)) throw new Error(`memory access: "${actor}" is not a sub-agent actor (expected "${SCOPED_ACTOR_PREFIX}<id>")`)
+    if (!isScopedActor(actor) || !MEMORY_ACTOR_RE.test(actor)) throw new Error(`memory access: "${actor}" is not a valid sub-agent actor (expected "${SCOPED_ACTOR_PREFIX}<id>")`)
     if (grant.hot !== 'global' && grant.hot !== 'none') throw new Error(`memory access: invalid hot grant ${JSON.stringify(grant.hot)}`)
     if (grant.semantic !== undefined && typeof grant.semantic !== 'boolean') throw new Error('memory access: semantic grant must be boolean')
     this.grants.set(actor, { hot: grant.hot, ...(grant.semantic ? { semantic: true } : {}) })

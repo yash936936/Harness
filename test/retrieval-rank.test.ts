@@ -675,6 +675,26 @@ describe.skipIf(!hasRg)('indexing', () => {
     expect(((await c.count()) as { count: number }).count).toBe(0)
   })
 
+  it('surfaces vector-store deletion failures instead of reporting successful stale-index cleanup', async () => {
+    const dir = join(root, 'src/delete-failure')
+    mkdirSync(dir, { recursive: true })
+    const f = join(dir, 'gone.ts')
+    writeFileSync(f, `export function stale() {\\n  return 'stale'\\n}\\n`)
+    const b = await boot({ provider: new HashingEmbeddingProvider({ dimensions: 64 }) })
+    await b.rank.indexFiles(['src/delete-failure/gone.ts'])
+    const c = await col(b)
+    const original = c.deleteSource.bind(c)
+    const spy = vi.spyOn(c, 'deleteSource').mockImplementation(async (source: string) => {
+      if (source === 'src/delete-failure/gone.ts') return { ok: false, error: { kind: 'injected', detail: 'delete failed' } } as any
+      return original(source)
+    })
+    rmSync(f)
+    const r = await b.rank.indexFiles(['src/delete-failure/gone.ts'])
+    expect(r).toMatchObject({ ok: false, error: { kind: 'vectorstore', detail: 'injected: delete failed' } })
+    expect(((await c.count()) as { count: number }).count).toBe(1)
+    spy.mockRestore()
+  })
+
   it('a file that has since become unreadable has its old chunks removed', async () => {
     const dir = join(root, 'src/gone')
     mkdirSync(dir, { recursive: true })
