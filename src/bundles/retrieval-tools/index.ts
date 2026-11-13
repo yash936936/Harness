@@ -62,8 +62,10 @@ export class RetrievalTools extends Service {
     if (this.maxOutputChars < 500) throw new RetrievalToolsConfigError('retrieval-tools: maxOutputChars must be at least 500')
     if (this.defaultK > this.maxK) throw new RetrievalToolsConfigError('retrieval-tools: defaultK cannot exceed maxK')
 
-    this.ctx.effect(() => this.ctx.tools.register(this.searchTool()))
-    this.ctx.effect(() => this.ctx.tools.register(this.listTool()))
+    if (config.enabled !== false) {
+      this.ctx.effect(() => this.ctx.tools.register(this.searchTool()))
+      this.ctx.effect(() => this.ctx.tools.register(this.listTool()))
+    }
   }
 
   private searchTool(): ToolDefinition<{ query: string; path?: string; k?: number }> {
