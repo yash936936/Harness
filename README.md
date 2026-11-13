@@ -2,7 +2,7 @@
 
 A multi-agent orchestration harness for coding tasks, built on [Cordis](https://github.com/cordiverse/cordis). Every capability (model access, tools, retrieval, memory, sandboxing, evaluation) is a swappable plugin; profiles compose them into runnable stacks, from a single-agent kernel (`profile-minimal`) to a governed coding stack (`profile-coding`).
 
-**Status:** working prototype, still under audit. S0 / ARCH-01 is currently pending because Crabbox run fails during private WSL SSH transport-file creation; warmup and inspect succeeded, but the workload did not execute. The owner has asked to pause this issue and continue independent closeout work. See the [S0 incident report](docs/evidence/S0-ARCH-01-TRANSPORT-INCIDENT-REPORT-2026-11-08.md), [`docs/readme.md`](docs/readme.md), [`docs/status.md`](docs/status.md), [`docs/AUDIT-CLOSEOUT.md`](docs/AUDIT-CLOSEOUT.md), [`docs/debug.md`](docs/debug.md), and [`docs/decisions.md`](docs/decisions.md).
+**Status:** working research prototype. S0 / ARCH-01 is on permanent hold under D-110. The CLI does not probe Docker, WSL, or Crabbox and never offers host command execution. Governed coding runs use file tools only. S1 is deferred, S4 is blocked under D-112, S5 distribution work is out of scope under D-115, S6 needs genuine owner-labelled sessions, and S7 still needs focused live embedding and poisoning checks. See [`docs/status.md`](docs/status.md), [`docs/AUDIT-CLOSEOUT.md`](docs/AUDIT-CLOSEOUT.md), [`docs/debug.md`](docs/debug.md), and [`docs/decisions.md`](docs/decisions.md).
 
 ```
 npm ci
@@ -21,9 +21,9 @@ npm ci
 npm run harness -- code --provider ollama --model <installed-model-tag> [--timeout-ms 300000] "Inspect the project and explain the main request flow."
 ```
 
-`--timeout-ms` sets the Ollama model-request timeout in milliseconds. It must be an integer from 1 to 4,294,967,295; when omitted, Ollama keeps its 120-second default. This is separate from the 120-second approval timeout. The option is Ollama-only.
+Sandbox probing and command execution are disabled under D-110. The `code` command defaults to `--sandbox none`; the compatibility flag may be supplied explicitly, but `auto` is rejected. The CLI saves JSONL sessions in `.harness/sessions/`, asks before operations held by policy, and never falls back to host command execution. File edits remain policy-gated.
 
-It uses the current directory as project root, saves JSONL sessions in `.harness/sessions/`, and asks before operations held by policy. With Docker and Crabbox ready it uses Crabbox local-container. Otherwise it prints `no sandbox: commands disabled, file tools still gated`; it never falls back to host command execution. File edits remain policy-gated.
+`--timeout-ms` sets the Ollama model-request timeout in milliseconds. It must be an integer from 1 to 4,294,967,295; when omitted, Ollama keeps its 120-second default. This is separate from the 120-second approval timeout. The option is Ollama-only.
 
 OpenRouter uses environment-only credentials and per-project egress consent:
 
@@ -33,4 +33,4 @@ $env:OPENROUTER_MODEL = "<exact free-tier model id>"
 npm run harness -- code --provider openrouter --model "$env:OPENROUTER_MODEL" "Inspect the project and explain the main request flow."
 ```
 
-Never put API keys in CLI arguments or files. A green test suite does not prove Docker, Crabbox or a live provider ran; see `docs/AUDIT-CLOSEOUT.md` and `docs/evidence/`.
+Never put API keys in CLI arguments or files. A green test suite does not prove a live provider ran; see `docs/AUDIT-CLOSEOUT.md` and `docs/evidence/`.
