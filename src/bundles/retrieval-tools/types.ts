@@ -1,4 +1,6 @@
 export interface RetrievalToolsConfig {
+  /** Do not register host-backed project search/list tools before remote workspace access is accepted. Default true. */
+  enabled?: boolean
   /** Cap on the text one `search_code` call returns to the model. Default 12000 characters. */
   maxOutputChars?: number
   /** Results returned when the model gives no `k`. Default 8. */
