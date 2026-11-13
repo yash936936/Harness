@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Generate / verify docs/components/<area>.md from the source tree.
+// Generate source inventories into component docs; --check validates committed docs without rewriting them. A generated inventory block is optional for hand-maintained guides.
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -59,9 +59,8 @@ const problems = [], index = []
 for (const area of areas()) {
   const file = path.join(OUT, `${area.name}.md`), block = generated(area)
   let doc = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : skeleton(area) + block + '\n\n---\n**Next:** Return to [`context.md`](../../context.md).\n'
-  if (!doc.includes(BEGIN)) {
-    if (check) problems.push(`missing generated block: docs/components/${area.name}.md`)
-    else doc = doc.replace(/\n---\n\*\*Next:\*\*/, `\n${block}\n\n---\n**Next:**`)
+  if (!doc.includes(BEGIN) && !check) {
+    doc = doc.replace(/\n---\n\*\*Next:\*\*/, `\n${block}\n\n---\n**Next:**`)
   }
   const next = doc.replace(new RegExp(`${BEGIN}[\\s\\S]*?${END}`), () => block)
   if (!fs.existsSync(file)) problems.push(`missing doc: docs/components/${area.name}.md`)
