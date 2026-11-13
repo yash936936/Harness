@@ -455,3 +455,17 @@ Do not run Docker, WSL, Crabbox or host command probes. Do not mark S4 passed ba
 
 
 SDK compatibility decision: use published `@vercel/sandbox@3.9.1`. Its v3 API uses `vercel.com`; SDK 4.0.0 changes the API base to `api.vercel.com` and raises the Node minimum to 22.19.0. Do not upgrade the Harness engine range solely for this adapter. Current adapter authentication requires host env vars `VERCEL_TOKEN`, `VERCEL_TEAM_ID`, and `VERCEL_PROJECT_ID`. The SDK is dynamically loaded and remains an optional, manually installed runtime dependency until a lockfile-capable checkout is available. Install for smoke testing with `npm install --no-save --package-lock=false @vercel/sandbox@3.9.1`.
+
+
+Live provider-only smoke (does not transfer project files or enable the coding CLI):
+
+```powershell
+npm install --no-save --package-lock=false @vercel/sandbox@3.9.1
+$env:VERCEL_TOKEN = "<set securely in your shell>"
+$env:VERCEL_TEAM_ID = "<team id>"
+$env:VERCEL_PROJECT_ID = "<project id>"
+$env:HARNESS_VERCEL_SANDBOX_LIVE = "1"
+npm run smoke:vercel-sandbox
+```
+
+Do not paste token values into chat, source files, command arguments, or session logs. The smoke creates one empty sandbox, runs only `true`, and deletes it. It is not project-workflow acceptance.
