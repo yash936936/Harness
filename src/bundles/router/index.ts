@@ -81,7 +81,7 @@ export class Router extends Service {
   }
 
   /** The decision in `decide`'s chain order, without recording it. Shared by `decide` and `shadow`. */
-  private async resolve(cls: DecisionClass, req: RouteRequest, chain: RouterBackend[]): Promise<RouteDecision> {
+  private async resolve(cls: DecisionClass, req: RouteRequest, chain: RouterBackend[], trackFailures = true): Promise<RouteDecision> {
     const start = Date.now()
     let candidates = req.candidates
     if (cls === 'tool') candidates = candidates.filter((c) => c.allowed === true).slice(0, this.maxTools)
@@ -112,12 +112,12 @@ export class Router extends Service {
             timeout,
           ])
           if (ans === null || ans === undefined) { skipped.push({ source: b.name, why: 'abstained' }); continue }
-          if (!ids.has(ans)) { this.failures++; skipped.push({ source: b.name, why: 'answered an id that was not offered' }); continue }
+          if (!ids.has(ans)) { if (trackFailures) this.failures++; skipped.push({ source: b.name, why: 'answered an id that was not offered' }); continue }
           choice = ans
           source = b.name
           break
         } catch (e: any) {
-          this.failures++
+          if (trackFailures) this.failures++
           skipped.push({ source: b.name, why: String(e?.message ?? e).slice(0, 80) })
         } finally {
           if (timer) clearTimeout(timer)
@@ -148,7 +148,7 @@ export class Router extends Service {
    * is ever owned. `choice: null` when Needle is absent, unavailable, abstains, fails or answers an id that was not offered.
    */
   async shadow(cls: DecisionClass, req: RouteRequest): Promise<RouteDecision> {
-    return this.resolve(cls, req, this.config.needle ? [this.config.needle] : [])
+    return this.resolve(cls, req, this.config.needle ? [this.config.needle] : [], false)
   }
 
   /** Requests saved per task is recorded here and in the session log (`router.decision`). */
