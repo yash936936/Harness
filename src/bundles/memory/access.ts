@@ -23,7 +23,8 @@ export class MemoryAccess {
   private semanticActors = new Set<string>()
 
   grant(actor: string, grant: MemoryGrant = { hot: 'global' }): void {
-    if (!isScopedActor(actor) || !MEMORY_ACTOR_RE.test(actor)) throw new Error(`memory access: "${actor}" is not a valid sub-agent actor (expected "${SCOPED_ACTOR_PREFIX}<id>")`)
+    if (!isScopedActor(actor)) throw new Error(`memory access: "${actor}" is not a sub-agent actor (expected "${SCOPED_ACTOR_PREFIX}<id>")`)
+    if (!MEMORY_ACTOR_RE.test(actor)) throw new Error(`memory access: "${actor}" is not a valid sub-agent actor (expected "${SCOPED_ACTOR_PREFIX}<id>")`)
     if (grant.hot !== 'global' && grant.hot !== 'none') throw new Error(`memory access: invalid hot grant ${JSON.stringify(grant.hot)}`)
     if (grant.semantic !== undefined && typeof grant.semantic !== 'boolean') throw new Error('memory access: semantic grant must be boolean')
     this.grants.set(actor, { hot: grant.hot, ...(grant.semantic ? { semantic: true } : {}) })
