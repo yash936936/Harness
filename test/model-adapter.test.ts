@@ -291,7 +291,7 @@ describe('ctx.llm service', () => {
 
   it('wraps unexpected provider exceptions as LLMError(unknown) and logs them', async () => {
     const ctx = await boot()
-    ctx.llm.register('m', { complete: async () => { throw new RangeError('bug') } }, { default: true })
+    ctx.llm.register('m', { egress: { host: 'localhost', remote: false }, complete: async () => { throw new RangeError('bug') } }, { default: true })
     await expect(ctx.llm.complete(req())).rejects.toMatchObject({ kind: 'unknown', retryable: false })
     expect(await types(ctx)).toEqual(['model.request', 'model.error'])
   })
