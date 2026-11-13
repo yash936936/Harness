@@ -172,6 +172,7 @@ export class VercelSandboxProvider implements SandboxProvider {
     const commandController = new AbortController()
     const onCallerAbort = () => commandController.abort(req.signal?.reason ?? new Error('aborted'))
     req.signal?.addEventListener('abort', onCallerAbort, { once: true })
+    if (req.signal?.aborted) onCallerAbort()
     const deadline = setTimeout(() => {
       deadlineExpired = true
       commandController.abort(new Error(`command timed out after ${timeoutMs}ms`))
