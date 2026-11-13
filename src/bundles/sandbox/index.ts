@@ -32,8 +32,8 @@ export class Sandbox extends Service {
     if (provider.destination === 'remote' && (typeof provider.host !== 'string' || !provider.host.trim())) {
       throw new SandboxError('config', `sandbox: remote provider "${provider.name}" must declare the host it reaches, so egress can allowlist it`)
     }
-    this.providers.set(provider.name, provider)
     if (opts.default !== undefined && typeof opts.default !== 'boolean') throw new SandboxError('config', 'sandbox: default must be a boolean')
+    this.providers.set(provider.name, provider)
     if (opts.default === true) this.defaultName = provider.name
   }
 
