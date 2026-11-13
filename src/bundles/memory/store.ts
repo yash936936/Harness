@@ -1,4 +1,5 @@
-import { appendFile, mkdir, readFile, truncate } from 'node:fs/promises'
+import { mkdir } from 'node:fs/promises'
+import { appendTextFileNoFollow, assertNoSymlinkParents, readTextFileNoFollow, truncateFileNoFollow } from '../../util/secure-file.js'
 import { withFileLock } from '../../util/filelock.js'
 import { join } from 'node:path'
 import type { Episode, EpisodeStore } from './types.js'
@@ -31,12 +32,14 @@ export class JsonlEpisodeStore implements EpisodeStore {
     // Serialised so two concurrent writes of the same turn cannot both pass the duplicate check.
     // BUG-09: and across PROCESSES: under a file lock the ids are re-read from the file, so two processes cannot both add the same turn.
     const job = this.queue.then(async () => {
+      await assertNoSymlinkParents(this.file)
       await mkdir(this.dir, { recursive: true })
+      await assertNoSymlinkParents(this.file)
       return withFileLock(`${this.file}.lock`, async () => {
         await this.repairTail()
         const ids = new Set((await this.all()).map((x) => x.id))
         if (ids.has(episode.id)) return false
-        await appendFile(this.file, JSON.stringify(episode) + '\n', 'utf8')
+        await appendTextFileNoFollow(this.file, JSON.stringify(episode) + '\n')
         return true
       })
     })
@@ -48,7 +51,7 @@ export class JsonlEpisodeStore implements EpisodeStore {
   private async repairTail(): Promise<void> {
     let text: string
     try {
-      text = await readFile(this.file, 'utf8')
+      text = await readTextFileNoFollow(this.file)
     } catch (err: any) {
       if (err?.code === 'ENOENT') return
       throw err
@@ -64,11 +67,11 @@ export class JsonlEpisodeStore implements EpisodeStore {
         // Only a torn final record is recoverable. Do not append past corruption
         // in the middle of the file, even when a later record is valid JSON.
         const end = lines.slice(0, i).join('\n').length + (i > 0 ? 1 : 0)
-        await truncate(this.file, end)
+        await truncateFileNoFollow(this.file, end)
         return
       }
     }
-    if (last >= 0 && !text.endsWith('\n')) await appendFile(this.file, '\n', 'utf8')
+    if (last >= 0 && !text.endsWith('\n')) await appendTextFileNoFollow(this.file, '\n')
   }
 
   async all(): Promise<Episode[]> {
