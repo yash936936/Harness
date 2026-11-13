@@ -1,3 +1,62 @@
+# Roadmap to a cloud-executing sample prototype
+
+Updated 2026-11-13 under owner decision D-117. This roadmap supersedes the conflicting D-116 D1/D2 scope statements only where stated in D-117. The current target is a governed coding agent that uses cloud-hosted model inference and executes development commands only inside an isolated remote cloud sandbox.
+
+## 1. Prototype outcome
+
+Given an explicitly selected project snapshot and task, Harness plans, retrieves context, reads and edits files, installs approved dependencies, builds, tests, and performs approved Git operations. Every command runs in a remote cloud sandbox. The host machine is never a command-execution fallback. Risky operations remain policy-gated; hard-denied operations cannot be approved. Each model and sandbox destination has separate project consent and host allowlisting. Every decision and command result is retained in the append-only session log.
+
+The existing Docker/WSL/Crabbox S0 route remains permanently held under D-110. D-117 adds a separate cloud provider route; it does not repair or reopen S0. S1 remains deferred until separately decided.
+
+## 2. Scope tiers
+
+| Tier | Meaning | Areas |
+|---|---|---|
+| **A: required prototype core** | Must work and pass full test discipline | session-log, model-adapter with cloud endpoint support, egress, tool-registry, policy-gates, tools-local, sandbox remote provider, agent-loop, orchestrator, input-guard, retrieval, profile-coding and governed CLI |
+| **B: retain** | Existing capability; extend only where required by D-117 | OpenAI-compatible cloud model provider, Ollama provider subject to cloud-auth compatibility verification, budgets/rate limits, eval-runner |
+| **C: out of scope** | No work under this decision | Docker/WSL/Crabbox S0/S1, host command execution, browser research, multi-user scale, desktop app, Qwen 7B artifacts, distribution/release packaging (D-110, D-115) |
+
+## 3. Command execution and security boundaries
+
+- Execution destination: remote cloud sandbox only. No local runtime auto-detection, host subprocess, or fallback.
+- Command coverage: full development workflow, including read/search, package installation, build, test, and Git status/diff/branch/commit.
+- Invocation: argv only, no implicit shell. Compound commands must be separate calls. No pipes, redirects, command substitution, or shell metacharacter interpretation.
+- Policy: classify each operation; enforce hard denials; require explicit approval for high-risk permitted actions using an immutable snapshot of command, args, cwd and policy context.
+- Isolation: short-lived per-task workspace, project-only mount, non-root identity, resource limits, bounded processes, timeout, output caps and verified teardown.
+- Network: disabled inside sandbox by default. Package registries and any other required network destinations need a separate explicit sandbox-network policy and allowlist.
+- Secrets: no ambient host credentials, API keys, SSH agents, sockets or credential stores in the sandbox. No secret injection by default.
+- Egress: model provider and sandbox provider are independent remote destinations. Each requires its own consent and host allowlist.
+- Audit: record policy, approvals, command argv/cwd, provider/host/lease, timestamps, duration, exit code, timeout, cancellation, bounded redacted output, and release/cleanup status.
+
+## 4. Model testing policy
+
+Use cloud-hosted models for model-driven prototype acceptance. OpenRouter's OpenAI-compatible endpoint is the initial supported route. Ollama-hosted cloud inference may be added only after its authentication and API contract are verified; current Ollama provider code does not yet establish cloud API-key support. Record exact provider, model ID, endpoint host and hosting classification per session. Local Ollama can remain an optional developer tool but is not cloud acceptance evidence. Model egress consent is independent from sandbox egress consent.
+
+D-116 D3 and D-109 remain unchanged: three owner-reviewed demo sessions are qualitative only; scorer output requires at least 10 genuine sessions, both owner labels, and labels committed and hashed before scoring.
+
+## 5. Implementation phases
+
+| Phase | Goal | Work | Exit evidence |
+|---|---|---|---|
+| **R2.1 Architecture and contract** | Freeze remote execution boundary | Provider contract, workspace lifecycle, consent model, network policy, audit schema, threat model | Reviewed architecture and tests for fail-closed behavior |
+| **R2.2 Cloud sandbox adapter** | Implement remote provider | Provider selection/config, create/sync/run/collect/release, health check, resource limits, no host fallback | Provider contract tests and isolated cloud smoke |
+| **R2.3 Command policy integration** | Enable full workflow safely | Re-enable COMMAND_TOOL only with configured cloud provider; risk classification, approvals, immutable approval snapshot, hard denials, Git hardening | Policy matrix tests and denied/approved operation traces |
+| **R2.4 Audit and egress** | Make remote work inspectable | Separate sandbox/model consent, host allowlists, sandbox network policy, secret redaction, command lifecycle events | Audit schema tests, secret-leak tests, cleanup-failure tests |
+| **R2.5 Cloud model integration** | Use cloud models for testing | Verify OpenRouter; evaluate Ollama cloud auth/API; label exact provider/model/hosting | Live model smoke and per-session provenance |
+| **R2.6 Governed CLI integration** | Deliver end-to-end workflow | Explicit cloud sandbox/provider flags, consent UX, project snapshot, task lifecycle, fail-closed errors | Clean task, approval-denied task, hard-denied credential task, build/test task |
+| **R2.7 Acceptance and CI** | Prove behavior | Full CI on Windows/Ubuntu; live cloud sandbox acceptance; command matrix; audit review; S6/D-109 evidence | CI green plus separately reviewed live evidence; no claim based on fakes alone |
+
+## 6. Explicitly retained decisions
+
+D-110 continues to prohibit Docker/WSL/Crabbox probes and host execution. D-115 keeps distribution out of scope. D-116 D3 and D-109 retain the evaluation evidence threshold. D-117 does not mark S0, S1, S4, S6 or S7 as passed. S4 is reopened only as a planned cloud-sandbox acceptance path.
+
+
+---
+
+## Historical proposal (2026-11-11)
+
+The earlier D-116 proposal and its original options are retained below for decision history. Where that proposal says no command execution, local 3B-only testing, or S4 cut, D-117 now governs the narrower cloud-only route described above.
+
 # Roadmap to a sample prototype
 
 Written 2026-11-11 from the repo as uploaded (102 source files, 1137 tests passing / 102 skipped in a sandbox without ripgrep). This is a proposal until the owner accepts D-116; owner decisions are listed in section 4.

@@ -1,3 +1,15 @@
+## D-117 scope update — 2026-11-13
+
+Owner-approved direction: cloud-only command execution with full development workflow coverage. This authorizes implementation, not a claim of integration or acceptance. Commands must execute in a remote cloud sandbox through the existing sandbox seam. No host command execution, local subprocess fallback, or local provider auto-detection is allowed.
+
+The existing ctx.sandbox service already enforces remote project consent and provider-host allowlisting. The SandboxProvider interface and sandbox-backed run_command tool exist. The governed CLI currently removes COMMAND_TOOL from its offered tools, and no cloud sandbox provider has been selected or live-verified. The next work is provider selection/implementation, command-policy integration, separate egress and sandbox-network controls, structured audit lifecycle events, CLI consent/provider selection, and live acceptance.
+
+D-110 remains in force for Docker/WSL/Crabbox and host execution. S0 remains PERMANENT-HOLD; S1 remains DEFERRED-S0-HOLD. D-112's S4 block is superseded only for a cloud-only acceptance path; S4 remains NOT PASSED. D-116 D3 and D-109 evaluation requirements remain unchanged. Cloud model testing is the new target; OpenRouter is the initial compatible route, while Ollama cloud compatibility requires authentication/API verification.
+
+No live cloud sandbox tests, command executions, or provider acceptance were performed in this documentation update. CI and fake-backed tests will not be reported as live cloud acceptance.
+
+---
+
 ## D-116 owner-approved scope — 2026-11-13
 
 The owner approved D-116 against the uploaded 2026-11-11 roadmap. D1 is ACCEPTED (no command execution in v0; D-110 remains in force). D2 is ACCEPTED WITH RESTRICTION (one stronger free OpenRouter comparison session only; 3B remains the default local/headline model, and the comparison is not local 8 GB or 3B acceptance evidence). D3 is AMENDED (three owner-reviewed demo sessions are qualitative only; no scorer output or confusion table from three sessions; D-109's 10 genuine sessions and label-before-scorer requirements remain mandatory).

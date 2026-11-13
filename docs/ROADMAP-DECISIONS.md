@@ -11,3 +11,14 @@
 The owner explicitly approved these dispositions on 2026-11-13. Full rationale, restrictions, unchanged decisions, and affected documents are recorded in the append-only D-116 entry in [`docs/decisions.md`](decisions.md).
 
 D-116 is a scope decision, not acceptance evidence. It does not close S6 or S7, does not authorize command execution, and does not reopen S0/S1/S4. The one-session OpenRouter comparison is not the headline local demonstration.
+
+
+## D-117 follow-up disposition — 2026-11-13
+
+| Proposal item | Updated owner disposition | Governing record |
+|---|---|---|
+| D1: command execution | ACCEPTED: remote cloud sandbox only; full development workflow under command policy; no host or local fallback | D-117 |
+| D2: model testing | ACCEPTED: cloud-hosted model endpoints are the testing target; verify provider auth/API before claiming compatibility | D-117 |
+| D3: evaluation | UNCHANGED: three qualitative demo sessions only; scorer evidence still follows D-109 | D-116 D3 / D-109 |
+
+D-117 supersedes D-116 D1/D2 narrowly. D-110 remains in force for Docker/WSL/Crabbox and host execution. S0 remains PERMANENT-HOLD; S1 remains deferred. S4 is reopened only as a cloud-sandbox acceptance plan and is not passed. D-115 remains unchanged.

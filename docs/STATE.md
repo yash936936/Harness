@@ -1,47 +1,52 @@
 # Authoritative prototype state
 
-Updated 2026-11-13 after owner approval of D-116. This table is the current compact state reference. Historical details and raw evidence remain in `docs/status.md`, `docs/BUILD-PLAN.md`, and `docs/AUDIT-CLOSEOUT.md`. Green CI is not live acceptance.
+Updated 2026-11-13 after D-117. D-117 is the current owner-approved direction for cloud-only command execution and cloud-hosted model testing. Historical D-116 wording remains in the decision history but is superseded where D-117 explicitly says so. Green CI is not live cloud acceptance.
 
 ## Scope and decisions
 
 | Item | Current state | Evidence / boundary |
 |---|---|---|
-| D-116 / R1 | OWNER DECISIONS RECORDED | D1 accepted (no command execution); D2 accepted with one restricted stronger free OpenRouter comparison session; D3 amended (three demo sessions, no scorer output). See `docs/decisions.md` and `docs/ROADMAP-DECISIONS.md`. |
-| D-110 / D1 | ACCEPTED: NO COMMAND EXECUTION | Prototype v0 is read/plan/edit with policy approvals. No host command execution, sandbox probing, or host fallback. |
-| D2 / model comparison | ACCEPTED WITH RESTRICTION | 3B remains the default, local, headline demo model and the only model for 3B-specific acceptance. One stronger free OpenRouter model may be used for one separately labelled comparison session only. It is not headline-demo or local 8 GB evidence. |
-| D3 / evaluation | AMENDED | Three demo sessions support a qualitative, owner-reviewed prototype demonstration only. No scorer output, agreement score, or confusion table from three sessions. D-109's ten genuine sessions, both classes, owner labels committed and hashed before scoring remain mandatory for scorer output. |
-| Branch protection | OPEN OWNER ACTION | GitHub reported `main.protected=false`; require PRs and `ci-pass`, up-to-date branches, no force-push/deletion, no admin bypass. |
-| Distribution | OUT OF SCOPE (D-115) | No distributable artifact planned. License closure is not marked passed. |
+| D-117 | ACCEPTED: CLOUD EXECUTION | Full development command workflow only inside a remote cloud sandbox. No host fallback. Independent model and sandbox egress consent. Implementation and live acceptance remain open. |
+| D-110 | S0 PERMANENT-HOLD | No Docker/WSL/Crabbox probes, retries, workarounds or host execution. D-117 adds a separate cloud route and does not reopen S0. |
+| D-116 D1/D2 | SUPERSEDED IN PART | No-command and 3B-only testing constraints are superseded only by D-117's cloud sandbox and cloud-model testing scope. D-116 D3 remains unchanged. |
+| D-114 | SUPERSEDED FOR TEST MODEL SCOPE | Cloud-hosted models are the testing target under D-117. Qwen 7B artifact/distribution exclusion remains. |
+| D-116 D3 / D-109 | UNCHANGED | Three demo sessions are qualitative only. Scorer output still requires at least 10 genuine sessions, both owner labels, and labels committed/hashed before scoring. |
+| D-115 | UNCHANGED | Sample/research prototype; no distribution/release artifact. |
+| Branch protection | OPEN OWNER ACTION | Require PRs and ci-pass, up-to-date branches, no force-push/deletion, no admin bypass. |
+
+## Cloud execution architecture
+
+| Control | Required behavior |
+|---|---|
+| Destination | Remote cloud sandbox only; explicit provider selection; no local or host fallback |
+| Scope | Read/search, dependency install, build, test, Git status/diff/branch/commit, subject to policy |
+| Invocation | argv only; no implicit shell, pipes, redirects or command substitution |
+| Isolation | Per-task project snapshot, non-root workspace, resource/time/output limits, verified teardown |
+| Policy | Existing policy gates, risk classification, immutable approval snapshots and hard denials remain mandatory |
+| Egress | Independent model-provider and sandbox-provider consent/host allowlists; sandbox network disabled by default |
+| Secrets | No host credentials, model API keys, SSH agents or credential stores passed to sandbox |
+| Audit | Provider/host/lease, argv/cwd, policy and approval, timestamps, exit status, bounded redacted output, timeout/cancel and release status |
+
+## Current implementation status
+
+The sandbox service already gates remote providers on project consent and host allowlisting. The sandbox provider interface and sandbox-backed command tool exist. The governed CLI still filters COMMAND_TOOL, and no cloud sandbox provider is selected or live-verified. Current Ollama adapter code does not establish API-key support for Ollama cloud. Therefore cloud command execution and cloud-model acceptance are authorized work, not completed capabilities.
 
 ## Phase state
 
 | ID | State | Remaining evidence / action |
 |---|---|---|
-| R0.1 security/execution scope | CLOSED | D-110 restrictions merged in PR #86. |
-| R0.2 CI integrity | CODE FIXES VERIFIED; MERGE GATE OPEN | Docs and failure-ledger checks are read-only/blocking; owner must configure branch protection. |
-| R0.3 docs synchronization | PARTIAL / IN PROGRESS | Component docs and drift checks passed; this state table is now authoritative. Complete any remaining docs synchronization and merge the documentation branch. |
-| R1 owner decisions | CLOSED | D-116 recorded with explicit owner approval. |
-| R2 core hardening | PARTIAL | PR #87 hardening and CI are merged. Remaining roadmap items include the S7 live rerun and session-scoped approval work. Retrieval-rank split was reviewed and not adopted; see DBG-120. Do not claim all R2 work complete. |
-| R3 demo | NOT STARTED | Need a real small project, three complete session JSONLs (clean, approval denied, credential read blocked), owner-reviewed summary, Windows 8 GB quickstart/demo script, and measured cold-start-to-first-result time. |
-| R4 optional extension | NOT AUTHORIZED | Requires separate owner choice and evidence gate. |
-| R5 after prototype | OUT OF SCOPE | Productization and distribution deferred. |
+| R2.1 architecture | DOCUMENTED | Provider contract and threat model are described; implementation review remains |
+| R2.2 cloud provider | NOT STARTED | Select provider; implement lifecycle and isolation |
+| R2.3 policy integration | NOT STARTED | Enable command tool only behind cloud provider and existing gates |
+| R2.4 audit/egress | NOT STARTED | Add lifecycle events, separate egress policy and redaction tests |
+| R2.5 cloud models | PARTIAL / VERIFY | OpenRouter supported path; Ollama cloud auth/API needs verification |
+| R2.6 CLI integration | NOT STARTED | Consent UX, explicit provider, no fallback |
+| R2.7 acceptance | NOT STARTED | Live cloud build/test and security evidence |
+| S0 | PERMANENT-HOLD | D-110 remains unchanged |
+| S1 | DEFERRED-S0-HOLD | Depends on S0 |
+| S3 | CLOSED (D-111) | File-tool/policy acceptance only |
+| S4 | REOPENED AS CLOUD-ONLY PLAN, NOT PASSED | Full provider tasks require live cloud sandbox evidence |
+| S6 | OPEN | D-109 genuine sessions and owner-label requirements remain |
+| S7 | OPEN / RECONCILIATION REQUIRED | Existing live evidence still needs reconciliation; do not infer pass |
+| R3 demo | NOT STARTED | Three qualitative sessions and Windows quickstart/demo artifacts remain |
 
-## Acceptance evidence
-
-| ID | State | Evidence / boundary |
-|---|---|---|
-| S0 sandbox | PERMANENT HOLD (D-110) | No Docker/WSL/Crabbox probing or host execution substitutes. |
-| S1 orphan reaper | DEFERRED-S0-HOLD | Depends on S0. |
-| S2 PRs #11/#12 | CLOSED | Merged and CI green, per historical record. |
-| S3 file-tool/policy | CLOSED (D-111) | One owner-reviewed 3B session; does not imply command execution or sandbox acceptance. |
-| S4 full provider tasks | PARTIAL / BLOCKED (D-112) | Full target-project test execution requires command execution, which is excluded. |
-| S5 licensing | DEFERRED / OUT OF SCOPE (D-115) | No distributable artifact planned; inventory retained. |
-| S6 evaluation | OPEN | Three demo sessions are not a scorer dataset. D-109 requires at least 10 distinct genuine sessions, both good and bad labels, owner labels committed and hashed before scorer output. |
-| S7 embedding | OPEN / EVIDENCE RECONCILIATION REQUIRED | Existing roadmap says an embedding run passed, while current audit/build-plan records live embedding acceptance as open. Do not claim pass until exact accepted output is reconciled and recorded. |
-| S7 poisoning | PARTIAL / RETEST REQUIRED | Fresh owner-run exact 3B poisoning task remains outstanding. Require both ordered reads, poison resistance, accurate target explanation, no credential disclosure, and unchanged fixture hashes. |
-| S8 final audit | REDUCED TO STATE TABLE | Final audit remains dependent on outstanding R2/R3 evidence. |
-| 1B.4 desktop | CUT | Benchmarks only; no desktop product. |
-
-## Current verified CI baseline
-
-PR #87 merged as `e8614f12e1a66cbea9adfe230a902e1c72f4b9d4`; post-merge Actions run #576 passed all seven jobs. PR #88 documentation follow-up run #577 passed all seven jobs on its branch. PR #88 merge state must be checked before treating its documentation as part of main.

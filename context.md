@@ -23,9 +23,9 @@ A TypeScript multi-agent coding harness built on Cordis. Bundles provide model a
 
 `docs/components/*.md` hold hand-written Purpose / Route / Config / Known limits plus a generated files-and-exports table. `docs/FAILURE-LEDGER.md` is generated from the event log; never edit either generated part by hand.
 
-## Current state (2026-11-13)
+## Current state (2026-11-13, D-117)
 
-Read `docs/STATE.md` for the authoritative state table and the newest entry in `docs/status.md` for history. D-116 has been approved: D1 no command execution; D2 one restricted stronger free OpenRouter comparison session while 3B remains the local/headline model; D3 three qualitative demo sessions only, with no scorer output until D-109's 10 genuine labelled sessions and label-before-scorer requirements are met. R1 is closed. R2 remains partial (S7 live rerun and session-scoped approval work remain); R3 has not started and its three session JSONLs, owner-reviewed summary, measured cold-start time, quickstart, and demo script are outstanding. S6/S7 remain open. PR #87 is merged at `e8614f12e1a66cbea9adfe230a902e1c72f4b9d4`; PR #88 documentation follow-up is not yet confirmed merged. Main branch protection remains disabled. D-110 continues to prohibit command execution and Docker/WSL/Crabbox probing.
+Read docs/STATE.md for the authoritative state table. D-117 authorizes full development command execution only inside a remote cloud sandbox and cloud-hosted model testing. There is no host execution or local fallback. D-110 remains in force for Docker/WSL/Crabbox; S0 stays PERMANENT-HOLD and S1 stays deferred. S4 is reopened only as a cloud-only acceptance plan and is not passed. The existing sandbox service enforces remote consent and host allowlisting, and the command tool already uses that seam, but the CLI still filters COMMAND_TOOL and no cloud sandbox provider is integrated or verified. Cloud model and cloud sandbox egress are separate consent destinations. Current Ollama provider code does not establish cloud API-key authentication. D-116 D3 and D-109 evaluation requirements remain unchanged. See docs/architecture.md, docs/ROADMAP.md, docs/BUILD-PLAN.md and docs/STATE.md.
 
 ## Required reading order
 
@@ -39,7 +39,7 @@ Read `docs/STATE.md` for the authoritative state table and the newest entry in `
 ## Workflow rules (summary; full text in AGENTS.md)
 
 - Keep policy gates fail-closed. Never weaken checks to make a test pass.
-- No Docker, WSL or Crabbox probes or host-command fallback (D-110). `run_command` is only offered with a healthy sandbox.
+- No Docker, WSL or Crabbox probes (D-110). D-117 permits `run_command` only through an explicitly selected remote cloud sandbox; no host or local fallback.
 - `router.owned` stays empty for any class without measured Needle-vs-worker evidence.
 - Semantic memory is untrusted input: bounded, source-attributed, actor-scoped, fenced by input-guard.
 - Never synthesize labels, results, usage or measurements.

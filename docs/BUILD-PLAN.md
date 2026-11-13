@@ -1,8 +1,27 @@
-## D-116 owner-approved scope (2026-11-13)
+## D-117 implementation direction — 2026-11-13
 
-D-116 is recorded in `docs/decisions.md`. D1 is accepted: no command execution in v0; D-110 remains unchanged. D2 is accepted with restriction: one stronger free OpenRouter comparison session is permitted, but 3B remains the default local/headline model and the comparison is not local 8 GB or 3B acceptance evidence. D3 is amended: three owner-reviewed demo sessions are qualitative only; no scorer output or confusion table is permitted from three sessions. D-109's 10 genuine sessions, both good/bad owner labels, and labels committed and hashed before scorer output remain mandatory for scoring.
+D-117 supersedes D-116 D1/D2 only within its stated scope. The prototype now requires remote cloud-sandbox command execution for the full development workflow and cloud-hosted model testing. No host command execution is permitted. D-110's Docker/WSL/Crabbox hold remains unchanged; no local sandbox probing or fallback is authorized. D-116 D3 and D-109 remain unchanged.
 
-R1 is closed as a decision-recording phase. **R2 remains partial:** PR #87 hardening is merged and CI-verified, but the S7 live rerun and session-scoped approval work remain outstanding. The proposed retrieval-rank split was reviewed and not adopted (DBG-120). **R3 has not started:** no demo JSONLs, owner-reviewed summary, measured cold-start time, Windows quickstart, or demo script are claimed. See `docs/STATE.md` for the authoritative compact state table. S6 and S7 remain open.
+**Architecture:** use the existing sandbox provider seam and sandbox-backed command tool. The governed CLI must explicitly select a remote provider and expose run_command only after provider configuration and health/consent checks. The sandbox and model provider are separate remote destinations with independent consent and host allowlists. See docs/architecture.md and docs/ROADMAP.md.
+
+**Implementation order:**
+1. Specify cloud provider contract and threat model: workspace snapshot/upload, isolated lease, argv execution, resource limits, network policy, bounded output, teardown and release verification.
+2. Implement a remote provider adapter behind SandboxProvider. Never add host spawn fallback. Provider selection must be explicit and fail closed.
+3. Integrate run_command into profile-coding/CLI. Keep the tool registry, policy gates, commandRisk classification, Git hardening, hard-deny rules, immutable approval snapshots and approval timeout intact. Full workflow means install/build/test/Git as policy-permitted operations, not unrestricted shell.
+4. Add independent sandbox egress consent and exact host allowlisting. Sandbox-internal network remains disabled by default; package registry access is a separate allowlisted capability.
+5. Add command lifecycle audit events and prove secret redaction, bounded output, cancellation, timeout and cleanup behavior.
+6. Verify cloud model testing. OpenRouter is the initial compatible provider. Ollama cloud must not be assumed compatible until authentication and API behavior are implemented and tested.
+7. Add live acceptance for clean build/test, approved dependency install, denied risky command, hard-denied credential access, Git workflow, timeout/cancel and lease cleanup. Fake-backed CI is necessary but not sufficient.
+
+**Current implementation facts:** ctx.sandbox already enforces remote project consent and host allowlisting; SandboxProvider and createCommandTool already exist. src/cli/code.ts still removes COMMAND_TOOL and records sandbox unavailable. Therefore command execution is not yet enabled end-to-end. No cloud sandbox provider has been selected or live-verified. Existing Ollama adapter does not demonstrate API-key authentication for cloud Ollama endpoints.
+
+**Acceptance discipline:** keep S0 PERMANENT-HOLD and S1 DEFERRED-S0-HOLD. Reopen S4 as a cloud-only acceptance track, not as passed. Keep S6 scorer rules under D-109 and three qualitative demo sessions under D-116 D3. Full CI must remain green on Windows and Ubuntu. Never use CI or fake providers as live cloud acceptance evidence.
+
+## Historical D-116 owner-approved scope (superseded in part by D-117)
+
+This paragraph records the historical D-116 disposition before D-117. Its D1 no-command and D2 local-3B/comparison restrictions are superseded within D-117's cloud-only scope. D3 remains unchanged: three owner-reviewed demo sessions are qualitative only; no scorer output or confusion table is permitted from three sessions. D-109's 10 genuine sessions, both good/bad owner labels, and labels committed and hashed before scorer output remain mandatory for scoring.
+
+R1 is historically closed; D-117 adds a new cloud-execution implementation track. **R2 remains partial:** PR #87 hardening is merged and CI-verified, but the S7 live rerun and session-scoped approval work remain outstanding. The proposed retrieval-rank split was reviewed and not adopted (DBG-120). **R3 has not started:** no demo JSONLs, owner-reviewed summary, measured cold-start time, Windows quickstart, or demo script are claimed. See `docs/STATE.md` for the authoritative compact state table. S6 and S7 remain open.
 
 # Build plan closeout and remaining work (2026-11-13)
 
@@ -31,9 +50,9 @@ This section defines the current sample-prototype scope. Historical runbooks and
 ## Binding prototype scope
 
 - **D-115:** This is a sample/research prototype. No npm package, release archive, hosted distribution, or model-weight distribution is planned. The GitHub repository visibility remains unchanged; it is currently public. Do not create a package/release pipeline for this scope.
-- **D-110:** S0 / ARCH-01 remains PERMANENT-HOLD. Do not run Docker, WSL, Crabbox transport probes, retries, workarounds, or host-execution substitutes. The governed CLI defaults to sandbox disabled, rejects auto-detection, and never offers host commands. S1 remains DEFERRED-S0-HOLD.
-- **D-114:** Use only `qwen2.5-coder:3b-instruct` for model-driven acceptance and local model workflows. Qwen2.5-Coder-7B artifact verification/distribution is OUT OF SCOPE, not passed. This does not authorize redistribution of the 3B model.
-- **D-112:** S4 remains PARTIAL / BLOCKED-S0-PERMANENT-HOLD. Do not attempt full governed coding tasks that require target-project command/test execution while D-110 holds.
+- **D-110 / D-117:** S0 / ARCH-01 remains PERMANENT-HOLD. Do not run Docker, WSL, Crabbox transport probes, retries, or workarounds. D-117 authorizes only a separate remote cloud sandbox; no host execution or local fallback. S1 remains DEFERRED-S0-HOLD.
+- **D-114 / D-117:** The 3B-only model testing restriction is superseded for new acceptance by D-117's cloud-hosted model testing policy. Qwen2.5-Coder-7B artifact verification/distribution remains OUT OF SCOPE under D-115; no model weights may be distributed.
+- **D-112 / D-117:** S4 remains NOT PASSED. Its prior S0 block is superseded only for a new cloud-sandbox acceptance path. No local S0 work or host execution is authorized.
 - **D-109:** S6 prototype evaluation requires at least 10 distinct genuine model-driven sessions; use 20+ when available. The owner labels them before scorer output is generated/viewed. Require both good and bad labels. Report class counts, raw agreement, and confusion table. Mark the result prototype-grade, not calibrated.
 - **Code present, scripted tests, and green CI are not external acceptance.** Preserve raw owner evidence and report unknowns as unknown.
 
@@ -46,7 +65,7 @@ This section defines the current sample-prototype scope. Historical runbooks and
 | S0 / ARCH-01 | PERMANENT-HOLD (D-110) | No further work unless a new explicit owner decision supersedes D-110. Not a prototype completion blocker under this scope. |
 | S1 | DEFERRED-S0-HOLD | No orphan-recovery real acceptance while S0 is held. |
 | S3 | CLOSED (D-111) | File-tool/policy live acceptance only. Does not imply sandbox, S0, S1, or S4 acceptance. |
-| S4 | PARTIAL / BLOCKED-S0-PERMANENT-HOLD (D-112) | No full coding task/target-project test run under current restrictions. Keep the narrow provider-connectivity evidence accurately scoped. |
+| S4 | REOPENED AS CLOUD-ONLY PLAN; NOT PASSED (D-117) | Implement and live-verify full coding tasks in a remote cloud sandbox. D-110 still holds local S0 and host execution. |
 | S5 / ENG-04 | DEFERRED / OUT OF SCOPE (D-115) | No distributable artifact is planned. Retain dependency/license inventory. Do not mark ENG-04 passed. Resolve the `json-bignum@0.0.3` archive provenance and inspect actual shipped notices only if a future distribution is explicitly approved. ENG-08 remains out of scope under D-114. |
 | S6 | PROTOTYPE EVALUATION OPEN | Evaluate at least 10 distinct genuine model-driven sessions (20+ if available), with owner labels committed and hashed before scorer output is generated/viewed. If genuine sessions or labels are unavailable, report S6 as PARTIAL; never synthesize evidence. |
 | S7 | TARGETED LIVE CHECKS OPEN | Run the real embedding-provider check and controlled live poisoning task against current merged main, using only the accepted 3B model. Inspect complete JSONL and fixture hashes. Require evidence-grounded output with no invented file contents. Do not use Docker, WSL, Crabbox, command sandbox, or host fallback. |
@@ -56,7 +75,7 @@ This section defines the current sample-prototype scope. Historical runbooks and
 
 ### 1. Implementation closeout
 
-PR #85 is merged and its post-merge CI is green. Repeated explicit reads are distributed across planned subtasks; downstream synthesis remains dependent on every required-read step. Do not reopen this implementation item unless the next live rerun provides a concrete regression. Preserve D-110/D-112/D-114 and all fail-closed policy gates.
+PR #85 is merged and its post-merge CI is green. Repeated explicit reads are distributed across planned subtasks; downstream synthesis remains dependent on every required-read step. Do not reopen this implementation item unless the next live rerun provides a concrete regression. Preserve D-110's local sandbox hold and all fail-closed policy gates; apply D-117 for cloud-only S4 and cloud model testing.
 
 ### 2. Complete focused S7 live checks
 
@@ -74,7 +93,7 @@ Run the repository's full check/test workflow after implementation and the focus
 
 ## No-go items
 
-Do not run S0/S1 sandbox acceptance, Docker/WSL/Crabbox probes, host command fallback, or S4 full target-project command/test acceptance. Do not use Qwen 7B or substitute another model for 3B acceptance. Do not invent S6 labels or sessions. Do not create package/release artifacts or claim ENG-04 passed under D-115. Do not start Phases 7/8 without separate scope approval.
+Do not run S0/S1 local sandbox acceptance, Docker/WSL/Crabbox probes, or host command fallback. S4 may proceed only through the separately approved remote cloud sandbox under D-117, after its provider and policy controls are implemented. Do not use Qwen 7B or substitute another model for 3B acceptance. Do not invent S6 labels or sessions. Do not create package/release artifacts or claim ENG-04 passed under D-115. Do not start Phases 7/8 without separate scope approval.
 
 ## Prototype completion report
 

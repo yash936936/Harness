@@ -2,7 +2,7 @@
 
 A multi-agent orchestration harness for coding tasks, built on [Cordis](https://github.com/cordiverse/cordis). Every capability (model access, tools, retrieval, memory, sandboxing, evaluation) is a swappable plugin; profiles compose them into runnable stacks, from a single-agent kernel (`profile-minimal`) to a governed coding stack (`profile-coding`).
 
-**Status (2026-11-13):** sample/research prototype. Main is `e8614f1` (PR #87 merged); post-merge CI run [#576](https://github.com/yash936936/Harness/actions/runs/43432058570) passed all seven jobs. D-116 freezes scope: no command execution; 3B remains the local/headline model with one restricted stronger OpenRouter comparison session; three owner-reviewed demo sessions are qualitative only, not scorer evidence. S6/S7 remain open, R2 is partial, and R3 demo work has not started. Main branch protection remains disabled. See [`docs/STATE.md`](docs/STATE.md), [`docs/status.md`](docs/status.md), [`docs/AUDIT-CLOSEOUT.md`](docs/AUDIT-CLOSEOUT.md), [`docs/debug.md`](docs/debug.md), and [`docs/decisions.md`](docs/decisions.md).(docs/status.md), [`docs/AUDIT-CLOSEOUT.md`](docs/AUDIT-CLOSEOUT.md), [`docs/debug.md`](docs/debug.md), and [`docs/decisions.md`](docs/decisions.md).
+**Status (2026-11-13):** sample/research prototype. D-117 authorizes full development command execution only inside a remote cloud sandbox and cloud-hosted model testing. No host execution or local fallback. D-110 still holds Docker/WSL/Crabbox S0. Cloud provider integration and live acceptance are not yet complete. See [docs/STATE.md](docs/STATE.md), [docs/architecture.md](docs/architecture.md), [docs/BUILD-PLAN.md](docs/BUILD-PLAN.md), and [docs/decisions.md](docs/decisions.md).
 
 ```
 npm ci
@@ -18,14 +18,14 @@ Use the orchestrated, policy-gated path (separate from legacy single-call `run`)
 
 ```powershell
 npm ci
-npm run harness -- code --provider ollama --model <installed-model-tag> [--timeout-ms 300000] "Inspect the project and explain the main request flow."
+npm run harness -- code --provider openrouter --model <cloud-model-id> --sandbox-provider <cloud-provider> "Inspect the project, run tests, and explain the result."
 ```
 
-Sandbox probing and command execution are disabled under D-110. The `code` command defaults to `--sandbox none`; the compatibility flag may be supplied explicitly, but `auto` is rejected. The CLI saves JSONL sessions in `.harness/sessions/`, asks before operations held by policy, and never falls back to host command execution. File edits remain policy-gated.
+D-117 plans command execution through an explicitly selected remote cloud sandbox only. The CLI integration and provider are not yet implemented, so this example is a target interface, not a currently working command. No host execution or local fallback is permitted. File edits and commands remain policy-gated. Sandbox and model-provider egress require separate consent.
 
 `--timeout-ms` sets the Ollama model-request timeout in milliseconds. It must be an integer from 1 to 4,294,967,295; when omitted, Ollama keeps its 120-second default. This is separate from the 120-second approval timeout. The option is Ollama-only.
 
-OpenRouter uses environment-only credentials and per-project egress consent:
+Cloud model providers use environment-only credentials and per-project egress consent. Model egress is separate from sandbox egress:
 
 ```powershell
 $env:OPENROUTER_API_KEY = "<set locally; do not paste>"
