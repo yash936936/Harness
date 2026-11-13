@@ -1,5 +1,5 @@
 // Retrieval ranking service: combines lexical BM25 with optional semantic results.
-import { realpathSync } from 'node:fs'
+import { lstatSync, realpathSync } from 'node:fs'
 import { isAbsolute, relative, resolve, sep } from 'node:path'
 import { Context, Service } from 'cordis'
 import {
@@ -46,6 +46,7 @@ export class RetrievalRank extends Service {
   static inject = ['retrievalGrep', 'retrievalParse']
 
   private readonly root: string
+  private readonly rootIdentity: { dev: number; ino: number }
   private readonly collectionName: string
   private readonly k: number
   private readonly weight: number
@@ -63,7 +64,14 @@ export class RetrievalRank extends Service {
   constructor(ctx: Context, config: RetrievalRankConfig) {
     super(ctx, 'retrievalRank')
     if (!config?.root || !isAbsolute(config.root)) throw new RetrievalRankConfigError('retrieval-rank: config.root must be an absolute path')
-    this.root = config.root
+    try {
+      this.root = realpathSync(config.root)
+      const rootStat = lstatSync(this.root)
+      if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) throw new Error('not a real directory')
+      this.rootIdentity = { dev: rootStat.dev, ino: rootStat.ino }
+    } catch (error) {
+      throw new RetrievalRankConfigError(`retrieval-rank: config.root cannot be pinned to a real directory (${error instanceof Error ? error.message : String(error)})`)
+    }
     this.collectionName = config.collection ?? 'code-chunks'
     this.k = config.k ?? 10
     this.weight = config.weight ?? 0.5
@@ -91,7 +99,10 @@ export class RetrievalRank extends Service {
 
   private realRoot(): string | undefined {
     try {
-      return realpathSync(this.root)
+      const current = lstatSync(this.root)
+      if (!current.isDirectory() || current.isSymbolicLink() || realpathSync(this.root) !== this.root ||
+          (this.rootIdentity.ino !== 0 && (current.ino !== this.rootIdentity.ino || current.dev !== this.rootIdentity.dev))) return undefined
+      return this.root
     } catch {
       return undefined
     }
