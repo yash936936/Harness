@@ -115,6 +115,18 @@ function validate(config: unknown): asserts config is ProfileCodingConfig {
   }
   if (typeof c['projectId'] !== 'string' || !c['projectId'].trim()) throw new ProfileError('profile-coding: projectId is required')
   if (typeof c['projectRoot'] !== 'string' || !isAbsolute(c['projectRoot'])) throw new ProfileError('profile-coding: projectRoot is required and must be an absolute path')
+  if (c['sandbox'] && typeof c['sandbox'] === 'object') {
+    const sandbox = c['sandbox'] as Record<string, unknown>
+    const hasProvider = sandbox['crabbox'] !== undefined || sandbox['cubesandbox'] !== undefined
+    if (hasProvider && sandbox['default'] === undefined) {
+      throw new ProfileError('profile-coding: sandbox.default must explicitly select one configured provider; automatic provider selection is disabled (D-117)')
+    }
+    if (sandbox['default'] !== undefined && sandbox['default'] !== 'crabbox' && sandbox['default'] !== 'cubesandbox') {
+      throw new ProfileError('profile-coding: sandbox.default must name a configured provider')
+    }
+    if (sandbox['default'] === 'crabbox' && sandbox['crabbox'] === undefined) throw new ProfileError('profile-coding: sandbox.default names crabbox but it is not configured')
+    if (sandbox['default'] === 'cubesandbox' && sandbox['cubesandbox'] === undefined) throw new ProfileError('profile-coding: sandbox.default names cubesandbox but it is not configured')
+  }
   if ('policy' in c) {
     const p = c['policy']
     if (p === false || p === null || (typeof p !== 'object' && p !== undefined)) throw new ProfileError('profile-coding: the policy gates cannot be disabled in this profile')
