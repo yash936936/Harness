@@ -171,7 +171,7 @@ export class VercelSandboxProvider implements SandboxProvider {
         ...(req.signal ? { signal: req.signal } : {}),
       }), req.signal)
       exitCode = command.exitCode
-      ;[stdout, stderr] = await Promise.all([command.stdout(), command.stderr()])
+      ;[stdout, stderr] = await raceAbort(Promise.all([command.stdout(), command.stderr()]), req.signal)
     } catch (error) {
       if (req.signal?.aborted) commandError = req.signal.reason ?? error
       else {
