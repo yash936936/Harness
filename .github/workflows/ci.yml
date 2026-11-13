@@ -64,7 +64,7 @@ jobs:
       - run: npm ci
       - run: npm run license:inventory
       - name: inventory must be committed
-        run: git diff --exit-code THIRD_PARTY_LICENSES.md
+        run: git diff --exit-code THIRD_PARTY_LICENSES.generated.md
   not-run:
     name: acceptance gates NOT run by CI
     runs-on: ubuntu-latest
