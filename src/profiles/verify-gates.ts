@@ -4,6 +4,7 @@
  */
 import type { Context } from 'cordis'
 import { ProfileError } from './errors.js'
+import { CONFIDENCE_FIELD } from '../bundles/policy-gates/index.js'
 
 /** The self-test runs under this session id, so it never lands in a real task's log. */
 export const SELFTEST_SESSION = 'profile-coding-selftest'
