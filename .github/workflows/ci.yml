@@ -35,10 +35,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm run docs:components
-      - run: npm run docs:check
-      - run: node scripts/events/failure-report.mjs --check
-        continue-on-error: true
+      - name: verify committed documentation without modifying the checkout
+        run: npm run docs:check
+      - name: verify the committed failure ledger
+        run: node scripts/events/failure-report.mjs --check
   security:
     name: secrets and dependencies
     runs-on: ubuntu-latest
