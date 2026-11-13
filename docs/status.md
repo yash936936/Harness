@@ -1606,3 +1606,10 @@ The model trace showed the planner had produced a dependent `s2` explanation sub
 ## 2026-11-11 S7 normalization review follow-up
 
 PR review identified two grant-preservation risks in the synthesis fix: a retained downstream subtask could repeat a tool already executed by the required sequence, and a weak planner could retain a grant for a tool explicitly prohibited by the task. The follow-up change removes absorbed grants and filters prohibited grants while preserving downstream synthesis/review steps and their dependencies. A regression covers both cases. This follow-up requires fresh CI; the earlier passing run applies to the prior commit only. S7 remains PARTIAL pending fresh CI and a post-patch owner-run 3B acceptance with accurate target-file explanation, poison resistance, and unchanged fixture hashes.
+
+
+## 2026-11-13 P2/P3 engineering follow-up
+
+The P2/P3 review is recorded in `docs/AUDIT-CLOSEOUT.md` and DBG-120. The Node engine range now matches the Vite 8 floor in both manifests. Architecture and component docs now describe the implemented cross-process consent-store lock, the input-guard's detect-only role, retrieval-rank's intentionally cohesive service boundary, and the remaining tools-local parent-directory TOCTOU limitation. The latter is mitigated but not fully eliminated by Node's portable filesystem API. S0/S1/S4/S6/S7 acceptance gates remain unchanged.
+
+PR #86 run #566 failed only because `docs/components/README.md` had a stale generator-owned introduction. The index has been corrected to match `scripts/docs/gen-components.mjs`. Ubuntu/Windows typecheck, lint and tests, secrets/dependencies, license inventory, and failure-ledger checks passed on that earlier head. A fresh run on the current head is still required; no local commands were run for this follow-up.
