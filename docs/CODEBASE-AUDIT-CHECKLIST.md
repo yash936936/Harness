@@ -161,6 +161,7 @@ This is a staged, evidence-based audit. Review each file, then each folder, then
 | AUD-043 | P2 | `scripts/ci/secret-scan.mjs` | The secret scanner skips every file under `test/`, not just known fake-secret fixtures. A real credential accidentally committed in a test or fixture is invisible to CI. | Confirmed; use narrow allowlisted fixtures or pattern-specific test exemptions |
 | AUD-044 | P2 | `src/bundles/model-adapter/rate-limiter.ts`, `src/bundles/app-core/budgets.ts` | Per-minute request timestamps, in-flight concurrency, and budget reservations are process-local. Multiple Harness processes using the same provider/state path can exceed per-minute or session/day limits even though daily rate counters use a file lock. | Confirmed scaling boundary; use cross-process reservations or explicitly scope guarantees per process |
 | AUD-045 | P2 | `package.json`, `.github/workflows/ci.yml` | `package.json` declares Node `^20.19.0 || >=22.12.0`, but CI tests only Node 22. Regressions specific to the supported Node 20 line can merge unnoticed. | Confirmed coverage gap; add Node 20.19 to the matrix or narrow engines |
+| AUD-046 | P2 | `src/bundles/router/backends.ts` | `CommandBackend` accepts any positive safe-integer `timeoutMs` and passes it to `setTimeout`. Values above 2,147,483,647 ms are clamped by Node to 1 ms, causing premature backend termination. | Fixed on audit branch: cap timer-backed timeout and add boundary regression test |
 
 ### Verification corrections
 
