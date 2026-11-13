@@ -137,7 +137,8 @@ export async function runCodeTask(io: WizardIO, options: CodeTaskOptions): Promi
     ctx = await bootProfileCoding(config)
     const sessionId = ctx.log.create()
     // D-110 is a hard prohibition: do not perform host-environment capability checks.
-    const offeredTools = ctx.tools.list().map((tool) => tool.name).filter((name) => name !== COMMAND_TOOL)
+    const hostProcessTools = new Set([COMMAND_TOOL, SEARCH_TOOL, LIST_TOOL])
+    const offeredTools = ctx.tools.list().map((tool) => tool.name).filter((name) => !hostProcessTools.has(name))
     io.print('no sandbox: commands disabled, file tools still gated')
     await ctx.log.append(sessionId, 'sandbox.unavailable', {
       reason: 'sandbox probing and command execution disabled under D-110; no host fallback',
