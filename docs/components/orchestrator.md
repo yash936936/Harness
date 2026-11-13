@@ -30,3 +30,6 @@ The coding profile installs `Orchestrator`. Callers use `ctx.orchestrator.plan()
 - Cloud command execution is not enabled in the CLI. D-117/D-118 require remote cloud sandbox execution only, and the Vercel workspace/result lifecycle is incomplete.
 - D-110 permanently holds the separate Docker/WSL/Crabbox S0 route; this does not prohibit the separately approved cloud route.
 - See [STATE.md](../STATE.md).
+
+---
+**Next:** Return to [context.md](../../context.md).
