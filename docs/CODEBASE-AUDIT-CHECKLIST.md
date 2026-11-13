@@ -131,6 +131,9 @@ This is a staged, evidence-based audit. Review each file, then each folder, then
 | AUD-018 | P2 | `src/bundles/router/index.ts`, `src/bundles/router/backends.ts` | Router decisions are retained forever in `rows` although stats only need aggregates. Also `shadow()` uses the same resolver that increments `failures`, contradicting the documented claim that shadow runs do not change stats. | Confirmed; fix pending |
 | AUD-019 | P2 | `src/bundles/model-store/index.ts` | The NUL check uses the two-character string `\\0` rather than the NUL character, so IDs containing NUL are not rejected as intended. | Confirmed; fix pending |
 | AUD-020 | P2 | `docs/STATE.md`, `docs/ROADMAP.md`, related dependency status text | Current state still says the nested Zod audit is unresolved and cites an old failing CI run, despite the merged scoped override and passing audit. | Confirmed; docs update pending |
+| AUD-021 | P1 | `src/bundles/sandbox-vercel/index.ts` | If cancellation happens while `Sandbox.create()` is pending, a late-created sandbox is deleted in a detached promise. Delete failure is swallowed, and the cancelled call returns before cleanup is confirmed. A cloud lease can leak without an audit result. | Confirmed; failure-path test/fix pending |
+| AUD-022 | P2 | `src/bundles/sandbox-vercel/index.ts`, `src/bundles/sandbox/index.ts` | Command timeout accepts any positive safe integer, but Node timers clamp delays above 2,147,483,647 ms to 1 ms. A large timeout can therefore time out almost immediately. | Confirmed; boundary test/fix pending |
+| AUD-023 | P2 | `src/bundles/sandbox-vercel/index.ts` | `maxOutputBytes` is enforced only after `stdout()` and `stderr()` have returned complete strings. The returned output is bounded, but peak memory use is not. | Confirmed limitation; streaming or SDK-side cap needed |
 
 ### Verification corrections
 
@@ -146,5 +149,6 @@ This is a staged, evidence-based audit. Review each file, then each folder, then
 - [~] Scripts: docs generation/check, secret scan, historical apply-docs scripts, Crabbox/Cube/Vercel smoke and diagnostic scripts sampled. Full script inventory still pending.
 - [ ] Root configuration, complete CI workflow, every source file, every test, all fixtures, desktop benchmark, and cross-folder integration are not yet complete.
 - [ ] No production code has been changed in this audit branch yet. Findings are recorded as candidates; fixes begin only after the affected folder and its regression tests are fully traced.
+- [x] Main CI baseline rechecked: run 43509121973 on main commit 81d7bf837254b8526b60aa240d6a31923647a890 completed successfully. docs/STATE.md still cites run #613 as failing and repeats the superseded Zod issue.
 
 These are first-pass findings, not the final register. Continue reading the remaining files and verify each finding against tests/callers before changing behavior. Do not mark a folder complete until every file in its scope has been read and its imports/callers/tests have been traced.
