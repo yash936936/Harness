@@ -331,18 +331,15 @@ class MemoryStore implements CredentialStore {
 }
 
 describe('wiring: profile-coding and doctor (5.1/5.2)', () => {
-  it('profile-coding registers the configured providers; none configured = empty, nothing remote by default', async () => {
+  it('profile-coding refuses held or unintegrated sandbox providers', async () => {
     const root = realpathSync(mkdtempSync(join(tmpdir(), 'harness-sbx-pc-'))); dirs.push(root); mkdirSync(join(root, 'src'))
     const bare = await bootProfileCoding({ projectId: 'p', projectRoot: root, sessionLog: { memory: true } })
     expect(bare.sandbox.status()).toEqual([])
     const s = state()
-    const full = await bootProfileCoding({
+    await expect(bootProfileCoding({
       projectId: 'p', projectRoot: root, sessionLog: { memory: true },
       sandbox: { crabbox: { bin: process.execPath, binArgs: [FAKE, s.file] }, cubesandbox: { apiUrl: 'https://cube.example.internal', template: 't', client: fakeClient().client }, default: 'crabbox' },
-    })
-    expect(full.sandbox.status().map((x) => `${x.name}:${x.destination}:${x.default}`)).toEqual(['crabbox:local:true', 'cubesandbox:remote:false'])
-    // a remote provider is not usable until the project consents and allowlists its host
-    await expect(full.sandbox.run({ command: ['true'], provider: 'cubesandbox' })).rejects.toMatchObject({ kind: 'consent' })
+    } as any)).rejects.toThrow(/D-110.*D-118/)
   })
   it('doctor lists sandboxes only when given, remote ones flagged as destinations', async () => {
     const budgets = new Budgets({}); const credentials = new AutoCredentialStore(new MemoryStore(), new MemoryStore())
