@@ -2097,3 +2097,14 @@ This is deterministic scripted acceptance coverage, not a live Ollama run. S3 re
 **Regression coverage:** The planner test now verifies that a downstream read_file grant is removed after the required read sequence and a downstream write_file grant is removed when the task says not to use it. The dependent synthesis subtask remains in the normalized plan.
 
 **Validation boundary:** This follow-up is committed separately from the previously CI-green synthesis-preservation patch. Fresh CI and a post-patch live 3B S7 acceptance run are required. S7 remains PARTIAL.
+
+
+## DBG-120 — P2/P3 engineering review follow-up — 2026-11-13
+
+**Corrected:** the root Node engine range and lockfile metadata now match the Vite 8 supported runtime floor (`^20.19.0 || >=22.12.0`). The architecture guide's FileConsentStore note was stale: writes are cross-process locked and atomically renamed, while reads reject symlinks and verify the opened file identity. The component guide now records the actual implementation and its remaining hostile-directory race boundary.
+
+**Security boundary clarification:** input-guard pattern scanning is detect-only. A miss proves nothing, and a hit does not authorize or deny an action. Policy gates and tool grants remain the enforcement controls. Retrieval-rank was reviewed again: file access, chunking, and text ranking are already extracted; index lifecycle remains coupled to the same collection, embedding fingerprint, stale-content, and search semantics, so another class split is not justified.
+
+**Residual risk:** tools-local validates resolved paths and directory identity before writes, but a hostile same-user process can still race the final identity check and filesystem syscall. Node's portable API does not provide the required directory-relative operations. This remains an explicit limitation, not a fully fixed race.
+
+**Validation boundary:** edits were made through GitHub's Git data API. No local npm install, typecheck, lint, or test command was run. PR CI is required to verify the engine metadata and documentation checks. S0/S1/S4/S6/S7 acceptance dispositions are unchanged.

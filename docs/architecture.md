@@ -54,8 +54,12 @@ and size.
   added only at the HTTP header inside its `send()`, never part of
   `CompletionRequest`). `redactValue` is what 1B.1 actually adds: scrubbing
   *other* secrets that could ride along inside message or tool content.
-- **Known limitation:** `FileConsentStore` is a plain read-modify-write
-  JSON file - correct for one process, not concurrency-safe.
+- **Concurrency and file-safety:** `FileConsentStore` serializes updates
+  across processes with `withFileLock`, publishes via atomic rename, and
+  rejects symlinked/non-regular files with an opened-descriptor identity
+  check. This protects concurrent updates and the read path; it does not
+  claim protection against a hostile process with write access to the
+  containing directory racing the final rename.
 
 ### model-adapter (`bundle-model-adapter`)
 - **Responsibility:** plug-and-play model provider access via `ctx.llm`.
@@ -387,7 +391,13 @@ and size.
 - **Depends on:** `log`, `tools`.
 
 ### tools-local (`bundle-tools-local`) - BUILT (D-080)
-- **Responsibility:** `ctx.localTools` - `read_file` (read-only), `edit_file`, `write_file` and `run_command` (all real-fs-write; no sandbox exists yet). Paths are confined to the project root with symlinks resolved; `.git` is never touched; commands run with no shell and an env allowlist. Exports `commandRisk`, the independent signal `policy-gates` needs to judge commands; without it every command is held.
+- **Responsibility:** `ctx.localTools` - `read_file` (read-only), `edit_file`
+  and `write_file` (real-fs-write), plus `run_command` (sandbox-write).
+  File paths are confined to the project root with symlinks resolved;
+  `.git` is never touched. Commands run without a shell and only through a
+  registered sandbox provider, with a controlled environment. Exports
+  `commandRisk`, the independent signal `policy-gates` needs to judge
+  commands; without it every command is held.
 - **Location:** `src/bundles/tools-local/`
 - **Depends on:** `tools`, `subprocess` (and `policy-gates` for the `confidence` schema field only).
 - **Config surface:** root, maxReadChars, maxFileBytes, commandTimeoutSeconds, maxCommandTimeoutSeconds, maxCommandOutputBytes, envAllowlist, allowSecretReads.

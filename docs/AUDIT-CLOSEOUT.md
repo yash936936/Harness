@@ -12,6 +12,18 @@
 - P1 follow-up: PR #86 proposes enforcing D-110 in the CLI and making documentation/failure-ledger CI checks read-only and blocking. It is not merged and is not part of the main baseline above. Its CI must pass before merge; the stricter docs check is expected to expose component docs missing from the committed tree.
 
 
+## P2/P3 engineering closeout — 2026-11-13
+
+| Finding | Disposition | Evidence / boundary |
+|---|---|---|
+| Node engine range understated the Vite/Vitest runtime floor | FIXED IN PR #86 follow-up | Root manifest and lockfile now declare Node `^20.19.0 || >=22.12.0`, matching the installed Vite 8 runtime range. CI must verify clean installs on the workflow's Node 20 runner. |
+| Local file-tool write TOCTOU | MITIGATED, RESIDUAL RISK DOCUMENTED | Path resolution, symlink-aware confinement, directory identity snapshots, and pre-write identity checks remain. A hostile concurrent process can still race the final check and syscall because Node's portable API lacks directory-relative `openat`/`renameat`. This is not marked fully fixed; do not claim same-user hostile-process isolation. |
+| Input-guard heuristic could be mistaken for a security boundary | CLARIFIED | Source and component docs state that pattern scanning is detect-only and evadable. Action authorization remains in policy gates and tool grants; a clean scan is not evidence of safe content. Existing tests cover positive/benign cases and real-profile action denial. |
+| Retrieval-rank service has several responsibilities | REVIEWED, NO FURTHER SPLIT | Secure file access, chunking, and text ranking are already separate modules. Search and index lifecycle remain together because they share collection identity, embedding fingerprints, stale-content checks, and ranking semantics. Avoid splitting a cohesive service only to reduce line count. |
+| FileConsentStore concurrency documentation was stale | FIXED | The store uses cross-process `withFileLock`, atomic rename, symlink rejection, and opened-file identity checks. Architecture docs now describe the implemented behavior and its directory-race boundary. |
+
+**Not code-closeable in this pass:** S0 remains PERMANENT-HOLD under D-110; S1 remains deferred; S4 remains blocked by D-110/D-112; S6 still requires at least 10 genuine owner-labelled sessions under D-109; S7 poisoning still needs a fresh owner-run 3B fixture and S7 embedding still needs the live `nomic-embed-text` checks. These are acceptance gates, not P2/P3 code defects, and must not be relabelled as fixed.
+
 ## Current acceptance ledger
 
 | Area | Current status | Evidence and outstanding work |

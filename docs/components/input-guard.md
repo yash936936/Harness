@@ -22,7 +22,7 @@ The coding profile installs `InputGuard` with the session log and tool registry.
 
 - Pattern scanning is heuristic and can miss indirect, encoded, or novel prompt injection.
 - A fence is a prompt-format convention, not a security boundary.
-- Policy gates and tool grants enforce actions independently of this detector.
+- Policy gates and tool grants enforce actions independently of this detector. Never use scan() or a clean scan result as an authorization decision, proof that content is safe, or a substitute for action-level validation.
 - See D-083 and the prompt-injection notes in `docs/status.md`.
 
 ---
