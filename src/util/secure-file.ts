@@ -108,3 +108,39 @@ export function readBufferFileSyncNoFollow(path: string): Buffer {
   try { return readFileSync(fd) }
   finally { closeSync(fd) }
 }
+
+/** Append to a regular state file without following a final-component symlink. */
+export async function appendTextFileNoFollow(path: string, text: string): Promise<void> {
+  await assertNoSymlinkParents(path)
+  const noFollow = typeof constants.O_NOFOLLOW === 'number' ? constants.O_NOFOLLOW : 0
+  const handle = await open(path, constants.O_WRONLY | constants.O_APPEND | constants.O_CREAT | noFollow, 0o600)
+  try {
+    const opened = await handle.stat()
+    const current = await lstat(path)
+    if (!current.isFile() || current.isSymbolicLink() ||
+        (opened.ino !== 0 && (opened.ino !== current.ino || opened.dev !== current.dev))) {
+      throw new Error(`state file changed while opening for append: ${path}`)
+    }
+    await assertNoSymlinkParents(path)
+    await handle.writeFile(text, 'utf8')
+    await handle.sync()
+  } finally { await handle.close() }
+}
+
+/** Truncate a regular state file without following a final-component symlink. */
+export async function truncateFileNoFollow(path: string, length: number): Promise<void> {
+  await assertNoSymlinkParents(path)
+  const noFollow = typeof constants.O_NOFOLLOW === 'number' ? constants.O_NOFOLLOW : 0
+  const handle = await open(path, constants.O_WRONLY | noFollow)
+  try {
+    const opened = await handle.stat()
+    const current = await lstat(path)
+    if (!current.isFile() || current.isSymbolicLink() ||
+        (opened.ino !== 0 && (opened.ino !== current.ino || opened.dev !== current.dev))) {
+      throw new Error(`state file changed while opening for truncate: ${path}`)
+    }
+    await assertNoSymlinkParents(path)
+    await handle.truncate(length)
+    await handle.sync()
+  } finally { await handle.close() }
+}
