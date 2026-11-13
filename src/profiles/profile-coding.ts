@@ -22,8 +22,6 @@ import { Orchestrator, type OrchestratorConfig } from '../bundles/orchestrator/i
 import { CommandBackend, Router, WorkerBackend, type CommandBackendConfig, type DecisionClass } from '../bundles/router/index.js'
 import { NEEDLE_PIN } from '../bundles/model-store/index.js'
 import { Sandbox } from '../bundles/sandbox/index.js'
-import { CrabboxProvider, type CrabboxConfig } from '../bundles/sandbox-crabbox/index.js'
-import { CubeSandboxProvider, type CubeSandboxConfig } from '../bundles/sandbox-cubesandbox/index.js'
 import { LocalTools, commandRisk, type LocalToolsConfig } from '../bundles/tools-local/index.js'
 
 import { EvalRunner, type EvalConfig } from '../bundles/eval-runner/index.js'
@@ -68,11 +66,6 @@ export interface ProfileCodingConfig {
   /** Skills are never auto-discovered (D-0xx): without `dirs` the skills bundle is not loaded. */
   skills?: SkillsConfig
   /**
-   * Isolated execution providers (5.1, 5.2). Absent = no sandbox provider registered (`ctx.sandbox` still exists, empty).
-   * Remote providers (cubesandbox, any non-local crabbox provider) still need egress consent and an allowlisted host to run.
-   * `default` names the provider used when a request names none.
-   */
-  /**
    * The router (4.5). Absent = `ctx.router` exists and owns nothing: every decision goes to the worker (then rules). A class goes in
    * `owned` only after it beat the worker on the frozen suite (`scripts/eval-router.ts`). Needle files missing = skipped silently.
    * NOTE (ARCH-02): the harness's own flows consult the router at ONE point, the `tool` class on the first model call of a run. `agent` and
@@ -81,7 +74,6 @@ export interface ProfileCodingConfig {
    * `needle.expectedSha256` defaults to the pinned Needle digest.
    */
   router?: { needle?: CommandBackendConfig; owned?: DecisionClass[]; backendTimeoutMs?: number; shadowTool?: boolean }
-  sandbox?: { crabbox?: CrabboxConfig; cubesandbox?: CubeSandboxConfig; default?: 'crabbox' | 'cubesandbox' }
   retrieval?: {
     grep?: Omit<RetrievalGrepConfig, 'root'>
     treesitter?: RetrievalTreesitterConfig
@@ -101,13 +93,16 @@ export interface ProfileCodingConfig {
   eval?: EvalConfig
 }
 
-const ALLOWED_KEYS = new Set(['projectId', 'projectRoot', 'sessionLog', 'egress', 'modelAdapter', 'toolRegistry', 'subprocess', 'agentLoop', 'policy', 'inputGuard', 'localTools', 'memory', 'skills', 'retrieval', 'orchestrator', 'sandbox', 'router', 'eval', 'semanticMemory'])
+const ALLOWED_KEYS = new Set(['projectId', 'projectRoot', 'sessionLog', 'egress', 'modelAdapter', 'toolRegistry', 'subprocess', 'agentLoop', 'policy', 'inputGuard', 'localTools', 'memory', 'skills', 'retrieval', 'orchestrator', 'router', 'eval', 'semanticMemory'])
 const GATE_WORDS = /(polic|gate|guardrail|approval|confidence|deny)/i
 
 /** Refuse, at boot and by name, anything that tries to switch the gates off or weaken them below the floor. */
 function validate(config: unknown): asserts config is ProfileCodingConfig {
   if (!config || typeof config !== 'object') throw new ProfileError('profile-coding: config must be an object')
   const c = config as Record<string, unknown>
+  if ('sandbox' in c) {
+    throw new ProfileError('profile-coding: sandbox provider integration is unavailable. Crabbox is permanently held by D-110; CubeSandbox is out of scope by D-118; Vercel workspace transfer, result sync, lifecycle audit, and policy integration are not complete. Do not enable COMMAND_TOOL.')
+  }
   for (const key of Object.keys(c)) {
     if (ALLOWED_KEYS.has(key)) continue
     if (GATE_WORDS.test(key)) throw new ProfileError(`profile-coding: "${key}" looks like a way to change the policy gates, and profile-coding cannot run with them off or altered. The only gate settings are inside "policy".`)
@@ -115,18 +110,6 @@ function validate(config: unknown): asserts config is ProfileCodingConfig {
   }
   if (typeof c['projectId'] !== 'string' || !c['projectId'].trim()) throw new ProfileError('profile-coding: projectId is required')
   if (typeof c['projectRoot'] !== 'string' || !isAbsolute(c['projectRoot'])) throw new ProfileError('profile-coding: projectRoot is required and must be an absolute path')
-  if (c['sandbox'] && typeof c['sandbox'] === 'object') {
-    const sandbox = c['sandbox'] as Record<string, unknown>
-    const hasProvider = sandbox['crabbox'] !== undefined || sandbox['cubesandbox'] !== undefined
-    if (hasProvider && sandbox['default'] === undefined) {
-      throw new ProfileError('profile-coding: sandbox.default must explicitly select one configured provider; automatic provider selection is disabled (D-117)')
-    }
-    if (sandbox['default'] !== undefined && sandbox['default'] !== 'crabbox' && sandbox['default'] !== 'cubesandbox') {
-      throw new ProfileError('profile-coding: sandbox.default must name a configured provider')
-    }
-    if (sandbox['default'] === 'crabbox' && sandbox['crabbox'] === undefined) throw new ProfileError('profile-coding: sandbox.default names crabbox but it is not configured')
-    if (sandbox['default'] === 'cubesandbox' && sandbox['cubesandbox'] === undefined) throw new ProfileError('profile-coding: sandbox.default names cubesandbox but it is not configured')
-  }
   if ('policy' in c) {
     const p = c['policy']
     if (p === false || p === null || (typeof p !== 'object' && p !== undefined)) throw new ProfileError('profile-coding: the policy gates cannot be disabled in this profile')
@@ -183,8 +166,6 @@ export async function bootProfileCoding(config: ProfileCodingConfig): Promise<Co
       onDecision: async (sid, d) => { await ctx.log.append(sid, 'router.decision', { class: d.class, choice: d.choice, source: d.source, requestSaved: d.requestSaved, latencyMs: d.latencyMs, skipped: d.skipped }, 'router') },
       backendTimeoutMs: config.router?.backendTimeoutMs,
     })
-    if (config.sandbox?.crabbox) ctx.sandbox.register(new CrabboxProvider(ctx.subprocess, { cwd: root, ...config.sandbox.crabbox }), { default: config.sandbox.default === 'crabbox' })
-    if (config.sandbox?.cubesandbox) ctx.sandbox.register(new CubeSandboxProvider(config.sandbox.cubesandbox), { default: config.sandbox.default === 'cubesandbox' })
     await ctx.plugin(AgentLoop, config.agentLoop)
     await ctx.plugin(Memory, { deriveLessons: true, ...config.memory })
     await ctx.plugin(SubagentScope)
