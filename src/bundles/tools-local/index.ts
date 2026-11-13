@@ -141,7 +141,9 @@ export class LocalTools extends Service {
     if (this.cmdTimeout > this.cmdTimeoutMax) throw new LocalToolsConfigError('tools-local: commandTimeoutSeconds cannot exceed maxCommandTimeoutSeconds')
     this.allowSecrets = config.allowSecretReads ?? false
 
-    for (const def of [this.readTool(), this.editTool(), this.writeTool(), this.commandTool()]) this.ctx.effect(() => this.ctx.tools.register(def))
+    const definitions: ToolDefinition<any>[] = [this.readTool(), this.editTool(), this.writeTool()]
+    if (config.enableCommand !== false) definitions.push(this.commandTool())
+    for (const def of definitions) this.ctx.effect(() => this.ctx.tools.register(def))
   }
 
   /** The real path of the project root the tools are confined to. */
