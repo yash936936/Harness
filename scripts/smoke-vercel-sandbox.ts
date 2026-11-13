@@ -17,7 +17,7 @@ async function main(): Promise<void> {
   })
   await ctx.egress.grantConsent()
   await ctx.plugin(Sandbox)
-  ctx.sandbox.register(new VercelSandboxProvider())
+  ctx.sandbox.register(new VercelSandboxProvider(), { default: true })
 
   const result = await ctx.sandbox.run({ command: ['true'], timeoutMs: 30_000 })
   if (result.exitCode !== 0 || !result.released || result.timedOut) {
