@@ -47,6 +47,12 @@ export function relNorm(realRoot: string, abs: string): string {
   return relative(realRoot, abs).replace(/\\/g, '/').toLowerCase()
 }
 
+/* Harness control-plane state is never exposed to model-facing file tools. */
+export function isHarnessInternal(rel: string): boolean {
+  const normalized = rel.replace(/\\\\/g, '/').toLowerCase()
+  return normalized === '.harness' || normalized.startsWith('.harness/') || normalized.includes('/.harness/') || normalized.endsWith('/.harness')
+}
+
 /** `.git` internals: never written through these tools, approval or not. */
 export function isGitInternal(rel: string): boolean {
   return rel === '.git' || rel.startsWith('.git/') || rel.includes('/.git/') || rel.endsWith('/.git')
