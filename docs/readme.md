@@ -2,13 +2,13 @@
 
 A TypeScript multi-agent coding harness built on Cordis. Bundles provide model access, tools, retrieval, memory, sandbox providers, policy gates and evaluation; profiles compose them into runnable stacks. This repository is a working prototype, not the complete multi-user desktop product.
 
-## Current status (2026-11-07)
+## Current status (2026-11-13)
 
-**Implemented and CI-tested:** the governed `npm run harness -- code` path, terminal approvals, fail-closed command-tool availability, Crabbox provider integration, Ollama/OpenRouter adapters, session logging, cross-process file locking and bounded semantic-memory retrieval. PR #11 and PR #12 are merged. GitHub Actions run #63 passed install, typecheck and tests on Ubuntu and Windows.
+**Implemented and CI-tested:** the governed `npm run harness -- code` path, terminal approvals, file-tool policy gates, Ollama/OpenRouter adapters, session logging, cross-process file locking and bounded semantic-memory retrieval. Main is `9ddfdd94710b3c05c593dc93228e18a810c2f5aa`; PR #85's post-merge CI run #541 passed all seven jobs on Ubuntu and Windows.
 
-**Not yet accepted against real services:** the Harness-to-Crabbox lease/run/release path still needs a real Windows + Docker run after the user-state environment fix. Live full-task acceptance through both OpenRouter and Ollama remains outstanding. Real-data evaluation, real embedding/poisoning acceptance, production dependency-notice review and immutable Qwen artifact provenance remain open. The harness run command remains a separate bare model call; use harness code for the governed prototype path.
+**Held or not yet accepted:** S0 / ARCH-01 is on permanent hold under D-110. The governed CLI must not probe Docker, WSL, or Crabbox and does not offer command execution or host fallback. S1 is deferred; full S4 command/test acceptance is blocked under D-112. S6 still needs genuine owner-labelled sessions. S7 still needs focused live embedding and 3B poisoning checks. S5 distribution work and Phases 7/8 are out of scope under D-115. A green CI run does not close these external gates.
 
-**Experimental or deferred:** CubeSandbox, Needle router evaluation/ownership, full desktop UI and sidecar, Qdrant, Langfuse, browser tool and multi-user support. Tauri remains provisional under D-048. See docs/status.md, docs/AUDIT-CLOSEOUT.md and docs/BUILD-PLAN.md for evidence and owner commands.
+**Experimental or deferred:** CubeSandbox, Needle router evaluation/ownership, full desktop UI and sidecar, Qdrant, Langfuse, browser tool and multi-user support. See `docs/status.md`, `docs/AUDIT-CLOSEOUT.md`, and `docs/BUILD-PLAN.md` for current evidence and owner actions.
 
 The per-phase notes below are historical implementation notes, not proof of current acceptance. docs/status.md and docs/AUDIT-CLOSEOUT.md are authoritative. Phase 1 (the profile-minimal kernel):
 
