@@ -42,8 +42,14 @@ describe('boot', () => {
       expect((ctx as any)[s], s).toBeTruthy()
     expect((ctx as any).skills).toBeUndefined() // never auto-discovered
     const by = Object.fromEntries(ctx.tools.list().map((t) => [t.name, t.actionClass]))
-    expect(by).toEqual({ search_code: 'read-only', list_code_files: 'read-only', read_file: 'read-only', edit_file: 'real-fs-write', write_file: 'real-fs-write', run_command: 'sandbox-write' })
+    expect(by).toEqual({ search_code: 'read-only', list_code_files: 'read-only', read_file: 'read-only', edit_file: 'real-fs-write', write_file: 'real-fs-write' })
+    expect(by).not.toHaveProperty('run_command')
     expect(by).not.toHaveProperty('__profile_selftest') // the probe is gone
+  })
+  it('does not expose run_command through direct profile callers before D-118 acceptance', async () => {
+    const ctx = await bootProfileCoding(cfg(project()))
+    expect(ctx.tools.has('run_command')).toBe(false)
+    await expect(ctx.tools.call('run_command', { command: 'node', args: ['--version'] }, { sessionId: 'direct-profile' })).resolves.toMatchObject({ ok: false })
   })
   it('the boot self-test left a deny decision under its own session id and nothing in the real ones', async () => {
     const ctx = await bootProfileCoding(cfg(project()))
