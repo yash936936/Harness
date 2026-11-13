@@ -1,74 +1,67 @@
-# Authoritative prototype state
+# Current project state
 
-Updated 2026-11-13 after D-117. D-117 is the current owner-approved direction for cloud-only command execution and cloud-hosted model testing. Historical D-116 wording remains in the decision history but is superseded where D-117 explicitly says so. Green CI is not live cloud acceptance.
+Updated 2026-11-14. This is the single compact source of truth for current scope, implementation status, blockers, and next work. Older status entries and audit snapshots are historical.
 
-## Scope and decisions
+## Binding decisions
 
-| Item | Current state | Evidence / boundary |
-|---|---|---|
-| D-117 | ACCEPTED: CLOUD EXECUTION | Full development command workflow only inside a remote cloud sandbox. No host fallback. Independent model and sandbox egress consent. Implementation and live acceptance remain open. |
-| D-110 | S0 PERMANENT-HOLD | No Docker/WSL/Crabbox probes, retries, workarounds or host execution. D-117 adds a separate cloud route and does not reopen S0. |
-| D-116 D1/D2 | SUPERSEDED IN PART | No-command and 3B-only testing constraints are superseded only by D-117's cloud sandbox and cloud-model testing scope. D-116 D3 remains unchanged. |
-| D-114 | SUPERSEDED FOR TEST MODEL SCOPE | Cloud-hosted models are the testing target under D-117. Qwen 7B artifact/distribution exclusion remains. |
-| D-116 D3 / D-109 | UNCHANGED | Three demo sessions are qualitative only. Scorer output still requires at least 10 genuine sessions, both owner labels, and labels committed/hashed before scoring. |
-| D-115 | UNCHANGED | Sample/research prototype; no distribution/release artifact. |
-| Branch protection | OPEN OWNER ACTION | Require PRs and ci-pass, up-to-date branches, no force-push/deletion, no admin bypass. |
-
-## Cloud execution architecture
-
-| Control | Required behavior |
+| Decision | Current rule |
 |---|---|
-| Destination | Remote cloud sandbox only; explicit provider selection; no local or host fallback |
-| Scope | Read/search, dependency install, build, test, Git status/diff/branch/commit, subject to policy |
-| Invocation | argv only; no implicit shell, pipes, redirects or command substitution |
-| Isolation | Per-task project snapshot, non-root workspace, resource/time/output limits, verified teardown |
-| Policy | Existing policy gates, risk classification, immutable approval snapshots and hard denials remain mandatory |
-| Egress | Independent model-provider and sandbox-provider consent/host allowlists; sandbox network disabled by default |
-| Secrets | No host credentials, model API keys, SSH agents or credential stores passed to sandbox |
-| Audit | Provider/host/lease, argv/cwd, policy and approval, timestamps, exit status, bounded redacted output, timeout/cancel and release status |
+| D-110 | S0 / Docker, WSL, Crabbox is PERMANENT-HOLD. S1 is deferred. No probes, retries, or workarounds. |
+| D-117 | Development commands may run only in an explicitly selected remote cloud sandbox. No host/local fallback. Cloud-hosted model testing is the target. |
+| D-118 | Vercel Sandbox is the first cloud provider. The provider-neutral sandbox interface remains. Selection does not mean integration or acceptance. |
+| D-116 D3 / D-109 | Three demo sessions are qualitative. Scoring requires 10+ genuine sessions (20+ if available), owner-authored good/bad labels committed and hashed before scoring. |
+| D-115 | Sample/research prototype only. No package, release, hosted distribution, or model-weight distribution. |
+| D-114 | Qwen 7B artifact work is excluded. The old 3B-only testing restriction is superseded only by D-117's cloud-hosted testing scope. |
 
-## Current implementation status
+## Current implementation
 
-The sandbox service already gates remote providers on project consent and host allowlisting. The sandbox provider interface and sandbox-backed command tool exist. The governed CLI still filters COMMAND_TOOL, and no cloud sandbox provider is selected or live-verified. Current Ollama adapter code does not establish API-key support for Ollama cloud. Therefore cloud command execution and cloud-model acceptance are authorized work, not completed capabilities.
-
-## Phase state
-
-| ID | State | Remaining evidence / action |
+| Area | State | Boundary |
 |---|---|---|
-| R2.1 architecture | DOCUMENTED | Provider contract and threat model are described; implementation review remains |
-| R2.2 cloud provider | NOT STARTED | Select provider; implement lifecycle and isolation |
-| R2.3 policy integration | NOT STARTED | Enable command tool only behind cloud provider and existing gates |
-| R2.4 audit/egress | NOT STARTED | Add lifecycle events, separate egress policy and redaction tests |
-| R2.5 cloud models | PARTIAL / VERIFY | OpenRouter supported path; Ollama cloud auth/API needs verification |
-| R2.6 CLI integration | NOT STARTED | Consent UX, explicit provider, no fallback |
-| R2.7 acceptance | NOT STARTED | Live cloud build/test and security evidence |
-| S0 | PERMANENT-HOLD | D-110 remains unchanged |
-| S1 | DEFERRED-S0-HOLD | Depends on S0 |
-| S3 | CLOSED (D-111) | File-tool/policy acceptance only |
-| S4 | REOPENED AS CLOUD-ONLY PLAN, NOT PASSED | Full provider tasks require live cloud sandbox evidence |
-| S6 | OPEN | D-109 genuine sessions and owner-label requirements remain |
-| S7 | OPEN / RECONCILIATION REQUIRED | Existing live evidence still needs reconciliation; do not infer pass |
-| R3 demo | NOT STARTED | Three qualitative sessions and Windows quickstart/demo artifacts remain |
+| Core harness, profiles, tools, policy gates, retrieval, memory, orchestrator | Implemented; CI-tested | Does not establish live model quality or external acceptance. |
+| Sandbox service and provider contract | Implemented | Provider presence is not live execution proof. |
+| Vercel Sandbox adapter | Implemented, fake-client tested | Requests non-persistent, deny-all sandbox; argv command; delete in cleanup. Not live-verified. |
+| Vercel SDK dependency | Not integrated in package manifest/lockfile | Resolve compatibility/security, then add and verify a reproducible lockfile. |
+| Project workspace transfer | Not implemented | No project files are currently transferred to the Vercel sandbox. |
+| Result synchronization | Not implemented | No remote changes are safely collected/applied to the local project. |
+| Provider lifecycle audit | Incomplete | Add events for request, lease, command, timeout/cancel, cleanup, and failures. |
+| Coding profile/CLI provider selection | Not integrated | `COMMAND_TOOL` remains filtered. Do not enable it. |
+| Cloud model authentication | Partially verified | OpenRouter-compatible path exists. Ollama cloud authentication/API compatibility is unverified. |
 
+## Acceptance state
 
-
-## D-118 provider selection update — 2026-11-13
-
-Vercel Sandbox is the selected first provider. The initial adapter exists at `src/bundles/sandbox-vercel/index.ts` and is tested with an injected fake SDK client. It explicitly requests `persistent: false` and `networkPolicy: 'deny-all'`, forwards argv as `cmd` plus `args`, and calls `delete()` in a finally path. The sandbox service's existing remote-consent and exact-host allowlist gate runs before provider contact.
-
-**Not yet integrated:** The profile and CLI do not register/select this provider. The command tool remains filtered from the governed CLI. The provider currently runs in a fresh empty sandbox and does not transfer the project workspace or return remote changes. Do not enable `COMMAND_TOOL` until a secret-safe project snapshot and result-sync design is implemented and tested.
-
-| ID | State | Remaining action |
+| Gate | State | Required evidence |
 |---|---|---|
-| R2.2 cloud provider | IN PROGRESS | Adapter added; published SDK 3.9.1 and its `vercel.com` control-plane host selected; add profile registration and live credential-backed doctor/smoke |
-| R2.3 policy integration | NOT STARTED | Keep tool disabled until workspace transfer and result-sync can preserve all policy guarantees |
-| R2.4 audit/egress | PARTIAL | Existing egress gate is reused; provider-specific lifecycle audit events and output redaction coverage remain |
-| R2.6 CLI integration | NOT STARTED | Explicit provider selection and project-transfer consent UX |
-| R2.7 acceptance | NOT STARTED | Live Vercel sandbox plus end-to-end project workflow evidence |
+| S0 | PERMANENT-HOLD | No further work under D-110. |
+| S1 | DEFERRED | Depends on S0. |
+| S3 | CLOSED (D-111) | File-tool/policy acceptance only. No sandbox acceptance implied. |
+| S4 | OPEN, CLOUD-ONLY PLAN | Complete governed project workflow in Vercel Sandbox with live evidence. Not passed. |
+| S5 / ENG-04 | OUT OF SCOPE (D-115) | Reopen only if distribution is approved. |
+| S6 | OPEN | D-109 genuine-session and owner-label requirements. |
+| S7 | OPEN / RECONCILE | Reconcile historical live embedding/poisoning evidence with current main; rerun only missing or stale checks. |
+| R3 demo | NOT STARTED | Three qualitative sessions, reviewed summary, measured cold start, Windows quickstart, demo script. |
 
-D-110 remains unchanged. No Docker, WSL, Crabbox or host command probes were run. S0 remains PERMANENT-HOLD and S4 is NOT PASSED.
+## Current CI and repository controls
 
+- Main baseline inspected for this documentation pass: `50d0bb139f0103012de6bf36d48a0f1ee67e1126`.
+- The latest observed CI run (#613) is failing in `secrets and dependencies` at `npm audit --omit=dev --audit-level=high`; the aggregate `ci-pass` is therefore red. The reported vulnerable path is the nested `zod@4.1.11` under `@vercel/cli-config@0.3.1`, pulled by `@vercel/oidc@4.0.0` / `@vercel/sandbox@3.9.1`. Do not force-downgrade the Vercel SDK without compatibility evidence.
+- GitHub reports `main.protected=false`. The owner must enable PR-only merging, require `ci-pass`, require up-to-date branches, block force pushes/deletions, and disable admin bypass.
 
-### Vercel SDK compatibility note
+## Ordered moving-forward plan
 
-The implementation targets published `@vercel/sandbox@3.9.1`, not the unreleased 4.0.0 changelog entry. Version 3.9.1 uses the `vercel.com` API host; 4.0.0 changes that host and requires Node 22.19.0, which would exceed the current supported Node floor. The adapter uses explicit host-environment credentials `VERCEL_TOKEN`, `VERCEL_TEAM_ID`, and `VERCEL_PROJECT_ID`. The package is currently loaded lazily and is not yet recorded in package.json/package-lock.json; add it only when a lockfile can be generated and verified.
+1. **Resolve CI dependency security without breaking Vercel compatibility.** Identify a supported dependency resolution or SDK version; regenerate the lockfile; run install, audit, typecheck, tests, and CI. No audit suppression.
+2. **Complete workspace transfer design.** Define a deterministic project snapshot, exclude secrets and sensitive paths, reject symlinks/path traversal, bound file count/size, and preserve Git metadata safely.
+3. **Implement safe result synchronization.** Collect a bounded patch/result manifest, validate paths and hashes, detect local conflicts, and apply only after policy/approval. Never overwrite unrelated local changes.
+4. **Add lifecycle audit and failure handling.** Log consent, provider host, lease, command argv/cwd, approval, timestamps, exit, bounded redacted output, timeout/cancel, and verified cleanup. Cleanup failure is task failure.
+5. **Integrate provider explicitly.** Register Vercel in the coding profile and CLI only after steps 2-4 pass. Keep the command tool unavailable otherwise. No fallback.
+6. **Verify cloud model path.** Keep OpenRouter as the current compatible route. Verify Ollama cloud auth/API before adding it to acceptance. Record provider, model, endpoint host, and hosting class.
+7. **Run staged acceptance.** Provider smoke in empty sandbox, workspace round-trip, approved/denied/hard-denied command cases, full build/test workflow, cleanup failure, and secret-leak tests. CI and fakes are not live acceptance.
+8. **Close S6/S7 and demo evidence.** Follow D-109 for scoring. Reconcile existing S7 evidence and run only missing current-main checks. Produce the three qualitative demo sessions separately.
+9. **Owner repository action.** Enable branch protection and verify required `ci-pass`.
+
+## No-go list
+
+Do not probe Docker, WSL, Crabbox, or use host execution. Do not enable `COMMAND_TOOL` while workspace transfer/result sync/audit are incomplete. Do not pass credentials into the sandbox. Do not weaken policy gates or silence npm audit. Do not fabricate live evidence, sessions, labels, or measurements. Do not create release/distribution work under D-115.
+
+## Evidence vocabulary
+
+Use **implemented**, **unit-tested**, **CI-verified**, **live-smoke-tested**, and **owner-accepted** precisely. A status can advance only with the corresponding evidence.
