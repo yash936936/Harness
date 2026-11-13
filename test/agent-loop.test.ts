@@ -299,6 +299,7 @@ describe('agent-loop: cancellation', () => {
     let started!: () => void
     const began = new Promise<void>((resolve) => { started = resolve })
     ctx.llm.register('abort-aware', {
+      egress: { host: 'localhost', remote: false },
       complete: async (_req, signal) => {
         started()
         return new Promise((_resolve, reject) => {
@@ -319,6 +320,7 @@ describe('agent-loop: cancellation', () => {
     let ran = false
     ctx.tools.register(tool('must_not_run', () => { ran = true; return 'bad' }))
     ctx.llm.register('late-abort', {
+      egress: { host: 'localhost', remote: false },
       complete: async () => {
         queueMicrotask(() => controller.abort(new Error('cancel before tool')))
         return {
