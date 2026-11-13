@@ -139,7 +139,7 @@ export class VercelSandboxProvider implements SandboxProvider {
       create = Promise.resolve(client.create({
         persistent: false,
         networkPolicy: 'deny-all',
-        timeout: Math.min(this.cfg.sandboxTimeoutMs ?? 600_000, Math.max(timeoutMs + 30_000, 60_000)),
+        timeout: Math.min(this.cfg.sandboxTimeoutMs ?? 600_000, timeoutMs),
       }))
       sandbox = await raceAbort(create, req.signal)
     } catch (error) {
