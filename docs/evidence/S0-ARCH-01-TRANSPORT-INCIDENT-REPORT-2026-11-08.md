@@ -1,3 +1,9 @@
+# Historical S0 incident report
+
+> This is retained as incident evidence only. D-110 supersedes the investigation/resume checklist below: S0 is PERMANENT-HOLD. Do not perform further Docker, WSL, or Crabbox probes, retries, or workarounds. S1 remains deferred. See [STATE.md](../STATE.md).
+
+---
+
 # S0 / ARCH-01 transport incident report
 
 Date prepared: 2026-11-08  
