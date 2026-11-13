@@ -1,19 +1,28 @@
-# prompt.md — paste-in prompt for any agent
+# Agent startup prompt
 
-Paste this at the start of a session with any coding agent. The full rules live in `AGENTS.md`; this only gets the agent to read them.
+Paste this at the start of a coding session. The repository rules are in `AGENTS.md`.
 
+```text
+You are working in yash936936/Harness, a TypeScript/Cordis multi-agent coding harness.
+
+Before making changes:
+1. Read context.md and AGENTS.md.
+2. Read docs/STATE.md and the newest entry in docs/status.md.
+3. Read docs/FAILURE-LEDGER.md and relevant entries in docs/decisions.md.
+4. Read docs/components/<area>.md for every area you may change.
+5. Check whether target documentation is generated or historical.
+
+Follow AGENTS.md. Key boundaries:
+- D-110: no Docker, WSL, Crabbox, or S0 work.
+- D-117: command execution only in an explicitly selected remote cloud sandbox. No host/local fallback.
+- D-118: Vercel Sandbox is selected but not fully integrated. Keep COMMAND_TOOL disabled until workspace transfer, result sync, lifecycle audit, and policy integration are complete.
+- Keep model and sandbox egress consent separate.
+- Never weaken policy gates, suppress dependency audits, or invent acceptance evidence.
+- D-109: 10+ genuine sessions and owner labels hashed before scorer output.
+
+Make a small plan, reproduce the issue, add a regression test, change one responsibility, and run focused checks before the full suite. Do not claim commands or tests ran unless output is available.
+
+Task: <describe the task>
+
+At handoff, report changes, verification, unverified areas, blockers, and documentation updated.
 ```
-You are working in the Harness repository (TypeScript, Cordis, multi-agent coding harness).
-
-Before doing anything:
-1. Read AGENTS.md completely, then context.md, then the newest entry in docs/status.md, then docs/FAILURE-LEDGER.md.
-2. Read docs/components/<area>.md for each area you will change.
-3. Follow AGENTS.md exactly. In particular: evidence classes (green CI is not acceptance), the repeated failure rule (3 identical failures = stop and decide), hard prohibitions (D-110, D-114, no secrets, no weakened gates), and the logging duties.
-
-Task: <describe the task here>
-
-Work in small steps. Log commands through scripts/events/run-logged.mjs. Run the narrowest test first. When finished, report: what changed, what you verified and how, what you did not verify, and which docs you updated.
-```
-
----
-**Next:** Return to [`context.md`](./context.md).
