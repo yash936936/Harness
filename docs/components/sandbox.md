@@ -26,3 +26,6 @@ A concrete provider registers through the shared sandbox service as `ctx.sandbox
 - D-118 selects Vercel Sandbox as the first cloud provider, but the project workflow is not integrated or live-accepted.
 - Do not enable `COMMAND_TOOL` until workspace transfer, safe result synchronization, lifecycle audit, and policy integration pass.
 - See [STATE.md](../STATE.md) and [ROADMAP.md](../ROADMAP.md).
+
+---
+**Next:** Return to [context.md](../../context.md).
