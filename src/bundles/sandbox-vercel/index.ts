@@ -123,7 +123,7 @@ export class VercelSandboxProvider implements SandboxProvider {
   async run(req: SandboxRunRequest): Promise<SandboxRunResult> {
     req.signal?.throwIfAborted()
     if (!Array.isArray(req.command) || req.command.length === 0 ||
-        req.command.some((part) => typeof part !== 'string' || part.includes('\\0')) ||
+        req.command.some((part) => typeof part !== 'string' || part.includes('\0')) ||
         !req.command[0]!.trim()) {
       throw new SandboxError('config', 'vercel-sandbox: command must be a non-empty argv array without NUL bytes')
     }
@@ -194,7 +194,7 @@ export class VercelSandboxProvider implements SandboxProvider {
       let out = ''
       for (const char of value) {
         const size = Buffer.byteLength(char, 'utf8')
-        if (bytes + size > outputLimit) return out + '\\n[output truncated by Vercel provider]'
+        if (bytes + size > outputLimit) return out + '\n[output truncated by Vercel provider]'
         out += char
         bytes += size
       }
