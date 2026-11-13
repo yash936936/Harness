@@ -282,6 +282,13 @@ describe('ctx.sandbox seam', () => {
     expect(() => ctx.sandbox.register(crab(ctx, s.file), { default: true })).toThrow(SandboxError)
     expect(ctx.sandbox.status()).toEqual([{ name: 'crabbox', destination: 'local', host: undefined, default: true }])
   })
+  it('does not infer a default from registration order', async () => {
+    const s = state(); const ctx = await boot()
+    ctx.sandbox.register(crab(ctx, s.file))
+    expect(ctx.sandbox.status()).toEqual([{ name: 'crabbox', destination: 'local', host: undefined, default: false }])
+    await expect(ctx.sandbox.run({ command: ['echo'] })).rejects.toMatchObject({ kind: 'unknown-provider' })
+  })
+
   it('doctor never creates or probes a remote sandbox without consent and host allowlisting', async () => {
     const { client, events } = fakeClient()
     const noConsent = await boot({ hosts: ['cube.example.internal'] })
@@ -303,7 +310,7 @@ describe('ctx.sandbox seam', () => {
     const s = state(); const { client, events } = fakeClient()
     const ctx = await boot({ consent: true, hosts: ['cube.example.internal'] })
     ctx.sandbox.register(crab(ctx, s.file), { default: true })
-    ctx.sandbox.register(new CubeSandboxProvider({ apiUrl: 'https://cube.example.internal', template: 't', client }), { default: true })
+    ctx.sandbox.register(new CubeSandboxProvider({ apiUrl: 'https://cube.example.internal', template: 't', client }))
     expect((await ctx.sandbox.run({ command: ['echo'] })).provider).toBe('crabbox')
     expect((await ctx.sandbox.run({ command: ['echo'], provider: 'cubesandbox' })).provider).toBe('cubesandbox')
     expect(events).toContain('create')
