@@ -181,7 +181,7 @@ export class HotTier {
         await mkdir(this.dir, { recursive: true })
         await assertNoSymlinkParents(this.file)
         const tmp = `${this.file}.${process.pid}.${randomUUID()}.tmp`
-        await writeFile(tmp, JSON.stringify(list, null, 2), 'utf8', { flag: 'wx' })
+        await writeFile(tmp, JSON.stringify(list, null, 2), { encoding: 'utf8', mode: 0o600, flag: 'wx' })
         await assertNoSymlinkParents(this.file)
         await rename(tmp, this.file)
       }
