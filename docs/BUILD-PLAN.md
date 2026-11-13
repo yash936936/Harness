@@ -1,3 +1,9 @@
+## D-116 owner-approved scope (2026-11-13)
+
+D-116 is recorded in `docs/decisions.md`. D1 is accepted: no command execution in v0; D-110 remains unchanged. D2 is accepted with restriction: one stronger free OpenRouter comparison session is permitted, but 3B remains the default local/headline model and the comparison is not local 8 GB or 3B acceptance evidence. D3 is amended: three owner-reviewed demo sessions are qualitative only; no scorer output or confusion table is permitted from three sessions. D-109's 10 genuine sessions, both good/bad owner labels, and labels committed and hashed before scorer output remain mandatory for scoring.
+
+R1 is closed as a decision-recording phase. **R2 remains partial:** PR #87 hardening is merged and CI-verified, but the S7 live rerun and session-scoped approval work remain outstanding. The proposed retrieval-rank split was reviewed and not adopted (DBG-120). **R3 has not started:** no demo JSONLs, owner-reviewed summary, measured cold-start time, Windows quickstart, or demo script are claimed. See `docs/STATE.md` for the authoritative compact state table. S6 and S7 remain open.
+
 # Build plan closeout and remaining work (2026-11-13)
 
 This section defines the current sample-prototype scope. Historical runbooks and evidence remain below for audit history. This is not a claim that every acceptance phase or production capability is complete.
