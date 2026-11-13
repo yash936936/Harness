@@ -13,7 +13,7 @@ This section defines the current sample-prototype scope. Historical runbooks and
 ## Binding prototype scope
 
 - **D-115:** This is a sample/research prototype. No npm package, release archive, hosted distribution, or model-weight distribution is planned. The GitHub repository visibility remains unchanged; it is currently public. Do not create a package/release pipeline for this scope.
-- **D-110:** S0 / ARCH-01 remains PERMANENT-HOLD. Do not run Docker, WSL, Crabbox transport probes, retries, workarounds, or host-execution substitutes. S1 remains DEFERRED-S0-HOLD.
+- **D-110:** S0 / ARCH-01 remains PERMANENT-HOLD. Do not run Docker, WSL, Crabbox transport probes, retries, workarounds, or host-execution substitutes. The governed CLI defaults to sandbox disabled, rejects auto-detection, and never offers host commands. S1 remains DEFERRED-S0-HOLD.
 - **D-114:** Use only `qwen2.5-coder:3b-instruct` for model-driven acceptance and local model workflows. Qwen2.5-Coder-7B artifact verification/distribution is OUT OF SCOPE, not passed. This does not authorize redistribution of the 3B model.
 - **D-112:** S4 remains PARTIAL / BLOCKED-S0-PERMANENT-HOLD. Do not attempt full governed coding tasks that require target-project command/test execution while D-110 holds.
 - **D-109:** S6 prototype evaluation requires at least 10 distinct genuine model-driven sessions; use 20+ when available. The owner labels them before scorer output is generated/viewed. Require both good and bad labels. Report class counts, raw agreement, and confusion table. Mark the result prototype-grade, not calibrated.
@@ -52,7 +52,7 @@ Inventory genuine distinct model-driven sessions. The owner labels each eligible
 
 ### 4. Run all automated tests once after implementation is complete
 
-Run the repository's full check/test workflow after implementation and the focused checks are complete. Require typecheck, lint, full tests, documentation/component checks, security/dependency checks, license inventory, and aggregate `ci-pass` on Ubuntu and Windows. Do not weaken a check to get a green result. The PR #84 merge CI run #527 is green on current main. This is repository CI evidence, not a substitute for the owner-run S7/S6 acceptance checks or the final local check/test workflow.
+Run the repository's full check/test workflow after implementation and the focused checks are complete. Require typecheck, lint, full tests, documentation/component checks, security/dependency checks, license inventory, and aggregate `ci-pass` on Ubuntu and Windows. Do not weaken a check to get a green result. The PR #85 merge CI run #541 is green on current main. This is repository CI evidence, not a substitute for the owner-run S7/S6 acceptance checks or the final local check/test workflow.
 
 ## No-go items
 
