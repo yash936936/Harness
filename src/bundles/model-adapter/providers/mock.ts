@@ -5,6 +5,7 @@ type Responder = (req: ProviderRequest) => Scripted
 
 /** Deterministic provider for tests and offline runs. Replays a script, then echoes. */
 export class MockProvider implements LLMProvider {
+  readonly egress = Object.freeze({ host: 'localhost', remote: false })
   calls: ProviderRequest[] = []
   constructor(private script: Scripted[] | Responder = []) {}
 
