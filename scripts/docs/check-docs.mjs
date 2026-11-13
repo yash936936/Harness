@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Check the new agent-workflow docs and generated component references without rewriting historical evidence docs.
+// Check maintained Markdown links across the repository without rewriting historical evidence docs.
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -12,16 +12,30 @@ else {
 }
 for (const n of need) if (!fs.existsSync(n)) problems.push(`missing ${n}`)
 
-const mdFiles = ['docs/FAILURE-LEDGER.md', 'docs/BRANCH-PROTECTION.md', 'docs/REFACTOR-PLAN.md']
-const walk = (d) => { if (!fs.existsSync(d)) return; for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) walk(p); else if (p.endsWith('.md')) mdFiles.push(p) } }
-walk('docs/components')
-for (const f of mdFiles) {
-  const src = fs.readFileSync(f, 'utf8')
-  if (!/\*\*Next:\*\*[^\n]*context\.md/.test(src)) problems.push(`${f}: no "Next: ... context.md" line`)
-  for (const m of src.matchAll(/\]\((?!https?:|#|mailto:)([^)#\s]+)(?:#[^)]*)?\)/g)) {
-    const target = path.resolve(path.dirname(f), m[1])
-    if (!fs.existsSync(target)) problems.push(`${f}: broken link ${m[1]}`)
+const markdown = []
+const walk = (dir) => {
+  if (!fs.existsSync(dir)) return
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (entry.name === '.git' || entry.name === 'node_modules' || entry.name === '.harness') continue
+    const file = path.join(dir, entry.name)
+    if (entry.isDirectory()) walk(file)
+    else if (entry.isFile() && file.endsWith('.md')) markdown.push(file)
   }
 }
-if (problems.length) { console.error('Docs problems:\n - ' + problems.join('\n - ')); process.exit(1) }
-console.log('docs ok')
+walk('.')
+
+const componentDocs = markdown.filter((file) => file.startsWith(path.join('docs', 'components') + path.sep))
+for (const file of componentDocs) {
+  const src = fs.readFileSync(file, 'utf8')
+  if (!/\*\*Next:\*\*[^\n]*context\.md/.test(src)) problems.push(`${file}: no "**Next: ... context.md" line`)
+}
+
+for (const file of markdown) {
+  const src = fs.readFileSync(file, 'utf8')
+  for (const match of src.matchAll(/\]\((?!https?:|#|mailto:)([^)#\s]+)(?:#[^)]*)?\)/g)) {
+    const target = path.resolve(path.dirname(file), decodeURIComponent(match[1]))
+    if (!fs.existsSync(target)) problems.push(`${file}: broken link ${match[1]}`)
+  }
+}
+if (problems.length) { console.error('Docs problems:\\n - ' + problems.join('\\n - ')); process.exit(1) }
+console.log(`docs ok (${markdown.length} Markdown files checked)`)
