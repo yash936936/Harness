@@ -60,7 +60,7 @@ Vercel Sandbox is the selected first provider. The initial adapter exists at `sr
 
 | ID | State | Remaining action |
 |---|---|---|
-| R2.2 cloud provider | IN PROGRESS | Adapter added; verify SDK compatibility/version and host; add profile registration and real credential-backed doctor/smoke |
+| R2.2 cloud provider | IN PROGRESS | Adapter added; published SDK 3.9.1 and its `vercel.com` control-plane host selected; add profile registration and live credential-backed doctor/smoke |
 | R2.3 policy integration | NOT STARTED | Keep tool disabled until workspace transfer and result-sync can preserve all policy guarantees |
 | R2.4 audit/egress | PARTIAL | Existing egress gate is reused; provider-specific lifecycle audit events and output redaction coverage remain |
 | R2.6 CLI integration | NOT STARTED | Explicit provider selection and project-transfer consent UX |
