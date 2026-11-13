@@ -4,7 +4,7 @@
 
 ## Purpose
 
-Adapts the CubeSandbox client to the shared sandbox provider contract. It is an alternative implementation kept separate from the common sandbox interface.
+Retains an experimental CubeSandbox adapter behind the shared sandbox provider contract. It is not the selected provider for the current prototype.
 
 ## Route (how control reaches it)
 
@@ -19,8 +19,8 @@ An explicit host integration installs the CubeSandbox adapter and exposes it thr
 
 ## Known limits
 
-- CubeSandbox is experimental and is not the accepted S0 execution path.
-- D-110 prohibits attempting an alternative sandbox as a workaround for the permanent S0 hold.
+- CubeSandbox is not selected for the current cloud execution plan; D-118 selects Vercel Sandbox first.
+- Do not use CubeSandbox as a workaround for D-110 or enable it without a new owner decision.
 - No real-provider acceptance is claimed by unit tests or source presence.
 - See D-110, D-112, and `docs/status.md`.
 
