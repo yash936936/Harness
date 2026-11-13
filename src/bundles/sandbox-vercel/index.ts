@@ -126,8 +126,8 @@ export class VercelSandboxProvider implements SandboxProvider {
       throw new SandboxError('config', 'vercel-sandbox: command must be a non-empty argv array without NUL bytes')
     }
     const timeoutMs = req.timeoutMs ?? 60_000
-    if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1) {
-      throw new SandboxError('config', 'vercel-sandbox: timeoutMs must be a positive safe integer')
+    if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 2_147_483_647) {
+      throw new SandboxError('config', 'vercel-sandbox: timeoutMs must be an integer from 1 to 2147483647 milliseconds')
     }
 
     const started = Date.now()
@@ -143,8 +143,18 @@ export class VercelSandboxProvider implements SandboxProvider {
       sandbox = await raceAbort(create, req.signal)
     } catch (error) {
       if (req.signal?.aborted) {
-        // Sandbox.create may not be cancellable in every SDK release. Delete a late handle.
-        if (create) void create.then((late) => late.delete()).catch(() => {})
+        // Sandbox.create may not be cancellable. Wait for its bounded SDK create call to settle,
+        // then confirm deletion before returning the cancellation to the caller.
+        if (create) {
+          let late: VercelSandboxHandle | undefined
+          try { late = await create } catch { /* no lease was created */ }
+          if (late) {
+            try { await late.delete() }
+            catch (cleanupError) {
+              throw new SandboxError('unreachable', `vercel-sandbox: caller cancelled before creation completed, and late sandbox ${String(late.name ?? 'unknown')} deletion was not confirmed (${String((cleanupError as any)?.message ?? cleanupError).slice(0, 180)})`)
+            }
+          }
+        }
         throw req.signal.reason ?? error
       }
       throw new SandboxError('unreachable', `vercel-sandbox: sandbox creation failed (${String((error as any)?.message ?? error).slice(0, 240)})`)
