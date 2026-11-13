@@ -19,7 +19,7 @@ D-117 supersedes D-116 D1/D2 only within its stated scope. The prototype now req
 
 ## Historical D-116 owner-approved scope (superseded in part by D-117)
 
-D-116 is recorded in `docs/decisions.md`. D1 is accepted: no command execution in v0; D-110 remains unchanged. D2 is accepted with restriction: one stronger free OpenRouter comparison session is permitted, but 3B remains the default local/headline model and the comparison is not local 8 GB or 3B acceptance evidence. D3 is amended: three owner-reviewed demo sessions are qualitative only; no scorer output or confusion table is permitted from three sessions. D-109's 10 genuine sessions, both good/bad owner labels, and labels committed and hashed before scorer output remain mandatory for scoring.
+This paragraph records the historical D-116 disposition before D-117. Its D1 no-command and D2 local-3B/comparison restrictions are superseded within D-117's cloud-only scope. D3 remains unchanged: three owner-reviewed demo sessions are qualitative only; no scorer output or confusion table is permitted from three sessions. D-109's 10 genuine sessions, both good/bad owner labels, and labels committed and hashed before scorer output remain mandatory for scoring.
 
 R1 is historically closed; D-117 adds a new cloud-execution implementation track. **R2 remains partial:** PR #87 hardening is merged and CI-verified, but the S7 live rerun and session-scoped approval work remain outstanding. The proposed retrieval-rank split was reviewed and not adopted (DBG-120). **R3 has not started:** no demo JSONLs, owner-reviewed summary, measured cold-start time, Windows quickstart, or demo script are claimed. See `docs/STATE.md` for the authoritative compact state table. S6 and S7 remain open.
 
@@ -65,7 +65,7 @@ This section defines the current sample-prototype scope. Historical runbooks and
 | S0 / ARCH-01 | PERMANENT-HOLD (D-110) | No further work unless a new explicit owner decision supersedes D-110. Not a prototype completion blocker under this scope. |
 | S1 | DEFERRED-S0-HOLD | No orphan-recovery real acceptance while S0 is held. |
 | S3 | CLOSED (D-111) | File-tool/policy live acceptance only. Does not imply sandbox, S0, S1, or S4 acceptance. |
-| S4 | PARTIAL / BLOCKED-S0-PERMANENT-HOLD (D-112) | No full coding task/target-project test run under current restrictions. Keep the narrow provider-connectivity evidence accurately scoped. |
+| S4 | REOPENED AS CLOUD-ONLY PLAN; NOT PASSED (D-117) | Implement and live-verify full coding tasks in a remote cloud sandbox. D-110 still holds local S0 and host execution. |
 | S5 / ENG-04 | DEFERRED / OUT OF SCOPE (D-115) | No distributable artifact is planned. Retain dependency/license inventory. Do not mark ENG-04 passed. Resolve the `json-bignum@0.0.3` archive provenance and inspect actual shipped notices only if a future distribution is explicitly approved. ENG-08 remains out of scope under D-114. |
 | S6 | PROTOTYPE EVALUATION OPEN | Evaluate at least 10 distinct genuine model-driven sessions (20+ if available), with owner labels committed and hashed before scorer output is generated/viewed. If genuine sessions or labels are unavailable, report S6 as PARTIAL; never synthesize evidence. |
 | S7 | TARGETED LIVE CHECKS OPEN | Run the real embedding-provider check and controlled live poisoning task against current merged main, using only the accepted 3B model. Inspect complete JSONL and fixture hashes. Require evidence-grounded output with no invented file contents. Do not use Docker, WSL, Crabbox, command sandbox, or host fallback. |
@@ -75,7 +75,7 @@ This section defines the current sample-prototype scope. Historical runbooks and
 
 ### 1. Implementation closeout
 
-PR #85 is merged and its post-merge CI is green. Repeated explicit reads are distributed across planned subtasks; downstream synthesis remains dependent on every required-read step. Do not reopen this implementation item unless the next live rerun provides a concrete regression. Preserve D-110/D-112/D-114 and all fail-closed policy gates.
+PR #85 is merged and its post-merge CI is green. Repeated explicit reads are distributed across planned subtasks; downstream synthesis remains dependent on every required-read step. Do not reopen this implementation item unless the next live rerun provides a concrete regression. Preserve D-110's local sandbox hold and all fail-closed policy gates; apply D-117 for cloud-only S4 and cloud model testing.
 
 ### 2. Complete focused S7 live checks
 
@@ -93,7 +93,7 @@ Run the repository's full check/test workflow after implementation and the focus
 
 ## No-go items
 
-Do not run S0/S1 sandbox acceptance, Docker/WSL/Crabbox probes, host command fallback, or S4 full target-project command/test acceptance. Do not use Qwen 7B or substitute another model for 3B acceptance. Do not invent S6 labels or sessions. Do not create package/release artifacts or claim ENG-04 passed under D-115. Do not start Phases 7/8 without separate scope approval.
+Do not run S0/S1 local sandbox acceptance, Docker/WSL/Crabbox probes, or host command fallback. S4 may proceed only through the separately approved remote cloud sandbox under D-117, after its provider and policy controls are implemented. Do not use Qwen 7B or substitute another model for 3B acceptance. Do not invent S6 labels or sessions. Do not create package/release artifacts or claim ENG-04 passed under D-115. Do not start Phases 7/8 without separate scope approval.
 
 ## Prototype completion report
 
