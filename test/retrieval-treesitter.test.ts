@@ -185,6 +185,13 @@ describe('robustness', () => {
     expect(f.symbols.some((s) => s.name === 'good' && s.startLine === 1)).toBe(true)
   })
 
+  it('measures the source limit in UTF-8 bytes and validates parser limits', async () => {
+    const { svc } = await boot({ maxBytes: 3 })
+    expect(await svc.parse('😀', { filename: 'a.ts' })).toMatchObject({ ok: false, error: { kind: 'too_large', detail: '4 > 3 bytes' } })
+    await expect(boot({ maxBytes: 0 })).rejects.toThrow(RetrievalTreesitterConfigError)
+    await expect(boot({ maxSymbols: 0 })).rejects.toThrow(RetrievalTreesitterConfigError)
+  })
+
   it('empty source is ok with no symbols', async () => {
     const f = await symbolsOf('', 'e.ts')
     expect(f.symbols).toEqual([])
