@@ -577,3 +577,12 @@ checked).
 - Memory grant creation validates the complete `subagent:<id>` namespace and ID syntax. Prefix-only malformed actors remain classified as scoped actors and fail closed when no grant exists.
 - Retrieval indexing returns vector-store errors when stale-source deletion fails instead of silently returning success. Secure file access, chunking, BM25, and index lifecycle remain split across `file-access.ts`, `chunk.ts`, `text.ts`, and `index.ts`.
 - Filesystem writes still have a residual parent-directory TOCTOU race against a hostile same-user process. Symlink-aware path resolution and directory identity checks reduce exposure but do not provide an `openat`/`renameat`-style atomic directory-relative boundary.
+
+
+## Vercel Sandbox provider (D-118)
+
+The first D-117 cloud provider is Vercel Sandbox, implemented behind the existing `SandboxProvider` seam in `src/bundles/sandbox-vercel/`. The adapter lazily loads `@vercel/sandbox` so unit tests can inject a fake client without cloud credentials. It creates one non-persistent sandbox per invocation, explicitly sets `networkPolicy: 'deny-all'`, forwards commands as `cmd` plus `args`, and calls `delete()` during cleanup. A delete error is surfaced as `released: false`; callers must fail closed.
+
+The adapter is not yet registered in `profile-coding` and the CLI still removes `COMMAND_TOOL` from the offered tool list. This is intentional. The current provider request contract has no reviewed project snapshot/result-sync mechanism. A blank sandbox is not useful for project work, and enabling the tool before workspace transfer is complete would create misleading success. Implement and test a secret-safe snapshot/result-sync boundary before enabling the command tool.
+
+The SDK's current persistence default is true, and its default network policy is allow-all. Both defaults are unsafe for this workload, so the adapter explicitly sets `persistent: false` and `networkPolicy: 'deny-all'`. Vercel's API host allowlist value must be checked against the exact SDK release during live smoke testing. Never pass Vercel credentials, model API keys, host environment variables, SSH agent sockets, or Git credential material into the guest.
