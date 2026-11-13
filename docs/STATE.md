@@ -67,3 +67,8 @@ Vercel Sandbox is the selected first provider. The initial adapter exists at `sr
 | R2.7 acceptance | NOT STARTED | Live Vercel sandbox plus end-to-end project workflow evidence |
 
 D-110 remains unchanged. No Docker, WSL, Crabbox or host command probes were run. S0 remains PERMANENT-HOLD and S4 is NOT PASSED.
+
+
+### Vercel SDK compatibility note
+
+The implementation targets published `@vercel/sandbox@3.9.1`, not the unreleased 4.0.0 changelog entry. Version 3.9.1 uses the `vercel.com` API host; 4.0.0 changes that host and requires Node 22.19.0, which would exceed the current supported Node floor. The adapter uses explicit host-environment credentials `VERCEL_TOKEN`, `VERCEL_TEAM_ID`, and `VERCEL_PROJECT_ID`. The package is currently loaded lazily and is not yet recorded in package.json/package-lock.json; add it only when a lockfile can be generated and verified.
