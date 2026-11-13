@@ -1,3 +1,9 @@
+# Historical automated test evidence
+
+> This is an owner-reported test result from 2026-11-08, not the current CI state. It does not prove live sandbox acceptance. Current CI status and blockers are in [STATE.md](../STATE.md).
+
+---
+
 # Automated test-suite evidence
 
 Date: 2026-11-08
