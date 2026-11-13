@@ -69,7 +69,6 @@ export class Orchestrator extends Service {
     const offered = opts.tools ?? this.ctx.tools.list().map((t) => t.name)
     for (const n of offered) if (!this.ctx.tools.has(n)) throw new OrchestratorError(`orchestrator: tool "${n}" is not registered`)
     const info = offered.map((n) => this.ctx.tools.list().find((t) => t.name === n)!)
-    const registered = new Set(offered)
     const system = plannerSystem(info, this.limits)
     const maxRepairs = opts.maxRepairs ?? this.cfg.maxRepairs ?? 1
     if (!Number.isSafeInteger(maxRepairs) || maxRepairs < 0) throw new OrchestratorError('orchestrator: maxRepairs must be a non-negative safe integer')
