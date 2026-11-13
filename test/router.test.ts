@@ -104,6 +104,15 @@ describe('router chain', () => {
     expect(observed?.aborted).toBe(true)
   })
 
+  it('shadow probes never mutate decision or failure statistics', async () => {
+    const needle = fixed('needle', () => { throw new Error('shadow failure') })
+    const ctx = await mk({ needle, worker: fixed('worker', 'b', 1), owned: ['agent'] })
+    const before = ctx.router.stats()
+    const result = await ctx.router.shadow('agent', { task: 'apples', candidates: CANDS })
+    expect(result).toMatchObject({ source: 'none', choice: null })
+    expect(ctx.router.stats()).toEqual(before)
+  })
+
   it('an owned class goes to Needle first and records a saved request', async () => {
     const needle = fixed('needle', 'a'); const worker = fixed('worker', 'b', 1)
     const ctx = await mk({ needle, worker, owned: ['agent'] })
