@@ -26,7 +26,7 @@ A host integration must construct and register `VercelSandboxProvider` with `ctx
 - Profile/CLI registration is intentionally absent. Keep `COMMAND_TOOL` disabled until those controls and tests pass.
 - Fake-client tests prove adapter behavior against the fake only.
 - Live smoke is an empty-sandbox `true` command, not project acceptance.
-- Current CI reports a high-severity nested Zod advisory in the selected SDK dependency tree. Resolve it without audit suppression or unverified forced downgrade before adding the SDK dependency.
+- Current CI reports a high-severity nested Zod advisory in the selected SDK dependency tree. Resolve it without audit suppression or unverified forced downgrade; the SDK is already declared in the root manifest and lockfile.
 - S4 is open, cloud-only, and not passed. See [STATE.md](../STATE.md).
 
 <!-- BEGIN GENERATED: do not edit between markers -->
