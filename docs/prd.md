@@ -1,86 +1,37 @@
-# PRD — Coding Harness
+# Product requirements
 
-## Problem
-Coding-focused agent work (research, retrieval, multi-step edits, tool use)
-needs an orchestration layer that is reliable, auditable, and extensible —
-not a single hardcoded agent loop. Off-the-shelf harnesses are either
-Python-centric, not composable at the capability level, or don't separate
-"what the model is allowed to do" from "what the model can see," which makes
-governance an afterthought instead of a structural property.
+## Purpose
 
-## Goals
-- A multi-agent orchestration system where every capability (model access,
-  tools, retrieval, memory, sandbox, browser) is a swappable plugin.
-- Sub-agents scoped to specific task types, each with their own tool/memory
-  permissions, without a separate codebase per agent type.
-- A retrieval pipeline (grep → tree-sitter → rank → top-K → LLM) that starts
-  as classical RAG and can grow into graph/agentic RAG later.
-- A 4-tier memory model (hot/episodic/semantic/procedural) that improves via
-  scheduled compaction rather than just accumulating.
-- Governance built in from day one: policy gates, confidence-scored
-  approval flow, and an append-only session log as the audit trail.
-- A personal browser tool sub-agents can use for research, gated by domain
-  allowlisting.
-- A working path for people without strong hardware: a cloud worker through
-  any OpenAI-compatible provider, with free options where they exist, and an
-  optional local worker for those who have the hardware (D-021).
-- Plain, accurate statements about data: the harness collects nothing itself,
-  and a cloud provider or remote sandbox receives what it is given (D-020).
-- A first-run experience (terminal wizard, then a desktop app) that connects
-  a provider, asks for consent, sets a budget and shows where data goes
-  (D-025).
+Harness is a research/sample coding-agent harness. It composes model access, retrieval, memory, tools, orchestration, policy gates, sandbox providers, and evaluation into a governed workflow.
 
-## Non-goals
-- Not a general-purpose no-code agent builder (ruled out `langflow-ai/langflow`
-  explicitly — wrong audience).
-- Not an email/inbox agent (ruled out `cloudflare/agentic-inbox`).
-- Not a social-media/web-scraping capability layer (ruled out
-  `Panniantong/Agent-Reach` — wrong domain).
-- Not committing to a Python runtime — Cordis/TypeScript is the chosen stack;
-  Python reference repos are read for ideas only, not adopted as dependencies.
-- Not building a model-hosting stack. Local workers are optional through
-  Ollama; the harness does not ship or serve a worker model of its own.
-- Not claiming to be offline or to send no data (D-020).
+## Prototype outcome
 
-## Users / use cases
-- The project owner, using this harness to run coding-agent workflows that
-  need multi-step planning, code search, sandboxed execution, and persistent
-  memory across sessions. Later, other people on ordinary hardware (8 GB, no
-  GPU) who connect a cloud provider.
-- Core scenarios: "find and fix a bug across a codebase," "implement a
-  feature using retrieved context from tree-sitter-ranked files," "run a
-  sandboxed test/build without touching the real filesystem until approved,"
-  "research something externally via a gated browser tool."
+A user selects a project and submits a coding task. Harness plans the work, reads project context, proposes edits, and records an auditable session. The intended full coding workflow also runs approved development commands in a remote cloud sandbox and safely synchronizes the result.
 
-## Success criteria
-- `profile-minimal` runs a single agent end-to-end with a working session
-  log, model adapter, tool registry, subprocess execution, and ReAct loop.
-- `profile-coding` adds retrieval, memory, skills, orchestration, and
-  sub-agents without touching `profile-minimal`'s bundles.
-- Every model-visible event is a logged session-log event (the
-  "model-visible = logged" invariant holds, verifiable by inspecting the
-  log after any run).
-- The policy table (read-only / sandbox-write / real-fs-write / external
-  side-effect / deny-listed) is enforced at `tools/pre-execute`, not
-  bypassable by a sub-agent flipping a runtime toggle.
-- Tool gating (`policy-gates`) is disableable only in `profile-minimal`;
-  `profile-coding` and above cannot run with it off. Egress controls cannot be
-  disabled in any profile (D-029).
-- A remote provider is never called without consent, and every remote call
-  is logged with destination and size.
-- On a free provider tier the harness stays inside the provider's request
-  limits and reports what it can still do when a limit is reached.
+Cloud command execution is not yet enabled. The current Vercel adapter starts an empty sandbox; it does not transfer a project or return changes.
 
-## Constraints
-- Stack constraint: Cordis-based (TypeScript), not Python — explicit
-  decision, see `docs/decisions.md` D-001.
-- deepseek-harness's own `packages/` are a reference to study, not a runtime
-  dependency (it's labeled developer-preview with breaking changes expected).
-- q-agent-harness contributes its memory model and Map/Guardrails/Feedback
-  framing only — its code/templates are not adopted.
-- Implementation: currently Claude writes and verifies the code (Claude-only
-  mode); opencode is suspended until the owner says otherwise.
-- Test machine: 8 GB RAM, no GPU. Free provider tiers only for now.
+## Required properties
 
----
-**Next:** Return to [`context.md`](../context.md).
+- Model and tool providers are replaceable behind stable service interfaces.
+- Sub-agents receive explicit, bounded tool and memory grants.
+- All tool calls pass through the central registry and policy gates.
+- Risky permitted writes require approval bound to an immutable operation snapshot.
+- Hard-denied actions cannot be approved.
+- Model-visible data and tool outcomes are recorded in the append-only session log.
+- Remote model and sandbox destinations each require explicit consent and host allowlisting.
+- Commands execute only in an explicitly selected remote cloud sandbox. No host or local fallback.
+- Sandbox network is deny-by-default; credentials and ambient host secrets are never transferred.
+- Remote results are bounded, path-validated, conflict-checked, and applied through governed writes.
+- Automated tests, live provider evidence, and owner acceptance are reported separately.
+
+## Scope exclusions
+
+No Docker/WSL/Crabbox S0, host command execution, local command fallback, Qwen 7B artifact work, package/release distribution, desktop product, browser research, multi-user scale, or production-readiness claim.
+
+## Evaluation
+
+Three owner-reviewed demo sessions may support qualitative review only. Scorer output requires D-109: at least 10 distinct genuine model-driven sessions (20+ when available), owner-authored good and bad labels, and a committed label file/hash before scorer output is generated or viewed. Results are prototype-grade, not calibrated.
+
+## Governing documents
+
+Current scope and blockers: [STATE.md](STATE.md). Implementation sequence: [ROADMAP.md](ROADMAP.md). Agent rules: [../AGENTS.md](../AGENTS.md).

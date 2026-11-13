@@ -1,32 +1,33 @@
 # Component: sandbox-vercel
 
-> Area type: bundle. Location: `src/bundles/sandbox-vercel/`. This guide describes the first D-117 cloud provider adapter.
+> Area type: bundle. Location: `src/bundles/sandbox-vercel/`. First provider selected under D-118.
 
 ## Purpose
 
-Implements the Vercel Sandbox provider behind the shared `SandboxProvider` interface. It creates a fresh remote Firecracker sandbox, runs one argv command with network access disabled, and deletes the sandbox before returning.
+Implements the Vercel Sandbox adapter behind the shared `SandboxProvider` interface. It creates a fresh remote sandbox, executes argv, bounds the command lifetime and output, and attempts deletion.
 
-## Route (how control reaches it)
+## Route
 
-A host integration constructs and registers `VercelSandboxProvider` with `ctx.sandbox`. The shared sandbox service checks project-scoped remote egress consent and the exact `vercel.com` host allowlist before calling the provider. The governed coding CLI does not register this adapter yet and continues to filter `COMMAND_TOOL`.
+A host integration must construct and register `VercelSandboxProvider` with `ctx.sandbox`. The shared sandbox service checks project-scoped remote egress consent and the exact `vercel.com` control-plane host allowlist before contacting the provider. The governed coding CLI does not register this adapter and keeps `COMMAND_TOOL` filtered.
 
-## Config surface and invariants
+## Config and invariants
 
-- Runtime SDK: `@vercel/sandbox@3.9.1`, loaded lazily. It is not yet in package.json/package-lock.json.
-- Host credentials: `VERCEL_TOKEN`, `VERCEL_TEAM_ID`, and `VERCEL_PROJECT_ID`. Values are never passed to the guest or logged.
-- Each lease uses `persistent: false` and `networkPolicy: 'deny-all'`.
-- Commands are passed as `cmd` plus `args`; no shell string is constructed.
-- Session timeout defaults to 10 minutes. Output is bounded to 100 KB per stream by default.
-- Cleanup uses `delete()`. A failed delete returns `released: false` and must be treated as a failed command.
-- The project snapshot/result-sync boundary is not implemented. This adapter currently runs in an empty sandbox and must not be exposed as project command execution.
+- Target SDK: `@vercel/sandbox@3.9.1`; it is already present in the root package manifest and lockfile.
+- Required host credentials are `VERCEL_TOKEN`, `VERCEL_TEAM_ID`, and `VERCEL_PROJECT_ID`. Never pass them to the guest or log their values.
+- Each lease requests `persistent: false` and `networkPolicy: 'deny-all'`.
+- Commands are passed as `cmd` plus `args`; no shell command string is constructed.
+- Session timeout defaults to 10 minutes; output is bounded to 100 KB per stream by default.
+- Deletion is attempted in cleanup. A failed or unconfirmed delete means `released: false` and must fail the task.
+- The current adapter starts an empty sandbox. It does not upload the project or collect remote changes.
 
 ## Known limits
 
-- No profile-coding or CLI registration. `COMMAND_TOOL` remains disabled until secret-safe workspace transfer, Git metadata handling, safe result synchronization and lifecycle audit events are implemented.
-- Fake-client tests are not live Vercel acceptance.
-- Live provider smoke requires an explicit `HARNESS_VERCEL_SANDBOX_LIVE=1` opt-in and host credentials. It runs only `true` in an empty sandbox.
-- Vercel Hobby sessions have a 45-minute maximum; the adapter default is shorter. S4 remains NOT PASSED.
-- See D-117, D-118, and `docs/STATE.md`.
+- Workspace snapshot/upload/download, secret and sensitive-file exclusion, symlink/path defenses, transfer limits, conflict-safe result application, and lifecycle audit are incomplete.
+- Profile/CLI registration is intentionally absent. Keep `COMMAND_TOOL` disabled until those controls and tests pass.
+- Fake-client tests prove adapter behavior against the fake only.
+- Live smoke is an empty-sandbox `true` command, not project acceptance.
+- Current CI reports a high-severity nested Zod advisory in the selected SDK dependency tree. Resolve it without audit suppression or unverified forced downgrade; the SDK is already declared in the root manifest and lockfile.
+- S4 is open, cloud-only, and not passed. See [STATE.md](../STATE.md).
 
 <!-- BEGIN GENERATED: do not edit between markers -->
 
@@ -43,4 +44,4 @@ A host integration constructs and registers `VercelSandboxProvider` with `ctx.sa
 <!-- END GENERATED -->
 
 ---
-**Next:** Return to [`context.md`](../../context.md).
+**Next:** Return to [context.md](../../context.md).

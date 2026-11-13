@@ -1,11 +1,15 @@
 # Acceptance evidence templates
 
-- `real-run-labels.template.json`: copy to a private working file, replace keys with real session IDs, and label each run independently before viewing scorer output. A prototype-grade evaluation requires at least 10 real labels (20+ if already collected), both `good` and `bad`, and no minimum agreement percentage. Follow D-109: use `scripts/commit-eval-labels.ps1` to commit the labels and SHA-256 before viewing scorer output.
-- `model-provenance.template.json`: replace the revision with an immutable upstream revision and the digest with the SHA-256 of the exact downloaded artifact. The template intentionally cannot pass verification.
+- `real-run-labels.template.json`: copy to a private working file, replace keys with genuine session IDs, and label each run independently before viewing scorer output. D-109 requires at least 10 genuine labels (20+ if available), both `good` and `bad`, and a committed labels file plus SHA-256 before scorer output.
+- `model-provenance.template.json`: use an immutable upstream revision and the SHA-256 of the exact downloaded artifact. The template intentionally cannot pass verification.
 - Never commit API keys, model weights, private session logs, or raw user data.
 
-Needle evidence must come from `scripts/eval-router.ts` using the real frozen suite and actual worker and Needle backend. `HARNESS_STANDIN=1` is only a script self-test and is not acceptance evidence. Keep `router.owned` empty unless every proposed class meets the documented comparison rule on real measurements.
+Needle evidence must come from `scripts/eval-router.ts` using the real frozen suite and actual worker and Needle backend. `HARNESS_STANDIN=1` is a script self-test, not acceptance evidence. Keep `router.owned` empty unless the documented real-measurement comparison rule is met.
 
-Crabbox/CubeSandbox acceptance requires a real provider doctor, a successful isolated command, a failing command, and confirmed lease release. Provider fakes and CI mocks are not acceptance evidence.
+## Sandbox evidence
 
-Tauri measurements must be collected on the target Windows machine using `scripts/tauri-benchmark.ps1`; record the resulting JSON and machine details outside source control if they identify the device.
+- D-110 permanently holds Docker/WSL/Crabbox S0. Do not run the historical Crabbox/CubeSandbox acceptance procedure.
+- D-117/D-118 select cloud-only command execution through Vercel Sandbox. The provider is not yet integrated for project workflows.
+- Vercel acceptance must cover secret-safe workspace transfer, bounded snapshot/result handling, path and symlink defenses, policy-approved and denied commands, secret-leak checks, and confirmed cleanup. Fake clients and an empty-sandbox smoke are not project acceptance.
+
+Desktop application measurements are out of scope under D-115. Historical benchmark files are retained but are not an active acceptance requirement.

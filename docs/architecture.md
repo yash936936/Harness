@@ -1,591 +1,69 @@
-# Architecture — Coding Harness
+# Architecture
 
-## System overview
-A Cordis `ctx` (event/service bus) sits at the center; every capability —
-model access, tools, agents, filesystem/sandbox — is a plugin registered
-under a `ctx` key (`ctx.llm`, `ctx.tools`, `ctx.agents`, `ctx.fs`,
-`ctx.sandbox`, etc.). A **profile** (e.g. `profile-coding`) is an ordered
-stack of bundles resolved at boot via `cordis.patch.yml`. The orchestrator
-(Planner → Executor + ReAct loop) spawns a pool of sub-agents, each a scoped
-`ctx` realm with its own tool/memory permissions. Each sub-agent's turn runs
-through: retrieval (grep → tree-sitter → rank → top-K → LLM), the hook/
-playbook engine (waterfall events at `agent/pre-step`, `tools/pre-execute`,
-`tools/post-execute`), and 4-tier memory (hot/episodic/semantic/procedural
-with scheduled compaction). Every model-visible event is written to an
-append-only session log, which is both the audit trail and the eval
-harness's data source.
+## System shape
 
-Model access is provider-agnostic (D-021): a local Ollama server, or any
-OpenAI-compatible cloud endpoint such as OpenRouter. What leaves the machine
-depends on the binding (D-020). A remote provider is refused unless the user
-has consented (D-022), and every remote call is logged with its destination
-and size.
+Harness is a TypeScript application built on Cordis. Bundles register services on a shared context; profiles compose those bundles into runnable stacks.
 
-## Cloud command-execution architecture (D-117)
+The core path is:
 
-The coding profile may offer run_command only through a configured **remote cloud sandbox**. The execution path is:
+`CLI → profile → orchestrator → agent loop → tool registry → policy hooks → tool → input guard → session log`
 
-model adapter → orchestrator/agent loop → tool registry → policy gates → immutable approval (when required) → ctx.sandbox → remote provider lease → command result → input guard → append-only session log.
+Model calls go through `ctx.llm`. Tool execution goes through `ctx.tools`. The session log records model-visible inputs, tool calls, policy decisions, approvals, and outcomes.
 
-The sandbox provider is independent of the model provider. A cloud model call and a cloud command run are two separate outbound data flows, each requiring its own binding/project consent and host allowlist. A provider's destination=remote and host are mandatory inputs to the existing ctx.sandbox gate. The CLI must select an explicit provider; it must not auto-detect local runtimes or fall back to the host.
+## Trust boundaries
 
-**Workspace lifecycle:** create a short-lived, isolated workspace from an explicit project snapshot; mount only the selected project; use a dedicated non-root identity; enforce CPU, memory, disk, process, wall-clock and output limits; execute commands with argv (never implicit shell parsing); collect bounded results; then destroy the lease and verify release. A failed cleanup is a failed/alerted task outcome, not success. The provider must not expose unrelated host files, environment variables, SSH agents, credential stores, or sockets.
+- Project files, retrieval results, memory, skills, and tool output are untrusted input.
+- Tool grants are checked at the registry boundary. Policy gates decide whether side effects are allowed, held for approval, or denied.
+- Approvals are bound to immutable snapshots of the exact operation.
+- Session-log failures block unlogged execution or result return.
+- Prompt fences and pattern scans are defense-in-depth, not authorization.
 
-**Command scope:** support the full development workflow, including read/search, file/build tools, dependency installation, tests, and Git status/diff/branch/commit operations. Commands remain subject to a centrally tested risk policy. Split compound shell expressions into separate argv calls; shell operators, pipes, redirects, command substitution and implicit scripts are not accepted by the tool. Package installation/network access is disabled until a separate sandbox-network policy explicitly allows required registries. Hard-denied actions cannot be approved. Risky but permitted actions require approval bound to an immutable snapshot of the exact command, args, cwd and relevant policy context.
+## Model egress
 
-**Two independent egress gates:**
-- Model egress: model-adapter binding consent, project consent, provider host allowlist, TLS/redirect checks, rate/budget limits and secret redaction.
-- Sandbox egress: project consent, sandbox-provider host allowlist before lease creation/run, and a separate network policy for traffic originating inside the sandbox.
+Remote model requests require binding-level consent, project-level consent, and an allowed destination host. Provider credentials remain in private provider configuration and are never model-visible or written to session logs. Model requests and outcomes are logged with registered secrets redacted.
 
-The CLI must explain what project content leaves the machine and which cloud provider receives it before consent. Do not transfer model API keys or ambient host credentials into the sandbox. Any narrowly scoped secret injection must be a separate future decision and must never be enabled by default.
+OpenAI-compatible cloud endpoints are supported. Ollama cloud authentication/API compatibility remains unverified. Local Ollama is a separate local provider path, not evidence of cloud acceptance.
 
-**Audit contract:** append structured events for sandbox request, policy decision, approval request/result, lease creation, command start/result, timeout/cancellation, release/cleanup, and blocked/failed remote access. Include session/project IDs, provider, host, lease ID, argv, cwd, risk class, approval actor/decision, timestamps, duration, exit code, timeout, output truncation metadata and release status. Bound and redact stdout/stderr before they enter the tool result or log. Do not log secrets or credentials. The result shown to the model must be the same redacted content retained in the audit record. A lease whose release cannot be confirmed is never reported as a successful command.
+## Cloud command execution (D-117, D-118)
 
-**Provider status:** src/bundles/sandbox/index.ts already enforces remote project consent and host allowlisting for doctor() and run(); src/bundles/sandbox/types.ts defines the provider seam; src/bundles/tools-local/command.ts already routes run_command through that seam and checks timeout, output size, cancellation and lease release. The CLI currently filters out COMMAND_TOOL, so the user-facing path is not enabled. No cloud provider has yet been selected or verified. Provider implementation and live acceptance remain open.
+Commands are authorized only inside an explicitly selected remote cloud sandbox. The first selected provider is Vercel Sandbox. No host subprocess, local execution fallback, or automatic provider detection is allowed. D-110 permanently holds the separate Docker/WSL/Crabbox S0 route.
 
-**Model endpoint caveat:** the current Ollama adapter supports a configurable HTTP(S) base URL and remote egress classification, but the inspected implementation does not expose cloud API-key authentication. Do not claim Ollama cloud compatibility until its current authentication/API contract is implemented and tested. OpenAI-compatible cloud endpoints remain a separate supported path subject to the existing two consent gates.
+The intended execution path is:
 
-## Components
+`tool registry → policy gates → immutable approval → sandbox service → Vercel provider → bounded result → input guard → session log`
 
-### session-log (`bundle-session-log`)
-- **Responsibility:** append-only event log; replay, fork, resume; enforces
-  "model-visible = logged" as a runtime invariant.
-- **Location:** `src/bundles/session-log/`
-- **Depends on:** none (foundation bundle — everything else depends on it).
-- **Key files:** `index.ts` (`SessionLog` service), `store.ts` (`JsonlStore`,
-  `MemoryStore`), `types.ts`.
+Model-provider egress and sandbox-provider egress are separate data destinations. Each requires its own project consent and host allowlist. Traffic originating inside the sandbox is governed by a separate network policy; deny-all is the default.
 
-### egress (`bundle-egress`) — 1B.1, done
-- **Responsibility:** `ctx.egress` — per-project consent (persisted, opt-in,
-  no default), an endpoint allowlist, and redaction of registered secret
-  values from any outbound payload. The mandatory gate every remote model
-  call passes through, on top of `bundle-model-adapter`'s own D-022 binding
-  flag (two independent checks, not one merged flag - see D-034). Cannot be
-  disabled in any profile (D-029): `LLMService.static inject` requires it,
-  and every profile boots it unconditionally, before `model-adapter`.
-- **Location:** `src/bundles/egress/`
-- **Depends on:** none.
-- **Config surface:** `projectId` (required), `consentStore?` (default
-  `MemoryConsentStore`; `FileConsentStore` persists to one JSON file for a
-  real first-run record), `allowedHosts?` (default: none), `secrets?`
-  (name → value map redacted from every outbound payload).
-- **Key files:** `index.ts` (`EgressPolicy`), `store.ts`
-  (`MemoryConsentStore`, `FileConsentStore`), `types.ts`
-  (`ConsentRecord`, `ConsentStore`, `EgressError`).
-- **Not a literal "secrets proxy":** a provider's own API key was already
-  structurally excluded from the session log and every prompt before this
-  bundle existed (D-022 - the key lives in the provider's private config,
-  added only at the HTTP header inside its `send()`, never part of
-  `CompletionRequest`). `redactValue` is what 1B.1 actually adds: scrubbing
-  *other* secrets that could ride along inside message or tool content.
-- **Concurrency and file-safety:** `FileConsentStore` serializes updates
-  across processes with `withFileLock`, publishes via atomic rename, and
-  rejects symlinked/non-regular files with an opened-descriptor identity
-  check. This protects concurrent updates and the read path; it does not
-  claim protection against a hostile process with write access to the
-  containing directory racing the final rename.
+### Required workspace lifecycle
 
-### model-adapter (`bundle-model-adapter`)
-- **Responsibility:** plug-and-play model provider access via `ctx.llm`.
-- **Location:** `src/bundles/model-adapter/`
-- **Depends on:** `bundle-session-log`, `bundle-egress`.
-- **Config surface:** `default` provider name; `ollama: { model, baseUrl?, timeoutMs? }`
-  (host also from `OLLAMA_HOST`); `openaiCompatible: { name?, model, baseUrl, apiKey? | apiKeyEnv?, timeoutMs?, limiter? }`;
-  `egress: { consent }` (the binding-level flag, D-022 - checked alongside,
-  not instead of, `ctx.egress`'s per-project consent, D-034). Further
-  providers register via `ctx.llm.register()` (D-015).
-- **Key files:** `index.ts` (`LLMService`, dual consent gate + redaction),
-  `types.ts` (`LLMError` kinds: `config`, `auth`, `rate_limit`, `quota`,
-  `payment`, `consent`, and the rest), `providers/ollama.ts`,
-  `providers/openai-compatible.ts`, `providers/mock.ts`, `rate-limiter.ts`
-  (`RateLimiter`). Logs `model.request/response/error/blocked` itself
-  (D-016, D-022), on the redacted payload (D-034). Providers may declare
-  `egress: { host, remote }`.
+1. Build a deterministic snapshot of only the selected project.
+2. Exclude secrets, credential stores, sockets, and unrelated host files.
+3. Reject symlink escapes and path traversal; enforce file-count and byte limits.
+4. Create a short-lived, non-persistent sandbox with resource and time limits.
+5. Execute argv only. Do not parse shell strings or operators.
+6. Collect bounded outputs and a path-validated change manifest.
+7. Detect local conflicts and apply changes only through governed approval/write paths.
+8. Confirm sandbox deletion. Cleanup failure makes the task fail.
 
-### tool-registry (`bundle-tool-registry`)
-- **Responsibility:** `ctx.tools` — tools self-register, no central adapter
-  list needed. Also the single call choke point: logging, schema
-  validation, and the `tools/pre-execute` / `tools/post-execute` hooks
-  (D-019).
-- **Location:** `src/bundles/tool-registry/`
-- **Depends on:** `bundle-session-log`.
-- **Key files:** `index.ts` (`ToolRegistry`), `types.ts` (`ToolDefinition`,
-  `ActionClass`, `ToolResult`, `ToolDeniedError`).
-- **Config surface:** `maxOutputChars`.
+### Current provider status
 
-### app-core (`bundle-app-core`) — 1B.2, done
-- **Responsibility:** headless first-run/ongoing logic with a local API:
-  provider connection, credential storage (OS credential store,
-  encrypted-file fallback), consent copy, request and token budgets,
-  `doctor`. The terminal wizard and the desktop app are thin clients of it
-  (D-025), so the two surfaces cannot disagree.
-- **Location:** `src/bundles/app-core/`
-- **Depends on:** none at the `ctx.plugin` level - still not wired into
-  any profile (`bootProfileMinimal` doesn't touch it). Every piece is
-  either a plain class the `src/cli/` wizard constructs directly, or takes
-  what it needs (`EgressStatusSource`, `ModelStoreSource`) as a parameter
-  rather than a Cordis-injected dependency - see D-039/D-040 for why.
-- **Built:** `Budgets` (`ctx.appCore.budgets`, D-035) - requests and
-  tokens at task/session/day scope, soft and hard limits, an
-  all-or-nothing `spend()` that throws `BudgetExceededError` with a full
-  status report rather than partially recording across scopes, and a day
-  counter that persists across restarts (same design as `RateLimiter`'s
-  `statePath`, D-023, copied rather than shared - different unit,
-  different consumer). `ctx.appCore.credentials` (D-036) -
-  `AutoCredentialStore` over `KeychainCredentialStore` (OS keychain via
-  `@napi-rs/keyring`, verified with a round-trip probe before being
-  trusted - a broken backend was found, by hand, to fail silently on
-  `get()` in some environments) and `FileCredentialStore` (AES-256-GCM
-  fallback, key in a sibling file - protects against passive exposure,
-  not a same-user attacker; stated, not glossed over).
-  Consent-screen data (`ctx.appCore.consentScreen`, D-037) - D-020's
-  general statement plus a binding's plain-language destination plus a
-  dated, sourced data-policy claim *only* for providers actually checked
-  (`ollama`, `openrouter` so far) - `lookupProviderPolicy` returns
-  `undefined`, never a fabricated claim, for anything else.
-  `testConnection` (`ctx.appCore.testConnection`, D-038) - best-effort
-  model listing plus one timed probe call against an already-constructed
-  provider; a remote provider needs `acknowledgeRemote: true`, a narrower
-  one-off gate distinct from `ctx.egress`'s persisted consent (the
-  connection test has to run *before* that consent screen exists).
-  `doctor` (`ctx.appCore.doctor`, D-039/D-041) - read-only report:
-  budgets remaining, active credential backend, consent state, egress
-  allowlist, and (when a `ModelStoreSource` is passed) per-binding
-  pin/fallback availability from 1B.3.
-- **Key files:** `index.ts` (`AppCore` Service), `budgets.ts` (`Budgets`,
-  plain class, no Cordis dependency - same pattern as `RateLimiter`),
-  `credentials.ts` (`CredentialStore` interface, `KeychainCredentialStore`,
-  `FileCredentialStore`, `AutoCredentialStore`, `describeCredentialStore`),
-  `consent-copy.ts` (`buildConsentScreenData`, `lookupProviderPolicy`),
-  `provider-connection.ts` (`testProviderConnection`), `doctor.ts`
-  (`buildDoctorReport`, `DoctorReport`).
-- **External dependency:** `@napi-rs/keyring` - prebuilt native binary
-  per platform (`win32-x64-msvc` confirmed present for the target
-  machine), no build tooling required.
+The Vercel adapter exists and has fake-client lifecycle tests. It requests `persistent: false`, `networkPolicy: 'deny-all'`, passes `cmd` and `args` separately, bounds command time/output, and attempts deletion in cleanup.
 
-### cli (`src/cli/`) — 1B.2, done
-- **Responsibility:** the terminal wizard - the first real integration
-  point for `app-core` and `egress` together. Walks provider setup →
-  credential storage → the connection test → the consent screen → an
-  optional daily budget → a final `doctor` report, then exits. Not a
-  Cordis bundle itself (no `ctx.plugin` entry) - it *boots* one: the only
-  place `EgressPolicy` and `AppCore` are plugged onto the same `Context`
-  today (D-040).
-- **Location:** `src/cli/` - `io.ts` (`WizardIO` interface, real
-  `TerminalIO` over `node:readline/promises`), `wizard.ts` (`runWizard`,
-  `formatDoctorReport`), `index.ts` (entrypoint; `npm run wizard`).
-- **Deliberately setup-only:** does not register the provider on
-  `ctx.llm`, boot `LLMService`, or run anything - there is no "run a
-  task" command yet for it to hand a configured provider to.
-- **Known gaps, both documented (D-040), not silent:** `TerminalIO`'s
-  `secret: true` prompt option does not mask input, only warns; and a
-  plain piped/non-interactive invocation of the real CLI hangs after the
-  first prompt, a genuine Node `readline/promises` limitation with
-  non-TTY stdin (confirmed via a real pty that interactive terminal use -
-  the actual target - works correctly).
+It is not a complete coding sandbox: no project snapshot is uploaded, no remote changes are synchronized, provider lifecycle audit is incomplete, and the coding profile/CLI do not register it. `COMMAND_TOOL` must remain filtered. The SDK dependency is not yet integrated into the root package manifest/lockfile; the current dependency audit reports a high-severity nested Zod advisory. See [STATE.md](STATE.md).
 
-### bench (`app/desktop/bench/`) - 1B.4 measurement toolkit, no results yet (D-045)
+## Current component map
 
-### run (`src/cli/run.ts`) - 1B.2 test enabler, done
-- One prompt through the real `LLMService` with the day's request budget spent first (D-043). Not an agent loop. Run: `npm run harness -- run --model <tag> "<prompt>"`.
-
-### model-store (`bundle-model-store`, Phase 1B.3, done)
-- **Responsibility:** verified local models and pinned bindings: source
-  allowlist, revision, SHA-256, license record, pinned model ID plus ordered
-  fallback list per binding (D-027).
-- **Location:** `src/bundles/model-store/` - `types.ts`
-  (`ModelRecord`, `ModelSource`, `Binding`, `ModelAvailability`,
-  `ModelStoreError`), `index.ts` (`ModelStore` Service, `sha256Hex`).
-- **Depends on:** none.
-- **Built:** `ModelStore.register` refuses a source outside the fixed
-  allowlist (`ollama-library`, `ornith-ai`, `cactus-compute` - D-027,
-  D-026) and refuses to silently overwrite an existing id.
-  `verifyDigest` throws on any mismatch against the pinned SHA-256,
-  case-insensitively. `resolve`/`resolveAll` report, per binding, whether
-  the pin is registered, whether a fallback was used instead, or whether
-  neither is available - wired into `doctor` (`buildDoctorReport`'s
-  optional `models` parameter, D-041) as the "unavailable-pinned-model
-  test in `doctor`" success criterion asked for.
-- **One real pin** (`pins.ts`, D-042): the reference worker, from real `ollama` output; non-commercial license. The store otherwise has no models.
-- **Earlier note, still true for anything else - no pre-registered models:** D-030 names
-  `qwen2.5-coder:3b-instruct` as the reference worker and D-026 names
-  Needle's origin, but neither decision recorded a checked SHA-256 for a
-  specific pulled revision - inventing one would be the same
-  fabricated-claim failure mode `consent-copy.ts` (D-020, D-037) already
-  guards against, just for a hash instead of a privacy claim. In-memory
-  only for the same reason: nothing real to persist yet.
-- **Not built:** persistence to disk (once a real caller has real pins
-  worth surviving a restart), and wiring into the wizard (`src/cli/`
-  doesn't construct a `ModelStore` yet - `doctor`'s `models` field stays
-  absent when the wizard calls it).
-
-### router (`bundle-router`, Phase 4.5, built, not closed: D-091)
-- **Responsibility:** `ctx.router`, backed by Needle. Owns choosing the
-  sub-agent, the playbook, and read-only or allowlisted tool calls (D-026).
-  Fallback chain: Needle, rules, worker. Never blocks startup.
-- **Location:** `src/bundles/router/`
-- **Depends on:** `bundle-model-store`, `bundle-tool-registry`.
-
-### app-desktop (`app/desktop`, Phase 1B.4, not built)
-- **Responsibility:** desktop shell over `app-core`. Electron or Tauri, chosen
-  after measurement on the 8 GB machine (D-025).
-
-### subprocess (`bundle-subprocess`)
-- **Responsibility:** `ctx.subprocess` — local execution provider for v1.
-  No shell (`spawn(..., { shell: false })`) and no implicit environment: a
-  spawned process sees only the env vars its caller allowlisted, nothing
-  inherited by default. Failures (non-zero exit, a killing signal, timeout,
-  abort, command not found) are outcome fields on the result, never thrown.
-- **Location:** `src/bundles/subprocess/`
-- **Depends on:** none.
-- **Config surface:** default `cwd`, `envAllowlist`, `timeoutMs`,
-  `maxOutputBytes`; each is overridable per `run()` call.
-- **Key files:** `index.ts` (`Subprocess`), `types.ts` (`RunOptions`,
-  `RunResult`, `SubprocessError`).
-- **Not built yet:** no tool wraps this for the agent loop yet (that's
-  Phase 5/1.5); `policy-gates` (Phase 5) will decide which shell-out tool
-  calls count as `sandbox-write` vs `real-fs-write`.
-
-### sandbox (`bundle-sandbox`)
-- **Responsibility:** `ctx.sandbox` seam: provider registry, and the rule that a remote provider needs egress consent plus an allowlisted host before it runs (D-090).
-- **Location:** `src/bundles/sandbox/`
-- **Depends on:** `bundle-egress`.
-
-### sandbox-crabbox (`bundle-sandbox-crabbox`)
-- **Responsibility:** `ctx.sandbox` provider `crabbox` — remote or container
-  execution through the Crabbox CLI. Modes used here (D-024): direct provider
-  with your own cloud account, `local-container` (needs a Docker-compatible
-  runtime), or static SSH to a machine you already have. The hosted broker is
-  restricted to a GitHub org and is not used. Pin the version (pre-1.0).
-- **Location:** `src/bundles/sandbox-crabbox/`
-- **Depends on:** `bundle-subprocess` (CLI shells out).
-- **Config surface:** provider mode, provider credentials (through the secrets
-  proxy), optional self-hosted broker URL/token.
-- **Host notes:** laptop needs git, ssh, ssh-keygen, rsync and curl; rsync is
-  not bundled with Windows, so verify on the target machine.
-
-### sandbox-cubesandbox (`bundle-sandbox-cubesandbox`)
-- **Responsibility:** `ctx.sandbox` provider `cubesandbox` — sub-60ms
-  VM-isolated boot for fast/frequent untrusted-code execution. Deferred to
-  Phase 8 (D-024): needs an x86_64 or ARM64 Linux host with KVM.
-- **Location:** `src/bundles/sandbox-cubesandbox/`
-- **Depends on:** none (E2B-compatible HTTP API).
-- **Config surface:** API endpoint, template.
-
-### browser (`bundle-browser`)
-- **Responsibility:** `ctx.browser` — capability seam for sub-agent research,
-  backed by `vercel-labs/agent-browser`.
-- **Location:** `src/bundles/browser/`
-- **Depends on:** `bundle-tool-registry`.
-- **Config surface:** agent-browser MCP profile (core/network/state/allowed-domains).
-
-### retrieval-grep (`bundle-retrieval-grep`)
-- **Responsibility:** `ctx.retrievalGrep` — cheap filter stage of the
-  retrieval pipeline (built, D-052).
-- **Location:** `src/bundles/retrieval-grep/`
-- **Depends on:** `bundle-subprocess`.
-- **Config surface:** root, rgPath, extraArgs, maxResults, maxMatchesPerFile,
-  includeSecrets, timeoutMs, maxFiles. Also `listFiles` (same exclusions as search).
-
-### retrieval-treesitter (`bundle-retrieval-treesitter`)
-- **Responsibility:** `ctx.retrievalParse` — structural parse stage (built,
-  D-053): symbols with line ranges from web-tree-sitter grammars.
-- **Location:** `src/bundles/retrieval-treesitter/`
-- **Depends on:** none.
-- **Config surface:** grammarDir, languages, maxBytes, maxSymbols.
-  Runtime deps: `web-tree-sitter`, `tree-sitter-wasms` (pinned).
-
-### retrieval-rank (`bundle-retrieval-rank`)
-- **Responsibility:** `ctx.retrievalRank` — final retrieval stage (built, D-056):
-  ripgrep candidates -> tree-sitter chunks -> BM25 -> optional vector side ->
-  weighted rank fusion; also `indexFiles` / `indexProject` / `unindexFiles` for
-  the vector index (incremental: unchanged files are skipped, D-060; `onProgress`). Degrades to BM25-only when embeddings or the store fail.
-- **Location:** `src/bundles/retrieval-rank/` (`text.ts` tokenizer + BM25,
-  `chunk.ts` chunker, `index.ts` service)
-- **Depends on:** `retrievalGrep`, `retrievalParse` (required);
-  `embeddings`, `vectorstore` (optional, read with `ctx.get`).
-- **Config surface:** root, collection, k, weight (0 = BM25, 1 = vectors), rrfK,
-  vectorTopK, minVectorScore (D-059), maxFileBytes, windowLines, maxChunkLines, maxChunkChars, nameBoost,
-  bm25 {k1,b}, maxCandidateChunks, maxHitChars, indexGroupChunks.
-
-### embeddings (`bundle-embeddings`)
-- **Responsibility:** `ctx.embeddings` — batched text-to-vector, one active
-  provider (built, D-054). Local Ollama `/api/embed` is the supported provider;
-  an offline hashing provider serves tests. Remote providers are refused until
-  the egress gate is wired in. Results, not throws; `info().fingerprint` keys
-  stored vectors.
-- **Location:** `src/bundles/embeddings/` (`providers/ollama.ts`,
-  `providers/hashing.ts`)
-- **Depends on:** `bundle-model-adapter` (reuses its Ollama base-URL helper and
-  `EgressInfo` type).
-- **Config surface:** `ollama: {model, baseUrl, timeoutMs, keepAlive}`,
-  maxBatchSize, maxBatchChars, maxInputChars, normalize, prefixes.
-
-### vectorstore-lancedb (`bundle-vectorstore-lancedb`)
-- **Responsibility:** `ctx.vectorstore` provider `lancedb` — embedded,
-  primary vector store (built, D-055). Named collections of
-  `{id, vector, source, metadata}`; exact cosine search; a collection remembers
-  the embedding fingerprint it was built with and refuses another.
-- **Location:** `src/bundles/vectorstore-lancedb/`
-- **Depends on:** no code dependency on `bundle-embeddings`; the caller passes
-  `ctx.embeddings.info().fingerprint` and dimensions to `open()`. Runtime deps:
-  `@lancedb/lancedb` 0.30.0 (lazy-loaded), `apache-arrow` 18.1.0 (pinned).
-- **Config surface:** `path` (absolute directory). `idsForSource(source)` lets a caller see what is already stored for a file.
-
-### vectorstore-qdrant (`bundle-vectorstore-qdrant`)
-- **Responsibility:** `ctx.vectorstore` provider `qdrant` — multi-user
-  scale fallback.
-- **Location:** `src/bundles/vectorstore-qdrant/`
-- **Depends on:** `bundle-embeddings`.
-- **Config surface:** host, collection.
-
-### memory (`bundle-memory`)
-- **Responsibility:** `ctx.memory` — 4-tier model (hot/episodic/semantic/
-  procedural) plus a scheduled compaction job that promotes repeated
-  episodic lessons into hot rules or procedures.
-- **Location:** `src/bundles/memory/`
-- **Depends on:** `bundle-session-log`, `bundle-egress`, `bundle-agent-loop` (built, 3.1); `bundle-vectorstore-*` (semantic tier, 3.3, not built).
-- **Built (3.4, D-064):** compaction. `ctx.memory.compact({minOccurrences, dryRun, approve})` and optional `compaction.everyTurns`; promotes recurring exact-normalised lessons into the hot tier (priority -1, ledger `compaction.json`). No `ctx.jobs`; hot target only.
-- **Built (3.3, D-063):** semantic tier as a separate service `ctx.memorySemantic` (injects `egress`, `embeddings`, `vectorstore`): facts in `semantic.json`, derived LanceDB index `memory-semantic`, `add` (needs `why`) / `query` / `reindex` / `remove` / `list`.
-- **Built (3.2, D-062):** hot tier. `ctx.memory.hot.{add,remove,list,render}`, injected via `ctx.agentLoop.addSystemSection('memory.hot', ..., {order: 10})`; whole-entry priority trimming under a token cap (estimate chars/3).
-- **Built (3.1, D-061):** episodic tier. `ctx.memory.runTurn()` writes one entry per turn; `ctx.memory.episodic.{record,query,verifyLink}`; append-only JSONL or in-process.
-- **Config surface:** `path`, `maxFieldChars`, `now`, `hotTokenCap`, `estimateTokens`, `injectHot`, `compaction.{minOccurrences,everyTurns,promotedPriority}` (built).
-
-### skills (`bundle-skills`) - BUILT (3.5, D-065)
-- **Responsibility:** `ctx.skills` — Agent Skills spec (`SKILL.md` folders), three levels: index in the system prompt
-  (`skills.index`), `load_skill` (instructions), `read_skill_resource` (one bundled file). Read-only; skills are never
-  executed. Optional host-side `autoLoad` (off by default; `keywordMatcher` / `embeddingMatcher`).
-- **Location:** `src/bundles/skills/` (`frontmatter.ts` restricted YAML reader, `types.ts`, `index.ts`)
-- **Depends on (services):** `tools`, `agentLoop`, `egress`. It does NOT depend on `bundle-memory`: the "procedural tier"
-  link is not built (compaction promotes into the hot tier only, D-064). It reuses `defaultEstimateTokens` from memory's code.
-- **Config surface:** `dirs` (required, no default), `index`, `maxIndexTokens`, `maxInstructionTokens`, `maxResourceChars`,
-  `autoLoad: { matcher, max }`.
-
-### agent-loop (`bundle-agent-loop`)
-- **Responsibility:** ReAct loop over `ctx.llm` and `ctx.tools`: reason,
-  call a tool if the model asked for one, feed the result back, repeat
-  until a text-only reply or `maxSteps`. Owns the retry/backoff and
-  provider-fallback policy that D-023 assigns to it (`ctx.llm.complete()`
-  itself never retries). Logs nothing of its own — every step is already
-  captured by `model.request/response/error` and `tool.call/tool.result`
-  from the two bundles it calls.
-- **Location:** `src/bundles/agent-loop/` (`types.ts`, `index.ts`)
-- **Registered as:** `ctx.agentLoop` (a top-level service). The
-  `ctx.agents.loop` label in this doc's original diagram described the
-  capability, not a literal key — there's no `ctx.agents.*` namespace or
-  orchestrator (Phase 4) yet to nest it under.
-- **Depends on:** `bundle-model-adapter`, `bundle-tool-registry` (`static
-  inject = ['log', 'llm', 'tools']`).
-- **Config surface:** `maxSteps`, `reflection`, `provider`,
-  `fallbackProviders`, `model`, `system`, `retry: { maxAttempts,
-  baseDelayMs, factor, maxDelayMs }`, injectable `sleep` (tests only).
-- **Not built yet:** `real-fs-write`/`sandbox-write` action-class routing
-  for a shell-out tool (that's `policy-gates`, Phase 5, wrapping
-  `ctx.subprocess`); per-binding model ID fallback lists (D-027,
-  Phase 1B.3) are a distinct mechanism this bundle doesn't know about — it
-  only fails over between already-configured provider *names*.
-
-### orchestrator (`bundle-orchestrator`)
-- **Responsibility:** `ctx.agents.orchestrator` — Planner → Executor.
-- **Location:** `src/bundles/orchestrator/`
-- **Depends on:** `bundle-agent-loop`.
-- **Config surface:** max sub-agents, delegation strategy.
-
-### subagent-scope (`bundle-subagent-scope`)
-- **Responsibility:** `ctx.agents.spawn` — scoped `ctx` realms per sub-agent
-  (Cordis's `core/scope` primitive), each with its own tool permissions,
-  memory access, and capability providers.
-- **Location:** `src/bundles/subagent-scope/`
-- **Depends on:** `bundle-orchestrator`.
-- **Config surface:** default tool/memory permissions per sub-agent.
-
-### retrieval-tools (`bundle-retrieval-tools`)
-- **Responsibility:** `ctx.retrievalTools` — exposes retrieval to the agent loop as
-  two READ-ONLY tools, `search_code` and `list_code_files` (built, D-058). Snippets
-  are fenced with a per-call random nonce and labelled as untrusted data; output is
-  size-capped; expected failures are readable `isError` results. (`read_file` now
-  lives in `tools-local`, D-080.)
-- **Location:** `src/bundles/retrieval-tools/`
-- **Depends on:** `tools`, `retrievalRank`, `retrievalGrep`.
-- **Config surface:** maxOutputChars, defaultK, maxK, maxListFiles.
-
-### input-guard (`bundle-input-guard`) - BUILT (D-083)
-- **Responsibility:** `ctx.inputGuard` - a `tools/post-execute` hook that fences every successful tool result in a per-call nonce and flags instruction-like text (`input.flagged` event). Heuristic, not prevention. Skips tools that fence themselves and `load_skill`.
-- **Location:** `src/bundles/input-guard/`
-- **Depends on:** `log`, `tools`.
-
-### tools-local (`bundle-tools-local`) - BUILT (D-080)
-- **Responsibility:** `ctx.localTools` - `read_file` (read-only), `edit_file`
-  and `write_file` (real-fs-write), plus `run_command` (sandbox-write).
-  File paths are confined to the project root with symlinks resolved;
-  `.git` is never touched. Commands run without a shell and only through a
-  registered sandbox provider, with a controlled environment. Exports
-  `commandRisk`, the independent signal `policy-gates` needs to judge
-  commands; without it every command is held.
-- **Location:** `src/bundles/tools-local/`
-- **Depends on:** `tools`, `subprocess` (and `policy-gates` for the `confidence` schema field only).
-- **Config surface:** root, maxReadChars, maxFileBytes, commandTimeoutSeconds, maxCommandTimeoutSeconds, maxCommandOutputBytes, envAllowlist, allowSecretReads.
-
-### policy-gates (`bundle-policy-gates`)
-- **Responsibility:** hooks on `agent/pre-step`, `tools/pre-execute` —
-  enforces the policy table (see below).
-- **Location:** `src/bundles/policy-gates/`
-- **Depends on:** `bundle-tool-registry`.
-- **Config surface:** the policy table.
-
-### eval-runner (`bundle-eval-runner`)
-- **Responsibility:** `ctx.eval` — custom eval runner on the session log.
-- **Location:** `src/bundles/eval-runner/`
-- **Depends on:** `bundle-session-log`.
-- **Config surface:** scoring functions, pass/fail thresholds.
-
-### eval-langfuse (`bundle-eval-langfuse`)
-- **Responsibility:** `ctx.eval.export` — fallback/complement export to
-  Langfuse. Deferred to Phase 8 (D-024).
-- **Location:** `src/bundles/eval-langfuse/`
-- **Depends on:** `bundle-eval-runner`.
-- **Config surface:** Langfuse host, project key.
-
-## Data flow
-0. Before any remote model call: per-project consent is checked (`ctx.egress`,
-   1B.1, D-034) alongside the binding's own consent flag (D-022), the
-   provider's host is checked against the allowlist (1B.1), the payload is
-   redacted (`redactValue`, 1B.1), the rate limiter waits for a slot and
-   counts the attempt (D-023), and the request is logged with its
-   destination and size, on the already-redacted payload.
-1. A task enters the orchestrator, which plans and spawns sub-agents
-   (`subagent-scope`) as needed.
-2. Each sub-agent's step runs `agent/pre-step` hooks first (content
-   boundary markers on external content, prompt-injection pattern check,
-   token/cost budget check) — this can reject or rewrite what the model sees.
-3. The model reasons (ReAct loop) and may call retrieval (grep → tree-sitter
-   → rank → top-K context) or a tool.
-4. Every tool call passes through `tools/pre-execute` (policy-gates: allow /
-   allow+log / check confidence+hold / always-hold / hard-block).
-5. Tool results pass through `tools/post-execute` (egress/credential
-   redaction, domain allowlist enforcement, post-hoc secret-leak scan).
-6. Episodic memory is written at turn end; compaction periodically promotes
-   repeated lessons into hot/procedural tiers.
-7. Every step of the above is written to the session log — this is what
-   both the audit trail and the eval-runner consume.
-
-## File tree (living document — keep in sync with src/)
-```
-src/
-├── bundles/
-│   ├── session-log/
-│   ├── model-adapter/
-│   │   ├── providers/  (ollama, openai-compatible, mock)
-│   │   └── rate-limiter.ts
-│   ├── egress/            (store.ts, index.ts, types.ts)
-│   ├── app-core/          (index.ts, budgets.ts, credentials.ts, consent-copy.ts,
-│   │                        provider-connection.ts, doctor.ts — 1B.2 done)
-│   ├── model-store/       (types.ts, index.ts — 1B.3 done)
-│   ├── router/
-│   ├── tool-registry/
-│   ├── subprocess/        (types.ts, index.ts)
-│   ├── agent-loop/        (types.ts, index.ts)
-│   ├── sandbox/
-│   ├── sandbox-crabbox/
-│   ├── sandbox-cubesandbox/
-│   ├── browser/
-│   ├── retrieval-grep/
-│   ├── retrieval-treesitter/
-│   ├── retrieval-rank/
-│   ├── retrieval-tools/
-│   ├── embeddings/
-│   ├── vectorstore-lancedb/
-│   ├── vectorstore-qdrant/
-│   ├── memory/            (3.1 episodic, 3.2 hot, 3.3 semantic, 3.4 compaction: types.ts, store.ts, hot.ts, semantic.ts, compaction.ts, index.ts)
-│   ├── skills/            (3.5: frontmatter.ts, types.ts, index.ts)
-│   ├── agent-loop/
-│   ├── orchestrator/
-│   ├── subagent-scope/
-│   ├── policy-gates/
-│   ├── eval-runner/
-│   └── eval-langfuse/
-├── cli/                   (io.ts, wizard.ts, index.ts — 1B.2 done: terminal wizard)
-└── profiles/
-    ├── profile-minimal.ts    # bootProfileMinimal() — the real boot path (1.6, D-033)
-    ├── profile-minimal.yml   # config-shape reference only, not auto-loaded
-    ├── profile-coding.ts     # bootProfileCoding() - built (5.6, D-081)
-    ├── profile-coding.yml    # config-shape reference only
-    ├── profile-research.yml
-    └── profile-full.yml
-app/
-└── desktop/               (planned, 1B.4)
-```
-`profile-minimal` boots via a plain function that calls `ctx.plugin()`
-once per 1.1-1.5 bundle in dependency order, not via Cordis's real YAML
-loader (`@cordisjs/plugin-loader` + `@cordisjs/plugin-include`) — that
-loader is an optional peer dependency of `cordis` and isn't installed.
-See D-033.
-Bundles marked planned do not exist yet. The rest match `src/` as of
-2026-09-27: session-log, egress, model-adapter, tool-registry, subprocess,
-agent-loop, app-core (all of 1B.2), `src/cli/` (the terminal wizard), and
-model-store (1B.3) are built. `router` (4.5) and `app-desktop` (1B.4) are
-still planned. See D-031: subprocess's env-allowlist is verified on Linux
-only, not yet on Windows.
-
-## Policy table (enforced by `bundle-policy-gates` at `tools/pre-execute`)
-| Action class | Gate |
+| Area | Responsibility |
 |---|---|
-| Read-only (search, grep, retrieval, browsing) | Autonomous, no approval |
-| Writes inside sandbox/scratch workspace | Autonomous, logged |
-| Writes to real repo/filesystem outside sandbox | Requires approval, or auto-approve below a set confidence threshold |
-| External API calls with side effects (email, tickets, spend) | Always requires approval |
-| Deny-listed actions (prod credentials, `rm -rf`, force-push) | Hard block, no override |
+| session-log | Append-only run and audit events |
+| model-adapter / egress | Model transport, consent, allowlists, redaction |
+| tool-registry / policy-gates | Tool registration, grants, side-effect policy, approvals |
+| tools-local | Project file operations and sandbox-backed command tool factory |
+| sandbox | Provider-neutral remote execution contract and consent gate |
+| sandbox-vercel | First selected cloud provider adapter |
+| agent-loop / orchestrator / subagent-scope | Model loop, planning, bounded sub-agent execution |
+| retrieval-* / embeddings / vectorstore | Project search and optional semantic retrieval |
+| memory / skills / input-guard | Scoped context, progressive disclosure, untrusted-result fencing |
+| eval-runner | Deterministic session scoring |
 
-Model provider calls are not a row in this table. They are governed by
-egress consent (D-022), not by `policy-gates`.
-
-## External dependencies
-Licenses below were read from public pages on 2026-09-22 (some from
-secondary sources, marked). Cordis and `ajv` were checked in the installed
-`package.json`. Re-check before relying on any of them. "Cost to run" is what it
-takes to use it on the current 8 GB, no-GPU test machine.
-
-| Dependency | License | Cost to run and host notes |
-|---|---|---|
-| **Cordis** (`cordis@4.0.0-rc.10`, D-012) | MIT (installed package.json) | Free. Small project (about 5 contributors), release candidate. A different, deprecated Discord library is also called cordis: keep the exact pin |
-| **`openclaw/crabbox`** | MIT | Free software, pre-1.0. Direct mode bills your own cloud account; `local-container` needs Docker; static SSH needs a machine you have. Hosted broker not available (D-024) |
-| **`TencentCloud/CubeSandbox`** | Apache 2.0 | Free software, needs a Linux host with KVM. Deferred to Phase 8 |
-| **`vercel-labs/agent-browser`** | Apache-2.0 (from secondary sources; file not read) | Free. Needs a Chromium install. Phase 7 |
-| **Needle** (Cactus Compute) | MIT per the repo and Hugging Face card; one catalog also cites Apache 2.0 | Free, about 14 to 28 MB. Original 26M and Needle 2 (45M) both exist: pin one and keep the license file (D-026) |
-| **Ornith-1.5 9B** | MIT per the vendor | Free weights. About 5.63 GB at Q4_K_M: does not fit next to the OS on 8 GB. Official `ornith-ai` source only (D-027) |
-| **`agentskills/agentskills`** | Apache 2.0 code, CC-BY-4.0 docs | Free. Format only |
-| **`@napi-rs/keyring`** (D-036) | MIT (installed package.json) | Free. Prebuilt binaries per platform as optional deps (`win32-x64-msvc` confirmed present for the target machine); no build tooling needed |
-| **Langfuse** | MIT except `/ee` folders (commercial) | Self-hosting needs Postgres, ClickHouse, Redis, S3: too heavy for 8 GB. Cloud sends traces out. Deferred to Phase 8 |
-| **LanceDB**, **Qdrant** | Believed permissive (Apache-2.0); not re-checked | LanceDB is embedded. Qdrant is a service, Phase 8 |
-| **tree-sitter**, **ripgrep** | Believed permissive (MIT); not re-checked | Free |
-| **Electron** / **Tauri** | Believed permissive (MIT; Tauri also Apache-2.0); not re-checked | Free. Measure both on the 8 GB machine before choosing (D-025) |
-| **OpenRouter** (service) | Not open source: a hosted commercial service | Free models: 20 requests per minute, 50 per day (1,000 after a one-time $10 of credit), per documentation in September 2026. The only non-open piece on the test path (D-023) |
-
-Read-only references (ideas taken, not depended on): `affaan-m/ECC` (hook
-event model, instinct-confidence design), `opendatalab/MinerU` (optional
-doc-ingestion add, not core), `deepseek-ai/deepseek-harness` (license not
-checked).
-
----
-**Next:** Return to [`context.md`](../context.md).
-
-
-## Repair-order hardening notes — 2026-11-13
-
-- The governed CLI is bound to D-110: sandbox disabled, no Docker/WSL/Crabbox capability probes, no `run_command`, and no host fallback. See `docs/BRANCH-PROTECTION.md` for the separate merge-gate state.
-- Orchestrator validation and explicit-tool sequence normalization are model-independent and composed in `normalizePlan`. Both planner output and caller-supplied plans pass through the same normalization before any subtask executes.
-- Memory grant creation validates the complete `subagent:<id>` namespace and ID syntax. Prefix-only malformed actors remain classified as scoped actors and fail closed when no grant exists.
-- Retrieval indexing returns vector-store errors when stale-source deletion fails instead of silently returning success. Secure file access, chunking, BM25, and index lifecycle remain split across `file-access.ts`, `chunk.ts`, `text.ts`, and `index.ts`.
-- Filesystem writes still have a residual parent-directory TOCTOU race against a hostile same-user process. Symlink-aware path resolution and directory identity checks reduce exposure but do not provide an `openat`/`renameat`-style atomic directory-relative boundary.
-
-
-## Vercel Sandbox provider (D-118)
-
-The first D-117 cloud provider is Vercel Sandbox, implemented behind the existing `SandboxProvider` seam in `src/bundles/sandbox-vercel/`. The adapter lazily loads `@vercel/sandbox` so unit tests can inject a fake client without cloud credentials. It creates one non-persistent sandbox per invocation, explicitly sets `networkPolicy: 'deny-all'`, forwards commands as `cmd` plus `args`, and calls `delete()` during cleanup. A delete error is surfaced as `released: false`; callers must fail closed.
-
-The adapter is not yet registered in `profile-coding` and the CLI still removes `COMMAND_TOOL` from the offered tool list. This is intentional. The current provider request contract has no reviewed project snapshot/result-sync mechanism. A blank sandbox is not useful for project work, and enabling the tool before workspace transfer is complete would create misleading success. Implement and test a secret-safe snapshot/result-sync boundary before enabling the command tool.
-
-The SDK's current persistence default is true, and its default network policy is allow-all. Both defaults are unsafe for this workload, so the adapter explicitly sets `persistent: false` and `networkPolicy: 'deny-all'`. The `vercel.com` host is selected for SDK 3.9.1 based on its published changelog; live smoke must still confirm the deployed control-plane path. Never pass Vercel credentials, model API keys, host environment variables, SSH agent sockets, or Git credential material into the guest.
-
-
-Implementation compatibility: target the currently published `@vercel/sandbox@3.9.1`. Its control-plane API host is `vercel.com`; the 4.0.0 changelog changes the API base host to `api.vercel.com` and raises the Node.js minimum to 22.19.0, so do not silently use that version with the current Node engine range. Require explicit `VERCEL_TOKEN`, `VERCEL_TEAM_ID`, and `VERCEL_PROJECT_ID` host environment variables. Install the optional runtime SDK with `npm install --no-save --package-lock=false @vercel/sandbox@3.9.1` for local smoke testing; package-lock integration remains open.
+Component-level details are in [docs/components](components/README.md).

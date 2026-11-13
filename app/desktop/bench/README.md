@@ -1,3 +1,9 @@
+# Historical desktop-shell benchmark toolkit
+
+> Desktop application work is out of scope for the current sample prototype under D-115. This folder is retained as a measurement experiment only; do not treat it as an active roadmap item. See [STATE.md](../../../docs/STATE.md).
+
+---
+
 # Electron vs Tauri measurement (1B.4, D-025)
 
 **Nothing here is measured yet.** D-025 requires both to be measured on

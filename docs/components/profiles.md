@@ -1,31 +1,31 @@
 # Component: profiles
 
-> Area type: support. Location: `src/profiles/`. Hand-written sections describe profile composition and guardrails; generated source details are maintained by `npm run docs:components`.
+> Area type: support. Location: `src/profiles/`. Generated source details are maintained by `npm run docs:components`.
 
 ## Purpose
 
-Composes named Cordis service stacks. `profile-minimal` boots the minimal session, egress, model, tool, subprocess, and agent-loop stack. `profile-coding` boots the governed coding stack with project-root confinement, policy gates, input guarding, memory, retrieval, local tools, orchestration, and evaluation.
+Composes Cordis service stacks. `profile-minimal` provides session logging, model access, tools, subprocess service, and agent loop. `profile-coding` adds project file tools, retrieval, memory, skills, policy gates, input guard, orchestration, and evaluation.
 
-The coding profile's boot-time policy enforcement self-test lives in `verify-gates.ts`. The existing `verifyGates` and `SELFTEST_SESSION` exports remain available from `profile-coding.ts` for compatibility.
+## Route
 
-## Route (how control reaches it)
+Callers use `bootProfileMinimal(config)` or `bootProfileCoding(config)`. The governed CLI and tests use `bootProfileCoding`; integrations may use the profile APIs directly. Each profile validates required services before returning.
 
-Callers use `bootProfileMinimal(config)` or `bootProfileCoding(config)`. The coding CLI and tests use `bootProfileCoding`; other integrations can boot the profile directly. Each profile validates that its required services actually started before returning the context.
+## Config and invariants
 
-## Config surface and invariants
-
-- Both profiles require a project ID where egress consent is project-scoped; the coding profile also requires an absolute project root.
-- The coding profile refuses unknown options and refuses attempts to disable or weaken the policy gates below the confidence-threshold floor.
-- `commandRisk` is always wired into the coding profile's policy signals.
-- Service boot order follows dependencies. Sub-agent scope is registered before policy gates; local tools are registered after policy gates.
-- Optional skills load only when explicitly configured. Semantic memory loads only when both embeddings and a vector store are configured.
-- The coding profile runs `verifyGates` after required services boot and tears down the context if verification fails.
+- Project IDs scope egress consent; the coding profile requires an absolute project root.
+- The coding profile refuses unknown options and attempts to weaken policy gates.
+- Command risk is wired into policy signals.
+- Tool registration occurs after policy hooks are installed.
+- Optional skills and semantic memory load only when explicitly configured.
+- The profile's self-test verifies service wiring and policy enforcement.
 
 ## Known limits
 
-- The profile self-test verifies wiring and policy enforcement in the current context; it does not execute a sandbox command or prove live provider acceptance.
-- Scripted tests do not establish live-model compliance or prompt-injection resistance.
-- Real sandbox acceptance remains subject to the permanent S0 hold. D-110 and D-114 are unchanged.
+- The coding profile does not currently register the Vercel provider or enable `COMMAND_TOOL`.
+- D-117 allows commands only in an explicitly selected remote cloud sandbox. D-118 selects Vercel, but workspace transfer, result sync, audit, and live acceptance are incomplete.
+- D-110 permanently holds Docker/WSL/Crabbox S0 and prohibits host fallback.
+- A profile self-test and fake provider test are not live cloud acceptance.
+- See [STATE.md](../STATE.md).
 
 ---
-**Next:** Return to [`context.md`](../../context.md).
+**Next:** Return to [context.md](../../context.md).

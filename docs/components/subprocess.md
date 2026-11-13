@@ -22,7 +22,7 @@ A host explicitly installs the service as `ctx.subprocess`. Callers use `run(com
 ## Known limits
 
 - This is host subprocess execution, not a sandbox.
-- The governed coding CLI does not expose it as a command tool under D-110.
+- D-117 prohibits using this local subprocess service for governed coding-task commands. Those commands may run only through an explicitly selected remote cloud sandbox. D-110 separately holds Docker/WSL/Crabbox S0.
 - Process-tree cleanup is best effort and platform-specific.
 - See D-110 and the command execution scope in `docs/status.md`.
 

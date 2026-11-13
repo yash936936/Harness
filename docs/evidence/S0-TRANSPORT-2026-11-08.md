@@ -1,3 +1,9 @@
+# Historical S0 transport record
+
+> This record predates D-110's permanent S0 hold. Its resume condition is superseded. Do not run any Docker, WSL, or Crabbox probe. S0 is permanently held and S1 is deferred. See [STATE.md](../STATE.md).
+
+---
+
 # S0 Windows transport status
 
 Date: 2026-11-08  

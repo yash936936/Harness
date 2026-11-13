@@ -1,50 +1,32 @@
-# Dev workflow — Coding Harness
+# Development workflow
 
-Root folder (identical across all tools): `D:\Users\yash\downloads\Harness`
-(Git Bash: `/d/Users/yash/downloads/Harness`), opened in VS Code with the
-Claude Code extension. Repository: `yash936936/Harness`, branch `main`.
+This repository may be edited through a local checkout or an authorized GitHub workflow. Do not assume a particular editor, coding assistant, operating system, or local path.
 
-## Current mode: Claude-only
-Claude is the only tool in use. Claude writes, edits and checks the
-implementation code, and also reviews it: after writing code, actually run
-it, compare it with `docs/architecture.md` and `docs/phases.md`, and look for
-bugs, rather than treating "wrote it" as "done". opencode is suspended, not
-removed. It re-enters only when the owner says so explicitly ("switching to
-opencode for X"). Do not assume a switch, and do not ask after every task.
+## Start
 
-## Session start (every session)
-1. Read `context.md`, then `docs/status.md`.
-2. Check `docs/decisions.md` (newest first) before proposing anything that
-   might contradict a logged decision. Do not reopen one unless the owner does.
-3. Check the working tree: `git status`, then `npm run typecheck` and
-   `npm test`.
+1. Read `context.md` and `AGENTS.md`.
+2. Read `docs/STATE.md`, the newest `docs/status.md` entry, and `docs/FAILURE-LEDGER.md`.
+3. Check relevant decisions and component guides.
+4. Inspect branch and working-tree state before editing.
 
-## Loop
-1. Plan or design in chat when reasoning or a second opinion is needed; log
-   resulting decisions in `docs/decisions.md` with the next `D-0NN` ID.
-2. Implement the current sub-phase from `docs/phases.md`. One sub-phase at a
-   time.
-3. Run `npm run typecheck` and `npm test`. For opt-in live tests see the
-   commands in `docs/readme.md`.
-4. After each coding task: append to `docs/debug.md` (what was tested, what
-   was not, what broke), update `docs/status.md`.
-5. On completing a sub-phase: mark it in `docs/phases.md`. On completing a
-   phase: update `docs/readme.md` to real, not aspirational, capabilities.
-6. Commit and push from Git Bash. Keep bundle boundaries in `src/bundles/`
-   matching `docs/architecture.md`; if the implementation drifts from that
-   map, log a decision, not a silent change.
+## Work loop
 
-These logging steps are not optional because Claude is doing more of the
-work. With no separate reviewer, hold them more strictly.
+1. Identify the failing layer and state a testable hypothesis.
+2. Reproduce with the smallest relevant test or command.
+3. Add a regression test that fails before the fix.
+4. Make one focused change.
+5. Run the targeted test, typecheck, lint, and relevant docs checks. Run the full suite before proposing merge.
+6. Update current state and the active build plan. Keep historical evidence append-only.
+7. Open a PR to `main`; do not merge red CI.
 
-## Verifying Phase 2 on the dev machine
-1. `npm install` (adds `web-tree-sitter`, `tree-sitter-wasms`, `@lancedb/lancedb`, `apache-arrow`; LanceDB downloads a ~200 MB native binary), then `npm run typecheck` and `npm test` as two separate commands (Windows PowerShell 5.1 does not accept `&&`).
-2. Ripgrep must be on PATH (`rg --version`); open a NEW terminal after installing it.
-3. `npx tsx scripts/smoke-phase2.ts` runs 2.1-2.6 for real and prints PASS/FAIL.
-4. `scripts/` is now type-checked by `npm run typecheck`. For a real chat model (the actual test of 2.6), `ollama pull` a model that supports tool calling and set `HARNESS_OLLAMA_CHAT_MODEL`; the smoke script and `test/retrieval-agent.test.ts` then run it through the retrieval tools.
-5. For real embeddings: `ollama pull <embedding model>`, then set
-   `HARNESS_OLLAMA_EMBED_MODEL=<model>` and run the smoke script and
-   `npx vitest run test/embeddings.test.ts`.
+## Cloud execution boundary
 
----
-**Next:** Return to [`context.md`](../context.md).
+D-117 permits commands only in an explicitly selected remote cloud sandbox. D-118 selects Vercel Sandbox. The current provider adapter is not a complete project coding environment. Keep `COMMAND_TOOL` disabled until workspace transfer, safe result synchronization, lifecycle audit, and policy integration are complete. No Docker, WSL, Crabbox, host subprocess, or local fallback.
+
+Model and sandbox egress are separate consent destinations. Do not pass host credentials or model keys into the sandbox. Keep sandbox networking disabled unless a separate allowlist policy is approved.
+
+## Evidence and handoff
+
+Distinguish source presence, unit tests, CI, live smoke, and owner acceptance. Never infer one from another. Record technical findings in `docs/debug.md`, decisions in `docs/decisions.md`, and the current state in `docs/status.md`. The event log remains append-only.
+
+At handoff, list changes, exact verification, what was not tested, remaining blockers, and the next action.

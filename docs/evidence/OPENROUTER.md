@@ -1,3 +1,9 @@
+# Historical OpenRouter smoke evidence
+
+> The smoke result below is historical connectivity evidence, not current full S4 acceptance. D-117 supersedes the old statement that S4 is permanently blocked by S0: S4 is now an OPEN cloud-only acceptance plan under D-117/D-118. D-110 still holds Docker/WSL/Crabbox and host execution. Vercel workspace transfer, result synchronization, audit, and CLI integration are not complete. See [STATE.md](../STATE.md).
+
+---
+
 # OpenRouter live-run evidence
 
 **Status: smoke PASS; full S4 acceptance BLOCKED-S0-PERMANENT-HOLD.**

@@ -4,25 +4,28 @@
 
 ## Purpose
 
-Defines the sandbox provider interface used by command-capable tools. It standardizes capability reporting, health checks, execution results, and lifecycle operations without choosing a concrete sandbox implementation.
+Defines the provider-neutral remote sandbox interface used by command-capable tools. It standardizes capability reporting, health checks, command results, and lease lifecycle without selecting a concrete provider.
 
-## Route (how control reaches it)
+## Route
 
-A concrete provider registers the sandbox service as `ctx.sandbox`. The tools-local command factory delegates command execution to this service. The caller remains responsible for deciding whether the command tool is offered at all.
+A concrete provider registers through the shared sandbox service as `ctx.sandbox`. The command tool delegates to this service. The service enforces remote project consent and the exact provider-host allowlist before provider contact.
 
-## Config surface and invariants
+## Config and invariants
 
-- Providers must implement the shared lifecycle and command result contract.
-- Command execution must stay inside the provider boundary; callers must not add host-process fallback.
-- Results distinguish execution failure from provider or lifecycle failure.
-- Lease cleanup and release status must be verified rather than inferred from a missing listing entry.
+- The caller must explicitly select a remote provider. No auto-detection, local runtime, or host fallback.
+- Commands use argv, not a shell string.
+- Provider results distinguish command failure, timeout, cancellation, and lifecycle failure.
+- Cleanup must be confirmed. A lease that cannot be confirmed deleted is not a successful command.
+- Sandbox egress consent is separate from model-provider egress consent.
+- Sandbox network access defaults to deny-all and needs a separate policy for any allowed destination.
+- Policy gates, immutable approvals, hard denials, and audit logging remain mandatory.
 
 ## Known limits
 
-- A provider interface does not prove a real sandbox is configured or accepted.
-- S0 / ARCH-01 is on permanent hold under D-110. The governed CLI must not probe or invoke sandbox providers.
-- Do not run Docker, WSL, Crabbox, or substitute host execution while D-110 remains in force.
-- See D-110, D-112, and `docs/status.md`.
+- D-110 permanently holds the Docker/WSL/Crabbox S0 route; S1 is deferred.
+- D-118 selects Vercel Sandbox as the first cloud provider, but the project workflow is not integrated or live-accepted.
+- Do not enable `COMMAND_TOOL` until workspace transfer, safe result synchronization, lifecycle audit, and policy integration pass.
+- See [STATE.md](../STATE.md) and [ROADMAP.md](../ROADMAP.md).
 
 ---
-**Next:** Return to [`context.md`](../../context.md).
+**Next:** Return to [context.md](../../context.md).

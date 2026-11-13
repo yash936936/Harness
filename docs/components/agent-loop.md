@@ -26,7 +26,7 @@ The coding and minimal profiles install `AgentLoop`. Callers use `ctx.agentLoop.
 - Response guards are bounded text heuristics, not general semantic answer validation.
 - Provider retries do not prove model task correctness or tool safety; policy gates remain the side-effect enforcement layer.
 - Scripted tests do not establish live-model compliance.
-- Real sandbox/provider acceptance remains subject to the permanent S0 hold. D-110 and D-114 are unchanged.
+- Cloud command execution is not exposed by the CLI yet. D-117/D-118 require an explicitly selected remote cloud sandbox; D-110 permanently holds the separate Docker/WSL/Crabbox S0 route. D-114's 3B-only testing rule is superseded only for cloud-hosted testing under D-117.
 
 ---
 **Next:** Return to [`context.md`](../../context.md).

@@ -1,3 +1,9 @@
+# Historical failure investigation
+
+> Historical record from 2026-11-08. Its Crabbox/Docker troubleshooting instructions are obsolete and must not be followed. D-110 permanently holds S0: no Docker, WSL, Crabbox probes, retries, or workarounds. Current scope and next steps are in [STATE.md](STATE.md) and [ROADMAP.md](ROADMAP.md).
+
+---
+
 # Recurring failure audit: Crabbox, Docker, CI, and test workflow
 
 Date: 2026-11-08  

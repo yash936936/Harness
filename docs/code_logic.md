@@ -1,12 +1,9 @@
 # Code logic — Coding Harness
 
-> Populated as non-obvious logic actually appears in code, not front-loaded
-> with speculative design. The policy-gate dispatch below is design
-> pseudocode (Phase 5, not built); the other sections describe code that
-> exists (see `docs/status.md` for how far the build has got).
+> This file began as an implementation notebook. Some early sections describe an earlier build stage and are retained as historical explanation. Current policy behavior is implemented; see `docs/components/policy-gates.md`, `docs/components/tool-registry.md`, and `docs/STATE.md` for current behavior and execution scope.
 
 ## Policy-gate dispatch (`tools/pre-execute`)
-**Where:** `src/bundles/policy-gates/` (once built — Phase 5)
+**Where:** `src/bundles/policy-gates/`
 **What it does:** On every tool call, matches the action's class against
 the policy table and either allows, allows-and-logs, checks confidence
 before holding for approval, always holds for approval, or hard-blocks:

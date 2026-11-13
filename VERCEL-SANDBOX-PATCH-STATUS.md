@@ -1,16 +1,34 @@
-# Vercel Sandbox closeout patch status
+# Vercel Sandbox adapter status
 
-## Implemented in this patch
-- Added an independent command deadline in `src/bundles/sandbox-vercel/index.ts`.
-- The deadline aborts the SDK command signal, reports `timedOut`, bounds the error text, and preserves the `finally` cleanup attempt.
-- Added a regression test for a never-resolving command and confirmed lease deletion is attempted.
+Updated 2026-11-14. This status describes the first D-118 provider adapter, not a complete or accepted coding backend.
 
-## Not completed / not safe to enable
-- Workspace snapshot and upload/download are not implemented.
-- Secret and sensitive-file filtering, symlink/path traversal defenses, size/file-count limits, and conflict-safe local result application are not implemented.
-- The real `@vercel/sandbox` dependency and lockfile update are not complete. `npm install --save-exact @vercel/sandbox@3.9.1` timed out in this environment.
-- No SDK-level client test using Vercel's SDK mock has been added.
-- Coding CLI integration and live end-to-end acceptance remain disabled by the existing D-110 decision. Enabling them without the transfer contract would be unsafe.
-- Test suite and typecheck could not be verified because dependency installation did not complete in this environment.
+## Implemented
 
-Do not treat this patch as a production-ready Vercel coding backend. Run `npm ci`, `npm run typecheck`, and `npx vitest run test/sandbox-vercel.test.ts` after applying it in a complete development environment.
+- Provider adapter behind the shared `SandboxProvider` interface.
+- Non-persistent sandbox request.
+- Deny-all sandbox network policy.
+- argv-only command forwarding as `cmd` plus `args`.
+- Independent command deadline and abort signal.
+- Bounded stdout/stderr capture.
+- Cleanup attempt in a `finally` path.
+- Fake-client tests, including a never-resolving command and cleanup attempt.
+
+## Not implemented
+
+- Dependency is already declared in the root manifest/lockfile; resolve the nested Zod advisory.
+- Secret-safe project snapshot creation and upload.
+- Sensitive-file exclusion, symlink/path traversal defenses, and transfer size/count limits.
+- Remote result collection, validation, conflict detection, and safe application.
+- Provider lifecycle audit events and full redaction coverage.
+- Coding profile/CLI provider selection and consent UX.
+- Live credential-backed provider and end-to-end project acceptance.
+
+## Security and CI blockers
+
+The latest observed CI run (#613) fails at `npm audit --omit=dev --audit-level=high`. The reported vulnerable dependency is nested `zod@4.1.11` under `@vercel/cli-config@0.3.1`, pulled by the selected `@vercel/sandbox@3.9.1` tree. Do not suppress the audit or force-downgrade the SDK without verifying compatibility.
+
+## Enablement rule
+
+Keep `COMMAND_TOOL` filtered. Do not register the provider in the governed CLI until the existing dependency audit is green and workspace transfer, result synchronization, lifecycle audit, policy integration, and regression tests pass.
+
+S0 remains permanently held under D-110. D-117/D-118 authorize only the separate remote cloud route. S4 remains open and not passed.
