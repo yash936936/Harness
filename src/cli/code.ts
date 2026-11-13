@@ -1,3 +1,4 @@
+// Governed coding-task CLI lifecycle; sandbox execution remains disabled under D-110.
 import { statSync } from 'node:fs'
 import { basename, join, resolve } from 'node:path'
 import type { Context } from 'cordis'
