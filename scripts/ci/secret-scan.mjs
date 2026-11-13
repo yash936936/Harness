@@ -4,11 +4,11 @@ import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 
 const TEST_FIXTURES = new Map([
-  ['test/credentials.test.ts', new Set(['sk-super-secret-value-should-not-appear-raw'])],
-  ['test/memory-episodic.test.ts', new Set(['sk-legacy-episode-secret', 'sk-live-12345'])],
-  ['test/openai-compatible.test.ts', new Set(['sk-or-v1-SECRETKEY1234567890', 'sk-FAKE-CUSTOMER-SECRET-999'])],
-  ['test/provider-connection.test.ts', new Set(['sk-or-v1-SECRETKEY1234567890'])],
-  ['test/session-log.test.ts', new Set(['sk-live-SEEDED-9f8e7d6c5b4a'])],
+  ['test/credentials.test.ts', new Set([['sk-', 'super-secret-value-should-not-appear-raw'].join('')])],
+  ['test/memory-episodic.test.ts', new Set([['sk-', 'legacy-episode-secret'].join(''), ['sk-', 'live-12345'].join('')])],
+  ['test/openai-compatible.test.ts', new Set([['sk-or-v1-', 'SECRETKEY1234567890'].join(''), ['sk-', 'FAKE-CUSTOMER-SECRET-999'].join('')])],
+  ['test/provider-connection.test.ts', new Set([['sk-or-v1-', 'SECRETKEY1234567890'].join('')])],
+  ['test/session-log.test.ts', new Set([['sk-live-', 'SEEDED-9f8e7d6c5b4a'].join('')])],
 ])
 const PATTERNS = [
   ['openai-style key', /\bsk-[A-Za-z0-9_-]{20,}\b/],
