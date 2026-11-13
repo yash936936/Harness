@@ -2027,3 +2027,18 @@ as the dependency than the harness built on top of it.
 
 ---
 **Next:** Return to [`context.md`](../context.md).
+
+
+## D-116 — Sample-prototype roadmap and owner scope decisions — 2026-11-13
+
+**Owner disposition:** ACCEPTED / AMENDED by explicit owner approval on 2026-11-13, against the uploaded `ROADMAP.md` proposal written 2026-11-11. The proposal is preserved at `docs/ROADMAP.md`; the item-by-item register is `docs/ROADMAP-DECISIONS.md`.
+
+**D1 — ACCEPT (option a):** Prototype v0 has no command execution. Its scope is read/plan/edit with policy approvals for risky writes. Do not add host commands, a command allowlist, a replacement sandbox, or a host fallback under this decision. D-110 remains in force: no Docker, WSL, or Crabbox probing.
+
+**D2 — ACCEPT WITH RESTRICTION (option b):** Keep `qwen2.5-coder:3b-instruct` as the default local worker and the model for the headline 8 GB/no-GPU prototype demonstration and 3B-specific acceptance. Permit exactly one stronger free OpenRouter model comparison session. Label it separately as a comparison; it does not count as local 8 GB capability, headline-demo evidence, or 3B acceptance. This is a narrow comparison allowance, not a general provider/model expansion. D-114's exclusion of Qwen 7B artifact work and model distribution remains unchanged.
+
+**D3 — AMEND (option a, with an evidence boundary):** Three owner-reviewed end-to-end sessions may be used for the qualitative prototype demonstration: one clean run, one denied approval, and one blocked credential read. These three sessions do not authorize scorer output, agreement metrics, or a confusion table. D-109 remains unchanged and controls any scorer-based evaluation: at least 10 distinct genuine sessions, both good and bad owner labels, with the labels committed and SHA-256 recorded before scorer output is generated or viewed. The three-session demonstration must be described as qualitative and prototype-grade, not calibrated.
+
+**Unchanged constraints:** D-109, D-110, D-112, D-114, and D-115 remain in force except for the narrowly scoped D2 comparison allowance above. No command execution or S0/S1/S4 reopening is authorized. No S6/S7 evidence is created by this decision.
+
+**Affects:** `docs/ROADMAP-DECISIONS.md`, `docs/STATE.md`, `docs/status.md`, `docs/BUILD-PLAN.md`, `docs/AUDIT-CLOSEOUT.md`, `context.md`, and `README.md`. This is a scope decision only; no runtime implementation or acceptance evidence is changed.
