@@ -37,9 +37,9 @@ The package CLI entry point in `index.ts` parses the `run` and `code` subcommand
 | `src/cli/run.ts` | `RunArgs`, `RunDeps`, `RunResult` | **(no header comment)** |
 | `src/cli/wizard.ts` | `ProviderKind`, `WizardDeps`, `WizardCompleted`, `WizardAborted`, `WizardResult`, `formatDoctorReport` | **(no header comment)** |
 
-**Imports other areas:** `egress`, `policy-gates`, `profiles`, `tools-local`
+**Imports other areas:** `app-core`, `egress`, `model-adapter`, `model-store`, `policy-gates`, `profiles`, `session-log`, `tools-local`
 
-**Tests:** `test/code-cli.test.ts`
+**Tests:** (none matched by name)
 
 <!-- END GENERATED -->
 
