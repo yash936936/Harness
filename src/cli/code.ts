@@ -6,8 +6,6 @@ import type { WizardIO } from './io.js'
 import { FileConsentStore } from '../bundles/egress/store.js'
 import { COMMAND_TOOL } from '../bundles/tools-local/index.js'
 import type { ApprovalRequest } from '../bundles/policy-gates/index.js'
-import { dockerEngineAvailable } from './docker.js'
-export { dockerEngineAvailable } from './docker.js'
 
 export type CodeProvider = 'ollama' | 'openrouter'
 export interface CodeTaskOptions {
@@ -21,8 +19,8 @@ export interface CodeTaskOptions {
   timeoutMs?: number
   /** Opt in to strict recovery of JSON tool calls emitted as Ollama text. */
   textToolCalls?: boolean
-  sandbox?: 'auto' | 'none'
-  dockerAvailable?: boolean
+  /** D-110: command execution remains disabled until an explicit superseding decision. */
+  sandbox?: 'none'
 }
 export interface CodeTaskResult { ok: boolean; sessionId?: string; context?: Context; reason?: string }
 
@@ -61,7 +59,6 @@ export async function runCodeTask(io: WizardIO, options: CodeTaskOptions): Promi
   const projectId = safeProjectId(options.projectId ?? basename(projectRoot))
   const stateDir = join(projectRoot, '.harness')
   const sessionDir = join(stateDir, 'sessions')
-  const sandboxDetected = options.sandbox !== 'none' && (options.dockerAvailable ?? dockerEngineAvailable())
 
   let openRouterHost: string | undefined
   if (options.provider === 'openrouter') {
@@ -131,36 +128,24 @@ export async function runCodeTask(io: WizardIO, options: CodeTaskOptions): Promi
     agentLoop: { maxSteps: 8, reflection: false },
     orchestrator: { maxSubtasks: 8, maxToolsPerSubtask: 3, maxRepairs: 1 },
     policy: { approvalTimeoutMs: 120000, approver },
-    sandbox: sandboxDetected
-      ? { crabbox: { provider: 'local-container', runtime: 'docker', cwd: projectRoot }, default: 'crabbox' }
-      : undefined,
   }
 
   let ctx: Context | undefined
   try {
     ctx = await bootProfileCoding(config)
     const sessionId = ctx.log.create()
-    let sandboxReady = false
-    if (sandboxDetected) {
-      const doctor = (await ctx.sandbox.doctor()).crabbox
-      sandboxReady = doctor?.ok === true
-      io.print(sandboxReady
-        ? `Sandbox: Crabbox local-container ready (${doctor?.detail ?? 'ready'})`
-        : `Crabbox doctor failed: ${doctor?.detail ?? 'no doctor result'}`)
-    }
-    const offeredTools = ctx.tools.list().map((tool) => tool.name).filter((name) => sandboxReady || name !== COMMAND_TOOL)
-    if (!sandboxReady) {
-      io.print('no sandbox: commands disabled, file tools still gated')
-      await ctx.log.append(sessionId, 'sandbox.unavailable', {
-        reason: sandboxDetected ? 'Crabbox doctor failed; no host fallback' : 'Docker unavailable or sandbox disabled; no host fallback',
-      }, 'cli')
-    }
+    // D-110 is a hard prohibition: do not probe Docker/WSL/Crabbox, even as a capability check.
+    const offeredTools = ctx.tools.list().map((tool) => tool.name).filter((name) => name !== COMMAND_TOOL)
+    io.print('no sandbox: commands disabled, file tools still gated')
+    await ctx.log.append(sessionId, 'sandbox.unavailable', {
+      reason: 'sandbox probing and command execution disabled under D-110; no host fallback',
+    }, 'cli')
 
     await ctx.log.append(sessionId, 'code.started', {
       projectRoot,
       provider: options.provider,
       model: options.model,
-      sandbox: sandboxReady ? 'crabbox-local-container' : 'none',
+      sandbox: 'none',
       offeredTools,
     }, 'cli')
     io.print(`Session: ${sessionId}`)
