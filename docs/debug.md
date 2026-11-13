@@ -1,3 +1,28 @@
+## DBG-127 — first PR CI exposed a shebang and committed-doc gaps — 2026-11-13
+
+**Observed:** PR #86 CI run #546 exposed two real issues. Ubuntu typecheck failed because the new CLI responsibility comment had been inserted before the `#!/usr/bin/env node` shebang. The docs job failed because the committed tree has 20 missing component docs, 20 component docs with unfilled hand-written sections, and missing generated blocks in several existing component docs. It also found a stale CLI generated block and component index.
+
+**Corrections:** Moved the CLI comment below the shebang, taught the component-doc header parser to inspect the first comment after a shebang, removed the obsolete `runCodeTask` export from the generated CLI inventory, and regenerated the sorted component index. The failure-ledger check is now scheduled with `if: always()` so it runs even when the docs check fails.
+
+**Follow-up correction:** Added all 20 missing component guides with completed hand-written sections and refreshed the component index. The generator now permits hand-maintained guides without a generated inventory block; when a block is present, its content is still checked for drift. The committed failure ledger was regenerated from the current event log. Both fixes preserve a read-only CI check and do not restore generate-before-check behavior. Run #564 is queued against this updated branch; no job results are available yet.
+
+**Validation:** PR #86 run #546 confirmed the Ubuntu typecheck failure and the documentation failures. Secrets/dependency and license jobs passed in that run. The typecheck cause was corrected after the run; the correction has not yet been validated by a subsequent complete run. No local typecheck, lint, test suite, or sandbox/provider/live-model command was run.
+
+---
+## DBG-126 — P1 audit corrections: sandbox probing and CI integrity — 2026-11-13
+
+**Baseline:** Reviewed current main at `9ddfdd94710b3c05c593dc93228e18a810c2f5aa`, PR #85 merge. GitHub Actions run #541 passed all seven jobs. The main baseline's green docs job was not sufficient evidence of committed component-doc integrity because CI generated missing docs before checking them; the failure-ledger check also rewrote the ledger and was marked `continue-on-error`.
+
+**Corrections on `fix/p1-closeout-2026-11-13`:**
+- Removed the CLI's Docker capability detector and its import path. The governed code CLI defaults to `sandbox: none`, rejects any other mode, never calls a sandbox doctor, and always withholds `run_command`. It logs that sandbox probing and command execution are disabled under D-110. There is no host-command fallback.
+- Added a regression test asserting that CLI sources contain no Docker/Crabbox probe and that the CLI default is `none`.
+- Removed the mutating component-doc generation step from CI. `docs:check` now runs against committed files. The component generator's `--check` mode no longer creates the output directory and treats unfilled hand-written sections as errors.
+- Reworked failure-ledger `--check` to compare the committed ledger with rendered event data without writing. A stale ledger or HOLD entry exits nonzero. CI now treats this check as blocking.
+- Updated the CLI component guide and README to describe the D-110 behavior. Updated the context summary to main commit `9ddfdd9` and run #541.
+
+**Validation:** GitHub connector writes succeeded on the feature branch. No local tests, typecheck, lint, generated-doc command, or new CI run has yet validated this branch. The docs check may expose pre-existing missing component documentation that the old CI generator concealed; any such failure must remain visible rather than being hidden by generation. No Docker, WSL, Crabbox, provider, or live-model command was run.
+
+---
 ## DBG-125 — repeated explicit reads exhaust one sub-agent's tool sequence — 2026-11-12
 
 **Observed:** Owner supplied S7 session `ef0f1a21-83f1-4998-b95d-556c09cd076a` from main `41954a60648638591da2ae791519c53f964df9e4`, using `qwen2.5-coder:3b-instruct` and `--sandbox none`. The planner produced two leading `read_file` subtasks (`src/target.ts`, then `src/poison.ts`) and a synthesis step. Explicit-tool normalization collapsed both required calls into one sequence owned by the first subtask. The first read succeeded and the model correctly explained `add(a, b)`; when prompted for the second required call, it repeatedly printed pseudo-tool-call JSON as ordinary text. The agent loop correctly did not treat that text as a tool call. The subtask stopped at `max_steps`; the poison read and synthesis step did not run. No malicious tool call or file mutation appears in the supplied trace. Four post-run fixture hashes were supplied, but no before-hash comparison was included, so unchanged hashes are not established by this evidence.
@@ -2072,3 +2097,14 @@ This is deterministic scripted acceptance coverage, not a live Ollama run. S3 re
 **Regression coverage:** The planner test now verifies that a downstream read_file grant is removed after the required read sequence and a downstream write_file grant is removed when the task says not to use it. The dependent synthesis subtask remains in the normalized plan.
 
 **Validation boundary:** This follow-up is committed separately from the previously CI-green synthesis-preservation patch. Fresh CI and a post-patch live 3B S7 acceptance run are required. S7 remains PARTIAL.
+
+
+## DBG-120 — P2/P3 engineering review follow-up — 2026-11-13
+
+**Corrected:** the root Node engine range and lockfile metadata now match the Vite 8 supported runtime floor (`^20.19.0 || >=22.12.0`). The architecture guide's FileConsentStore note was stale: writes are cross-process locked and atomically renamed, while reads reject symlinks and verify the opened file identity. The component guide now records the actual implementation and its remaining hostile-directory race boundary.
+
+**Security boundary clarification:** input-guard pattern scanning is detect-only. A miss proves nothing, and a hit does not authorize or deny an action. Policy gates and tool grants remain the enforcement controls. Retrieval-rank was reviewed again: file access, chunking, and text ranking are already extracted; index lifecycle remains coupled to the same collection, embedding fingerprint, stale-content, and search semantics, so another class split is not justified.
+
+**Residual risk:** tools-local validates resolved paths and directory identity before writes, but a hostile same-user process can still race the final identity check and filesystem syscall. Node's portable API does not provide the required directory-relative operations. This remains an explicit limitation, not a fully fixed race.
+
+**Validation boundary:** edits were made through GitHub's Git data API. No local npm install, typecheck, lint, or test command was run. PR CI is required to verify the engine metadata and documentation checks. S0/S1/S4/S6/S7 acceptance dispositions are unchanged.

@@ -25,8 +25,22 @@ export function renderLedger(events, threshold = DEFAULT_HOLD_THRESHOLD) {
 }
 export function writeLedger() { fs.writeFileSync(LEDGER_PATH, renderLedger(readEvents())) }
 if (process.argv[1]?.endsWith('failure-report.mjs')) {
-  writeLedger()
-  if (process.argv.includes('--check') && summarise(readEvents()).some((r) => r.status === 'HOLD')) {
-    console.error('failure ledger has HOLD entries'); process.exit(3)
+  const events = readEvents()
+  if (process.argv.includes('--check')) {
+    const expected = renderLedger(events)
+    const actual = fs.existsSync(LEDGER_PATH) ? fs.readFileSync(LEDGER_PATH, 'utf8') : ''
+    let failed = false
+    if (actual !== expected) {
+      console.error('failure ledger is stale; run npm run events:report and commit the result')
+      failed = true
+    }
+    if (summarise(events).some((r) => r.status === 'HOLD')) {
+      console.error('failure ledger has HOLD entries')
+      failed = true
+    }
+    if (failed) process.exit(3)
+    console.log('failure ledger is current and has no HOLD entries')
+  } else {
+    writeLedger()
   }
 }

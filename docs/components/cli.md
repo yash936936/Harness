@@ -4,9 +4,7 @@
 
 ## Purpose
 
-Provides the terminal entry point and task lifecycles for ordinary runs, governed coding tasks, and the interactive wizard. The coding path validates the project root and task, obtains remote-provider consent when needed, boots the coding profile, checks sandbox availability, and runs the planner and executor.
-
-The host Docker capability check lives in `docker.ts`. The governed coding lifecycle remains in `code.ts`; its exported `dockerEngineAvailable` name is re-exported there for compatibility.
+Provides the terminal entry point and task lifecycles for ordinary runs, governed coding tasks, and the interactive wizard. The governed coding path validates the project root and task, obtains remote-provider consent when needed, boots the coding profile, withholds command execution under D-110, and runs the planner and executor.
 
 ## Route (how control reaches it)
 
@@ -14,18 +12,36 @@ The package CLI entry point in `index.ts` parses the `run` and `code` subcommand
 
 ## Config surface and invariants
 
-- The `code` command accepts Ollama or OpenRouter, an optional base URL, project ID, sandbox mode, Ollama timeout, and optional Ollama text-tool-call recovery.
+- The `code` command accepts Ollama or OpenRouter, an optional base URL, project ID, the explicit `--sandbox none` compatibility option, Ollama timeout, and optional Ollama text-tool-call recovery.
+- Sandbox mode defaults to `none`; any other value is rejected. D-110 prohibits Docker, WSL, and Crabbox probes, including capability checks.
+- `run_command` is never offered by the CLI. There is no host-command fallback.
 - OpenRouter requires `OPENROUTER_API_KEY`, an HTTPS endpoint without embedded credentials, and explicit per-project remote egress consent.
-- The CLI offers `run_command` only after the configured sandbox provider's doctor check succeeds. Otherwise command execution is withheld; there is no host fallback.
-- Docker capability detection uses a bounded 4-second `docker info` invocation with `shell: false`.
 - `parseTimeoutMs` accepts only positive safe integer milliseconds up to 4,294,967,295.
 
 ## Known limits
 
-- Docker availability is a capability signal, not proof that a sandbox workload can execute safely.
+- Governed coding tasks can use file tools, but cannot execute project commands while D-110 remains in force.
 - A passing CLI test suite does not satisfy the real S0 sandbox acceptance gate.
-- D-110 remains a permanent hold on Docker/WSL acceptance probes and workarounds. This component extraction does not run Docker or WSL commands.
+- The removed Docker capability probe must not be reintroduced unless the owner explicitly supersedes D-110 with a new decision.
 - The CLI is a process entry point; callers embedding the profile directly should use the profile APIs rather than invoking CLI lifecycle helpers.
+
+<!-- BEGIN GENERATED: do not edit between markers -->
+
+### Files and exports
+
+| File | Exports | Responsibility (first header-comment line) |
+|---|---|---|
+| `src/cli/code.ts` | `CodeProvider`, `CodeTaskOptions`, `CodeTaskResult`, `parseTimeoutMs` | Governed coding-task CLI lifecycle; sandbox execution remains disabled under D-110. |
+| `src/cli/index.ts` | - | CLI process entry point and argument parsing. |
+| `src/cli/io.ts` | `AskOptions`, `ConfirmOptions`, `WizardIO`, `TerminalIO` | **(no header comment)** |
+| `src/cli/run.ts` | `RunArgs`, `RunDeps`, `RunResult` | **(no header comment)** |
+| `src/cli/wizard.ts` | `ProviderKind`, `WizardDeps`, `WizardCompleted`, `WizardAborted`, `WizardResult`, `formatDoctorReport` | **(no header comment)** |
+
+**Imports other areas:** `app-core`, `egress`, `model-adapter`, `model-store`, `policy-gates`, `profiles`, `session-log`, `tools-local`
+
+**Tests:** (none matched by name)
+
+<!-- END GENERATED -->
 
 ---
 **Next:** Return to [`context.md`](../../context.md).

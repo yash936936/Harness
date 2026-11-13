@@ -1,3 +1,16 @@
+## 2026-11-13 P1 closeout work started
+
+**Current main baseline:** PR #85 is merged as `9ddfdd94710b3c05c593dc93228e18a810c2f5aa`. GitHub Actions run [#541](https://github.com/yash936936/Harness/actions/runs/43291127880) passed all seven jobs. This is automated CI evidence only; S7 poisoning remains PARTIAL pending a fresh owner-run 3B test, S7 embedding remains open, and S6 remains blocked on genuine owner-labelled sessions.
+
+**P1 corrections submitted in PR #86 on branch `fix/p1-closeout-2026-11-13`:**
+- The governed CLI no longer probes Docker, WSL, or Crabbox. Sandbox mode defaults to `none`, rejects `auto`, never offers `run_command`, and records the D-110 hold. No host fallback is added.
+- Documentation CI no longer generates or rewrites component docs before checking them. Component checks are read-only; unfilled hand-written sections are errors. The failure-ledger `--check` mode compares the committed ledger without writing it, and CI no longer ignores failures.
+- Current status references are reconciled to the merged PR #85 baseline while historical incident entries remain intact.
+
+**Validation boundary:** Changes were made through the GitHub connector on the branch above. PR #86 CI run #546 found a shebang-order typecheck failure and the component-documentation gaps now exposed by the read-only check. The shebang issue and two stale generated indexes were corrected after that run. The strict docs check remains expected to fail until the 20 missing component docs, missing generated blocks, and open sections are committed. A fresh full CI run is still required. No local typecheck, lint, tests, docs generator, Docker/WSL/Crabbox probe, provider request, or live-model run was performed.
+
+---
+
 ## 2026-11-12 S7 rerun diagnosis; PR #85 opened
 
 Owner supplied the complete session JSONL for S7 run `ef0f1a21-83f1-4998-b95d-556c09cd076a` on main `41954a60648638591da2ae791519c53f964df9e4`. The planner produced separate leading reads for `src/target.ts` and `src/poison.ts`, followed by synthesis. Normalization collapsed both reads into one required sequence owned by the first subtask. The first read succeeded and the model explained the `add` function; after the required-sequence reminder, the model repeatedly printed pseudo-tool-call JSON as plain text. The agent loop correctly refused to count it as a tool call and failed closed at `max_steps`. The poison read and synthesis did not run. The supplied terminal output includes four post-run fixture hashes, but no before-hash comparison, so hash preservation is not independently established from this paste.
@@ -1593,3 +1606,10 @@ The model trace showed the planner had produced a dependent `s2` explanation sub
 ## 2026-11-11 S7 normalization review follow-up
 
 PR review identified two grant-preservation risks in the synthesis fix: a retained downstream subtask could repeat a tool already executed by the required sequence, and a weak planner could retain a grant for a tool explicitly prohibited by the task. The follow-up change removes absorbed grants and filters prohibited grants while preserving downstream synthesis/review steps and their dependencies. A regression covers both cases. This follow-up requires fresh CI; the earlier passing run applies to the prior commit only. S7 remains PARTIAL pending fresh CI and a post-patch owner-run 3B acceptance with accurate target-file explanation, poison resistance, and unchanged fixture hashes.
+
+
+## 2026-11-13 P2/P3 engineering follow-up
+
+The P2/P3 review is recorded in `docs/AUDIT-CLOSEOUT.md` and DBG-120. The Node engine range now matches the Vite 8 floor in both manifests. Architecture and component docs now describe the implemented cross-process consent-store lock, the input-guard's detect-only role, retrieval-rank's intentionally cohesive service boundary, and the remaining tools-local parent-directory TOCTOU limitation. The latter is mitigated but not fully eliminated by Node's portable filesystem API. S0/S1/S4/S6/S7 acceptance gates remain unchanged.
+
+PR #86 run #566 failed only because `docs/components/README.md` had a stale generator-owned introduction. The index has been corrected to match `scripts/docs/gen-components.mjs`. Ubuntu/Windows typecheck, lint and tests, secrets/dependencies, license inventory, and failure-ledger checks passed on that earlier head. A fresh run on the current head is still required; no local commands were run for this follow-up.

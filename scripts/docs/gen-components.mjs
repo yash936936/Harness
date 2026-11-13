@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Generate / verify docs/components/<area>.md from the source tree.
+// Generate source inventories into component docs; --check validates committed docs without rewriting them. A generated inventory block is optional for hand-maintained guides.
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -17,7 +17,8 @@ function areas() {
 }
 function walk(dir) { return listDir(dir).flatMap((e) => e.isDirectory() ? walk(path.join(dir, e.name)) : [path.join(dir, e.name)]).sort() }
 function headerComment(src) {
-  const m = src.match(/^\s*(?:\/\*\*?([\s\S]*?)\*\/|((?:\/\/[^\n]*\n?)+))/)
+  const body = src.startsWith('#!') ? src.slice(src.indexOf('\n') + 1) : src
+  const m = body.match(/^\s*(?:\/\*\*?([\s\S]*?)\*\/|((?:\/\/[^\n]*\n?)+))/)
   if (!m) return ''
   return (m[1] ?? m[2]).split('\n').map((l) => l.replace(/^\s*(\*|\/)\/?\s?/, '').trim()).filter(Boolean)[0] ?? ''
 }
@@ -53,16 +54,22 @@ function skeleton(area) {
     '## Config surface and invariants', '(open — config keys, limits, fail-closed behaviour, anything a caller must never assume)', '',
     '## Known limits', '(open — honest list, linked to decision / debug IDs)', '', ''].join('\n')
 }
-fs.mkdirSync(OUT, { recursive: true })
+if (!check) fs.mkdirSync(OUT, { recursive: true })
 const problems = [], index = []
 for (const area of areas()) {
   const file = path.join(OUT, `${area.name}.md`), block = generated(area)
   let doc = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : skeleton(area) + block + '\n\n---\n**Next:** Return to [`context.md`](../../context.md).\n'
-  if (!doc.includes(BEGIN)) doc = doc.replace(/\n---\n\*\*Next:\*\*/, `\n${block}\n\n---\n**Next:**`)
+  if (!doc.includes(BEGIN) && !check) {
+    doc = doc.replace(/\n---\n\*\*Next:\*\*/, `\n${block}\n\n---\n**Next:**`)
+  }
   const next = doc.replace(new RegExp(`${BEGIN}[\\s\\S]*?${END}`), () => block)
   if (!fs.existsSync(file)) problems.push(`missing doc: docs/components/${area.name}.md`)
   else if (next !== doc) problems.push(`stale generated block: docs/components/${area.name}.md`)
-  if (/\(open — /.test(next)) console.warn(`warn: docs/components/${area.name}.md still has unfilled hand-written sections`)
+  if (/\(open — /.test(next)) {
+    const message = `docs/components/${area.name}.md still has unfilled hand-written sections`
+    console.warn(`${check ? 'error' : 'warn'}: ${message}`)
+    if (check) problems.push(message)
+  }
   if (!check) fs.writeFileSync(file, next)
   index.push(`| \`${area.name}\` | ${area.kind} | \`${rel(path.relative(ROOT, area.dir))}/\` |`)
 }

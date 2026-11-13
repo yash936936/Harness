@@ -18,6 +18,7 @@ The `profile-coding` bundle installs `LocalTools` with the project root and limi
 - `maxReadChars`, `maxFileBytes`, `commandTimeoutSeconds`, `maxCommandTimeoutSeconds`, and `maxCommandOutputBytes` must be positive safe integers.
 - `allowSecretReads` defaults to false. `.git` internals remain inaccessible through file tools.
 - `write_file` never replaces an existing file. `edit_file` requires an unambiguous existing-text match and preserves the file's line-ending style.
+- Path confinement follows symlinks and checks directory identity immediately before writes. This is defense in depth, not a complete defense against a hostile concurrent process swapping a parent directory between the final check and filesystem syscall. Node's portable filesystem API does not expose the directory-relative `openat`/`renameat` operations needed to close that final race. Do not treat this tool as a boundary against a same-user process that can mutate the project tree concurrently.
 - `run_command` accepts argv, not a shell command string. The sandbox provider controls the execution environment; the tool checks lease release, spawn errors, cancellation, timeout, exit status, and output bounds.
 - Git read commands are hardened against configured filter drivers. Configuration inspection is performed through the same sandbox provider.
 
@@ -27,6 +28,7 @@ The `profile-coding` bundle installs `LocalTools` with the project root and limi
 - The tool does not make sandbox acceptance claims. Real-provider acceptance is tracked separately and remains subject to the repository's permanent S0 hold.
 - `commandRisk` must be wired into policy signals by the host; otherwise commands have no independent risk signal and are held by the policy gate.
 - Output limits apply independently to stdout and stderr.
+- The read path checks the opened file descriptor against the in-root path identity and enforces the byte cap while reading. The write path narrows, but cannot eliminate, the parent-directory TOCTOU window described above.
 
 ---
 **Next:** Return to [`context.md`](../../context.md).
