@@ -11,7 +11,6 @@ export interface VercelSandboxHandle {
     cmd: string
     args: string[]
     cwd?: string
-    timeoutMs?: number
     signal?: AbortSignal
   }): Promise<{
     exitCode: number | null
@@ -26,7 +25,6 @@ export interface VercelSandboxClient {
     persistent: false
     networkPolicy: 'deny-all'
     timeout: number
-    signal?: AbortSignal
   }): Promise<VercelSandboxHandle>
 }
 
@@ -142,7 +140,6 @@ export class VercelSandboxProvider implements SandboxProvider {
         persistent: false,
         networkPolicy: 'deny-all',
         timeout: Math.min(this.cfg.sandboxTimeoutMs ?? 600_000, Math.max(timeoutMs + 30_000, 60_000)),
-        ...(req.signal ? { signal: req.signal } : {}),
       }))
       sandbox = await raceAbort(create, req.signal)
     } catch (error) {
@@ -168,7 +165,6 @@ export class VercelSandboxProvider implements SandboxProvider {
         cmd: req.command[0]!,
         args: req.command.slice(1),
         ...(req.cwd ? { cwd: req.cwd } : {}),
-        timeoutMs,
         ...(req.signal ? { signal: req.signal } : {}),
       }), req.signal)
       exitCode = command.exitCode
