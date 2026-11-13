@@ -1,3 +1,9 @@
+# Historical repository inventory
+
+> Snapshot from 2026-11-07. File counts and review coverage below describe that commit, not the current tree. Use the current Git tree and [STATE.md](STATE.md) for present status. This manifest is not a current audit-completeness claim.
+
+---
+
 # Repository file inventory and audit coverage
 
 Audit snapshot: merge commit d07e191548c2fc3f6bc56192a27824af38a177d0 on main (2026-11-07).
