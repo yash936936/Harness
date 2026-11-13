@@ -12,7 +12,7 @@ A host integration must construct and register `VercelSandboxProvider` with `ctx
 
 ## Config and invariants
 
-- Target SDK: `@vercel/sandbox@3.9.1`; it is not yet integrated into the root package manifest/lockfile.
+- Target SDK: `@vercel/sandbox@3.9.1`; it is already present in the root package manifest and lockfile.
 - Required host credentials are `VERCEL_TOKEN`, `VERCEL_TEAM_ID`, and `VERCEL_PROJECT_ID`. Never pass them to the guest or log their values.
 - Each lease requests `persistent: false` and `networkPolicy: 'deny-all'`.
 - Commands are passed as `cmd` plus `args`; no shell command string is constructed.
