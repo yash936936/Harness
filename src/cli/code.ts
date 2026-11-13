@@ -134,7 +134,7 @@ export async function runCodeTask(io: WizardIO, options: CodeTaskOptions): Promi
   try {
     ctx = await bootProfileCoding(config)
     const sessionId = ctx.log.create()
-    // D-110 is a hard prohibition: do not probe Docker/WSL/Crabbox, even as a capability check.
+    // D-110 is a hard prohibition: do not perform host-environment capability checks.
     const offeredTools = ctx.tools.list().map((tool) => tool.name).filter((name) => name !== COMMAND_TOOL)
     io.print('no sandbox: commands disabled, file tools still gated')
     await ctx.log.append(sessionId, 'sandbox.unavailable', {
