@@ -115,8 +115,8 @@ describe('Vercel Sandbox provider (D-118)', () => {
     const ctx = await boot()
     ctx.sandbox.register(new VercelSandboxProvider({ client, maxOutputBytes: 3 }))
     const result = await ctx.sandbox.run({ command: ['true'] })
-    expect(result.stdout).toBe('abc\\n[output truncated by Vercel provider]')
-    expect(result.stderr).toBe('uvw\\n[output truncated by Vercel provider]')
+    expect(result.stdout).toBe('abc\n[output truncated by Vercel provider]')
+    expect(result.stderr).toBe('uvw\n[output truncated by Vercel provider]')
   })
 
   it('deletes the remote sandbox when a command is cancelled', async () => {
