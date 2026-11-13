@@ -91,7 +91,7 @@ export class CommandBackend implements RouterBackend {
     if (cfg.args !== undefined && (!Array.isArray(cfg.args) || cfg.args.some((arg) => typeof arg !== 'string'))) throw new Error('router backend: args must be strings')
     if (cfg.requiredFiles !== undefined && (!Array.isArray(cfg.requiredFiles) || cfg.requiredFiles.some((file) => typeof file !== 'string' || !file))) throw new Error('router backend: requiredFiles must be non-empty paths')
     const timeout = cfg.timeoutMs ?? 5000
-    if (!Number.isSafeInteger(timeout) || timeout < 1) throw new Error('router backend: timeoutMs must be a positive safe integer')
+    if (!Number.isSafeInteger(timeout) || timeout < 1 || timeout > 2_147_483_647) throw new Error('router backend: timeoutMs must be an integer from 1 to 2147483647 milliseconds')
     if (cfg.expectedSha256 !== undefined && !/^[a-f0-9]{64}$/i.test(cfg.expectedSha256)) throw new Error('router backend: expectedSha256 must be a 64-character SHA-256')
   }
 
