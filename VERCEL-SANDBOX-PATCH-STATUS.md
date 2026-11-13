@@ -29,6 +29,6 @@ The latest observed CI run (#613) fails at `npm audit --omit=dev --audit-level=h
 
 ## Enablement rule
 
-Keep `COMMAND_TOOL` filtered. Do not register the provider in the governed CLI until the dependency is safely integrated and workspace transfer, result synchronization, lifecycle audit, policy integration, and regression tests pass.
+Keep `COMMAND_TOOL` filtered. Do not register the provider in the governed CLI until the existing dependency audit is green and workspace transfer, result synchronization, lifecycle audit, policy integration, and regression tests pass.
 
 S0 remains permanently held under D-110. D-117/D-118 authorize only the separate remote cloud route. S4 remains open and not passed.
