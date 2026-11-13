@@ -71,6 +71,18 @@ describe('subagent-scope: spawn validation', () => {
     await p.close()
     await expect(ctx.subagents.spawn({ id: 'd', sessionId: 's', tools: ['search'], parent: 'p' })).rejects.toThrow(/not a live/)
   })
+  it('starts each run with a fresh required-tool sequence', async () => {
+    const { ctx, ran } = await boot([call('c1', 'read'), call('c2', 'read'), call('c3', 'read'), { text: 'done', stopReason: 'end_turn' }])
+    const agent = await ctx.subagents.spawn({ id: 'sequence-retry', sessionId: 's', tools: ['read'], requiredTools: ['read', 'read'] })
+    const first = await agent.run('first attempt', { maxSteps: 1 })
+    expect(first.stopReason).toBe('max_steps')
+    expect(agent.requiredToolsComplete).toBe(false)
+    const second = await agent.run('second attempt', { maxSteps: 4 })
+    expect(second.stopReason).toBe('done')
+    expect(agent.requiredToolsComplete).toBe(true)
+    expect(ran).toEqual(['read', 'read', 'read'])
+  })
+
   it('spawn and close are session-log events', async () => {
     const { ctx } = await boot()
     const a = await ctx.subagents.spawn({ id: 'a', sessionId: 's', tools: ['search', 'search'] })
