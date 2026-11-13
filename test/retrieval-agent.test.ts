@@ -292,7 +292,7 @@ describe.skipIf(!hasRg)('the tool is safe to hand to the loop', () => {
     const { ctx, mock } = await boot()
     // a model that asks for a path outside the project, then gives up politely
     let n = 0
-    (mock as any).script = ((req: ProviderRequest) => {
+    ;(mock as any).script = ((req: ProviderRequest) => {
       if (n++ === 0) { const input = { query: 'retries', path: '..' }; return { toolCalls: [{ id: 'x', name: SEARCH_TOOL, input }], content: [{ type: 'tool_use' as const, id: 'x', name: SEARCH_TOOL, input }] } }
       return { text: `tool said: ${toolResults(req)[0]}` }
     }) as never
