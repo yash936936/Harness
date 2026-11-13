@@ -442,8 +442,8 @@ Completed in this slice:
 - Fake-client tests for lifecycle, policy gate, argv and cleanup behavior.
 
 Remaining before any CLI command enablement:
-1. Verify and pin a compatible `@vercel/sandbox` SDK release against the repository's supported Node engine and lockfile. Do not silently raise the Node engine floor.
-2. Verify the actual SDK API host and auth behavior; update the provider host gate only from verified SDK source/runtime evidence.
+1. Add the pinned `@vercel/sandbox@3.9.1` dependency and lockfile from a lockfile-capable checkout. Do not silently raise the Node engine floor.
+2. Verify explicit access-token authentication and the `vercel.com` control-plane host in a credential-backed live smoke; revise the host gate only from observed SDK traffic.
 3. Implement a bounded project snapshot that excludes secrets, credentials, `.harness` state, dependency caches and unsafe symlinks. Preserve only the Git metadata required for approved local Git operations, with credential-bearing config removed.
 4. Add cwd confinement inside the remote workspace.
 5. Implement safe result synchronization for changed/new/deleted files, including path traversal, symlink, size, binary-file and concurrent-change protections. The existing policy approval must cover the exact command and any resulting project writes.
