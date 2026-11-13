@@ -1,4 +1,3 @@
-import { constants as fsConstants } from 'node:fs'
 import { open, readFile, stat, unlink } from 'node:fs/promises'
 import { randomBytes } from 'node:crypto'
 
@@ -59,7 +58,7 @@ async function tryBreakStale(lockPath: string, staleMs: number): Promise<boolean
     body = JSON.parse(await readFile(lockPath, 'utf8'))
   } catch (error: any) {
     if (error?.code === 'ENOENT') return true
-    if (error?.code !== 'SyntaxError') throw error
+    if (!(error instanceof SyntaxError)) throw error
     // Present but empty or half-written: its owner is either mid-write (young: keep waiting) or died between creating and writing it
     // (old: it must be breakable, or one crash wedges the lock for good). Judged by age below, with no pid to check.
     body = {}
