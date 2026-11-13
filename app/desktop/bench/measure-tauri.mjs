@@ -10,7 +10,7 @@
 // error message from this script as more likely a real bug than in the Electron script, which at
 // least got its scaffold step verified.
 
-import { readFile, writeFile, rm } from 'node:fs/promises'
+import { readFile, writeFile, rm, mkdir } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
@@ -22,7 +22,8 @@ if (process.platform !== 'win32') {
 }
 
 const here = dirname(fileURLToPath(import.meta.url))
-const appDir = join(here, 'hello-tauri')
+const workspace = join(tmpdir(), 'harness-bench-tauri-' + process.pid)
+const appDir = join(workspace, 'hello-tauri')
 const markerPath = join(tmpdir(), 'harness-bench-tauri-marker.txt')
 
 await requireCommand(
@@ -32,9 +33,10 @@ await requireCommand(
 )
 await requireCommand('npx', ['--version'], 'Install Node.js (npm ships npx with it).')
 
-console.log('Scaffolding a minimal Tauri app with the official CLI (this may prompt once if --yes is not supported by the resolved version - answer with the vanilla/no-framework template)...')
-if (existsSync(appDir)) await rm(appDir, { recursive: true, force: true })
-await run('npm', ['create', 'tauri-app@latest', 'hello-tauri', '--', '--yes', '--template', 'vanilla', '--manager', 'npm'], { cwd: here }).catch(() => {
+console.log('Scaffolding a minimal Tauri app in an isolated temporary workspace (this may prompt once if --yes is not supported by the resolved version - answer with the vanilla/no-framework template)...')
+await rm(workspace, { recursive: true, force: true })
+await mkdir(workspace, { recursive: true })
+await run('npm', ['create', 'tauri-app@latest', 'hello-tauri', '--', '--yes', '--template', 'vanilla', '--manager', 'npm'], { cwd: workspace }).catch(() => {
   fail(
     'scaffolding failed or needed interactive input this script did not provide. Run manually: ' +
       `"npm create tauri-app@latest" in ${here}, name it "hello-tauri", pick the vanilla/no-framework ` +
@@ -93,6 +95,7 @@ await appendResultRow(join(here, 'results.csv'), {
   notes:
     "marker is written from Rust's setup() hook (webview created), not a frontend paint event - may under-count slightly vs. Electron's ready-to-show; hello-world only, no harness core logic added",
 })
+await rm(workspace, { recursive: true, force: true })
 
 async function patchTauri(dir, marker) {
   const indexHtml = join(dir, 'index.html')
