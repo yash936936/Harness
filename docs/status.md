@@ -1,3 +1,21 @@
+## 2026-11-13 R0-R3 repair-order review
+
+**Verified main baseline:** PR #86 is merged as `b35f39b05ef8438a996eeeb3981f1037b5b0b520`. Post-merge Actions run [#570](https://github.com/yash936936/Harness/actions/runs/43429109908) passed all seven jobs, including Ubuntu and Windows verification, documentation/component drift, failure-ledger, secrets/dependencies, license inventory, and aggregate `ci-pass`.
+
+**R0.1, security and execution scope:** CLOSED for the D-110 prototype restriction. The merged CLI defaults to `sandbox: none`, rejects `auto`, removes Docker probing, never invokes Crabbox doctor, omits `run_command`, and has a regression test asserting no Docker/Crabbox probe. No host fallback was added.
+
+**R0.2, CI integrity:** CODE/CI CHANGES MERGED AND VERIFIED. Documentation CI checks the committed tree without generating files; component and failure-ledger checks are read-only and blocking. Run #570 passed. **Branch protection is NOT configured:** GitHub reports `main.protected=false` and `protection.enabled=false`. The available GitHub integration can inspect this setting but cannot apply the protection rule. Owner must require PRs, require `ci-pass`, require up-to-date branches, block force pushes/deletions, and disable admin bypass.
+
+**R0.3, documentation synchronization:** 29 component areas are indexed and present; the read-only component drift check passed in run #570. README, context, status, architecture, build plan, and audit closeout are being synchronized in this repair branch. Historical status/debug/decision records remain append-only.
+
+**R1, owner decisions:** BLOCKED ON SOURCE/OWNER INPUT. `ROADMAP.md` and the D1/D2/D3 proposal are not in the current repository tree, and the referenced upload could not be found in the available project files. No D1/D2/D3 decision has been inferred, accepted, amended, or rejected. See `docs/ROADMAP-DECISIONS.md`.
+
+**R2, core hardening:** REVIEWED. The repair branch centralizes model-independent plan validation/explicit-tool normalization for both planned and caller-supplied execution; validates malformed memory actor grants; surfaces vector-store delete failures during stale-index cleanup; and gives approvers a deep-cloned, recursively frozen input snapshot. Approval flow remains fail-closed: external side effects always hold, invalid/missing confidence or independent signals hold writes, approval timeouts/denials block execution, and failed audit logging blocks execution. Filesystem path checks remain defense-in-depth with the documented residual same-user parent-directory race. Tests were added for the three code changes. PR #87 CI run [#573](https://github.com/yash936936/Harness/actions/runs/43431111273) passed all seven jobs on Ubuntu and Windows.
+
+**R3, prototype acceptance:** NOT RUN HERE. S7 embedding requires the owner's local Ollama `nomic-embed-text` service. S7 poisoning requires the exact `qwen2.5-coder:3b-instruct` model and disposable fixture on the owner's machine. S6 requires at least 10 genuine owner-labelled sessions, both classes, and labels hashed before scorer output. No model, embedding, session, or human-label evidence has been fabricated. D-110 prohibits S0/WSL/Docker/Crabbox probing and those checks were not attempted.
+
+---
+
 ## 2026-11-13 P1 closeout work started
 
 **Current main baseline:** PR #85 is merged as `9ddfdd94710b3c05c593dc93228e18a810c2f5aa`. GitHub Actions run [#541](https://github.com/yash936936/Harness/actions/runs/43291127880) passed all seven jobs. This is automated CI evidence only; S7 poisoning remains PARTIAL pending a fresh owner-run 3B test, S7 embedding remains open, and S6 remains blocked on genuine owner-labelled sessions.

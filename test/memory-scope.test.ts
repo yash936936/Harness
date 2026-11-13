@@ -111,10 +111,12 @@ describe('hot tier visibility', () => {
     expect(ctx.memory.access.canQuerySemantic(semantic.actor)).toBe(false)
   })
 
-  it('a scope must be a sub-agent actor', async () => {
+  it('a scope must be a valid sub-agent actor', async () => {
     const { ctx } = await boot()
     await expect(ctx.memory.hot.add({ text: 't', scope: 'main' })).rejects.toBeInstanceOf(MemoryError)
     await expect(ctx.memory.hot.add({ text: 't', scope: '' })).rejects.toBeInstanceOf(MemoryError)
+    expect(() => ctx.memory.access.grant('subagent:')).toThrow(/valid sub-agent actor/)
+    expect(() => ctx.memory.access.grant('subagent:bad id')).toThrow(/valid sub-agent actor/)
   })
   it('scope persists to disk, and an old hot.json without any scope field still loads as global', async () => {
     const dir = await tmp()

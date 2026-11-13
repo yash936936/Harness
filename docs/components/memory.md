@@ -19,6 +19,7 @@ Composes the episodic and hot memory tiers behind `ctx.memory`. It records one l
 - `compaction.everyTurns`, when set, must be a positive safe integer. Compaction errors are recorded in `lastCompaction` and do not fail the user's turn.
 - Episodic writes are idempotent by `sessionId:fromSeq`; records are linked to their source log sequence range and registered secrets are redacted before storage and return.
 - Scoped actors with no live memory grant fail closed. Their episode queries are forced to their own actor ID.
+- `MemoryAccess.grant` accepts only `subagent:<id>` actors with a 1-64 character `[A-Za-z0-9_-]` identifier. Malformed actor names cannot be granted memory visibility.
 
 ## Known limits
 

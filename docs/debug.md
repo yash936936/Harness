@@ -2108,3 +2108,20 @@ This is deterministic scripted acceptance coverage, not a live Ollama run. S3 re
 **Residual risk:** tools-local validates resolved paths and directory identity before writes, but a hostile same-user process can still race the final identity check and filesystem syscall. Node's portable API does not provide the required directory-relative operations. This remains an explicit limitation, not a fully fixed race.
 
 **Validation boundary:** edits were made through GitHub's Git data API. No local npm install, typecheck, lint, or test command was run. PR CI is required to verify the engine metadata and documentation checks. S0/S1/S4/S6/S7 acceptance dispositions are unchanged.
+
+
+## DBG-121 — R0-R3 repair-order review — 2026-11-13
+
+**R0:** PR #86 merged the D-110 CLI restriction and read-only/blocking docs and failure-ledger CI checks. Main CI run #570 passed all seven jobs. GitHub still reports branch protection disabled, so required `ci-pass` enforcement is an owner-side action.
+
+**R1:** The referenced roadmap containing D1/D2/D3 was not present in the current repository tree or the available project files. No owner decision was inferred. The exact proposal must be re-supplied before those items can be accepted, amended, or rejected.
+
+**R2 findings and changes:** a shared pure `normalizePlan` pipeline now applies validation and explicit-tool sequencing both to planner output and caller-supplied plans at execution. `MemoryAccess.grant` now rejects malformed `subagent:<id>` identifiers. `RetrievalRank.indexFiles` now propagates stale-source vector deletion failures as `vectorstore` errors. Approval review found the intended fail-closed behavior: external effects always hold; real-fs writes require valid self-confidence plus independent signals; deny rules cannot be overridden; timeout, denial, and failed audit logging prevent tool execution. Local filesystem write protection remains best-effort against same-user concurrent parent-directory swaps; no portable Node API change was made to claim atomic directory-relative safety.
+
+**R3 boundary:** S7 live embedding/poisoning and S6 genuine-session evaluation were not run. They require the owner's local Ollama/model/fixture/session evidence. D-110-prohibited sandbox probes were not attempted.
+
+**Validation:** source and tests were edited through GitHub's Git data API. No local npm install, typecheck, lint, or test command was run. The new R2 tests require branch CI before merge.
+
+**Approval integrity follow-up:** approval requests now receive a deep-cloned, recursively frozen copy of the tool input rather than the live input object. This prevents an approver callback from mutating the pending operation after seeing the request. A regression test checks identity separation, nested immutability, and unchanged execution input.
+
+**R2 verification:** PR #87 CI run [#573](https://github.com/yash936936/Harness/actions/runs/43431111273) passed all seven jobs, including Ubuntu and Windows typecheck/lint/test, docs/component drift, failure-ledger, secrets/dependencies, license inventory, and aggregate `ci-pass`. The preceding run #571 exposed the expected-error-message mismatch for non-sub-agent actor IDs; the code now preserves that established message and separately rejects malformed `subagent:<id>` values. Run #572 was superseded/cancelled. No local commands were run.

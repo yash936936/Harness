@@ -301,6 +301,20 @@ describe('the gate through the registry: 5.4 holds and approvals', () => {
     expect(ran).toEqual([])
     expect((await events('approval.resolved'))[0]!.data).toMatchObject({ outcome: 'denied' })
   })
+  it('approvers receive an immutable snapshot, not the live tool input object', async () => {
+    const input = { ...lowConfidence }
+    const { call, ran } = await boot({ approver: (req) => {
+      expect(req.input).not.toBe(input)
+      expect(Object.isFrozen(req.input)).toBe(true)
+      expect(Reflect.set(req.input as object, 'path', 'outside.txt')).toBe(false)
+      expect((req.input as typeof input).path).toBe('src/a.ts')
+      return { approve: true, by: 'snapshot-test' }
+    } })
+    expect(await call('edit', input)).toMatchObject({ ok: true })
+    expect(input.path).toBe('src/a.ts')
+    expect(ran).toEqual(['edit'])
+  })
+
   it('an approver callback can answer immediately', async () => {
     const seen: string[] = []
     const { call, ran } = await boot({ approver: (req) => { seen.push(req.tool); return { approve: true, by: 'auto-test' } } })

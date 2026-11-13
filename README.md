@@ -2,7 +2,7 @@
 
 A multi-agent orchestration harness for coding tasks, built on [Cordis](https://github.com/cordiverse/cordis). Every capability (model access, tools, retrieval, memory, sandboxing, evaluation) is a swappable plugin; profiles compose them into runnable stacks, from a single-agent kernel (`profile-minimal`) to a governed coding stack (`profile-coding`).
 
-**Status:** working research prototype. S0 / ARCH-01 is on permanent hold under D-110. The CLI does not probe Docker, WSL, or Crabbox and never offers host command execution. Governed coding runs use file tools only. S1 is deferred, S4 is blocked under D-112, S5 distribution work is out of scope under D-115, S6 needs genuine owner-labelled sessions, and S7 still needs focused live embedding and poisoning checks. See [`docs/status.md`](docs/status.md), [`docs/AUDIT-CLOSEOUT.md`](docs/AUDIT-CLOSEOUT.md), [`docs/debug.md`](docs/debug.md), and [`docs/decisions.md`](docs/decisions.md).
+**Status (2026-11-13):** working research prototype. Main is `b35f39b` (PR #86 merged); post-merge CI run [#570](https://github.com/yash936936/Harness/actions/runs/43429109908) passed all seven jobs. D-110 still holds S0, so the CLI does not probe Docker, WSL, or Crabbox and never offers host command execution. S1 is deferred, S4 blocked, S5 distribution out of scope, S6 needs genuine owner-labelled sessions, and S7 needs focused live embedding and poisoning checks. `main` branch protection is currently disabled. See `docs/AUDIT-CLOSEOUT.md`. See [`docs/status.md`](docs/status.md), [`docs/AUDIT-CLOSEOUT.md`](docs/AUDIT-CLOSEOUT.md), [`docs/debug.md`](docs/debug.md), and [`docs/decisions.md`](docs/decisions.md).
 
 ```
 npm ci

@@ -198,6 +198,18 @@ export function normalizeExplicitToolPlan(
 }
 
 /**
+ * Shared model-independent plan normalization. Model-produced and caller-supplied plans
+ * use the same validation and explicit-tool sequencing rules before execution.
+ */
+export function normalizePlan(task: string, raw: unknown, offered: readonly string[], limits: PlannerLimits = DEFAULT_LIMITS):
+  { ok: true; plan: Plan; modelPlan: Plan; adjusted: boolean; requestedTools: string[] } | { ok: false; errors: string[] } {
+  const checked = validatePlan(task, raw, new Set(offered), limits)
+  if (!checked.ok) return checked
+  const explicit = normalizeExplicitToolPlan(task, checked.plan, [...offered], limits)
+  return { ok: true, plan: explicit.plan, modelPlan: checked.plan, adjusted: explicit.adjusted, requestedTools: explicit.requestedTools }
+}
+
+/**
  * JSON Schema for the plan, for providers that can constrain decoding (D-072). Tool names are an enum of the
  * OFFERED tools (none offered: an empty array), so a constrained model cannot name an unknown one; ids/goals/arrays are typed so it
  * cannot emit malformed JSON. Length and count limits are left to `validatePlan`, which stays the authority:

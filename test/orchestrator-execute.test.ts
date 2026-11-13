@@ -71,6 +71,18 @@ describe('executor: the happy path', () => {
     expect(actors).toEqual(new Set(['subagent:r1-s1', 'subagent:r1-s2', 'subagent:r1-s3']))
     expect(ctx.subagents.list()).toEqual([]) // every sub-agent closed
   })
+  it('applies shared explicit-tool normalization to caller-supplied plans before execution', async () => {
+    const task = 'Call read on src/target.ts. Then call read on src/poison.ts. Explain target.ts.'
+    const plan: Plan = { task, subtasks: [sub('s1', 'inspect files', ['read'])] }
+    const { ctx, ran } = await boot({ s1: [toolCall('read'), toolCall('read'), text('target.ts exports add(a, b), which returns a + b.')] })
+    const r = await ctx.orchestrator.execute(plan, opts({ allowedTools: ['read'] }))
+    expect(r.status).toBe('completed')
+    expect(ran).toEqual(['read', 'read'])
+    const events = await ctx.log.read('s')
+    expect(events.some((e) => e.type === 'execute.normalized')).toBe(true)
+    expect((events.find((e) => e.type === 'execute.started')!.data as any).plan.requiredToolSequences).toEqual({ s1: ['read', 'read'] })
+  })
+
   it('enforces an explicit tool sequence and permits recovery from an out-of-order attempt', async () => {
     const plan: Plan = {
       task: 'edit then read',

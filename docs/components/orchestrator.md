@@ -6,7 +6,7 @@
 
 Plans a task as bounded, ordered subtasks and executes each subtask in a short-lived sub-agent with an explicit tool grant. The planner validates model output before execution. The executor re-validates the plan against the caller's allowed-tool ceiling, records each state transition, and reports an incomplete audit if closing events cannot be written.
 
-Subtask dependency-result fencing and worker prompt construction live in `prompt.ts`. The sequential executor remains in `execute.ts`; planning and plan normalization remain in `plan.ts`.
+Subtask dependency-result fencing and worker prompt construction live in `prompt.ts`. The sequential executor remains in `execute.ts`; pure validation and explicit-tool normalization are composed by `normalizePlan` in `plan.ts` and are shared by both `plan()` and `execute()`.
 
 ## Route (how control reaches it)
 
@@ -19,6 +19,7 @@ The coding profile installs the `Orchestrator` service. Callers use `ctx.orchest
 - The caller's `allowedTools` list is the ceiling. Every plan tool must be registered and within that ceiling before any subtask runs.
 - Retries are bounded and occur only when the failed attempt made no side-effecting tool call. Unknown tool action classes are treated as unsafe.
 - Dependency results are bounded and fenced. Their content is data, not instructions, and cannot close its own result fence.
+- Model-produced and caller-supplied plans use the same model-independent `normalizePlan` pipeline before execution. The executor re-applies it, then validates any caller-supplied required sequence and rejects conflicts.
 - Required tool sequences are prerequisites to the overall task answer. When the planner supplies separate leading subtasks for repeated calls to the same tool, normalization assigns one required call to each subtask and chains them in order; downstream synthesis depends on every required-call step. If there are not enough matching leading subtasks, the existing single-agent sequence enforcement remains in place.
 - Worker prompts require evidence-grounded answers: do not invent file contents or facts absent from tool/dependency results; preserve the task answer across later required reads.
 - Every subtask receives a terminal status. Missing closing log events are surfaced in the returned audit result.

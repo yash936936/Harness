@@ -5,10 +5,22 @@ This section defines the current sample-prototype scope. Historical runbooks and
 ## Current verified baseline
 
 - Repository: `yash936936/Harness`, default branch `main`.
-- Main commit reviewed for the current closeout: `9ddfdd94710b3c05c593dc93228e18a810c2f5aa` (PR #85 merge).
+- Main commit reviewed for this repair-order pass: `b35f39b05ef8438a996eeeb3981f1037b5b0b520` (PR #86 merge).
 - Refactor plan: implementation closed and merged. PRs #66, #67, #71, #72, #73, #74, #75, #77, and #79 are merged. PR #80 was closed without merge and is not counted.
-- PR #81 through PR #85 are merged. Current main is `9ddfdd94710b3c05c593dc93228e18a810c2f5aa` (PR #85). Post-merge main CI run [#541 / 43291127880](https://github.com/yash936936/Harness/actions/runs/43291127880) passed all seven jobs, including Ubuntu and Windows verification, documentation/component checks, acceptance-gate reporting, secrets/dependency checks, license inventory, and aggregate `ci-pass`.
+- PRs #81 through #86 are merged. Current main is `b35f39b05ef8438a996eeeb3981f1037b5b0b520` (PR #86). Post-merge main CI run [#570 / 43429109908](https://github.com/yash936936/Harness/actions/runs/43429109908) passed all seven jobs, including Ubuntu and Windows verification, documentation/component checks, acceptance-gate reporting, secrets/dependency checks, license inventory, and aggregate `ci-pass`.
+- GitHub reports `main.protected=false`; the merge gate has not been applied.
 - No local npm commands were run during this GitHub-connector documentation update. CI evidence is not live provider, model, sandbox, or human-label acceptance.
+
+## R0-R3 repair-order disposition (2026-11-13)
+
+| Step | Disposition | Evidence / remaining work |
+|---|---|---|
+| R0.1 Security and execution scope | CLOSED under D-110 | PR #86 merged; CLI no longer probes Docker/Crabbox and does not expose host command execution. Regression test covers the restriction. |
+| R0.2 CI integrity | CODE FIXES MERGED; BRANCH PROTECTION OPEN | Main CI run #570 is green. GitHub reports branch protection disabled; owner must configure the `ci-pass` required check and PR-only merge policy. |
+| R0.3 Documentation synchronization | 29 COMPONENT GUIDES PRESENT; CI CHECK PASS | All 29 component areas are indexed and component drift check passed. Top-level docs are synchronized in this repair branch. Histories remain append-only. |
+| R1 Owner decisions | BLOCKED ON SOURCE/OWNER INPUT | The referenced roadmap proposal containing D1/D2/D3 is not available in the repo or current project files. No decision has been inferred. See `docs/ROADMAP-DECISIONS.md`. |
+| R2 Core hardening | REVIEWED; PATCH CI PASS (#573) | Shared pure plan normalization is now used by planner and executor; memory grants reject malformed actor IDs; stale retrieval-index cleanup reports vector-store deletion failures. Approval handling remains fail-closed. Filesystem race residual is documented. |
+| R3 Prototype acceptance | OWNER-RUN EVIDENCE REQUIRED | S7 embedding/poison checks need local Ollama and the exact 3B model. S6 needs 10+ genuine sessions and owner-authored labels committed/hash-verified before scoring. No acceptance evidence was synthesized. |
 
 ## Binding prototype scope
 

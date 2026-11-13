@@ -18,6 +18,7 @@ The coding profile installs `retrievalGrep` and `retrievalParse` before `retriev
 - File reads are bounded by `maxFileBytes`, reject binary content, symlink/path escapes, `.git`, `node_modules`, and secret paths.
 - Open file descriptors are checked against the resolved path identity before bounded reads. Indexed vector chunks are revalidated against current file content hashes before being returned.
 - Candidate count, chunk size, hit text, result count, and index batch size have explicit limits.
+- When indexing skips a file that was previously indexed, failure to delete its stale vector records is returned as a `vectorstore` error. Cleanup failure is never reported as a successful index result.
 - index.ts owns the retrieval service lifecycle and orchestration. BM25/tokenization, chunk construction, and bounded file access live in text.ts, chunk.ts, and file-access.ts; index maintenance stays with the service because it shares collection identity, embedding fingerprints, stale-content checks, and search semantics.
 
 ## Known limits

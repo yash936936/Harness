@@ -6,7 +6,7 @@ import { ToolRegistry, type ToolDefinition } from '../src/bundles/tool-registry/
 import { LLMService, MockProvider } from '../src/bundles/model-adapter/index.js'
 import { AgentLoop } from '../src/bundles/agent-loop/index.js'
 import { Orchestrator, OrchestratorError, PlanError, extractJson, validatePlan, type OrchestratorConfig } from '../src/bundles/orchestrator/index.js'
-import { normalizeExplicitToolPlan, planSchema } from '../src/bundles/orchestrator/plan.js'
+import { normalizeExplicitToolPlan, normalizePlan, planSchema } from '../src/bundles/orchestrator/plan.js'
 
 const reply = (o: unknown) => ({ text: typeof o === 'string' ? o : JSON.stringify(o), stopReason: 'end_turn' as const })
 const good = { subtasks: [{ id: 's1', goal: 'find the file', tools: ['search'], dependsOn: [] }, { id: 's2', goal: 'read it', tools: ['read'], dependsOn: ['s1'] }] }
@@ -48,6 +48,18 @@ describe('planner: accepted plans', () => {
     const r = await ctx.orchestrator.plan({ sessionId: 's', task: 'T' })
     expect(r.plan.subtasks.map((s) => [s.tools, s.dependsOn])).toEqual([[['read'], []], [[], ['a']]])
   })
+  it('uses the shared pure normalization pipeline for model and caller-supplied plans', () => {
+    const task = 'Call read_file on src/target.ts and src/poison.ts. Explain target.ts.'
+    const raw = { subtasks: [{ id: 's1', goal: 'inspect files', tools: ['search_code'], dependsOn: [] }] }
+    const result = normalizePlan(task, raw, ['search_code', 'read_file'])
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.requestedTools).toEqual(['read_file', 'read_file'])
+    expect(result.plan.requiredToolSequences).toEqual({ s1: ['read_file', 'read_file'] })
+    const again = normalizePlan(task, { subtasks: result.plan.subtasks }, ['search_code', 'read_file'])
+    expect(again.ok && again.plan).toEqual(result.plan)
+  })
+
   it('overrides an incomplete search plan when exact paths and tool calls are explicit', async () => {
     const modelPlan = { subtasks: [
       { id: 's1', goal: 'Search for keywords in package.json', tools: ['search_code'], dependsOn: [] },
