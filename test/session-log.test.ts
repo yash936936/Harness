@@ -46,12 +46,12 @@ describe('bundle-session-log', () => {
     const file = join(dir, 'tail.jsonl')
     const first = JSON.stringify({ seq: 1, sessionId: 'tail', type: 'test', actor: 'test', ts: '2026-01-01T00:00:00.000Z', data: {} })
     const second = JSON.stringify({ seq: 2, sessionId: 'tail', type: 'test', actor: 'test', ts: '2026-01-01T00:00:01.000Z', data: {} })
-    await writeFile(file, first + '\\n' + second.slice(0, 12))
+    await writeFile(file, first + '\n' + second.slice(0, 12))
     expect(await ctx.log.resume('tail')).toMatchObject({ nextSeq: 2 })
-    expect(await readFile(file, 'utf8')).toBe(first + '\\n')
-    await writeFile(file, first + '\\n' + second)
+    expect(await readFile(file, 'utf8')).toBe(first + '\n')
+    await writeFile(file, first + '\n' + second)
     expect(await ctx.log.resume('tail')).toMatchObject({ nextSeq: 3 })
-    expect(await readFile(file, 'utf8')).toBe(first + '\\n' + second + '\\n')
+    expect(await readFile(file, 'utf8')).toBe(first + '\n' + second + '\n')
   })
 
   it('persists to JSONL and resumes after a "restart"', async () => {
