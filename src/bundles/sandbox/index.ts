@@ -84,8 +84,8 @@ export class Sandbox extends Service {
     if (req.cwd !== undefined && (typeof req.cwd !== 'string' || !req.cwd.trim() || req.cwd.includes('\0') || req.cwd.length > 4096)) {
       throw new SandboxError('config', 'sandbox: cwd must be a non-empty path of at most 4096 characters without NUL')
     }
-    if (req.timeoutMs !== undefined && (!Number.isSafeInteger(req.timeoutMs) || req.timeoutMs < 0)) {
-      throw new SandboxError('config', 'sandbox: timeoutMs must be a non-negative safe integer')
+    if (req.timeoutMs !== undefined && (!Number.isSafeInteger(req.timeoutMs) || req.timeoutMs < 1 || req.timeoutMs > 2_147_483_647)) {
+      throw new SandboxError('config', 'sandbox: timeoutMs must be an integer from 1 to 2147483647 milliseconds')
     }
     req.signal?.throwIfAborted()
     await this.assertRemoteAllowed(p)
