@@ -47,6 +47,12 @@ Never invent sessions, labels, measurements, provider results, or acceptance. St
 - Run `npm run docs:components` after source changes, then `npm run docs:check`.
 - Component guide purpose, route, configuration, and known limits outside generated markers are maintained by hand.
 
+## Code structure and repeated failures
+
+- Keep one source file per responsibility, not one file per function. Keep cohesive Cordis services together; split only when a file mixes concerns or tests need unrelated stubs. Refactors are behavior-preserving and should not be mixed with feature work.
+- The failure ledger counts repeated normalized signatures. At 2 occurrences, stop and state a new hypothesis. At 3, stop work on that area, document attempts/unknowns, and record one decision: change the approach wholesale or put the area on hold. Log the resolution; never delete or rewrite event history.
+- The event log is append-only. Record reviews with `scripts/events/log-event.mjs`, commands through `scripts/events/run-logged.mjs`, technical findings in `docs/debug.md`, decisions in `docs/decisions.md`, and current state in `docs/status.md`.
+
 ## Engineering workflow
 
 1. State the hypothesis and the smallest reproducer before changing code.
