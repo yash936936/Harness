@@ -152,7 +152,7 @@ export class JsonlStore implements SessionStore {
       await fh.read(tail, 0, tail.length, tailStart)
       try {
         JSON.parse(tail.toString('utf8'))
-        await fh.appendFile('\n', 'utf8')
+        await fh.write(Buffer.from('\n'), 0, 1, size)
       } catch (error) {
         if (error instanceof SyntaxError) {
           await fh.truncate(tailStart)
