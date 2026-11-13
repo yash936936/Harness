@@ -104,6 +104,14 @@ describe('router chain', () => {
     expect(observed?.aborted).toBe(true)
   })
 
+  it('bounds retained decision rows while keeping stats for the configured window', async () => {
+    const ctx = await mk({ worker: fixed('worker', 'a'), maxRows: 2 })
+    await ctx.router.decide('agent', { task: 'one', candidates: CANDS })
+    await ctx.router.decide('agent', { task: 'two', candidates: CANDS })
+    await ctx.router.decide('agent', { task: 'three', candidates: CANDS })
+    expect(ctx.router.stats().decisions).toBe(2)
+  })
+
   it('shadow probes never mutate decision or failure statistics', async () => {
     const needle = fixed('needle', () => { throw new Error('shadow failure') })
     const ctx = await mk({ needle, worker: fixed('worker', 'b', 1), owned: ['agent'] })
