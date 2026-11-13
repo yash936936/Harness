@@ -28,3 +28,6 @@ Profiles install `ToolRegistry`. Tool-producing bundles register definitions thr
 - Output limits count characters, not tokens.
 - Scripted tests do not prove live-model behavior or live cloud acceptance.
 - Commands remain unavailable through the CLI until D-118 workspace transfer, result synchronization, lifecycle audit, and policy integration are complete.
+
+---
+**Next:** Return to [context.md](../../context.md).
