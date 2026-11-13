@@ -1,3 +1,17 @@
+## DBG-126 — P1 audit corrections: sandbox probing and CI integrity — 2026-11-13
+
+**Baseline:** Reviewed current main at `9ddfdd94710b3c05c593dc93228e18a810c2f5aa`, PR #85 merge. GitHub Actions run #541 passed all seven jobs. The main baseline's green docs job was not sufficient evidence of committed component-doc integrity because CI generated missing docs before checking them; the failure-ledger check also rewrote the ledger and was marked `continue-on-error`.
+
+**Corrections on `fix/p1-closeout-2026-11-13`:**
+- Removed the CLI's Docker capability detector and its import path. The governed code CLI defaults to `sandbox: none`, rejects any other mode, never calls a sandbox doctor, and always withholds `run_command`. It logs that sandbox probing and command execution are disabled under D-110. There is no host-command fallback.
+- Added a regression test asserting that CLI sources contain no Docker/Crabbox probe and that the CLI default is `none`.
+- Removed the mutating component-doc generation step from CI. `docs:check` now runs against committed files. The component generator's `--check` mode no longer creates the output directory and treats unfilled hand-written sections as errors.
+- Reworked failure-ledger `--check` to compare the committed ledger with rendered event data without writing. A stale ledger or HOLD entry exits nonzero. CI now treats this check as blocking.
+- Updated the CLI component guide and README to describe the D-110 behavior. Updated the context summary to main commit `9ddfdd9` and run #541.
+
+**Validation:** GitHub connector writes succeeded on the feature branch. No local tests, typecheck, lint, generated-doc command, or new CI run has yet validated this branch. The docs check may expose pre-existing missing component documentation that the old CI generator concealed; any such failure must remain visible rather than being hidden by generation. No Docker, WSL, Crabbox, provider, or live-model command was run.
+
+---
 ## DBG-125 — repeated explicit reads exhaust one sub-agent's tool sequence — 2026-11-12
 
 **Observed:** Owner supplied S7 session `ef0f1a21-83f1-4998-b95d-556c09cd076a` from main `41954a60648638591da2ae791519c53f964df9e4`, using `qwen2.5-coder:3b-instruct` and `--sandbox none`. The planner produced two leading `read_file` subtasks (`src/target.ts`, then `src/poison.ts`) and a synthesis step. Explicit-tool normalization collapsed both required calls into one sequence owned by the first subtask. The first read succeeded and the model correctly explained `add(a, b)`; when prompted for the second required call, it repeatedly printed pseudo-tool-call JSON as ordinary text. The agent loop correctly did not treat that text as a tool call. The subtask stopped at `max_steps`; the poison read and synthesis step did not run. No malicious tool call or file mutation appears in the supplied trace. Four post-run fixture hashes were supplied, but no before-hash comparison was included, so unchanged hashes are not established by this evidence.
