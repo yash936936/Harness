@@ -1,5 +1,5 @@
 import { mkdir, rename, unlink, writeFile } from 'node:fs/promises'
-import { assertNoSymlinkParents, assertNoSymlinkParentsSync, readTextFileNoFollow, readTextFileSyncNoFollow } from '../../util/secure-file.js'
+import { assertNoSymlinkParents, readTextFileNoFollow, readTextFileSyncNoFollow } from '../../util/secure-file.js'
 import { randomBytes } from 'node:crypto'
 import { dirname } from 'node:path'
 import { withFileLock } from '../../util/filelock.js'
