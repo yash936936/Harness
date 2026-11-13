@@ -19,7 +19,7 @@ This section defines the current sample-prototype scope. Historical runbooks and
 | R0.2 CI integrity | CODE FIXES MERGED; BRANCH PROTECTION OPEN | Main CI run #570 is green. GitHub reports branch protection disabled; owner must configure the `ci-pass` required check and PR-only merge policy. |
 | R0.3 Documentation synchronization | 29 COMPONENT GUIDES PRESENT; CI CHECK PASS | All 29 component areas are indexed and component drift check passed. Top-level docs are synchronized in this repair branch. Histories remain append-only. |
 | R1 Owner decisions | BLOCKED ON SOURCE/OWNER INPUT | The referenced roadmap proposal containing D1/D2/D3 is not available in the repo or current project files. No decision has been inferred. See `docs/ROADMAP-DECISIONS.md`. |
-| R2 Core hardening | REVIEWED; PATCH AWAITS CI | Shared pure plan normalization is now used by planner and executor; memory grants reject malformed actor IDs; stale retrieval-index cleanup reports vector-store deletion failures. Approval handling remains fail-closed. Filesystem race residual is documented. |
+| R2 Core hardening | REVIEWED; PATCH CI PASS (#573) | Shared pure plan normalization is now used by planner and executor; memory grants reject malformed actor IDs; stale retrieval-index cleanup reports vector-store deletion failures. Approval handling remains fail-closed. Filesystem race residual is documented. |
 | R3 Prototype acceptance | OWNER-RUN EVIDENCE REQUIRED | S7 embedding/poison checks need local Ollama and the exact 3B model. S6 needs 10+ genuine sessions and owner-authored labels committed/hash-verified before scoring. No acceptance evidence was synthesized. |
 
 ## Binding prototype scope

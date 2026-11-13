@@ -2123,3 +2123,5 @@ This is deterministic scripted acceptance coverage, not a live Ollama run. S3 re
 **Validation:** source and tests were edited through GitHub's Git data API. No local npm install, typecheck, lint, or test command was run. The new R2 tests require branch CI before merge.
 
 **Approval integrity follow-up:** approval requests now receive a deep-cloned, recursively frozen copy of the tool input rather than the live input object. This prevents an approver callback from mutating the pending operation after seeing the request. A regression test checks identity separation, nested immutability, and unchanged execution input.
+
+**R2 verification:** PR #87 CI run [#573](https://github.com/yash936936/Harness/actions/runs/43431111273) passed all seven jobs, including Ubuntu and Windows typecheck/lint/test, docs/component drift, failure-ledger, secrets/dependencies, license inventory, and aggregate `ci-pass`. The preceding run #571 exposed the expected-error-message mismatch for non-sub-agent actor IDs; the code now preserves that established message and separately rejects malformed `subagent:<id>` values. Run #572 was superseded/cancelled. No local commands were run.
