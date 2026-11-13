@@ -23,10 +23,10 @@ async function main(): Promise<void> {
   if (result.exitCode !== 0 || !result.released || result.timedOut) {
     throw new Error(`Vercel smoke failed: exitCode=${result.exitCode}, timedOut=${result.timedOut}, released=${result.released}, releaseNote=${result.releaseNote ?? 'none'}`)
   }
-  process.stdout.write(`VERCEL_SANDBOX_SMOKE_OK provider=${result.provider} lease=${result.leaseId} released=${result.released} durationMs=${result.durationMs}\\n`)
+  process.stdout.write(`VERCEL_SANDBOX_SMOKE_OK provider=${result.provider} lease=${result.leaseId} released=${result.released} durationMs=${result.durationMs}\n`)
 }
 
 main().catch((error) => {
-  process.stderr.write(`VERCEL_SANDBOX_SMOKE_FAILED: ${error instanceof Error ? error.message : String(error)}\\n`)
+  process.stderr.write(`VERCEL_SANDBOX_SMOKE_FAILED: ${error instanceof Error ? error.message : String(error)}\n`)
   process.exitCode = 1
 })
