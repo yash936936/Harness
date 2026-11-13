@@ -34,6 +34,8 @@ export interface VercelSandboxConfig {
   client?: VercelSandboxClient
   /** Maximum sandbox session lifetime. Defaults to 10 minutes. */
   sandboxTimeoutMs?: number
+  /** Maximum captured bytes per output stream. Defaults to 100 KB. */
+  maxOutputBytes?: number
 }
 
 function raceAbort<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
@@ -61,7 +63,15 @@ async function loadClient(): Promise<VercelSandboxClient> {
   if (!mod?.Sandbox || typeof mod.Sandbox.create !== 'function') {
     throw new SandboxError('config', 'vercel-sandbox: installed SDK does not expose Sandbox.create')
   }
-  return { create: (options) => mod.Sandbox.create(options) }
+  // Use the explicit access-token path so the SDK does not need to discover or refresh
+  // ambient CLI/OIDC credentials through additional hosts. Never pass this token to the guest.
+  const token = process.env.VERCEL_TOKEN
+  const teamId = process.env.VERCEL_TEAM_ID
+  const projectId = process.env.VERCEL_PROJECT_ID
+  if (!token || !teamId || !projectId) {
+    throw new SandboxError('config', 'vercel-sandbox: set VERCEL_TOKEN, VERCEL_TEAM_ID, and VERCEL_PROJECT_ID in the host environment')
+  }
+  return { create: (options) => mod.Sandbox.create({ ...options, token, teamId, projectId }) }
 }
 
 /**
@@ -75,13 +85,16 @@ async function loadClient(): Promise<VercelSandboxClient> {
 export class VercelSandboxProvider implements SandboxProvider {
   readonly name = 'vercel'
   readonly destination = 'remote' as const
-  readonly host = 'api.vercel.com'
+  readonly host = 'vercel.com'
   private client: VercelSandboxClient | undefined
 
   constructor(private readonly cfg: VercelSandboxConfig = {}) {
     if (cfg.sandboxTimeoutMs !== undefined &&
         (!Number.isSafeInteger(cfg.sandboxTimeoutMs) || cfg.sandboxTimeoutMs < 1 || cfg.sandboxTimeoutMs > 86_400_000)) {
       throw new SandboxError('config', 'vercel-sandbox: sandboxTimeoutMs must be an integer from 1 to 86400000')
+    }
+    if (cfg.maxOutputBytes !== undefined && (!Number.isSafeInteger(cfg.maxOutputBytes) || cfg.maxOutputBytes < 1)) {
+      throw new SandboxError('config', 'vercel-sandbox: maxOutputBytes must be a positive safe integer')
     }
     if (cfg.client !== undefined && typeof cfg.client.create !== 'function') {
       throw new SandboxError('config', 'vercel-sandbox: client must implement create')
@@ -174,6 +187,21 @@ export class VercelSandboxProvider implements SandboxProvider {
         releaseNote = `delete failed: ${String((error as any)?.message ?? error).slice(0, 180)}`
       }
     }
+
+    const outputLimit = this.cfg.maxOutputBytes ?? 100_000
+    const bound = (value: string) => {
+      let bytes = 0
+      let out = ''
+      for (const char of value) {
+        const size = Buffer.byteLength(char, 'utf8')
+        if (bytes + size > outputLimit) return out + '\\n[output truncated by Vercel provider]'
+        out += char
+        bytes += size
+      }
+      return out
+    }
+    stdout = bound(stdout)
+    stderr = bound(stderr)
 
     if (commandError) {
       const error = commandError instanceof Error ? commandError : new Error(String(commandError))
