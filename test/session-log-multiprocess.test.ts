@@ -25,7 +25,9 @@ const seqsOf = (dir: string, sid: string) => readFileSync(join(dir, `${sid}.json
 
 describe('BUG-07: concurrent processes on one session log', () => {
   it('rejects invalid lock timing configuration before waiting', async () => {
-    const lock = join(mkdtempSync(join(tmpdir(), 'lock-options-')), 'test.lock')
+    const dir = mkdtempSync(join(tmpdir(), 'lock-options-'))
+    dirs.push(dir)
+    const lock = join(dir, 'test.lock')
     await expect(withFileLock(lock, async () => 'x', { staleMs: 0 })).rejects.toThrow(/staleMs/)
     await expect(withFileLock(lock, async () => 'x', { timeoutMs: 2_147_483_648 })).rejects.toThrow(/timeoutMs/)
     await expect(withFileLock(lock, async () => 'x', { retryMs: 0 })).rejects.toThrow(/retryMs/)
