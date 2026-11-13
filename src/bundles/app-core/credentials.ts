@@ -179,7 +179,9 @@ export class FileCredentialStore implements CredentialStore {
   }
 
   async delete(key: string): Promise<void> {
+    await assertNoSymlinkParents(this.config.path)
     await mkdir(dirname(this.config.path), { recursive: true })
+    await assertNoSymlinkParents(this.config.path)
     await withFileLock(`${this.config.path}.lock`, async () => {
       const all = await this.readAll()
       if (!(key in all)) return
