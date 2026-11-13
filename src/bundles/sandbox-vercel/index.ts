@@ -1,3 +1,4 @@
+/** Vercel Sandbox remote provider adapter. */
 import { SandboxError, type SandboxDoctor, type SandboxProvider, type SandboxRunRequest, type SandboxRunResult } from '../sandbox/types.js'
 
 /**
