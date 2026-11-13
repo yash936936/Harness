@@ -91,7 +91,7 @@ describe('Vercel Sandbox provider (D-118)', () => {
     const ctx = await boot()
     ctx.sandbox.register(new VercelSandboxProvider({ client: f.client }))
     await expect(ctx.sandbox.run({ command: [''] })).rejects.toMatchObject({ kind: 'config' })
-    await expect(ctx.sandbox.run({ command: ['echo', 'bad\\0arg'] })).rejects.toMatchObject({ kind: 'config' })
+    await expect(ctx.sandbox.run({ command: ['echo', 'bad\0arg'] })).rejects.toMatchObject({ kind: 'config' })
     await expect(ctx.sandbox.run({ command: ['true'], timeoutMs: 0 })).rejects.toMatchObject({ kind: 'config' })
     expect(f.calls).toEqual([])
   })
