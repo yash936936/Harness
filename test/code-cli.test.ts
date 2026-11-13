@@ -17,13 +17,22 @@ const reply = (v: unknown) => ({ text: typeof v === 'string' ? v : JSON.stringif
 const plan = reply({ subtasks: [{ id: 'readme', goal: 'Read README.md', tools: ['read_file'], dependsOn: [] }] })
 
 describe('governed profile code path', () => {
+  it('never probes Docker or Crabbox and defaults to the D-110 no-sandbox mode', async () => {
+    const cli = await import('node:fs/promises')
+    const codeSource = await cli.readFile(new URL('../src/cli/code.ts', import.meta.url), 'utf8')
+    const entrySource = await cli.readFile(new URL('../src/cli/index.ts', import.meta.url), 'utf8')
+    expect(codeSource).not.toMatch(/dockerEngineAvailable|docker info|crabbox/i)
+    expect(entrySource).toContain("sandbox: { type: 'string', default: 'none' }")
+    expect(entrySource).toContain("values.sandbox !== 'none'")
+  })
+
   it('returns a clear failure when projectRoot is a file rather than a directory', async () => {
     const root = makeProject()
     const { runCodeTask } = await import('../src/cli/code.js')
     const output: string[] = []
     const io = { print: (line: string) => output.push(line), ask: async () => '', confirm: async () => false }
     const result = await runCodeTask(io, {
-      task: 'inspect', projectRoot: join(root, 'README.md'), provider: 'ollama', model: 'demo', dockerAvailable: false,
+      task: 'inspect', projectRoot: join(root, 'README.md'), provider: 'ollama', model: 'demo',
     })
     expect(result.ok).toBe(false)
     expect(result.reason).toMatch(/not a directory/)
@@ -86,7 +95,7 @@ describe('governed profile code path', () => {
       const output: string[] = []
       const io = { print: (line: string) => output.push(line), ask: async () => '', confirm: async () => false }
       const result = await runCodeTask(io, {
-        task: 'inspect', projectRoot: makeProject(), provider: 'openrouter', model: 'demo/model:free', dockerAvailable: false,
+        task: 'inspect', projectRoot: makeProject(), provider: 'openrouter', model: 'demo/model:free',
       })
       expect(result.ok).toBe(false)
       expect(output.join('\n')).toContain('BLOCKED-KEY')
@@ -109,7 +118,7 @@ describe('governed profile code path', () => {
       }
       const result = await runCodeTask(io, {
         task: 'inspect', projectRoot: makeProject(), provider: 'openrouter', model: 'demo/model:free',
-        baseUrl: 'http://gateway.example.test/v1', dockerAvailable: false,
+        baseUrl: 'http://gateway.example.test/v1',
       })
       expect(result.ok).toBe(false)
       expect(result.reason).toContain('invalid OpenRouter endpoint')
@@ -135,7 +144,7 @@ describe('governed profile code path', () => {
       }
       const result = await runCodeTask(io, {
         task: 'inspect', projectRoot: makeProject(), provider: 'openrouter', model: 'demo/model:free',
-        baseUrl: 'https://gateway.example.test/v1', dockerAvailable: false,
+        baseUrl: 'https://gateway.example.test/v1',
       })
       expect(result.ok).toBe(false)
       expect(prompts[0]).toContain('gateway.example.test')
@@ -255,7 +264,6 @@ describe('governed CLI policy acceptance', () => {
         baseUrl: 'http://127.0.0.1:11434',
         sandbox: 'none',
         textToolCalls: true,
-        dockerAvailable: false,
       })
 
       const trace = await result.context!.log.read(result.sessionId!)
