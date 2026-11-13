@@ -21,6 +21,30 @@ depends on the binding (D-020). A remote provider is refused unless the user
 has consented (D-022), and every remote call is logged with its destination
 and size.
 
+## Cloud command-execution architecture (D-117)
+
+The coding profile may offer run_command only through a configured **remote cloud sandbox**. The execution path is:
+
+model adapter → orchestrator/agent loop → tool registry → policy gates → immutable approval (when required) → ctx.sandbox → remote provider lease → command result → input guard → append-only session log.
+
+The sandbox provider is independent of the model provider. A cloud model call and a cloud command run are two separate outbound data flows, each requiring its own binding/project consent and host allowlist. A provider's destination=remote and host are mandatory inputs to the existing ctx.sandbox gate. The CLI must select an explicit provider; it must not auto-detect local runtimes or fall back to the host.
+
+**Workspace lifecycle:** create a short-lived, isolated workspace from an explicit project snapshot; mount only the selected project; use a dedicated non-root identity; enforce CPU, memory, disk, process, wall-clock and output limits; execute commands with argv (never implicit shell parsing); collect bounded results; then destroy the lease and verify release. A failed cleanup is a failed/alerted task outcome, not success. The provider must not expose unrelated host files, environment variables, SSH agents, credential stores, or sockets.
+
+**Command scope:** support the full development workflow, including read/search, file/build tools, dependency installation, tests, and Git status/diff/branch/commit operations. Commands remain subject to a centrally tested risk policy. Split compound shell expressions into separate argv calls; shell operators, pipes, redirects, command substitution and implicit scripts are not accepted by the tool. Package installation/network access is disabled until a separate sandbox-network policy explicitly allows required registries. Hard-denied actions cannot be approved. Risky but permitted actions require approval bound to an immutable snapshot of the exact command, args, cwd and relevant policy context.
+
+**Two independent egress gates:**
+- Model egress: model-adapter binding consent, project consent, provider host allowlist, TLS/redirect checks, rate/budget limits and secret redaction.
+- Sandbox egress: project consent, sandbox-provider host allowlist before lease creation/run, and a separate network policy for traffic originating inside the sandbox.
+
+The CLI must explain what project content leaves the machine and which cloud provider receives it before consent. Do not transfer model API keys or ambient host credentials into the sandbox. Any narrowly scoped secret injection must be a separate future decision and must never be enabled by default.
+
+**Audit contract:** append structured events for sandbox request, policy decision, approval request/result, lease creation, command start/result, timeout/cancellation, release/cleanup, and blocked/failed remote access. Include session/project IDs, provider, host, lease ID, argv, cwd, risk class, approval actor/decision, timestamps, duration, exit code, timeout, output truncation metadata and release status. Bound and redact stdout/stderr before they enter the tool result or log. Do not log secrets or credentials. The result shown to the model must be the same redacted content retained in the audit record. A lease whose release cannot be confirmed is never reported as a successful command.
+
+**Provider status:** src/bundles/sandbox/index.ts already enforces remote project consent and host allowlisting for doctor() and run(); src/bundles/sandbox/types.ts defines the provider seam; src/bundles/tools-local/command.ts already routes run_command through that seam and checks timeout, output size, cancellation and lease release. The CLI currently filters out COMMAND_TOOL, so the user-facing path is not enabled. No cloud provider has yet been selected or verified. Provider implementation and live acceptance remain open.
+
+**Model endpoint caveat:** the current Ollama adapter supports a configurable HTTP(S) base URL and remote egress classification, but the inspected implementation does not expose cloud API-key authentication. Do not claim Ollama cloud compatibility until its current authentication/API contract is implemented and tested. OpenAI-compatible cloud endpoints remain a separate supported path subject to the existing two consent gates.
+
 ## Components
 
 ### session-log (`bundle-session-log`)
