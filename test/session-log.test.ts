@@ -40,6 +40,20 @@ describe('bundle-session-log', () => {
     await rm(dir, { recursive: true, force: true })
   })
 
+  it('repairs a torn final record and appends a newline to a valid unterminated record', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'slog-tail-repair-'))
+    const ctx = await boot({ path: dir })
+    const file = join(dir, 'tail.jsonl')
+    const first = JSON.stringify({ seq: 1, sessionId: 'tail', type: 'test', actor: 'test', ts: '2026-01-01T00:00:00.000Z', data: {} })
+    const second = JSON.stringify({ seq: 2, sessionId: 'tail', type: 'test', actor: 'test', ts: '2026-01-01T00:00:01.000Z', data: {} })
+    await writeFile(file, first + '\\n' + second.slice(0, 12))
+    expect(await ctx.log.resume('tail')).toMatchObject({ nextSeq: 2 })
+    expect(await readFile(file, 'utf8')).toBe(first + '\\n')
+    await writeFile(file, first + '\\n' + second)
+    expect(await ctx.log.resume('tail')).toMatchObject({ nextSeq: 3 })
+    expect(await readFile(file, 'utf8')).toBe(first + '\\n' + second + '\\n')
+  })
+
   it('persists to JSONL and resumes after a "restart"', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'slog-'))
     const c1 = await boot({ path: dir })
