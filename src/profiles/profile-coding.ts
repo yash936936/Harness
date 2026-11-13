@@ -198,7 +198,7 @@ export async function bootProfileCoding(config: ProfileCodingConfig): Promise<Co
       })
     }
     await ctx.plugin(RetrievalRank, { ...r.rank, root })
-    await ctx.plugin(RetrievalTools, r.tools)
+    await ctx.plugin(RetrievalTools, { ...r.tools, enabled: false })
     await ctx.plugin(LocalTools, { ...config.localTools, root, enableCommand: false })
     if (config.skills) await ctx.plugin(Skills, config.skills)
     await ctx.plugin(Orchestrator, config.orchestrator)
