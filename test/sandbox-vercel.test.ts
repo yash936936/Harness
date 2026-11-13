@@ -37,6 +37,39 @@ async function boot(hosts: string[] = ['vercel.com'], consent = true) {
 }
 
 describe('Vercel Sandbox provider (D-118)', () => {
+  it('waits for a late create to settle and confirms deletion after cancellation', async () => {
+    const ctx = await boot()
+    let resolveCreate!: (handle: VercelSandboxHandle) => void
+    let deleted = 0
+    const client: VercelSandboxClient = { create: async () => new Promise<VercelSandboxHandle>((resolve) => { resolveCreate = resolve }) }
+    const provider = new VercelSandboxProvider({ client })
+    const controller = new AbortController()
+    const running = provider.run({ command: ['true'], signal: controller.signal })
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    controller.abort(new Error('cancelled by test'))
+    resolveCreate({ name: 'late-lease', async runCommand() { throw new Error('must not run') }, async delete() { deleted++ } })
+    await expect(running).rejects.toThrow('cancelled by test')
+    expect(deleted).toBe(1)
+    await ctx.fiber.dispose()
+  })
+
+  it('reports late-delete failure instead of swallowing a leaked lease', async () => {
+    let resolveCreate!: (handle: VercelSandboxHandle) => void
+    const client: VercelSandboxClient = { create: async () => new Promise<VercelSandboxHandle>((resolve) => { resolveCreate = resolve }) }
+    const provider = new VercelSandboxProvider({ client })
+    const controller = new AbortController()
+    const running = provider.run({ command: ['true'], signal: controller.signal })
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    controller.abort(new Error('cancelled by test'))
+    resolveCreate({ name: 'late-lease', async runCommand() { throw new Error('must not run') }, async delete() { throw new Error('late delete refused') } })
+    await expect(running).rejects.toThrow(/deletion was not confirmed.*late delete refused/)
+  })
+
+  it('rejects timer values above the Node timeout maximum', async () => {
+    const provider = new VercelSandboxProvider({ client: fake().client })
+    await expect(provider.run({ command: ['true'], timeoutMs: 2_147_483_648 })).rejects.toMatchObject({ kind: 'config' })
+  })
+
   it('uses argv, deny-all networking, non-persistent sandboxes and confirms deletion', async () => {
     const f = fake()
     const ctx = await boot()
