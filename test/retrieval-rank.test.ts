@@ -679,7 +679,7 @@ describe.skipIf(!hasRg)('indexing', () => {
     const dir = join(root, 'src/delete-failure')
     mkdirSync(dir, { recursive: true })
     const f = join(dir, 'gone.ts')
-    writeFileSync(f, `export function stale() {\\n  return 'stale'\\n}\\n`)
+    writeFileSync(f, `export function stale() {\n  return 'stale'\n}\n`)
     const b = await boot({ provider: new HashingEmbeddingProvider({ dimensions: 64 }) })
     await b.rank.indexFiles(['src/delete-failure/gone.ts'])
     const c = await col(b)
