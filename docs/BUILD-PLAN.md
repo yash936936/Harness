@@ -452,3 +452,6 @@ Remaining before any CLI command enablement:
 8. Only then register the provider in profile-coding, add explicit CLI selection/consent UX, and expose `COMMAND_TOOL`.
 
 Do not run Docker, WSL, Crabbox or host command probes. Do not mark S4 passed based on fake-client tests or a provider-only smoke test.
+
+
+SDK compatibility decision: use published `@vercel/sandbox@3.9.1`. Its v3 API uses `vercel.com`; SDK 4.0.0 changes the API base to `api.vercel.com` and raises the Node minimum to 22.19.0. Do not upgrade the Harness engine range solely for this adapter. Current adapter authentication requires host env vars `VERCEL_TOKEN`, `VERCEL_TEAM_ID`, and `VERCEL_PROJECT_ID`. The SDK is dynamically loaded and remains an optional, manually installed runtime dependency until a lockfile-capable checkout is available. Install for smoke testing with `npm install --no-save --package-lock=false @vercel/sandbox@3.9.1`.
