@@ -58,7 +58,7 @@ export class Router extends Service {
     this.owned = new Set(config.owned ?? [])
     this.timeoutMs = config.backendTimeoutMs ?? 5000
     this.maxTools = config.maxToolCandidates ?? 5
-    if (!Number.isSafeInteger(this.timeoutMs) || this.timeoutMs < 1) throw new Error('router: backendTimeoutMs must be a positive safe integer')
+    if (!Number.isSafeInteger(this.timeoutMs) || this.timeoutMs < 1 || this.timeoutMs > 2_147_483_647) throw new Error('router: backendTimeoutMs must be from 1 to 2147483647 milliseconds')
     if (!Number.isSafeInteger(this.maxTools) || this.maxTools < 1) throw new Error('router: maxToolCandidates must be a positive safe integer')
     if ((config.owned ?? []).some((value) => !DECISION_CLASSES.includes(value))) throw new Error('router: owned contains an unknown decision class')
     // ARCH-02: hand the agent loop this router whenever both exist, in either boot order. Neither requires the other.
