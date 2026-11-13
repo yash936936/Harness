@@ -1,3 +1,9 @@
+## D-116 owner-approved scope — 2026-11-13
+
+The owner approved D-116 against the uploaded 2026-11-11 roadmap. D1 is ACCEPTED (no command execution in v0; D-110 remains in force). D2 is ACCEPTED WITH RESTRICTION (one stronger free OpenRouter comparison session only; 3B remains the default local/headline model, and the comparison is not local 8 GB or 3B acceptance evidence). D3 is AMENDED (three owner-reviewed demo sessions are qualitative only; no scorer output or confusion table from three sessions; D-109's 10 genuine sessions and label-before-scorer requirements remain mandatory).
+
+R1 is closed as a decision-recording phase. R2 remains PARTIAL: PR #87's implementation subset is merged and CI-verified, but S7 live rerun and session-scoped approval work remain outstanding. The retrieval-rank split was reviewed and not adopted (DBG-120). R3 is NOT STARTED: the required three session JSONLs, owner-reviewed summary, measured cold-start time, Windows quickstart, and demo script are not yet supplied. S6/S7 remain open. No unfinished acceptance evidence is claimed. See `docs/STATE.md`.
+
 ## R0-R3 repair-order audit — 2026-11-13
 
 | Step | Result | Evidence and boundary |
