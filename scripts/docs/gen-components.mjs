@@ -62,7 +62,11 @@ for (const area of areas()) {
   const next = doc.replace(new RegExp(`${BEGIN}[\\s\\S]*?${END}`), () => block)
   if (!fs.existsSync(file)) problems.push(`missing doc: docs/components/${area.name}.md`)
   else if (next !== doc) problems.push(`stale generated block: docs/components/${area.name}.md`)
-  if (/\(open — /.test(next)) {\n    const message = `docs/components/${area.name}.md still has unfilled hand-written sections`\n    console.warn(`${check ? 'error' : 'warn'}: ${message}`)\n    if (check) problems.push(message)\n  }
+  if (/\(open — /.test(next)) {
+    const message = `docs/components/${area.name}.md still has unfilled hand-written sections`
+    console.warn(`${check ? 'error' : 'warn'}: ${message}`)
+    if (check) problems.push(message)
+  }
   if (!check) fs.writeFileSync(file, next)
   index.push(`| \`${area.name}\` | ${area.kind} | \`${rel(path.relative(ROOT, area.dir))}/\` |`)
 }
