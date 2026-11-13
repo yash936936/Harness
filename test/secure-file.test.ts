@@ -40,9 +40,9 @@ describe('persistent state no-follow helpers', () => {
   it('appends and truncates only a regular non-symlink file', async () => {
     const dir = temp()
     const file = join(dir, 'events.jsonl')
-    writeFileSync(file, '{"seq":1}\\n')
-    await appendTextFileNoFollow(file, '{"seq":2}\\n')
-    expect(await readTextFileNoFollow(file)).toBe('{"seq":1}\\n{"seq":2}\\n')
+    writeFileSync(file, '{"seq":1}\n')
+    await appendTextFileNoFollow(file, '{"seq":2}\n')
+    expect(await readTextFileNoFollow(file)).toBe('{"seq":1}\n{"seq":2}\n')
     await truncateFileNoFollow(file, 10)
     expect(await readTextFileNoFollow(file)).toBe('{"seq":1}')
   })
