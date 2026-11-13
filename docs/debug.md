@@ -1,3 +1,14 @@
+## DBG-127 — first PR CI exposed a shebang and committed-doc gaps — 2026-11-13
+
+**Observed:** PR #86 CI run #546 exposed two real issues. Ubuntu typecheck failed because the new CLI responsibility comment had been inserted before the `#!/usr/bin/env node` shebang. The docs job failed because the committed tree has 20 missing component docs, 20 component docs with unfilled hand-written sections, and missing generated blocks in several existing component docs. It also found a stale CLI generated block and component index.
+
+**Corrections:** Moved the CLI comment below the shebang, taught the component-doc header parser to inspect the first comment after a shebang, removed the obsolete `runCodeTask` export from the generated CLI inventory, and regenerated the sorted component index. The failure-ledger check is now scheduled with `if: always()` so it runs even when the docs check fails.
+
+**Remaining:** The strict read-only docs check correctly remains red until the missing component docs, missing generated blocks, and open hand-written sections are committed. Do not restore the old generate-then-check CI sequence or weaken the check to hide this. The branch has not yet had a fresh complete CI run after these corrections.
+
+**Validation:** PR #86 run #546 confirmed the Ubuntu typecheck failure and the documentation failures. Secrets/dependency and license jobs passed in that run. The typecheck cause was corrected after the run; the correction has not yet been validated by a subsequent complete run. No local typecheck, lint, test suite, or sandbox/provider/live-model command was run.
+
+---
 ## DBG-126 — P1 audit corrections: sandbox probing and CI integrity — 2026-11-13
 
 **Baseline:** Reviewed current main at `9ddfdd94710b3c05c593dc93228e18a810c2f5aa`, PR #85 merge. GitHub Actions run #541 passed all seven jobs. The main baseline's green docs job was not sufficient evidence of committed component-doc integrity because CI generated missing docs before checking them; the failure-ledger check also rewrote the ledger and was marked `continue-on-error`.
