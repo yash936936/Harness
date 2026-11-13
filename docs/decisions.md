@@ -2076,3 +2076,8 @@ as the dependency than the harness built on top of it.
 **Acceptance:** Unit tests must cover deny-all and non-persistent creation, argv forwarding, egress consent/allowlist refusal before provider contact, timeout/cancellation, output bounds/redaction at the tool boundary, and deletion failure. Live acceptance must prove a real sandbox was created, command ran remotely, network policy was deny-all, and deletion was confirmed. S4 remains NOT PASSED until end-to-end workspace transfer, policy/audit, and live cloud tests pass.
 
 **Affects:** `src/bundles/sandbox-vercel/`, sandbox/profile/CLI integration, tests, `docs/architecture.md`, `docs/BUILD-PLAN.md`, `docs/STATE.md`, `docs/status.md`, and `docs/AUDIT-CLOSEOUT.md`. This decision selects a provider; it does not claim complete command execution or live acceptance.
+
+
+### D-118 implementation verification — 2026-11-13
+
+The npm registry currently lists `@vercel/sandbox@3.9.1` as the latest published SDK. The 4.0.0 changelog entry changes the API base from `https://vercel.com/api` to `https://api.vercel.com` and raises the Node minimum to 22.19.0. Harness therefore targets published SDK 3.9.1 for the existing Node engine range and gates the SDK control-plane host as `vercel.com`. The provider uses the explicit access-token path: `VERCEL_TOKEN`, `VERCEL_TEAM_ID`, and `VERCEL_PROJECT_ID`. It does not rely on implicit CLI/OIDC credential discovery. Install the SDK locally with `npm install --no-save --package-lock=false @vercel/sandbox@3.9.1` until a lockfile-generating environment is available to add the dependency properly. This is a documented optional runtime dependency, not yet a committed package dependency.
