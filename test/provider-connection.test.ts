@@ -184,10 +184,10 @@ describe('testProviderConnection - timeout', () => {
 import { defaultConnectionTimeoutMs } from '../src/bundles/app-core/provider-connection.js'
 describe('defaultConnectionTimeoutMs (D-043)', () => {
   it('gives a local provider a long deadline (real cold load took 14s) and remote/unknown providers the short one', () => {
-    const p = (egress?: { host: string; remote: boolean }) => ({ egress, complete: async () => ({}) as any })
+    const p = (egress: { host: string; remote: boolean }) => ({ egress, complete: async () => ({}) as any })
     expect(defaultConnectionTimeoutMs(p({ host: 'localhost', remote: false }))).toBe(120_000)
     expect(defaultConnectionTimeoutMs(p({ host: 'openrouter.ai', remote: true }))).toBe(20_000)
-    expect(defaultConnectionTimeoutMs(p())).toBe(20_000)
+    expect(defaultConnectionTimeoutMs(p({ host: 'unclassified.example', remote: true }))).toBe(20_000)
   })
 })
 
