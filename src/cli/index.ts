@@ -1,5 +1,5 @@
-// CLI process entry point and argument parsing.
 #!/usr/bin/env node
+// CLI process entry point and argument parsing.
 import { TerminalIO } from './io.js'
 import { parseArgs } from 'node:util'
 import { basename } from 'node:path'
