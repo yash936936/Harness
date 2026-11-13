@@ -80,6 +80,9 @@ export class Sandbox extends Service {
         !req.command[0]!.trim()) {
       throw new SandboxError('config', 'sandbox: command must start with a non-empty executable and contain only strings without NUL')
     }
+    if (req.cwd !== undefined && (typeof req.cwd !== 'string' || !req.cwd.trim() || req.cwd.includes('\0') || req.cwd.length > 4096)) {
+      throw new SandboxError('config', 'sandbox: cwd must be a non-empty path of at most 4096 characters without NUL')
+    }
     if (req.timeoutMs !== undefined && (!Number.isSafeInteger(req.timeoutMs) || req.timeoutMs < 0)) {
       throw new SandboxError('config', 'sandbox: timeoutMs must be a non-negative safe integer')
     }
