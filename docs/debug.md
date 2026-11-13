@@ -1,3 +1,9 @@
+# Technical debug history
+
+> Append-only findings, newest first. Entries below describe the state at the time they were written; their old decisions, branch names, CI results, and next steps are historical. For current scope and blockers, use [STATE.md](STATE.md), [ROADMAP.md](ROADMAP.md), and the newest entry in [status.md](status.md). D-110/D-117/D-118 govern current sandbox and command-execution scope.
+
+---
+
 ## DBG-127 — first PR CI exposed a shebang and committed-doc gaps — 2026-11-13
 
 **Observed:** PR #86 CI run #546 exposed two real issues. Ubuntu typecheck failed because the new CLI responsibility comment had been inserted before the `#!/usr/bin/env node` shebang. The docs job failed because the committed tree has 20 missing component docs, 20 component docs with unfilled hand-written sections, and missing generated blocks in several existing component docs. It also found a stale CLI generated block and component index.
