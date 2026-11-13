@@ -6,6 +6,7 @@ import { bootProfileCoding, type ProfileCodingConfig } from '../profiles/profile
 import type { WizardIO } from './io.js'
 import { FileConsentStore } from '../bundles/egress/store.js'
 import { COMMAND_TOOL } from '../bundles/tools-local/index.js'
+import { LIST_TOOL, SEARCH_TOOL } from '../bundles/retrieval-tools/index.js'
 import type { ApprovalRequest } from '../bundles/policy-gates/index.js'
 
 export type CodeProvider = 'ollama' | 'openrouter'
