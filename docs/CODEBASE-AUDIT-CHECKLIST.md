@@ -146,6 +146,7 @@ This is a staged, evidence-based audit. Review each file, then each folder, then
 
 | AUD-033 | P1 | `src/bundles/tools-local/paths.ts`, `src/bundles/egress/store.ts`, `src/bundles/app-core/budgets.ts`, `.harness/**` | The model-facing file tools can edit `.harness/consent.json` and persisted budget/rate-limit state because `.harness` is not protected. A forged `consented: true` record is accepted by `FileConsentStore`, so an agent can change the file-backed user-consent decision itself. The same path exposes session logs and other control-plane state. | Confirmed; mitigation implemented on audit branch, CI pending |
 | AUD-034 | P2 | `src/util/filelock.ts` | `tryBreakStale()` catches every `stat`/`unlink` error and treats it as if the lock vanished. On permission or I/O errors, the outer loop immediately retries without checking `timeoutMs`, so a lock attempt can spin forever instead of failing closed with a useful error. `LockOptions` also accepts invalid/negative/oversized timer values without validation. | Confirmed; fix pending |
+| AUD-035 | P1 | `src/bundles/session-log/store.ts` | Persistent session logs use path-based `readFile`, `appendFile`, and `truncate` without rejecting symlinks or checking the opened file identity. A symlink placed at a session filename can redirect append or torn-tail repair/truncation outside the log directory. | Confirmed; use no-follow file handles and identity checks |
 
 ### Verification corrections
 
