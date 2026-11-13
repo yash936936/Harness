@@ -24,8 +24,13 @@ const walk = (dir) => {
 }
 walk('.')
 
-const componentDocs = markdown.filter((file) => file.startsWith(path.join('docs', 'components') + path.sep))
-for (const file of componentDocs) {
+const requiredNext = new Set([
+  'docs/FAILURE-LEDGER.md',
+  'docs/BRANCH-PROTECTION.md',
+  'docs/REFACTOR-PLAN.md',
+  ...markdown.filter((file) => file.startsWith(path.join('docs', 'components') + path.sep)),
+])
+for (const file of requiredNext) {
   const src = fs.readFileSync(file, 'utf8')
   if (!/\*\*Next:\*\*[^\n]*context\.md/.test(src)) problems.push(`${file}: no "**Next: ... context.md" line`)
 }
