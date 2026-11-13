@@ -86,6 +86,25 @@ describe('Vercel Sandbox provider (D-118)', () => {
     expect(f.calls.at(-1)).toEqual(['delete'])
   })
 
+  it('enforces an independent command deadline and deletes the lease', async () => {
+    let deleted = false
+    const client: VercelSandboxClient = {
+      async create() {
+        return {
+          name: 'sbx-deadline',
+          async runCommand() { return new Promise<never>(() => {}) },
+          async delete() { deleted = true },
+        }
+      },
+    }
+    const ctx = await boot()
+    ctx.sandbox.register(new VercelSandboxProvider({ client }))
+    const result = await ctx.sandbox.run({ command: ['sleep', 'forever'], timeoutMs: 20 })
+    expect(result).toMatchObject({ timedOut: true, released: true, exitCode: null })
+    expect(result.stderr).toContain('timed out after 20ms')
+    expect(deleted).toBe(true)
+  })
+
   it('rejects invalid argv and timeout values', async () => {
     const f = fake()
     const ctx = await boot()

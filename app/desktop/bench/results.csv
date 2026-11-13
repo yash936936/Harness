@@ -3,3 +3,4 @@ timestamp,shell,installer_size_mb,cold_start_ms_avg,cold_start_ms_samples,idle_m
 2026-09-29T11:14:43.641Z,tauri,1.3,1215,2350;1341;868;770;745,0.0,"INVALID idle memory (DBG-023); hello-world only"
 2026-09-29T11:34:47.157Z,electron,146.4,2267,9878;397;372;336;351,530.7,"valid; hello-world only; process-tree working set, 5 processes; no core running"
 2026-09-29T11:42:36.847Z,tauri,1.3,1250,2158;1567;837;842;844,362.0,"valid; hello-world only; process-tree working set, 7 processes incl. WebView2; marker fires at webview creation; no core running"
+2026-11-06T10:30:07.065Z,tauri,1.3,866,1743;761;591;686;550,377.8,"marker is written from Rust's setup() hook (webview created), not a frontend paint event - may under-count slightly vs. Electron's ready-to-show; hello-world only, no harness core logic added"

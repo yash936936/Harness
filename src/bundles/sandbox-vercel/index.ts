@@ -77,9 +77,8 @@ async function loadClient(): Promise<VercelSandboxClient> {
  * Remote Vercel Firecracker provider. Every invocation creates a fresh,
  * non-persistent microVM with deny-all network policy and deletes it in finally.
  *
- * Project transfer is intentionally not implemented here. The provider is not
- * enabled by the coding CLI until a separately reviewed, secret-safe workspace
- * snapshot and result-sync contract is implemented.
+ * Workspace transfer is intentionally not part of this low-level execution adapter.
+ * Callers must not pass host paths as cwd or assume local files are available remotely.
  */
 export class VercelSandboxProvider implements SandboxProvider {
   readonly name = 'vercel'
@@ -159,24 +158,35 @@ export class VercelSandboxProvider implements SandboxProvider {
     let commandError: unknown
     let released = false
     let releaseNote: string | undefined
+    let deadlineExpired = false
+    const commandController = new AbortController()
+    const onCallerAbort = () => commandController.abort(req.signal?.reason ?? new Error('aborted'))
+    req.signal?.addEventListener('abort', onCallerAbort, { once: true })
+    const deadline = setTimeout(() => {
+      deadlineExpired = true
+      commandController.abort(new Error(`command timed out after ${timeoutMs}ms`))
+    }, timeoutMs)
+    deadline.unref?.()
 
     try {
       const command = await raceAbort(sandbox.runCommand({
         cmd: req.command[0]!,
         args: req.command.slice(1),
         ...(req.cwd ? { cwd: req.cwd } : {}),
-        ...(req.signal ? { signal: req.signal } : {}),
-      }), req.signal)
+        signal: commandController.signal,
+      }), commandController.signal)
       exitCode = command.exitCode
-      ;[stdout, stderr] = await raceAbort(Promise.all([command.stdout(), command.stderr()]), req.signal)
+      ;[stdout, stderr] = await raceAbort(Promise.all([command.stdout(), command.stderr()]), commandController.signal)
     } catch (error) {
       if (req.signal?.aborted) commandError = req.signal.reason ?? error
       else {
         const message = String((error as any)?.message ?? error)
-        timedOut = /timeout|timed out|deadline/i.test(message)
-        stderr = message.slice(0, 1000)
+        timedOut = deadlineExpired || /timeout|timed out|deadline/i.test(message)
+        stderr = (timedOut ? `command timed out after ${timeoutMs}ms` : message).slice(0, 1000)
       }
     } finally {
+      clearTimeout(deadline)
+      req.signal?.removeEventListener('abort', onCallerAbort)
       try {
         await sandbox.delete()
         released = true
