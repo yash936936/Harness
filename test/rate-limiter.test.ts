@@ -43,6 +43,12 @@ describe('rate limiter: per-minute window', () => {
     expect(() => new RateLimiter({ perMinute: 0 })).toThrow(LLMError)
     expect(() => new RateLimiter({ maxConcurrent: 0 })).toThrow(LLMError)
   })
+
+  it('accepts zero pending capacity and rejects invalid pending limits', () => {
+    expect(() => new RateLimiter({ maxPending: 0 })).not.toThrow()
+    expect(() => new RateLimiter({ maxPending: -1 })).toThrow(LLMError)
+    expect(() => new RateLimiter({ maxPending: 1.5 })).toThrow(LLMError)
+  })
 })
 
 describe('rate limiter: daily ceiling', () => {
@@ -141,6 +147,50 @@ describe('rate limiter: shared persistent quota', () => {
 })
 
 describe('rate limiter: concurrency and abort', () => {
+  it('rejects requests when the bounded pending queue is full', async () => {
+    const rl = new RateLimiter({ perMinute: 100, maxPending: 1, provider: 'p' })
+    let release!: () => void
+    let started!: () => void
+    const began = new Promise<void>((resolve) => { started = resolve })
+    const blocker = rl.run(() => new Promise<void>((resolve) => { release = resolve; started() }))
+    await began
+    const queued = rl.run(async () => 'queued')
+    const overflow = await rl.run(async () => 'must not run').catch((error) => error)
+    expect(overflow).toBeInstanceOf(LLMError)
+    expect(overflow).toMatchObject({ kind: 'rate_limit', retryable: true, provider: 'p' })
+    release()
+    await blocker
+    await expect(queued).resolves.toBe('queued')
+  })
+
+  it('rejects immediately when maxPending is zero', async () => {
+    const rl = new RateLimiter({ perMinute: 100, maxPending: 0 })
+    let release!: () => void
+    let started!: () => void
+    const began = new Promise<void>((resolve) => { started = resolve })
+    const blocker = rl.run(() => new Promise<void>((resolve) => { release = resolve; started() }))
+    await began
+    await expect(rl.run(async () => 'must not run')).rejects.toMatchObject({ kind: 'rate_limit' })
+    release()
+    await blocker
+  })
+
+  it('reclaims pending capacity when a waiter aborts', async () => {
+    const rl = new RateLimiter({ perMinute: 100, maxPending: 1 })
+    let release!: () => void
+    let started!: () => void
+    const began = new Promise<void>((resolve) => { started = resolve })
+    const blocker = rl.run(() => new Promise<void>((resolve) => { release = resolve; started() }))
+    await began
+    const ac = new AbortController()
+    const cancelled = rl.run(async () => 'cancelled', ac.signal)
+    ac.abort(new Error('cancelled'))
+    await expect(cancelled).rejects.toThrow('cancelled')
+    const next = rl.run(async () => 'next')
+    release()
+    await blocker
+    await expect(next).resolves.toBe('next')
+  })
   it('runs one request at a time by default', async () => {
     const rl = new RateLimiter({ perMinute: 100 })
     let active = 0

@@ -12,6 +12,8 @@ export interface RateLimiterConfig {
   perDay?: number
   /** Requests in flight at once. Default 1; every sub-agent shares this limiter (D-023). */
   maxConcurrent?: number
+  /** Maximum requests waiting for an in-flight slot. Default 64; set 0 to reject instead of queueing. */
+  maxPending?: number
   /** Persist the daily counter here so a restart does not reset it. Omit for in-memory only. */
   statePath?: string
   /** Provider name used in error messages. */
@@ -64,6 +66,7 @@ export class RateLimiter {
   private readonly perMinute: number
   private readonly perDay?: number
   private readonly maxConcurrent: number
+  private readonly maxPending: number
   private readonly statePath?: string
   private readonly provider: string
   private readonly now: () => number
@@ -77,12 +80,14 @@ export class RateLimiter {
     this.perMinute = config.perMinute ?? 16
     if (config.perDay !== undefined) this.perDay = config.perDay
     this.maxConcurrent = config.maxConcurrent ?? 1
+    this.maxPending = config.maxPending ?? 64
     if (config.statePath !== undefined) this.statePath = config.statePath
     this.provider = config.provider ?? 'provider'
     this.now = config.now ?? Date.now
     this.sleep = config.sleep ?? defaultSleep
     if (!Number.isSafeInteger(this.perMinute) || this.perMinute < 1) throw new LLMError('config', 'rate limiter: perMinute must be a positive safe integer', this.provider)
     if (!Number.isSafeInteger(this.maxConcurrent) || this.maxConcurrent < 1) throw new LLMError('config', 'rate limiter: maxConcurrent must be a positive safe integer', this.provider)
+    if (!Number.isSafeInteger(this.maxPending) || this.maxPending < 0) throw new LLMError('config', 'rate limiter: maxPending must be a non-negative safe integer', this.provider)
     if (this.perDay !== undefined && (!Number.isSafeInteger(this.perDay) || this.perDay < 1)) throw new LLMError('config', 'rate limiter: perDay must be a positive safe integer', this.provider)
     this.state = this.load()
   }
@@ -122,9 +127,13 @@ export class RateLimiter {
   }
 
   private async takeSlot(signal?: AbortSignal) {
+    signal?.throwIfAborted()
     if (this.inFlight < this.maxConcurrent) {
       this.inFlight++
       return
+    }
+    if (this.waiters.length >= this.maxPending) {
+      throw new LLMError('rate_limit', `${this.provider}: pending request queue is full (${this.waiters.length}/${this.maxPending})`, this.provider)
     }
     await new Promise<void>((resolve, reject) => {
       const grant = () => {
