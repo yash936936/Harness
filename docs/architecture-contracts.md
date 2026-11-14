@@ -103,13 +103,13 @@ No performance numbers are claimed in this contract-only phase. Capture a reprod
 | Indexing | Small files plus one file larger than the configured chunk batch | Peak RSS, batch size, throughput, cancellation latency |
 | Output | Under/at/over-cap output and endless stream | Peak buffered bytes, termination latency, truncation correctness |
 
-## Decisions still required before Phase 2
+## Approved deployment and operating policy
 
-These are user approval gates, not implementation defaults:
+The four D-119 owner decisions are approved and binding for the initial implementation:
 
-1. Deployment: multiple processes on one host, or multiple machines sharing state?
-2. Database ownership: one database per project, or one shared database with enforced project isolation?
-3. Durable history: retain indefinitely by default, or define a default retention period and deletion workflow?
-4. Workspace recovery: may a different process resume a crashed session after lease expiry, or must it always create a fresh session?
+1. **Deployment topology:** support multiple Harness processes on one host using a supported local filesystem. Multi-machine shared-state operation and arbitrary network filesystems are out of scope until separately designed and approved.
+2. **Database ownership:** use one SQLite database per project. Do not use a shared cross-project database in this implementation.
+3. **Durable-history retention:** retain durable history indefinitely by default. Do not automatically delete it. Any retention period or deletion workflow requires a separately specified and approved policy.
+4. **Workspace crash recovery:** another process may resume a crashed workspace only after the prior lease has expired, ownership is explicitly acquired, and the provider validates recoverability. If any condition cannot be established, create a fresh workspace. Lease expiry alone is not proof that recovery is safe.
 
-Phase 1 can establish contracts without these answers. Phase 2 cannot select a final storage topology, retention implementation, or recovery policy until they are recorded in `docs/decisions.md`.
+These choices are recorded as binding D-119 policy in `docs/decisions.md`. Phase 2 implementation and tests must enforce them. Changing any choice requires a new decision record and migration review.
