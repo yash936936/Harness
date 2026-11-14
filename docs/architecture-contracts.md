@@ -139,7 +139,21 @@ Peak observed RSS delta was 551,690,240 bytes (~526 MiB), but fixture generation
 
 The runner uses five samples, so p95 is the maximum observed sample, not a statistically stable tail-latency estimate. Results are an initial reproducible baseline, not a performance target. Compare future changes on the same runner class and increase sample count for release-quality tail estimates.
 
-Still unmeasured: independent-process reservations, indexing, semantic reindex, and bounded streaming output. These need dedicated deterministic fixtures; no estimates are substituted for measurements.
+### Deterministic indexing baseline: CI run #749
+
+Ubuntu x64, Node v22.12.0, 4 CPUs. Three sequential samples in one process. The fixture contains 30 TypeScript files with 40 exported functions each, plus one 540-function file. All 1,740 chunks were embedded and indexed. The large file alone exceeds the configured 512-chunk embedding-group threshold.
+
+| Measurement | p50 | Maximum of 3 samples |
+|---|---:|---:|
+| `indexFiles` elapsed time | 306.759 ms | 403.469 ms |
+| Throughput | 5,672.2 chunks/s | 5,783.4 chunks/s |
+| Process RSS delta | 24,248,320 bytes | 120,786,944 bytes |
+
+Each sample indexed 31 files and 1,740 chunks and made 7 embedding calls. The elapsed timer covers `indexFiles` only; fixture creation, parser/WASM warmup, and LanceDB module loading are outside the timed interval. RSS sampling runs every 5 ms during setup and indexing, so it is process-wide, can miss short-lived peaks, and includes setup. Samples run sequentially in one process; retained heap from earlier samples can affect later RSS deltas. The maximum of three samples is not a statistically stable p95.
+
+This measures the current implementation, not bounded-memory indexing. `indexFiles` prepares all file chunks before embedding groups; `indexGroupChunks` bounds an embedding group, not total prepared memory. Hashing embeddings are deterministic local test infrastructure and provide no semantic-quality evidence.
+
+Still unmeasured: semantic reindex and bounded streaming output. No estimates are substituted for measurements.
 
 | Area | Baseline workload | Required measurements |
 |---|---|---|
@@ -151,7 +165,7 @@ Still unmeasured: independent-process reservations, indexing, semantic reindex, 
 
 
 
-The current-code baseline runner is `npm run bench:architecture` (also executed by the `architecture performance baseline` CI job). It records Node/platform/CPU metadata, fixture sizes, p50/p95 timings, file-size-based read-volume estimates, and observed RSS. It currently measures session-log append at 0/50k/100k events and episodic duplicate-check/selective-query at 100k episodes. The remaining reservation, indexing, semantic-reindex, and output workloads are deliberately reported as not measured until deterministic multi-process/provider fixtures exist; do not fill those rows with estimates or in-process substitutes.
+The current-code baseline runner is `npm run bench:architecture` (also executed by the `architecture performance baseline` CI job). It records Node/platform/CPU metadata, fixture sizes, p50/p95 timings, file-size-based read-volume estimates, and observed RSS. It measures session-log append at 0/50k/100k events, episodic duplicate-check/selective-query at 100k episodes, independent-process reservations, and deterministic indexing. Semantic-reindex and bounded streaming-output workloads remain unmeasured; do not fill those rows with estimates or in-process substitutes.
 
 ## Approved deployment and operating policy
 
