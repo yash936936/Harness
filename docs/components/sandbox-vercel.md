@@ -35,7 +35,7 @@ A host integration must construct and register `VercelSandboxProvider` with `ctx
 
 | File | Exports | Responsibility (first header-comment line) |
 |---|---|---|
-| `src/bundles/sandbox-vercel/index.ts` | `VercelSandboxHandle`, `VercelSandboxClient`, `VercelSandboxConfig`, `VercelSandboxProvider` | Vercel Sandbox remote provider adapter. |
+| `src/bundles/sandbox-vercel/index.ts` | `VercelSandboxCommand`, `VercelSandboxHandle`, `VercelSandboxClient`, `VercelSandboxConfig`, `VercelSandboxProvider` | Vercel Sandbox remote provider adapter. |
 
 **Imports other areas:** `sandbox`
 

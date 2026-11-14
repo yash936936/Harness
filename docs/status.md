@@ -1,3 +1,16 @@
+## 2026-11-14 open-item closeout pass (main baseline 74ae26a)
+
+- Implemented bounded Vercel output collection using the SDK detached-command logs async iterator. The adapter no longer calls stdout()/stderr() methods that collect full strings. It retains at most the configured byte limit per stream, does not split UTF-8 code points, and marks truncation.
+- Added fake-client tests for independent stdout/stderr limits and UTF-8 boundaries. Focused provider suite: 14 passed.
+- Reran the full Linux suite: 57 files passed, 2 skipped; 1,179 tests passed, 106 skipped.
+- Reran typecheck/lint, docs generation/check (73 Markdown files), secret scan, production dependency audit (0 vulnerabilities), license inventory (272 entries), and diff whitespace check. All passed.
+- Reran architecture baselines on Node 22.23.5 / Linux x64 / 2 vCPUs. Session append at 100k events p50 120.151 ms / p95 125.015 ms; episode duplicate check p50 329.936 ms / p95 348.579 ms; selective query p50 183.223 ms / p95 192.947 ms. Retrieval indexing: 1,740 chunks p50 548.634 ms / p95 617.717 ms. Semantic reindex: 2,000 facts with 64-item embedding batches. Output stream fake: 8m chars per stream p50 25.761 ms / p95 38.410 ms; retained output 100,038 bytes including marker.
+- Cross-process SQLite reservation acceptance is NOT complete. There is no SQLite provider/runtime on this baseline. The existing independent-process benchmark is a negative control showing oversubscription (2/4/8 processes admit 2/4/8 reservations at hard limit 1).
+- Task-scoped workspace acceptance is NOT complete. Only type contracts/design rules exist; lifecycle, capability enforcement, workspace transfer, result synchronization, and crash recovery are not implemented. COMMAND_TOOL remains disabled.
+- Live Vercel acceptance is NOT run. No VERCEL_TOKEN / VERCEL_TEAM_ID / VERCEL_PROJECT_ID are present in this sandbox, and its network allow-list excludes Vercel hosts. No egress consent or allow-list changes were made.
+- PR #106 head 305d2e5 passed CI run #784 on Ubuntu and Windows with Node 20.19.0 and 22.12.0. The run passed typecheck, lint, full tests, architecture benchmarks, docs/component drift, secrets/dependencies, license inventory, and ci-pass. The separate Vercel deployment status failed due its deployment rate limit; it is not a test failure.
+- Performance baseline documentation was reconciled to main 74ae26a and current measurements. Full file-by-file audit remains open and was excluded from this pass.
+
 ## 2026-11-14 post-PR-100 audit continuation
 
 - PR #100 merged to main as `41ca36359b6502c986fd41924cbc6b1d643b1077`.
