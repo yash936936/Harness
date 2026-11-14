@@ -11,7 +11,7 @@ permissions:
   contents: read
 jobs:
   verify:
-    name: verify (${{ matrix.os }})
+    name: verify (${{ matrix.os }}, Node ${{ matrix.node }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
