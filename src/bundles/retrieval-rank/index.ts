@@ -261,7 +261,7 @@ export class RetrievalRank extends Service {
     if (!e.ok) return { ok: false, reason: `embeddings ${e.error.kind}: ${e.error.detail}` }
     const info = emb.info()
     if (!info?.fingerprint || !info.dimensions) return { ok: false, reason: 'embeddings did not report a fingerprint' }
-    const opened = await vs.open(this.collectionName, { fingerprint: info.fingerprint, dimensions: info.dimensions })
+    const opened = await vs.open(this.collectionName, { fingerprint: info.fingerprint, dimensions: info.dimensions, owner: `retrieval-rank:${this.root}` })
     if (!opened.ok) return { ok: false, reason: `vectorstore ${opened.error.kind}: ${opened.error.detail}` }
     const q = await opened.collection.query(e.vectors[0] as Float32Array, this.vectorTopK)
     if (!q.ok) return { ok: false, reason: `vectorstore ${q.error.kind}: ${q.error.detail}` }
