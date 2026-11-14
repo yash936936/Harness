@@ -85,7 +85,7 @@ export class Compaction {
       const norm = normaliseLesson(e.lesson)
       if (!norm) continue
       const scope = isScopedActor(e.agentId) ? e.agentId : undefined
-      const key = scope ? \`\${scope}\u0000\${norm}\` : norm
+      const key = scope ? scope + String.fromCharCode(0) + norm : norm
       const g = groups.get(key) ?? { norm, scope, text: e.lesson, occurrences: 0, sessions: new Set<string>() }
       g.text = e.lesson // keep the most recent wording
       g.occurrences++
