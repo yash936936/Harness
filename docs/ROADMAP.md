@@ -33,7 +33,7 @@ Withdrawn findings AUD-009, AUD-022, and AUD-027 must remain withdrawn unless ne
 
 ### Phase 0: CI and audit-branch stabilization
 
-<badge>Complete: PR #93 merged</badge>
+**Status: complete.** PR #93 merged.
 
 - Fixed the Windows retrieval path namespace mismatch without weakening root containment checks.
 - Keep Node 20.19.0 and 22.12.0 coverage on Ubuntu and Windows.
@@ -46,7 +46,7 @@ Withdrawn findings AUD-009, AUD-022, and AUD-027 must remain withdrawn unless ne
 
 ### Phase 1: Architecture contracts and migration safety
 
-<badge>Contract artifacts drafted</badge>
+**Status: contract artifacts drafted; policy and baseline gates remain.**
 
 - Added backend-neutral type contracts in `src/architecture/contracts.ts` for budget reservations, rate-limit permits, resource leases, durable history, searchable memory, reindex checkpoints, workspace sessions/capabilities, workspace transfer, and schema migrations.
 - Added [architecture contract and migration specification](architecture-contracts.md), including transaction/idempotency rules, fencing tokens, failure recovery, compatibility, migration sequence, and acceptance tests.
