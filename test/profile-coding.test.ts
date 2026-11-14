@@ -158,7 +158,7 @@ describe('the gates cannot be switched off (profile-level, not a runtime toggle)
     const def = { name: 'run_command', actionClass: 'sandbox-write', inputSchema: {}, execute: () => '' } as any
     const decision = ctx.policy.evaluate({ sessionId: 's', tool: def, input: { command: 'sh', args: ['-c', 'x'], confidence: 1 } })
     expect(decision.verdict).toBe('hold')
-    expect(decision.signals!.filter((signal: Signal) => (signal as any).name === 'command-risk')).toHaveLength(1)
+    expect(decision.signals!.filter((signal: any) => (signal as any).name === 'command-risk')).toHaveLength(1)
     expect(decision.signals!.map((signal: any) => signal.name)).toContain('custom')
   })
 })
