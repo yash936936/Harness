@@ -33,7 +33,7 @@ export class MemoryEpisodeStore implements EpisodeStore {
   }
 }
 
-/** One JSONL file, \`<dir>/episodic.jsonl\`. Append-only, like the session log. */
+/** One JSONL file, `<dir>/episodic.jsonl`. Append-only, like the session log. */
 export class JsonlEpisodeStore implements EpisodeStore {
   private queue: Promise<unknown> = Promise.resolve()
 
@@ -49,7 +49,7 @@ export class JsonlEpisodeStore implements EpisodeStore {
       await assertNoSymlinkParents(this.file)
       await mkdir(this.dir, { recursive: true })
       await assertNoSymlinkParents(this.file)
-      return withFileLock(\`\${this.file}.lock\`, async () => {
+      return withFileLock(`${this.file}.lock`, async () => {
         if (await this.repairTailAndHasId(episode.id)) return false
         await appendTextFileNoFollow(this.file, JSON.stringify(episode) + '\n')
         return true
@@ -81,7 +81,7 @@ export class JsonlEpisodeStore implements EpisodeStore {
           try {
             parsed = JSON.parse(candidate.line) as Episode
           } catch {
-            throw new Error(\`memory: corrupt episodic.jsonl at line \${candidate.lineNumber}\`)
+            throw new Error(`memory: corrupt episodic.jsonl at line ${candidate.lineNumber}`)
           }
           if (parsed.id === id) found = true
           offset = candidate.start + Buffer.byteLength(candidate.line, 'utf8') + 1 + trailingBlankBytes
@@ -122,7 +122,7 @@ export class JsonlEpisodeStore implements EpisodeStore {
           try {
             yield JSON.parse(candidate.line) as Episode
           } catch {
-            throw new Error(\`memory: corrupt episodic.jsonl at line \${candidate.lineNumber}\`)
+            throw new Error(`memory: corrupt episodic.jsonl at line ${candidate.lineNumber}`)
           }
         }
         candidate = { line: item.line, lineNumber: physicalLine }
