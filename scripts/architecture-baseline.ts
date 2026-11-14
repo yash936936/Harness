@@ -76,7 +76,7 @@ try {
       await mkdir(dir)
       const file = join(dir, 'baseline-session.jsonl')
       if (count > 0) {
-        const prefix = sessionFixture.split('\n').slice(0, count + 1).join('\n')
+        const prefix = sessionFixture.split('\n').slice(0, count).join('\n') + '\n'
         await writeFile(file, prefix, { encoding: 'utf8', mode: 0o600 })
       } else {
         await writeFile(file, '', { encoding: 'utf8', mode: 0o600 })
