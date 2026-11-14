@@ -64,7 +64,7 @@ export class FileConsentStore implements ConsentStore {
       handle = await open(this.path, fsConstants.O_RDONLY | (typeof fsConstants.O_NOFOLLOW === 'number' ? fsConstants.O_NOFOLLOW : 0))
       const opened = await handle.stat()
       const after = await lstat(this.path)
-      if (after.isSymbolicLink() || !after.isFile() || after.dev !== opened.dev || after.ino !== opened.ino) {
+      if (after.isSymbolicLink() || !after.isFile() || (process.platform !== 'win32' && (after.dev !== opened.dev || after.ino !== opened.ino))) {
         throw new Error('egress: consent store changed while opening; refusing to read it')
       }
       await assertNoSymlinkParents(this.path)
