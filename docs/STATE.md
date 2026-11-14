@@ -25,7 +25,7 @@ Updated 2026-11-14. This file records the current implementation state and bindi
 | Provider lifecycle audit | Incomplete | Must capture request, lease, command, timeout/cancel, cleanup, and failures. |
 | Coding profile command tool | Disabled | Do not enable `run_command` until workspace transfer, result sync, lifecycle audit, and policy integration are accepted. |
 | Shared-state SQLite provider | Not implemented | Phase 2, after Phase 1 policy gates. |
-| Architecture contracts | Merged via PR #94 | Type-only interfaces and migration specification; no runtime changes. Four D-119 policy choices approved. Initial session-log/episodic baselines captured by PR #95; other hot-path baselines remain. |
+| Architecture contracts | Merged via PR #94 | Type-only interfaces and migration specification; no runtime changes. Four D-119 policy choices approved. Session-log/episodic baselines captured by PR #95 and Windows measurements by PR #97. Independent-process budget reservation baseline captured by PR #99; it confirms current cross-process oversubscription. Indexing, semantic-reindex, and streaming-output baselines remain. |
 | Memory scaling changes | Not implemented | AUD-007/008/014/025 remain open. |
 | Streaming output enforcement | Not implemented | AUD-023 remains open. |
 
