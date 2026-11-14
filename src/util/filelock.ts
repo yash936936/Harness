@@ -52,6 +52,8 @@ async function tryBreakStale(lockPath: string, staleMs: number): Promise<boolean
     before = await stat(lockPath)
   } catch (error: any) {
     if (error?.code === 'ENOENT') return true // vanished between our attempts: just retry
+    // Windows can deny stat while another process holds an exclusive handle.
+    if (error?.code === 'EPERM' || error?.code === 'EACCES' || error?.code === 'EBUSY') return false
     throw error
   }
   try {
@@ -77,6 +79,7 @@ async function tryBreakStale(lockPath: string, staleMs: number): Promise<boolean
     return true
   } catch (error: any) {
     if (error?.code === 'ENOENT') return true // already gone
+    if (error?.code === 'EPERM' || error?.code === 'EACCES' || error?.code === 'EBUSY') return false
     throw error
   }
 }
