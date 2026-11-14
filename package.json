@@ -24,7 +24,7 @@
     "events:report": "node scripts/events/failure-report.mjs",
     "ci:secrets": "node scripts/ci/secret-scan.mjs",
     "smoke:vercel-sandbox": "tsx scripts/smoke-vercel-sandbox.ts",
-    "bench:architecture": "tsx scripts/architecture-baseline.ts && tsx scripts/architecture-reservation-baseline.ts && tsx scripts/architecture-indexing-baseline.ts && tsx scripts/architecture-semantic-reindex-baseline.ts"
+    "bench:architecture": "tsx scripts/architecture-baseline.ts && tsx scripts/architecture-reservation-baseline.ts && tsx scripts/architecture-indexing-baseline.ts && tsx scripts/architecture-semantic-reindex-baseline.ts && tsx scripts/architecture-output-capture-baseline.ts"
   },
   "dependencies": {
     "@lancedb/lancedb": "0.30.0",
