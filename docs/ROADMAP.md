@@ -1,6 +1,6 @@
 # Roadmap: Harness audit closeout and scalable architecture
 
-Updated 2026-11-14. This is the active implementation roadmap. Phase 0 is complete on the merged audit PR. Phase 1 contract artifacts are drafted, all four D-119 policy choices are approved and recorded, and measured performance baselines remain before Phase 1 can be closed. Current project state and binding constraints are in [STATE.md](STATE.md); architecture decisions are in [decisions.md](decisions.md); detailed findings are tracked in [CODEBASE-AUDIT-CHECKLIST.md](CODEBASE-AUDIT-CHECKLIST.md).
+Updated 2026-11-14, main `0bb27968955b218c5ea188f35b3d0939623a32cb`. This is the active implementation roadmap. Phase 0 is complete on the merged audit PR. Phase 1 contract artifacts are drafted, all four D-119 policy choices are approved and recorded, and measured performance baselines remain before Phase 1 can be closed. Current project state and binding constraints are in [STATE.md](STATE.md); architecture decisions are in [decisions.md](decisions.md); detailed findings are tracked in [CODEBASE-AUDIT-CHECKLIST.md](CODEBASE-AUDIT-CHECKLIST.md).
 
 ## Target outcome
 
@@ -28,7 +28,7 @@ Complete the current security and reliability audit, then migrate Harness toward
 | P2 | AUD-023 | Enforce output byte limits while streaming or through a verified SDK-side cap, with cancellation and bounded buffering. |
 | P1 | AUD-050 | Reject skill-directory and `SKILL.md` symlink escapes; verify no-follow reads and opened-file identity. |\n| P2 | Audit remainder | Finish the incomplete file-by-file audit, verify each status against code and tests, and correct stale or unsupported register claims. |
 
-AUD-021 is fixed in main: late sandbox creation is awaited, deletion is awaited, and cleanup failures are surfaced. Keep AUD-039 open for the separate workspace-session and transfer redesign. AUD-048 and AUD-049 are fixed in PR #101, merged as `67fd1666fec0ae55ea4473459c36bce78fc5b611`; the expanded head passed CI run #768. AUD-050 is the current skill-discovery symlink finding; its fix is pending CI.
+AUD-021 is fixed in main: late sandbox creation is awaited, deletion is awaited, and cleanup failures are surfaced. Keep AUD-039 open for the separate workspace-session and transfer redesign. AUD-048 and AUD-049 are fixed in main through PR #101, merged as `67fd1666fec0ae55ea4473459c36bce78fc5b611`; the expanded head passed CI run #768. AUD-050 is fixed in PR #102, merged as `082e83629ea20ead62e001cf27357bd4952fd6a5` (CI run #777). AUD-051 is fixed in PR #103, merged as `0bb27968955b218c5ea188f35b3d0939623a32cb` (CI run #780). The remaining audit is still incomplete.
 
 Withdrawn findings AUD-009, AUD-022, and AUD-027 must remain withdrawn unless new evidence changes the conclusion. Do not reopen them based on the old descriptions alone.
 
