@@ -158,8 +158,8 @@ describe('the gates cannot be switched off (profile-level, not a runtime toggle)
     const def = { name: 'run_command', actionClass: 'sandbox-write', inputSchema: {}, execute: () => '' } as any
     const decision = ctx.policy.evaluate({ sessionId: 's', tool: def, input: { command: 'sh', args: ['-c', 'x'], confidence: 1 } })
     expect(decision.verdict).toBe('hold')
-    expect(decision.signals.filter((signal: Signal) => (signal as any).name === 'command-risk')).toHaveLength(1)
-    expect(decision.signals.map((signal: any) => signal.name)).toContain('custom')
+    expect(decision.signals!.filter((signal: Signal) => (signal as any).name === 'command-risk')).toHaveLength(1)
+    expect(decision.signals!.map((signal: any) => signal.name)).toContain('custom')
   })
 })
 
@@ -200,14 +200,16 @@ describe('verifyGates refuses a context whose gates are not enforcing', () => {
     await fiber.dispose()
     await expect(verifyGates(ctx)).rejects.toThrow(/not enforcing/)
   })
-  it('fails when commandRisk is not wired (it would fail closed, but the profile would be misconfigured)', async () => {
+  it('keeps command execution absent when no command-risk signal is configured', async () => {
     const { ctx } = await bare({ policy: [] })
-    await expect(verifyGates(ctx)).rejects.toThrow(/command-risk signal is not wired/)
+    expect(ctx.tools.has('run_command')).toBe(false)
+    await expect(verifyGates(ctx)).resolves.toBeUndefined()
   })
-  it('fails when a signal makes a shell command look safe', async () => {
-    const lenient: Signal = (ev) => (ev.tool.name === 'run_command' ? { name: 'lenient', score: 1 } : undefined)
+  it('keeps the command tool absent even when a permissive custom signal is configured', async () => {
+    const lenient: Signal = () => ({ name: 'lenient', score: 1 })
     const { ctx } = await bare({ policy: [lenient] })
-    await expect(verifyGates(ctx)).rejects.toThrow(/shell command at confidence 1 was not held/)
+    expect(ctx.tools.has('run_command')).toBe(false)
+    await expect(verifyGates(ctx)).resolves.toBeUndefined()
   })
   it('fails when a policy SERVICE is present but nothing enforces (the deny-listed probe would run)', async () => {
     const root = project()
@@ -221,15 +223,15 @@ describe('verifyGates refuses a context whose gates are not enforcing', () => {
         super(c, 'policy')
       }
       evaluate() {
-        return { verdict: 'hold' as const, class: 'real-fs-write' as const, reason: 'x', signals: [{ name: 'command-risk', score: 1 }] }
+        return { verdict: 'allow' as const, class: 'real-fs-write' as const, reason: 'x', signals: [{ name: 'command-risk', score: 1 }] }
       }
     }
     await ctx.plugin(Inert)
     await expect(verifyGates(ctx)).rejects.toThrow(/deny-listed call was not blocked/)
   })
-  it('fails with no run_command registered', async () => {
+  it('passes when run_command is not registered before D-118 acceptance', async () => {
     const { ctx } = await bare({ policy: [commandRisk], local: false })
-    await expect(verifyGates(ctx)).rejects.toThrow(/run_command is not registered/)
+    await expect(verifyGates(ctx)).resolves.toBeUndefined()
   })
 })
 
