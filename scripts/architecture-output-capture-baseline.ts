@@ -19,7 +19,7 @@ function stats(values: number[]) {
   }
 }
 
-async function runSample(outputChars: number, sample: number) {
+async function runSample(outputChars: number, sample: number) {\n  let peakRss = process.memoryUsage().rss\n  const rssBefore = peakRss\n  const observe = () => { peakRss = Math.max(peakRss, process.memoryUsage().rss) }
   const client: VercelSandboxClient = {
     async create() {
       return {
