@@ -7,6 +7,10 @@ import type { SessionEvent, SessionStore } from './types.js'
 
 const ID_RE = /^[A-Za-z0-9._-]+$/
 
+type TailCursor =
+  | { exists: false; seq: number }
+  | { exists: true; seq: number; size: bigint; mtimeNs: bigint; ctimeNs: bigint; ino: bigint; dev: bigint }
+
 /** Guards against path traversal via session ids. */
 export function assertValidSessionId(id: string): void {
   if (!ID_RE.test(id) || id === '.' || id === '..') {
@@ -22,6 +26,7 @@ export class MemoryStore implements SessionStore {
     list.push(structuredClone(event))
     this.sessions.set(event.sessionId, list)
   }
+
   async read(sessionId: string) {
     return structuredClone(this.sessions.get(sessionId) ?? [])
   }
@@ -32,6 +37,9 @@ export class MemoryStore implements SessionStore {
 
 /** One JSONL file per session: `<dir>/<sessionId>.jsonl`. */
 export class JsonlStore implements SessionStore {
+  private tailCursors = new Map<string, TailCursor>()
+  private readonly maxTailCursors = 256
+
   constructor(private dir: string) {}
 
   private file(id: string) {
@@ -86,15 +94,66 @@ export class JsonlStore implements SessionStore {
    * that incomplete tail while the caller holds withLock(), before any later
    * append can bury it in the middle.
    */
+  private async cursorMatches(sessionId: string, cursor: TailCursor): Promise<boolean> {
+    try {
+      await assertNoSymlinkParents(this.file(sessionId))
+      const stat = await lstat(this.file(sessionId), { bigint: true })
+      return cursor.exists && stat.isFile() && !stat.isSymbolicLink() &&
+        stat.size === cursor.size && stat.mtimeNs === cursor.mtimeNs &&
+        stat.ctimeNs === cursor.ctimeNs && stat.ino === cursor.ino && stat.dev === cursor.dev
+    } catch (error: any) {
+      return !cursor.exists && error?.code === 'ENOENT'
+    }
+  }
+
+  private async rememberTail(sessionId: string, seq: number): Promise<void> {
+    let cursor: TailCursor
+    try {
+      await assertNoSymlinkParents(this.file(sessionId))
+      const stat = await lstat(this.file(sessionId), { bigint: true })
+      if (!stat.isFile() || stat.isSymbolicLink()) {
+        this.tailCursors.delete(sessionId)
+        return
+      }
+      cursor = {
+        exists: true, seq, size: stat.size, mtimeNs: stat.mtimeNs,
+        ctimeNs: stat.ctimeNs, ino: stat.ino, dev: stat.dev,
+      }
+    } catch (error: any) {
+      if (error?.code !== 'ENOENT') {
+        this.tailCursors.delete(sessionId)
+        return
+      }
+      cursor = { exists: false, seq }
+    }
+    this.tailCursors.delete(sessionId)
+    this.tailCursors.set(sessionId, cursor)
+    if (this.tailCursors.size > this.maxTailCursors) {
+      const oldest = this.tailCursors.keys().next().value as string | undefined
+      if (oldest !== undefined) this.tailCursors.delete(oldest)
+    }
+  }
+
   async lastSeq(sessionId: string): Promise<number> {
+    const cached = this.tailCursors.get(sessionId)
+    if (cached && await this.cursorMatches(sessionId, cached)) {
+      this.tailCursors.delete(sessionId)
+      this.tailCursors.set(sessionId, cached)
+      return cached.seq
+    }
+    this.tailCursors.delete(sessionId)
     await this.repairTornTail(sessionId)
     let fh
     try {
       fh = await this.openRegular(sessionId, fsConstants.O_RDONLY)
     } catch (e: any) {
-      if (e?.code === 'ENOENT') return 0
+      if (e?.code === 'ENOENT') {
+        await this.rememberTail(sessionId, 0)
+        return 0
+      }
       throw e
     }
+    let last = 0
     try {
       const size = (await fh.stat()).size
       let window = 64 * 1024
@@ -104,22 +163,29 @@ export class JsonlStore implements SessionStore {
         await fh.read(buf, 0, len, size - len)
         const lines = buf.toString('utf8').split('\n')
         const complete = len < size ? lines.slice(1) : lines
+        let found = false
         for (let i = complete.length - 1; i >= 0; i--) {
           const line = complete[i]!.trim()
           if (!line) continue
           try {
             const seq = JSON.parse(line).seq
-            if (typeof seq === 'number') return seq
+            if (typeof seq === 'number') {
+              last = seq
+              found = true
+              break
+            }
           } catch {
             /* malformed final record is repaired before this scan */
           }
         }
-        if (len >= size) return 0
+        if (found || len >= size) break
         window *= 4
       }
     } finally {
       await fh.close()
     }
+    await this.rememberTail(sessionId, last)
+    return last
   }
 
   /** Repair the final tail and reject corruption earlier in the append-only log. */
@@ -156,6 +222,8 @@ export class JsonlStore implements SessionStore {
 
   async append(event: SessionEvent) {
     const file = this.file(event.sessionId)
+    const cached = this.tailCursors.get(event.sessionId)
+    const cacheValid = cached ? await this.cursorMatches(event.sessionId, cached) : false
     await assertNoSymlinkParents(file)
     await mkdir(this.dir, { recursive: true })
     await assertNoSymlinkParents(file)
@@ -165,6 +233,8 @@ export class JsonlStore implements SessionStore {
     } finally {
       await fh.close()
     }
+    if (cacheValid) await this.rememberTail(event.sessionId, event.seq)
+    else this.tailCursors.delete(event.sessionId)
   }
 
   async read(sessionId: string): Promise<SessionEvent[]> {
