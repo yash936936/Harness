@@ -21,7 +21,7 @@ function readBoundedFd(fd: number, maxBytes: number): Buffer | undefined {
   return Buffer.concat(chunks, total)
 }
 
-function canonicalPathKey(path: string): string {
+export function canonicalPathKey(path: string): string {
   const absolute = resolve(path)
   if (process.platform !== 'win32') return absolute
   return absolute
@@ -31,7 +31,7 @@ function canonicalPathKey(path: string): string {
     .toLowerCase()
 }
 
-function sameCanonicalPath(a: string, b: string): boolean {
+export function sameCanonicalPath(a: string, b: string): boolean {
   return canonicalPathKey(a) === canonicalPathKey(b)
 }
 
@@ -54,7 +54,7 @@ export function readProjectFile(rel: string, realRoot: string, maxFileBytes: num
     return { ok: false, reason: 'unreadable' }
   }
   if (!isInside(realRoot, real)) return { ok: false, reason: 'outside_root' }
-  const rootRelative = relative(realRoot, real).split(sep).join('/').toLowerCase()
+  const rootRelative = relative(canonicalPathKey(realRoot), canonicalPathKey(real)).split(sep).join('/').toLowerCase()
   if (isGitInternal(rootRelative) || rootRelative.split('/').includes('node_modules')) return { ok: false, reason: 'excluded' }
   if (isSecretPath(rootRelative)) return { ok: false, reason: 'secret' }
   try {
@@ -75,7 +75,7 @@ export function readProjectFile(rel: string, realRoot: string, maxFileBytes: num
       }
       if (!isInside(realRoot, currentReal)) return { ok: false, reason: 'outside_root' }
       const currentStat = statSync(currentReal)
-      if (process.platform !== 'win32' && currentStat.dev !== opened.dev || process.platform !== 'win32' && currentStat.ino !== opened.ino) return { ok: false, reason: 'outside_root' }
+      if (process.platform !== 'win32' && (currentStat.dev !== opened.dev || currentStat.ino !== opened.ino)) return { ok: false, reason: 'outside_root' }
 
       // Check the path once more after stat; if it changed during validation,
       // refuse rather than reading through a path whose identity is uncertain.
