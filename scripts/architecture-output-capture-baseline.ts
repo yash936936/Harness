@@ -19,7 +19,10 @@ function stats(values: number[]) {
   }
 }
 
-async function runSample(outputChars: number, sample: number) {\n  let peakRss = process.memoryUsage().rss\n  const rssBefore = peakRss\n  const observe = () => { peakRss = Math.max(peakRss, process.memoryUsage().rss) }
+async function runSample(outputChars: number, sample: number) {
+  let peakRss = process.memoryUsage().rss
+  const rssBefore = peakRss
+  const observe = () => { peakRss = Math.max(peakRss, process.memoryUsage().rss) }
   const client: VercelSandboxClient = {
     async create() {
       return {
@@ -27,8 +30,16 @@ async function runSample(outputChars: number, sample: number) {\n  let peakRss =
         async runCommand() {
           return {
             exitCode: 0,
-            stdout: async () => 'x'.repeat(outputChars),
-            stderr: async () => 'y'.repeat(outputChars),
+            stdout: async () => {
+              const value = Buffer.alloc(outputChars, 0x78).toString('utf8')
+              observe()
+              return value
+            },
+            stderr: async () => {
+              const value = Buffer.alloc(outputChars, 0x79).toString('utf8')
+              observe()
+              return value
+            },
           }
         },
         async delete() {},
@@ -36,9 +47,6 @@ async function runSample(outputChars: number, sample: number) {\n  let peakRss =
     },
   }
   const provider = new VercelSandboxProvider({ client, maxOutputBytes: OUTPUT_LIMIT_BYTES })
-  let peakRss = process.memoryUsage().rss
-  const rssBefore = peakRss
-  const observe = () => { peakRss = Math.max(peakRss, process.memoryUsage().rss) }
   const monitor = setInterval(observe, 5)
   try {
     const started = performance.now()
@@ -95,11 +103,11 @@ const report = {
     streams: 2,
     provider: 'VercelSandboxProvider with injected in-process fake client; no cloud request',
     timing: 'provider.run including fake output string creation, Promise.all capture, byte-cap pass, and cleanup',
-    memory: 'process RSS sampled every 5 ms during each invocation; process-wide and may miss short-lived peaks',
+    memory: 'process RSS sampled every 5 ms and explicitly after each complete output string is materialized; process-wide and may miss transient allocation peaks',
     limitation: 'The provider contract returns Promise<string> for each complete stream. The adapter cannot consume chunks, bound SDK-side buffering, or terminate an endless stream based on output bytes. This measures post-capture truncation, not streaming enforcement.',
   },
   results,
-  interpretation: 'Returned stdout and stderr are capped independently after both complete strings have been materialized. Source output size therefore remains an upstream memory cost even when returned strings are capped.',
+  interpretation: 'The fake SDK materializes both complete output strings before the adapter applies its independent per-stream caps. The returned output is bounded, but upstream output materialization is not.',
 }
 const output = JSON.stringify(report, null, 2)
 console.log(output)
