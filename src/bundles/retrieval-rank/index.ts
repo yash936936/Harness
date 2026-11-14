@@ -60,6 +60,8 @@ export class RetrievalRank extends Service {
   private readonly maxCandidateChunks: number
   private readonly maxHitChars: number
   private readonly indexGroupChunks: number
+  /** Serialize complete indexing transactions so an older, slower embed cannot overwrite a newer call. */
+  private indexQueue: Promise<unknown> = Promise.resolve()
 
   constructor(ctx: Context, config: RetrievalRankConfig) {
     super(ctx, 'retrievalRank')
@@ -313,7 +315,16 @@ export class RetrievalRank extends Service {
 
 
   /** Chunk, embed and store the given root-relative files (replacing whatever was stored for them). */
-  async indexFiles(files: readonly string[], opts: IndexOptions = {}): Promise<IndexResult> {
+  indexFiles(files: readonly string[], opts: IndexOptions = {}): Promise<IndexResult> {
+    const job = this.indexQueue.then(
+      () => this.indexFilesNow(files, opts),
+      () => this.indexFilesNow(files, opts),
+    )
+    this.indexQueue = job.catch(() => undefined)
+    return job
+  }
+
+  private async indexFilesNow(files: readonly string[], opts: IndexOptions): Promise<IndexResult> {
     opts.signal?.throwIfAborted()
     const emb = this.ctx.get('embeddings')
     const vs = this.ctx.get('vectorstore')
@@ -359,7 +370,12 @@ export class RetrievalRank extends Service {
     // Open the collection first: we need it to see what is already stored.
     const fp = await this.fingerprintOf(emb)
     if ('error' in fp) return { ok: false, error: { kind: 'embeddings', detail: fp.error } }
-    const opened = await vs.open(this.collectionName, { fingerprint: fp.fingerprint, dimensions: fp.dimensions, reset: opts.reset === true })
+    const opened = await vs.open(this.collectionName, {
+      fingerprint: fp.fingerprint,
+      dimensions: fp.dimensions,
+      owner: `retrieval-rank:${this.root}`,
+      reset: opts.reset === true,
+    })
     if (!opened.ok) return { ok: false, error: { kind: 'vectorstore', detail: `${opened.error.kind}: ${opened.error.detail}` } }
     const col = opened.collection
 
@@ -367,12 +383,14 @@ export class RetrievalRank extends Service {
     // text hash and the line range, so any edit changes them. Those files cost nothing to "re-index".
     let reusedFiles = 0
     let reusedChunks = 0
+    const existingByFile = new Map<string, string[]>()
     const todo: typeof prepared = []
     for (const p of prepared) {
       let same = false
       if (opts.reset !== true) {
         const existing = await col.idsForSource(p.file)
         if (!existing.ok) return { ok: false, error: { kind: 'vectorstore', detail: `${existing.error.kind}: ${existing.error.detail}` } }
+        existingByFile.set(p.file, existing.ids)
         const have = new Set(existing.ids)
         same = have.size === p.chunks.length && p.chunks.every((c) => have.has(c.id))
       }
@@ -412,8 +430,6 @@ export class RetrievalRank extends Service {
       }
       let at = 0
       for (const g of group) {
-        const d = await col.deleteSource(g.file)
-        if (!d.ok) return { ok: false, error: { kind: 'vectorstore', detail: `${d.error.kind}: ${d.error.detail}` } }
         const records = g.chunks.map((c, i) => ({
           id: c.id,
           vector: vectors[at + i] as Float32Array,
@@ -421,8 +437,14 @@ export class RetrievalRank extends Service {
           metadata: { file: c.file, startLine: c.startLine, endLine: c.endLine, kind: c.kind, hash: c.id.slice(c.id.lastIndexOf('#') + 1), ...(c.name ? { name: c.name } : {}) },
         }))
         at += g.chunks.length
+        // Write the complete replacement before deleting old ids. Embedding/upsert failure
+        // therefore leaves the previously valid file index intact instead of deleting it first.
         const u = await col.upsert(records)
         if (!u.ok) return { ok: false, error: { kind: 'vectorstore', detail: `${u.error.kind}: ${u.error.detail}` } }
+        const nextIds = new Set(records.map((record) => record.id))
+        const obsolete = (existingByFile.get(g.file) ?? []).filter((id) => !nextIds.has(id))
+        const d = await col.deleteIds(obsolete)
+        if (!d.ok) return { ok: false, error: { kind: 'vectorstore', detail: `${d.error.kind}: ${d.error.detail}` } }
         embeddedFiles++
         embeddedChunks += g.chunks.length
       }
