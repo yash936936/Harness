@@ -14,6 +14,7 @@ Profiles install the service as `ctx.log`. Bundles append events through the ser
 
 - The configured path selects the session directory.
 - Session IDs are validated before file access.
+- Session file and lock paths reject symlinked parent directories as well as symlinked final files.
 - Event sequence numbers are monotonic per session.
 - Redactors are applied before payloads are persisted.
 - Torn trailing records are handled by the file store's recovery logic; malformed interior records remain errors.
