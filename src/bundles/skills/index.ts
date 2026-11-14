@@ -235,7 +235,7 @@ export class Skills extends Service {
     if (!isInside(skill.dir, real)) throw new Error('the path leads outside the skill folder') // a symlink pointing out
     await assertNoSymlinkParents(real)
     const before = await lstat(real)
-    if (before.isSymbolicLink() || !before.isFile()) throw new Error(`"${path}" is not a regular file`)
+    if (before.isSymbolicLink() || !before.isFile()) throw new Error(`"${path}" is not a file (not a regular file)`)
 
     // Open the resolved target without following a final-component symlink, then
     // verify that the path still names the file held by this handle.
@@ -297,7 +297,7 @@ export class Skills extends Service {
           }
           if (await pathExists(join(resolvedDir, 'SKILL.md'))) candidates.push(resolvedDir)
         }
-        if (candidates.length === 0) problems.push({ dir: configured, kind: 'no_skill_md', reason: 'no SKILL.md here and none in its subfolders' })
+        if (candidates.length === 0 && !rejectedDirectory) problems.push({ dir: configured, kind: 'no_skill_md', reason: 'no SKILL.md here and none in its subfolders' })
       }
       for (const c of candidates) {
         const dir = await realpath(c)
