@@ -53,7 +53,7 @@ async function openExisting(path: string) {
     const opened = await handle.stat()
     const after = await lstat(path)
     if (!after.isFile() || after.isSymbolicLink() ||
-        (opened.ino !== 0 && (opened.ino !== after.ino || opened.dev !== after.dev))) {
+        (process.platform !== 'win32' && opened.ino !== 0 && (opened.ino !== after.ino || opened.dev !== after.dev))) {
       throw new Error(`state file changed while opening: ${path}`)
     }
     await assertNoSymlinkParents(path)
@@ -86,7 +86,7 @@ function openExistingSync(path: string): number {
     const opened = fstatSync(fd)
     const after = lstatSync(path)
     if (!after.isFile() || after.isSymbolicLink() ||
-        (opened.ino !== 0 && (opened.ino !== after.ino || opened.dev !== after.dev))) {
+        (process.platform !== 'win32' && opened.ino !== 0 && (opened.ino !== after.ino || opened.dev !== after.dev))) {
       throw new Error(`state file changed while opening: ${path}`)
     }
     assertNoSymlinkParentsSync(path)
@@ -118,7 +118,7 @@ export async function appendTextFileNoFollow(path: string, text: string): Promis
     const opened = await handle.stat()
     const current = await lstat(path)
     if (!current.isFile() || current.isSymbolicLink() ||
-        (opened.ino !== 0 && (opened.ino !== current.ino || opened.dev !== current.dev))) {
+        (process.platform !== 'win32' && opened.ino !== 0 && (opened.ino !== current.ino || opened.dev !== current.dev))) {
       throw new Error(`state file changed while opening for append: ${path}`)
     }
     await assertNoSymlinkParents(path)
@@ -136,11 +136,18 @@ export async function truncateFileNoFollow(path: string, length: number): Promis
     const opened = await handle.stat()
     const current = await lstat(path)
     if (!current.isFile() || current.isSymbolicLink() ||
-        (opened.ino !== 0 && (opened.ino !== current.ino || opened.dev !== current.dev))) {
+        (process.platform !== 'win32' && opened.ino !== 0 && (opened.ino !== current.ino || opened.dev !== current.dev))) {
       throw new Error(`state file changed while opening for truncate: ${path}`)
     }
     await assertNoSymlinkParents(path)
     await handle.truncate(length)
     await handle.sync()
   } finally { await handle.close() }
+}
+
+/** Change permissions through the verified open handle, never by re-resolving a path after validation. */
+export async function chmodFileNoFollow(path: string, mode: number): Promise<void> {
+  const handle = await openExisting(path)
+  try { await handle.chmod(mode) }
+  finally { await handle.close() }
 }
