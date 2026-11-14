@@ -315,7 +315,17 @@ export class LanceVectorStore extends Service {
     }
   }
 
+  private checkOwner(name: string, stored: string | undefined, requested: string | undefined, reset: boolean): VectorStoreFailure | undefined {
+    if (stored === requested) return undefined
+    // Explicit reset may claim a legacy, unowned table. A known owner's collection is never
+    // reset by a different owner, even when reset:true is supplied.
+    if (stored === undefined && requested !== undefined && reset) return undefined
+    return fail('ownership_mismatch', `collection "${name}" belongs to ${stored ?? 'an unowned/legacy caller'}, not ${requested ?? 'an unowned caller'}; choose another collection name`)
+  }
+
   private checkOpen(col: LanceCollection, opts: OpenCollectionOptions): VectorStoreResult<{ collection: VectorCollection }> {
+    const ownership = this.checkOwner(col.name, col.owner, opts.owner, false)
+    if (ownership) return ownership
     if (col.fingerprint !== opts.fingerprint || col.dimensions !== opts.dimensions) {
       return fail('fingerprint_mismatch', `collection "${col.name}" is already open with "${col.fingerprint}" (${col.dimensions} dims), not "${opts.fingerprint}" (${opts.dimensions} dims)`)
     }
