@@ -85,7 +85,7 @@ jobs:
           node-version: 22.12.0
           cache: npm
       - run: npm ci
-      - name: measure architecture hot paths, reservations, indexing, and semantic reindex
+      - name: measure architecture hot paths, reservations, indexing, semantic reindex, and output capture
         run: npm run bench:architecture
   not-run:
     name: acceptance gates NOT run by CI
