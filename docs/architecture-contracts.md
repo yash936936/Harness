@@ -139,7 +139,54 @@ Peak observed RSS delta was 551,690,240 bytes (~526 MiB), but fixture generation
 
 The runner uses five samples, so p95 is the maximum observed sample, not a statistically stable tail-latency estimate. Results are an initial reproducible baseline, not a performance target. Compare future changes on the same runner class and increase sample count for release-quality tail estimates.
 
-Still unmeasured: independent-process reservations, indexing, semantic reindex, and bounded streaming output. These need dedicated deterministic fixtures; no estimates are substituted for measurements.
+### Deterministic indexing baseline: CI run #749
+
+Ubuntu x64, Node v22.12.0, 4 CPUs. Three sequential samples in one process. The fixture contains 30 TypeScript files with 40 exported functions each, plus one 540-function file. All 1,740 chunks were embedded and indexed. The large file alone exceeds the configured 512-chunk embedding-group threshold.
+
+| Measurement | p50 | Maximum of 3 samples |
+|---|---:|---:|
+| `indexFiles` elapsed time | 306.759 ms | 403.469 ms |
+| Throughput | 5,672.2 chunks/s | 5,783.4 chunks/s |
+| Process RSS delta | 24,248,320 bytes | 120,786,944 bytes |
+
+Each sample indexed 31 files and 1,740 chunks and made 7 embedding calls. The elapsed timer covers `indexFiles` only; fixture creation, parser/WASM warmup, and LanceDB module loading are outside the timed interval. RSS sampling runs every 5 ms during setup and indexing, so it is process-wide, can miss short-lived peaks, and includes setup. Samples run sequentially in one process; retained heap from earlier samples can affect later RSS deltas. The maximum of three samples is not a statistically stable p95.
+
+This measures the current implementation, not bounded-memory indexing. `indexFiles` prepares all file chunks before embedding groups; `indexGroupChunks` bounds an embedding group, not total prepared memory. Hashing embeddings are deterministic local test infrastructure and provide no semantic-quality evidence.
+
+### Deterministic semantic reindex baseline: CI run #752
+
+Ubuntu x64, Node v22.12.0, 4 CPUs. Three sequential samples in one process. Each sample reindexed 2,000 persisted semantic facts into a fresh LanceDB collection using deterministic local 64-dimensional hashing embeddings. The embedding provider was configured for batches of 64 facts.
+
+| Measurement | p50 | Maximum of 3 samples |
+|---|---:|---:|
+| `MemorySemantic.reindex({ reset: true })` elapsed time | 78.332 ms | 142.656 ms |
+| Throughput | 25,532.5 facts/s | 27,627.7 facts/s |
+| Process RSS delta | 5,005,312 bytes | 75,137,024 bytes |
+
+Every sample indexed 2,000 facts and verified 2,000 vectors. Each made 32 embedding requests: 31 batches of 64 and one batch of 16. The current implementation performs one vector collection upsert containing all 2,000 records.
+
+Fixture generation and LanceDB module loading are outside the timed interval. RSS is sampled every 5 ms during setup and reindex; it is process-wide, includes setup, and can miss short-lived peaks. Samples run sequentially in one process, so retained heap and native allocations from earlier samples can affect later RSS deltas. The maximum of three samples is not a statistically stable p95.
+
+This measures the current all-at-once reindex path, not a resumable or bounded-memory implementation. Embedding provider requests are batched, but the full fact-text list, returned vector list, and vector-record list remain materialized before the single upsert. Hashing embeddings are deterministic local test infrastructure and provide no semantic-quality evidence.
+
+### Output capture baseline: Vercel adapter contract
+
+A deterministic fake-client workload is now wired into architecture CI. It tests 99,000, 100,000, 1,000,000, and 8,000,000 ASCII characters on each of stdout and stderr, with a 100,000-byte cap per returned stream. It records elapsed time, observed process RSS delta, returned byte counts, truncation, and sandbox cleanup. CI run #759, Ubuntu x64, Node v22.12.0, 4 CPUs. Three samples per size. Times are milliseconds; RSS values are bytes.
+
+| Source characters per stream | Elapsed p50 / max | Observed RSS delta p50 / max |
+|---:|---:|---:|
+| 99,000 | 17.312 / 23.943 | 10,092,544 / 10,223,616 |
+| 100,000 | 11.248 / 12.494 | 2,621,440 / 7,602,176 |
+| 1,000,000 | 12.892 / 19.426 | 3,801,088 / 4,063,232 |
+| 8,000,000 | 24.942 / 25.592 | 16,011,264 / 20,262,912 |
+
+For inputs above the 100,000-byte cap, each returned stream contains 100,038 bytes: the 100,000-byte payload plus the 38-byte truncation marker. At or below the cap, output is returned unchanged. The test verifies independent truncation and confirmed sandbox deletion in every sample.
+
+The fake client explicitly materializes both complete strings before returning them. The 8 MB-per-stream case therefore supplies 16 MB of source output per invocation while the adapter returns about 100 KB per stream. RSS is sampled every 5 ms and explicitly after each complete string is materialized. RSS is process-wide and can still miss transient allocation peaks; sequential samples share one process. Three-sample maxima are not stable tail estimates. These numbers characterize the adapter and fake string source, not the real Vercel SDK's internal buffers or remote execution.
+
+This is explicitly an output-capture/truncation baseline, not a streaming-output benchmark. The current `VercelSandboxHandle` contract exposes `stdout(): Promise<string>` and `stderr(): Promise<string>`; both complete strings are materialized before the adapter applies its cap. The interface has no chunk iterator or readable stream, so the adapter cannot bound SDK-side buffering, enforce a byte limit while data arrives, or stop an endless output stream. The fake client does not establish how the real SDK buffers output internally. A streaming contract and provider implementation change are required before bounded streaming acceptance can be measured.
+
+No numeric estimate is substituted for the missing streaming behavior.
 
 | Area | Baseline workload | Required measurements |
 |---|---|---|
@@ -147,11 +194,11 @@ Still unmeasured: independent-process reservations, indexing, semantic reindex, 
 | Episodic memory | 100k episodes with duplicate and selective queries | Duplicate-check cost, query latency, rows scanned, peak RSS |
 | Reservations | Concurrent independent processes contending for one hard limit | Accepted/rejected count, oversubscription count (must be zero), wait time |
 | Indexing | Small files plus one file larger than the configured chunk batch | Peak RSS, batch size, throughput, cancellation latency |
-| Output | Under/at/over-cap output and endless stream | Peak buffered bytes, termination latency, truncation correctness |
+| Semantic reindex | 2,000 persisted facts, deterministic 64-dimensional embeddings, 64-item provider batches | Reindex latency, throughput, embedding request/batch counts, vector count, peak RSS |\n| Output capture | 99k/100k/1M/8M ASCII characters per stream, two streams, 100k returned-byte cap | Adapter latency, process RSS observation, returned bytes, truncation and cleanup; does not measure SDK-internal buffering or endless streams |
 
 
 
-The current-code baseline runner is `npm run bench:architecture` (also executed by the `architecture performance baseline` CI job). It records Node/platform/CPU metadata, fixture sizes, p50/p95 timings, file-size-based read-volume estimates, and observed RSS. It currently measures session-log append at 0/50k/100k events and episodic duplicate-check/selective-query at 100k episodes. The remaining reservation, indexing, semantic-reindex, and output workloads are deliberately reported as not measured until deterministic multi-process/provider fixtures exist; do not fill those rows with estimates or in-process substitutes.
+The current-code baseline runner is `npm run bench:architecture` (also executed by the `architecture performance baseline` CI job). It records Node/platform/CPU metadata, fixture sizes, p50/p95 timings, file-size-based read-volume estimates, and observed RSS. It measures session-log append at 0/50k/100k events, episodic duplicate-check/selective-query at 100k episodes, independent-process reservations, deterministic indexing, and semantic reindex. Bounded streaming-output measurements remain unmeasured; do not fill that row with estimates or in-process substitutes.
 
 ## Approved deployment and operating policy
 
