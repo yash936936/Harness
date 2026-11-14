@@ -1,6 +1,6 @@
 # Current project state
 
-Updated 2026-11-14. This file records the current implementation state and binding project constraints. The active implementation order is in [ROADMAP.md](ROADMAP.md), architecture choices are in [decisions.md](decisions.md), and detailed audit findings are in [CODEBASE-AUDIT-CHECKLIST.md](CODEBASE-AUDIT-CHECKLIST.md).
+Updated 2026-11-14, main `0bb27968955b218c5ea188f35b3d0939623a32cb`. This file records the current implementation state and binding project constraints. The active implementation order is in [ROADMAP.md](ROADMAP.md), architecture choices are in [decisions.md](decisions.md), and detailed audit findings are in [CODEBASE-AUDIT-CHECKLIST.md](CODEBASE-AUDIT-CHECKLIST.md).
 
 ## Binding decisions
 
@@ -46,7 +46,7 @@ Updated 2026-11-14. This file records the current implementation state and bindi
 
 - PR #93, `audit/full-codebase-review-2026-11`, merged on 2026-11-14 as `8ee08673bd03b8548c44612093b447fadb03ce26`.
 - PR #97, `audit/windows-baselines-undici-fix-2026-11`, merged on 2026-11-14 as `5aaee0dacdaace04959db508260a84590e941a0c`. It records Windows x64 / Node v22.18.0 session-log and episodic-memory baselines and pins the nested `guarded-fetch` Undici dependency to 7.30.2; the generated license inventory is synchronized.
-- PR #98, `docs/phase1-closeout-sync-2026-11`, merged on 2026-11-14 as `9e508b472b60a561c8e197cdea27813269833011`, synchronizes the approved D-119 policy and Windows baseline status.
+- PR #98, `docs/phase1-closeout-sync-2026-11`, merged on 2026-11-14 as `9e508b472b60a561c8e197cdea27813269833011`, synchronizes the approved D-119 policy and Windows baseline status.\n- PR #102, skill symlink escape hardening, merged on 2026-11-14 as `082e83629ea20ead62e001cf27357bd4952fd6a5`; CI run #777 passed all OS/Node jobs and `ci-pass`.\n- PR #103, semantic vector write-order hardening, merged on 2026-11-14 as `0bb27968955b218c5ea188f35b3d0939623a32cb`; follow-up CI run #780 passed all OS/Node jobs and `ci-pass`.
 - CI run #724 on PR head `5741d23058dca0dc0112810e6c35fa87a47e8d0f` passed: Ubuntu and Windows on Node 20.19.0 and 22.12.0, typecheck, lint, full tests, docs/component drift, secret scan, dependency audit, license inventory, and `ci-pass`.
 - The green run verifies the PR head. It is not a live sandbox/model acceptance result.
 - Phase 0 is complete. Phase 1 contracts and D-119 policy decisions merged in PR #94. Initial numeric baselines merged in PR #95; Windows baselines merged in PR #97; the independent-process reservation baseline was captured in PR #99 (CI run #744). Reservation measurements in CI run #744 confirm oversubscription in the current process-local implementation. Numeric output capture baseline is recorded; true bounded streaming requires a provider contract change and remains an open architecture limitation.
@@ -75,10 +75,10 @@ These constraints must be enforced in the Phase 2 design and tests. Changing the
 | AUD-039 | Add task-scoped workspace lifecycle, capabilities, leases, transfer, and result synchronization. |
 | AUD-048 | Fixed in open PR #101: session-log files, locks, and listing reject symlinked parent directories; merged as `67fd166` after the expanded head passed CI run #768. |
 | AUD-049 | Fixed in PR #101, merged as `67fd166`: compaction ledger no-follow reads, parent validation, and unique exclusive temp-file replacement; CI run #768 passed. |
-| AUD-050 | Reject skill directory and `SKILL.md` symlink escapes; fix and regression tests in `fix/skills-directory-symlink-boundary-2026-11-v2`, CI pending. |
-| Audit remainder | Complete the file-by-file audit and verify each checklist status against code and tests. |
+| AUD-050 | Fixed in PR #102, merged as `082e83629ea20ead62e001cf27357bd4952fd6a5`; CI run #777 passed all OS/Node jobs and `ci-pass`. |
+| AUD-051 | Fixed in PR #103, merged as `0bb27968955b218c5ea188f35b3d0939623a32cb`; CI run #780 passed all OS/Node jobs and `ci-pass`. Semantic vector writes now verify the current fact version under the shared lock; delayed removals cannot delete replacements. |\n| Audit remainder | Complete the file-by-file audit and verify each checklist status against code and tests. |
 
-AUD-021 is fixed in main: late sandbox creation is awaited, cleanup is confirmed before cancellation returns, and cleanup failure is surfaced by the adapter. The command tool fails the task when `released` is false. AUD-048 is fixed in the current PR branch; its previous head passed CI run #763. AUD-049 is fixed in open PR #101; the no-follow ledger, parent validation, random exclusive temp file, and regression tests passed CI run #768.
+AUD-021 is fixed in main: late sandbox creation is awaited, cleanup is confirmed before cancellation returns, and cleanup failure is surfaced by the adapter. The command tool fails the task when `released` is false. AUD-048 and AUD-049 are fixed in main through PR #101; the expanded head passed CI run #768 and the final documentation-only head passed run #773. AUD-050 is fixed in main through PR #102 (run #777). AUD-051 is fixed in main through PR #103 (run #780).
 
 Withdrawn findings AUD-009, AUD-022, and AUD-027 remain withdrawn unless new evidence changes the conclusion.
 
