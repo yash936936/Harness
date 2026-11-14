@@ -74,6 +74,13 @@ describe('LLMService enforces the budget before the call', () => {
     expect(provider.calls).toHaveLength(0)
   })
 
+  it('passes the reserved default output allowance to the provider when maxTokens is omitted', async () => {
+    const { ctx, provider } = await boot({ budgets: { tokens: { session: { hard: 10_000 } } } })
+    await ctx.llm.complete({ sessionId: 's', messages: [{ role: 'user', content: 'hello' }] })
+    expect(provider.calls).toHaveLength(1)
+    expect(provider.calls[0]!.maxTokens).toBe(1024)
+  })
+
   it('reservation is trued up to the provider-reported usage, freeing the unused part', async () => {
     const { ctx } = await boot({ budgets: { tokens: { session: { hard: 1000 } } } })
     // each call reserves ~140 (100 output + prompt estimate) but really uses 15; 20 calls would be ~2800 if estimates were kept

@@ -64,13 +64,13 @@ export class CallReservation {
  * forgot to call it.
  */
 export class BudgetGate {
-  constructor(readonly budgets: Budgets, private readonly defaultOutput = DEFAULT_OUTPUT_TOKEN_RESERVE) {}
+  constructor(readonly budgets: Budgets, readonly defaultOutputTokens = DEFAULT_OUTPUT_TOKEN_RESERVE) {}
 
   /** Hold capacity for one call or throw `BudgetExceededError` (holding nothing). */
   reserve(req: Pick<CompletionRequest, 'messages' | 'system' | 'tools' | 'maxTokens'>): CallReservation {
     const requests = this.budgets.reserve('requests', 1)
     try {
-      const tokens = this.budgets.reserve('tokens', estimateRequestTokens(req, this.defaultOutput))
+      const tokens = this.budgets.reserve('tokens', estimateRequestTokens(req, this.defaultOutputTokens))
       return new CallReservation(this.budgets, requests, tokens)
     } catch (e) {
       this.budgets.release(requests)
