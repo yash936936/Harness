@@ -130,6 +130,11 @@ export class MemorySemantic extends Service {
     if (opts.minScore !== undefined && (!Number.isFinite(opts.minScore) || opts.minScore < 0 || opts.minScore > 1)) throw new MemoryError('memory: query minScore must be between 0 and 1')
     if (!Number.isInteger(k) || k < 1 || k > 1000) throw new MemoryError('memory: query k must be an integer from 1 to 1000')
     if (typeof text !== 'string' || !oneLine(text)) throw new MemoryError('memory: query text must be a non-empty string')
+    // Avoid paying for an embedding when the semantic tier is empty. Check under
+    // the same cross-process lock used by mutations, then recheck before reading
+    // the index because the facts may change while the provider is embedding.
+    const empty = await this.exclusive(async () => (await this.load()).length === 0)
+    if (empty) return { ok: true, hits: [], stale: false }
     const emb = await this.ctx.embeddings.embed([text], { kind: 'query' })
     if (!emb.ok) return { ok: false, error: { kind: `embedding_${emb.error.kind}`, detail: emb.error.detail } }
     return this.exclusive(async () => {
