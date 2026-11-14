@@ -202,7 +202,7 @@ export class RetrievalGrep extends Service {
     try {
       const current = lstatSync(this.root)
       if (!current.isDirectory() || current.isSymbolicLink() || realpathSync(this.root) !== this.root ||
-          (this.rootIdentity.ino !== 0 && (current.ino !== this.rootIdentity.ino || current.dev !== this.rootIdentity.dev))) {
+          (process.platform !== 'win32' && this.rootIdentity.ino !== 0 && (current.ino !== this.rootIdentity.ino || current.dev !== this.rootIdentity.dev))) {
         return { ok: false, error: { kind: 'path_not_found', detail: 'root identity changed after service construction' } }
       }
       realRoot = this.root
