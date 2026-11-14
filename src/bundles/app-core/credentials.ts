@@ -125,7 +125,6 @@ export class FileCredentialStore implements CredentialStore {
         } finally {
           await fh.close()
         }
-        await chmod(this.keyPath, 0o600).catch(() => {}) // best-effort; a no-op-ish permission model on Windows
         return key
       }
     })
