@@ -26,9 +26,9 @@ Complete the current security and reliability audit, then migrate Harness toward
 | P2 | AUD-014, AUD-025 | Define durable-history policy and bounded searchable-memory quotas, paging, retention, batched embeddings, and resumable reindexing. |
 | P2 | AUD-016 | Bound indexing memory, including large single files; measure vector search and decide whether/when ANN is justified. |
 | P2 | AUD-023 | Enforce output byte limits while streaming or through a verified SDK-side cap, with cancellation and bounded buffering. |
-| P2 | Audit remainder | Finish the incomplete file-by-file audit, verify each status against code and tests, and correct stale or unsupported register claims. |
+| P1 | AUD-050 | Reject skill-directory and `SKILL.md` symlink escapes; verify no-follow reads and opened-file identity. |\n| P2 | Audit remainder | Finish the incomplete file-by-file audit, verify each status against code and tests, and correct stale or unsupported register claims. |
 
-AUD-021 is fixed in main: late sandbox creation is awaited, deletion is awaited, and cleanup failures are surfaced. Keep AUD-039 open for the separate workspace-session and transfer redesign. AUD-048 and AUD-049 are fixed in open PR #101; the expanded head passed CI run #768. Do not merge without explicit owner approval.
+AUD-021 is fixed in main: late sandbox creation is awaited, deletion is awaited, and cleanup failures are surfaced. Keep AUD-039 open for the separate workspace-session and transfer redesign. AUD-048 and AUD-049 are fixed in PR #101, merged as `67fd1666fec0ae55ea4473459c36bce78fc5b611`; the expanded head passed CI run #768. AUD-050 is the current skill-discovery symlink finding; its fix is pending CI.
 
 Withdrawn findings AUD-009, AUD-022, and AUD-027 must remain withdrawn unless new evidence changes the conclusion. Do not reopen them based on the old descriptions alone.
 
