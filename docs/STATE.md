@@ -73,10 +73,11 @@ These constraints must be enforced in the Phase 2 design and tests. Changing the
 
 | AUD-023 | Enforce output byte limits while streaming with bounded buffering. |
 | AUD-039 | Add task-scoped workspace lifecycle, capabilities, leases, transfer, and result synchronization. |
-| AUD-048 | Reject symlinked parent directories for session-log files, locks, and listing; fix is in PR branch pending CI. |
+| AUD-048 | Fixed in PR branch: session-log files, locks, and listing reject symlinked parent directories; prior head passed CI run #763. |
+| AUD-049 | Fix compaction ledger no-follow reads, parent validation, and unique exclusive temp-file replacement; updated PR head pending CI. |
 | Audit remainder | Complete the file-by-file audit and verify each checklist status against code and tests. |
 
-AUD-021 is fixed in main: late sandbox creation is awaited, cleanup is confirmed before cancellation returns, and cleanup failure is surfaced by the adapter. The command tool fails the task when `released` is false. AUD-048 is a newly identified session-log parent-path issue; its fix is in the current PR branch pending CI.
+AUD-021 is fixed in main: late sandbox creation is awaited, cleanup is confirmed before cancellation returns, and cleanup failure is surfaced by the adapter. The command tool fails the task when `released` is false. AUD-048 is fixed in the current PR branch; its previous head passed CI run #763. AUD-049 is a newly identified compaction-ledger symlink/temp-file issue; the fix and regression tests are in the updated branch and require a fresh CI run.
 
 Withdrawn findings AUD-009, AUD-022, and AUD-027 remain withdrawn unless new evidence changes the conclusion.
 
