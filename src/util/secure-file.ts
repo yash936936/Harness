@@ -85,7 +85,7 @@ export async function* readTextLinesNoFollow(path: string): AsyncGenerator<{ lin
       position += bytesRead
       pending += decoder.write(buffer.subarray(0, bytesRead))
       for (;;) {
-        const newlineAt = pending.indexOf('\\n')
+        const newlineAt = pending.indexOf('\n')
         if (newlineAt < 0) break
         yield { line: pending.slice(0, newlineAt), newline: true }
         pending = pending.slice(newlineAt + 1)
