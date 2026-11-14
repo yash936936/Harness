@@ -1,7 +1,7 @@
 # Full codebase audit checklist
 
-Baseline: `main` at `81d7bf837254b8526b60aa240d6a31923647a890` (2026-11-14).
-Audit branch: `audit/full-codebase-review-2026-11`.
+Baseline: `main` at `41ca36359b6502c986fd41924cbc6b1d643b1077` (2026-11-14).
+Audit continuation branch: `fix/session-log-parent-symlink-2026-11`.
 
 This is a staged, evidence-based audit. Review each file, then each folder, then cross-folder flows. The follow-up fix pass updates selected findings but does not claim the full file-by-file audit is complete. Do not remove code solely because it appears old or duplicated; first verify imports, runtime registration, scripts, tests, docs, and history. Do not weaken D-110/D-117/D-118 security boundaries.
 
@@ -131,7 +131,7 @@ This is a staged, evidence-based audit. Review each file, then each folder, then
 | AUD-018 | P2 | `src/bundles/router/index.ts`, `src/bundles/router/backends.ts` | Router decisions are retained forever in `rows` although stats only need aggregates. Also `shadow()` previously used the same resolver that increments `failures`, contradicting the documented claim that shadow runs do not change stats. | Fixed in follow-up: shadow stats remain isolated and decision rows are capped by maxRows |
 | AUD-019 | P2 | `src/bundles/model-store/index.ts` | The NUL check uses the two-character string `\\0` rather than the NUL character, so IDs containing NUL are not rejected as intended. | Fixed in follow-up: model ids reject actual NUL bytes |
 | AUD-020 | P2 | `docs/STATE.md`, `docs/ROADMAP.md`, related dependency status text | Current state still says the nested Zod audit is unresolved and cites an old failing CI run, despite the scoped override and passing audit on the audit branch. | |
-| AUD-021 | P1 | `src/bundles/sandbox-vercel/index.ts` | If cancellation happens while `Sandbox.create()` is pending, a late-created sandbox is deleted in a detached promise. Delete failure is swallowed, and the cancelled call returns before cleanup is confirmed. A cloud lease can leak without an audit result. | Confirmed; not changed or verified in PR #93; fix pending |
+| AUD-021 | P1 | `src/bundles/sandbox-vercel/index.ts`, `test/sandbox-vercel.test.ts` | If cancellation happens while `Sandbox.create()` is pending, a late-created sandbox must be cleaned up before cancellation returns. | Fixed on main: late creation is awaited, deletion is awaited, and cleanup failure is surfaced; success/failure regression tests are present |
 | AUD-022 | P2 | `src/bundles/sandbox-vercel/index.ts`, `src/bundles/sandbox/index.ts` | Command timeout accepts any positive safe integer, but Node timers clamp delays above 2,147,483,647 ms to 1 ms. A large timeout can therefore time out almost immediately. | |
 | AUD-023 | P2 | `src/bundles/sandbox-vercel/index.ts` | `maxOutputBytes` is enforced only after `stdout()` and `stderr()` have returned complete strings. The returned output is bounded, but peak memory use is not. | Confirmed limitation; streaming or SDK-side cap needed |
 | AUD-024 | P2 | `src/bundles/subagent-scope/index.ts` | Closed scopes are marked and revoked but never removed from the `scopes` map. A long-lived context that creates many sub-agents retains every scope, actor, and tool set indefinitely. | Fixed in follow-up: closed scope objects are removed; bounded tombstones preserve immediate id reuse protection |
@@ -146,7 +146,7 @@ This is a staged, evidence-based audit. Review each file, then each folder, then
 
 | AUD-033 | P1 | `src/bundles/tools-local/paths.ts`, `src/bundles/egress/store.ts`, `src/bundles/app-core/budgets.ts`, `.harness/**` | The model-facing file tools can edit `.harness/consent.json` and persisted budget/rate-limit state because `.harness` is not protected. A forged `consented: true` record is accepted by `FileConsentStore`, so an agent can change the file-backed user-consent decision itself. The same path exposes session logs and other control-plane state. | |
 | AUD-034 | P2 | `src/util/filelock.ts` | `tryBreakStale()` catches every `stat`/`unlink` error and treats it as if the lock vanished. On permission or I/O errors, the outer loop immediately retries without checking `timeoutMs`, so a lock attempt can spin forever instead of failing closed with a useful error. `LockOptions` also accepts invalid/negative/oversized timer values without validation. | |
-| AUD-035 | P1 | `src/bundles/session-log/store.ts` | Persistent session logs use path-based `readFile`, `appendFile`, and `truncate` without rejecting symlinks or checking the opened file identity. A symlink placed at a session filename can redirect append or torn-tail repair/truncation outside the log directory. | |
+| AUD-035 | P1 | `src/bundles/session-log/store.ts`, `test/session-log.test.ts` | Persistent session logs previously followed symlinks at the final session filename. | Fixed on main: final-component symlinks are rejected and opened-file identity is checked; regression coverage exists. Parent-directory symlinks are tracked separately as AUD-048 |
 
 | AUD-036 | P1 | `src/bundles/memory/hot.ts`, `src/bundles/memory/semantic.ts`, `src/bundles/memory/store.ts`, `src/bundles/app-core/credentials.ts` | Several persistent stores read configured paths with `readFile`/`readFileSync` without rejecting symlinks or verifying file identity. A project-controlled symlink can load external JSON/JSONL into memory or model context. Credential data reads are also not protected like the encryption-key file. | Fixed in follow-up: memory and credential state reads use no-follow regular-file helpers and validate parent directories; helper regression tests added |
 | AUD-037 | P1 | `src/bundles/app-core/budgets.ts`, `src/bundles/model-adapter/rate-limiter.ts` | Persisted budget and daily rate-limit state are read through symlinks without file identity validation. A pre-planted symlink to a valid low-count state file can reset/undercount persisted usage and bypass spending/request limits. Atomic rename on write does not protect the initial read. | Fixed in follow-up: budget and daily rate state reads reject symlinks; state writes validate parent directories |
@@ -163,6 +163,7 @@ This is a staged, evidence-based audit. Review each file, then each folder, then
 | AUD-045 | P2 | `package.json`, `.github/workflows/ci.yml` | `package.json` declares Node `^20.19.0 || >=22.12.0`, but CI tests only Node 22. Regressions specific to the supported Node 20 line can merge unnoticed. | Fixed in follow-up: CI matrix covers Node 20.19.0 and 22.12.0 on Ubuntu and Windows |
 | AUD-046 | P2 | `src/bundles/router/backends.ts` | `CommandBackend` accepts any positive safe-integer `timeoutMs` and passes it to `setTimeout`. Values above 2,147,483,647 ms are clamped by Node to 1 ms, causing premature backend termination. | Fixed on audit branch: cap timer-backed timeout and add boundary regression test |
 | AUD-047 | P2 | `src/bundles/router/index.ts` | `Router.shadow()` reuses `resolve()`, which increments `failures` when Needle throws or returns an invalid choice. This mutates `stats()` even though the shadow API promises no stats changes. | Fixed on audit branch: shadow resolution suppresses failure-counter updates; regression test added |
+| AUD-048 | P1 | `src/bundles/session-log/store.ts`, `test/session-log.test.ts` | The store rejected symlinks at the final session filename but did not validate parent directories. A symlinked configured session directory or ancestor could redirect audit-log reads, appends, locks, and listing outside the configured project state path. | Fix in `fix/session-log-parent-symlink-2026-11`: parent components are checked before/after directory creation and file open; regression test covers append/read/list. CI pending |
 
 ### Verification corrections
 
@@ -213,3 +214,14 @@ CI note: PR #95 is merged. Its initial run #731 had a Windows Node 20.19.0 test 
 - [x] Full CI matrix and `ci-pass` on PR #94, run #726: Ubuntu and Windows on Node 20.19.0 and 22.12.0; typecheck, lint, tests, docs/component drift, secret/dependency checks, and license inventory passed.
 
 Phase 0 is complete. Phase 1 contracts, owner policy approvals, CI, and initial session-log/episodic baselines are complete. Reservation, indexing, semantic-reindex, and streaming-output baselines remain before Phase 1 closure. The full file-by-file audit is not complete.
+
+
+## Current audit continuation — 2026-11-14
+
+- Main baseline is `41ca36359b6502c986fd41924cbc6b1d643b1077`; PR #100 is merged. Post-merge CI run #761 passed `ci-pass`, typecheck, lint, full tests, docs/component drift, secrets/dependencies, license inventory, architecture benchmarks, and Ubuntu/Windows on Node 20.19.0/22.12.0.
+- Repository inventory at this baseline: 352 tracked files; 214 files under `src/`, `test/`, and `scripts/`. The full file-by-file and cross-folder audit remains incomplete.
+- Reconfirmed AUD-007: JSONL session append obtains the next sequence by repairing/parsing the full file under the session lock. Repeated appends retain history-proportional read/parse work.
+- Reconfirmed AUD-008: episodic duplicate detection rebuilds the full ID set from `all()` while holding the store lock; episodic queries also load all entries before filtering/paging.
+- AUD-021 and AUD-035 are fixed in current main and covered by source-level regression tests; their previous open statuses were stale.
+- Added AUD-048 after finding that the session-log store checked the final file but not symlinked parent directories. The fix and regression test are on `fix/session-log-parent-symlink-2026-11`; no CI result is claimed until its PR run completes.
+- Reviewed the Vercel adapter and profile call path: late-create cleanup is awaited and surfaced; the command tool rejects `released: false`; workspace transfer/result sync and real SDK streaming remain unimplemented. No live Vercel call was made.
