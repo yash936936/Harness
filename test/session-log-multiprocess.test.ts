@@ -69,8 +69,10 @@ describe('BUG-07: concurrent processes on one session log', () => {
     const dir = tmp()
     const store = new JsonlStore(dir)
     await store.withLock('cached', async () => {
-      const seq = await store.lastSeq('cached')
-      await store.append({ seq: seq + 1, ts: 't', sessionId: 'cached', type: 'first', data: null })
+      let seq = await store.lastSeq('cached')
+      await store.append({ seq: ++seq, ts: 't', sessionId: 'cached', type: 'first', data: null })
+      seq = await store.lastSeq('cached')
+      await store.append({ seq: ++seq, ts: 't', sessionId: 'cached', type: 'second', data: null })
     })
     const file = join(dir, 'cached.jsonl')
     const original = readFileSync(file, 'utf8')
