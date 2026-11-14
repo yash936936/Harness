@@ -648,8 +648,8 @@ describe.skipIf(!hasRg)('indexing', () => {
     const rel = 'src/atomic/latest.ts'
     const dir = join(root, 'src/atomic')
     mkdirSync(dir, { recursive: true })
-    const oldText = 'export function latest() {\\n  return 1\\n}\\n'
-    const newText = 'export function latest() {\\n  return 2\\n}\\n'
+    const oldText = 'export function latest() {\n  return 1\n}\n'
+    const newText = 'export function latest() {\n  return 2\n}\n'
     writeFileSync(join(dir, 'latest.ts'), oldText)
     const inner = new HashingEmbeddingProvider({ dimensions: 64 })
     let entered!: () => void
@@ -690,7 +690,7 @@ describe.skipIf(!hasRg)('indexing', () => {
     const dir = join(root, 'src/atomic')
     mkdirSync(dir, { recursive: true })
     const file = join(dir, 'upsert-failure.ts')
-    writeFileSync(file, 'export function stable() {\\n  return 1\\n}\\n')
+    writeFileSync(file, 'export function stable() {\n  return 1\n}\n')
     const b = await boot({ provider: new HashingEmbeddingProvider({ dimensions: 64 }) })
     const first = await b.rank.indexFiles([rel])
     expect(first.ok).toBe(true)
@@ -702,7 +702,7 @@ describe.skipIf(!hasRg)('indexing', () => {
       if (records.some((record) => record.source === rel)) return { ok: false, error: { kind: 'io', detail: 'injected upsert failure' } }
       return original(records)
     })
-    writeFileSync(file, 'export function stable() {\\n  return 2\\n}\\n')
+    writeFileSync(file, 'export function stable() {\n  return 2\n}\n')
     const failed = await b.rank.indexFiles([rel])
     expect(failed).toMatchObject({ ok: false, error: { kind: 'vectorstore', detail: 'io: injected upsert failure' } })
     const after = await collection.idsForSource(rel)
