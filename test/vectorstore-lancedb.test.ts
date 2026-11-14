@@ -336,6 +336,19 @@ describe('persistence and the embedding fingerprint', () => {
     expect(kind(await store.open('chunks', { fingerprint: FP, dimensions: 3, owner: 'memory.semantic' }))).toBe('ok')
   })
 
+  it('persists collection ownership across store restarts', async () => {
+    const path = freshDir()
+    const first = await boot(path)
+    const owned = ok(await first.store.open('shared', { fingerprint: FP, dimensions: 3, owner: 'memory.semantic' })).collection
+    ok(await owned.upsert([{ id: 'fact', vector: [1, 0, 0] }]))
+    await first.fiber.dispose()
+
+    const second = await boot(path)
+    expect(kind(await second.store.open('shared', { fingerprint: FP, dimensions: 3, owner: 'retrieval-rank:/project', reset: true }))).toBe('ownership_mismatch')
+    const reopened = ok(await second.store.open('shared', { fingerprint: FP, dimensions: 3, owner: 'memory.semantic' })).collection
+    expect(ok(await reopened.count()).count).toBe(1)
+  })
+
   it('requires an explicit reset before claiming a legacy unowned collection', async () => {
     const { store } = await boot()
     const legacy = ok(await store.open('chunks', { fingerprint: FP, dimensions: 3 })).collection
