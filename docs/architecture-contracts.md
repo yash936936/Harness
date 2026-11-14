@@ -169,7 +169,13 @@ Fixture generation and LanceDB module loading are outside the timed interval. RS
 
 This measures the current all-at-once reindex path, not a resumable or bounded-memory implementation. Embedding provider requests are batched, but the full fact-text list, returned vector list, and vector-record list remain materialized before the single upsert. Hashing embeddings are deterministic local test infrastructure and provide no semantic-quality evidence.
 
-Still unmeasured: bounded streaming output. No estimates are substituted for measurements.
+### Output capture baseline: Vercel adapter contract
+
+A deterministic fake-client workload is now wired into architecture CI. It tests 99,000, 100,000, 1,000,000, and 8,000,000 ASCII characters on each of stdout and stderr, with a 100,000-byte cap per returned stream. It records elapsed time, observed process RSS delta, returned byte counts, truncation, and sandbox cleanup. Numeric results are pending the first CI run.
+
+This is explicitly an output-capture/truncation baseline, not a streaming-output benchmark. The current `VercelSandboxHandle` contract exposes `stdout(): Promise<string>` and `stderr(): Promise<string>`; both complete strings are materialized before the adapter applies its cap. The interface has no chunk iterator or readable stream, so the adapter cannot bound SDK-side buffering, enforce a byte limit while data arrives, or stop an endless output stream. The fake client does not establish how the real SDK buffers output internally. A streaming contract and provider implementation change are required before bounded streaming acceptance can be measured.
+
+No numeric estimate is substituted for the missing streaming behavior.
 
 | Area | Baseline workload | Required measurements |
 |---|---|---|
@@ -177,7 +183,7 @@ Still unmeasured: bounded streaming output. No estimates are substituted for mea
 | Episodic memory | 100k episodes with duplicate and selective queries | Duplicate-check cost, query latency, rows scanned, peak RSS |
 | Reservations | Concurrent independent processes contending for one hard limit | Accepted/rejected count, oversubscription count (must be zero), wait time |
 | Indexing | Small files plus one file larger than the configured chunk batch | Peak RSS, batch size, throughput, cancellation latency |
-| Semantic reindex | 2,000 persisted facts, deterministic 64-dimensional embeddings, 64-item provider batches | Reindex latency, throughput, embedding request/batch counts, vector count, peak RSS |\n| Output | Under/at/over-cap output and endless stream | Peak buffered bytes, termination latency, truncation correctness |
+| Semantic reindex | 2,000 persisted facts, deterministic 64-dimensional embeddings, 64-item provider batches | Reindex latency, throughput, embedding request/batch counts, vector count, peak RSS |\n| Output capture | 99k/100k/1M/8M ASCII characters per stream, two streams, 100k returned-byte cap | Adapter latency, process RSS observation, returned bytes, truncation and cleanup; does not measure SDK-internal buffering or endless streams |
 
 
 
