@@ -119,6 +119,20 @@ Owner-run local measurement on Windows x64, Node v22.18.0, 8 CPUs, 8,311,836,672
 
 The 100k session fixture was 25,788,895 bytes; the episodic fixture was 27,635,492 bytes. The process-wide observed RSS delta was 485,298,176 bytes (~463 MiB), including fixture generation. It is not attributable to one operation. As above, p95 is the maximum of five samples, not a stable tail-latency estimate. Compare only with measurements on a matching OS/runtime/hardware class.
 
+### Independent-process reservation baseline: CI run #744
+
+Ubuntu x64, Node v22.12.0, 4 CPUs. Five samples per process count. Every worker loaded the same persisted daily-budget state file, then attempted to reserve one request after a parent-controlled barrier. The configured daily hard limit was one request. Startup includes worker process creation and module initialization; contention is measured from barrier release until all workers report their reservation result.
+
+| Independent processes | Accepted p50 | Rejected p50 | Excess over hard limit p50 | Startup p50 / p95 ms | Reservation window p50 / p95 ms |
+|---:|---:|---:|---:|---:|---:|
+| 2 | 2 | 0 | 1 | 269.340 / 275.330 | 0.942 / 1.266 |
+| 4 | 4 | 0 | 3 | 453.140 / 463.176 | 3.092 / 6.968 |
+| 8 | 8 | 0 | 7 | 846.705 / 882.811 | 6.915 / 9.724 |
+
+All workers were accepted in all five samples at each process count. This is the expected baseline for the current implementation: `Budgets.reserve()` stores held capacity in process memory and does not persist reservations. The shared daily-state file therefore does not coordinate in-flight reservations between processes. This measurement confirms the known oversubscription limitation; it is not a successful shared-reservation result. Phase 2 acceptance must reduce oversubscription to zero using transactional shared state.
+
+The process-startup and reservation-window timings are specific to this GitHub-hosted runner. The reservation-window timings are not SQLite transaction latency and should not be used as a target for the future backend.
+
 Fixture sizes: session log 25,788,895 bytes at 100k events; episodic store 27,635,492 bytes at 100k episodes. The benchmark reports file-size-based read-volume estimates, not OS-level I/O counters. At 100k records, the implementation's append path reads the session file; duplicate checking reads the episodic store twice in this code path; selective query reads it once.
 
 Peak observed RSS delta was 551,690,240 bytes (~526 MiB), but fixture generation contributes materially to this process-wide peak. Do not attribute it to one store operation.
