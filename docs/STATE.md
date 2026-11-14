@@ -8,7 +8,8 @@ Updated 2026-11-14. This is the single compact source of truth for current scope
 |---|---|
 | D-110 | S0 / Docker, WSL, Crabbox is PERMANENT-HOLD. S1 is deferred. No probes, retries, or workarounds. |
 | D-117 | Development commands may run only in an explicitly selected remote cloud sandbox. No host/local fallback. Cloud-hosted model testing is the target. |
-| D-118 | Vercel Sandbox is the first cloud provider. The provider-neutral sandbox interface remains. Selection does not mean integration or acceptance. |\n| D-119 | SQLite shared state (single-host initial scope), capability-based task workspaces, hybrid memory retention, and backward-compatible internal migration. |
+| D-118 | Vercel Sandbox is the first cloud provider. The provider-neutral sandbox interface remains. Selection does not mean integration or acceptance. |
+| D-119 | SQLite shared state (single-host initial scope), capability-based task workspaces, hybrid memory retention, and backward-compatible internal migration. |
 | D-116 D3 / D-109 | Three demo sessions are qualitative. Scoring requires 10+ genuine sessions (20+ if available), owner-authored good/bad labels committed and hashed before scoring. |
 | D-115 | Sample/research prototype only. No package, release, hosted distribution, or model-weight distribution. |
 | D-114 | Qwen 7B artifact work is excluded. The old 3B-only testing restriction is superseded only by D-117's cloud-hosted testing scope. |
@@ -46,7 +47,19 @@ Updated 2026-11-14. This is the single compact source of truth for current scope
 - Audit branch CI run `43516548037` passed on commit `30401b9267fbf5e2578b752f61ba802a2e1dba1c`: Ubuntu and Windows install, typecheck, lint, and tests; docs/component drift; secret scan; dependency audit; and license inventory. The run does not update `main`; PR #92 remains a draft and unmerged.
 - GitHub reports `main.protected=false`. The owner must enable PR-only merging, require `ci-pass`, require up-to-date branches, block force pushes/deletions, and disable admin bypass.
 
-## Architecture decisions (D-119)\n\n- SQLite is the first shared transactional store, initially for multiple processes on one machine and a supported local filesystem. Keep a backend interface; no multi-machine guarantee.\n- Add capability-based task workspace sessions alongside the one-shot sandbox API. Bind capabilities to task/session, operation, path scope, expiry, and revocation.\n- Keep durable append-only history separate from bounded, rebuildable searchable memory. No automatic durable-history deletion until a retention policy is approved.\n- Preserve public APIs, provider contracts, persisted formats, and caller-visible behavior through adapters and incremental migration.\n- Initial defaults: one SQLite database per project; workspace resume only through explicit lease ownership and validated provider recovery.\n\n## Latest audit PR verification\n\n- PR #93 latest checked head: `52b61b4a30280e86f6ae1214f1a59ec7828d4a8b`. CI run `43527326589` failed on both Ubuntu and Windows in `npm test`; typecheck, lint, docs, secret/dependency checks, and license inventory passed. This run is not a green baseline. The failure details and remediation are tracked in the PR follow-up.\n\n## Ordered moving-forward plan
+## Architecture decisions (D-119)
+
+- SQLite is the selected first transactional store behind a backend interface. Deployment topology remains open: initial implementation may target multiple local processes on a supported local filesystem, but confirm single-host versus multi-machine requirements before implementation.
+- Add capability-based task workspace sessions alongside the one-shot sandbox API. Bind capabilities to task/session, operation, path scope, expiry, and revocation.
+- Keep durable append-only history separate from bounded, rebuildable searchable memory. No automatic durable-history deletion until a retention policy is approved.
+- Preserve public APIs, provider contracts, persisted formats, and caller-visible behavior through adapters and incremental migration.
+- Provisional defaults, not approved decisions: one SQLite database per project; no automatic durable-history deletion; workspace resume only through explicit lease ownership and validated provider recovery. Database ownership, retention/deletion, crash recovery, and deployment topology remain open.
+
+## Latest audit PR verification
+
+- PR #93 latest verified head: `5741d23058dca0dc0112810e6c35fa87a47e8d0f`. CI run `43601898192` (run #724) passed all four verification combinations: Ubuntu and Windows on Node 20.19.0 and 22.12.0. Documentation, secrets/dependencies, license inventory, acceptance-gate declaration, and `ci-pass` also passed. The earlier failure run `43527326589` is superseded.
+
+## Ordered moving-forward plan
 
 1. **Keep the CI/security baseline green.** The nested Zod advisory is resolved on the audit branch with a scoped `@vercel/cli-config` override to 4.6.7. Re-run all checks after remaining audit changes; do not suppress audit or downgrade the Vercel SDK.
 2. **Complete workspace transfer design.** Define a deterministic project snapshot, exclude secrets and sensitive paths, reject symlinks/path traversal, bound file count/size, and preserve Git metadata safely.
