@@ -45,6 +45,15 @@ describe('parseRgJson', () => {
     })
   })
 
+  it.runIf(process.platform === 'win32')('accepts ripgrep paths without the Win32 extended-length prefix', () => {
+    const extendedRoot = '\\\\?\\' + root
+    const out = ev(p('a.txt'), 'hello', 3)
+    expect(parseRgJson(out, extendedRoot, limits)).toEqual({
+      results: [{ file: 'a.txt', matches: [{ line: 3, text: 'hello' }], matchCount: 1 }],
+      truncated: false,
+    })
+  })
+
   it('skips bytes-encoded paths/lines, malformed lines and paths outside root', () => {
     const out = [
       JSON.stringify({ type: 'match', data: { path: { bytes: 'YQ==' }, lines: { text: 'x\n' }, line_number: 1 } }),
