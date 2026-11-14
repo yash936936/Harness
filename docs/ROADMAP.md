@@ -58,7 +58,7 @@ Withdrawn findings AUD-009, AUD-022, and AUD-027 must remain withdrawn unless ne
 - [ ] Capture indexing, semantic-reindex, and streaming-output baselines with deterministic fixtures.
 - Phase 1 must also pass typecheck, lint, docs checks, and the full CI matrix on its PR.
 
-**Exit:** contract definitions and migration invariants are reviewed; four policy choices are approved; numeric baselines cover all hot paths; CI is green. Policy approval and CI are complete. Initial session-log and episodic-memory baselines are captured; reservation, indexing, semantic-reindex, and streaming-output measurements remain. Phase 1 is not fully closed. No production behavior changes in this phase.
+**Exit:** contract definitions and migration invariants are reviewed; four policy choices are approved; numeric baselines cover all hot paths; CI is green. Policy approval and CI are complete. Session-log, episodic-memory, and independent-process budget-reservation baselines are captured. Indexing, semantic-reindex, and streaming-output measurements remain. Phase 1 is not fully closed. No production behavior changes in this phase.
 
 ### Phase 2: SQLite shared-state foundation
 
