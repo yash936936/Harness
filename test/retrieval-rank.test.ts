@@ -665,7 +665,7 @@ describe.skipIf(!hasRg)('indexing', () => {
           entered()
           await blocked
         }
-        return inner.embed(texts, options)
+        return inner.embed(texts)
       },
     }
     const b = await boot({ provider })
