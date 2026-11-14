@@ -119,6 +119,21 @@ async function seed(ctx: Context) {
 }
 
 describe('semantic tier configuration and persisted data validation', () => {
+  it('claims a feature-owned vector collection that retrieval cannot reset', async () => {
+    const { ctx } = await boot({ sem: { collection: 'shared-feature-index' } })
+    const added = await ctx.memorySemantic.add({ text: STORAGE, why: WHY, id: 'owned-fact' })
+    expect(added.indexed).toBe(true)
+    const info = ctx.embeddings.info()!
+    const other = await ctx.vectorstore.open('shared-feature-index', {
+      fingerprint: info.fingerprint!,
+      dimensions: info.dimensions!,
+      owner: 'retrieval-rank:/some/project',
+      reset: true,
+    })
+    expect(other).toMatchObject({ ok: false, error: { kind: 'ownership_mismatch' } })
+    expect((await ctx.memorySemantic.query('datastore')).hits).toHaveLength(1)
+  })
+
 
   it('redacts secrets from source and tags on write and when reading legacy persisted metadata', async () => {
     const dir = await tmp()
