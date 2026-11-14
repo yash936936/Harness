@@ -47,6 +47,9 @@
   "overrides": {
     "@vercel/cli-config": {
       "zod": "4.6.7"
+    },
+    "guarded-fetch": {
+      "undici": "7.30.2"
     }
   }
 }
