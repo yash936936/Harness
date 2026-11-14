@@ -136,6 +136,9 @@ export class LLMService extends Service {
     if (request.maxTokens !== undefined && (!Number.isSafeInteger(request.maxTokens) || request.maxTokens <= 0)) {
       throw new LLMError('config', 'model request: maxTokens must be a positive safe integer', request.provider ?? this.defaultName ?? '(none)')
     }
+    // The budget reservation must be the same output cap the provider enforces.
+    // Without this, an omitted maxTokens reserves a default but leaves generation unbounded.
+    if (request.maxTokens === undefined && this.gate) request.maxTokens = this.gate.defaultOutputTokens
     const name = request.provider ?? this.defaultName
     if (!name) throw new LLMError('config', 'no provider specified and no default configured', '(none)')
     const provider = this.providers.get(name)
