@@ -1,13 +1,15 @@
 ## D-119 — Architecture decisions for shared state, memory, and task workspaces — 2026-11-14
 
-**Decision:** Adopt the following architecture for the next Harness audit and scalability work:
+**Approved architecture decisions:**
 
-1. **Shared state: SQLite.** Use SQLite as the first transactional coordination backend for cross-process budgets, rate limits, reservations, leases, and related metadata. Keep a storage interface so another backend can be added later. Initial deployment target is multiple Harness processes on one machine using a supported local filesystem. Do not claim multi-machine shared-state support; SQLite on arbitrary network filesystems is out of scope.
+1. **Shared state: SQLite.** Use SQLite as the first transactional coordination backend for cross-process budgets, rate limits, reservations, leases, and related metadata. Keep a storage interface so another backend can be added later. SQLite must use a supported local filesystem; do not claim multi-machine shared-state support or use arbitrary network filesystems.
 2. **Sandbox workspace API: capability-based sessions.** Add task-scoped workspace sessions and narrowly scoped capabilities alongside the existing one-shot sandbox API. Preserve existing provider contracts. Capabilities bind to task, session, allowed operations, filesystem scope, expiry, and revocation. Workspace transfer and result synchronization must be validated and fail closed.
 3. **Memory retention: hybrid.** Keep durable append-only history separate from bounded searchable memory. Durable history remains the source of truth subject to an explicit retention/deletion policy. Searchable facts, episodes, summaries, and vector indexes are bounded, paginated, and rebuildable.
 4. **Backward compatibility: preserve.** Preserve public APIs, existing provider implementations, persisted formats, and caller-visible behavior where possible. Introduce adapters and migrate internals incrementally. Do not use dual writes without a defined reconciliation protocol.
 
-**Initial policy defaults:** One SQLite database per project; durable history is not automatically deleted by default, with configurable retention to be designed before pruning is implemented; crashed workspace sessions may be resumed only through explicit lease ownership and validated provider recovery, otherwise create a fresh session.
+**Still to confirm before implementation:** deployment topology (single host or multi-machine); database ownership (one database per project or a shared database with project isolation); durable-history retention/deletion policy; and whether a crashed workspace may be resumed by another process. These are not approved decisions yet.
+
+**Provisional planning defaults only:** design SQLite for multiple local processes on a supported local filesystem; use one database per project; do not automatically delete durable history; resume a crashed workspace only with explicit lease ownership and validated provider recovery. Revisit these defaults when the four open questions are answered.
 
 **Migration order:** architecture contracts; SQLite foundation and transactional budget/rate-limit coordination; memory append/query/index/retention improvements; capability-based workspace sessions and leases; streaming output limits; cross-subsystem failure and compatibility testing.
 
