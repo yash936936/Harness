@@ -5,7 +5,8 @@
 - Current repository inventory: 352 tracked files; 214 files under `src/`, `test/`, and `scripts/`. The complete file-by-file and cross-folder audit is still in progress.
 - Reconfirmed AUD-007 and AUD-008: session-log append and episodic duplicate/query paths still scan/load full histories.
 - AUD-021 and AUD-035 are fixed in main and have regression coverage. Their older open statuses in the audit register are being corrected.
-- AUD-048: a symlinked parent directory could redirect session-log files and lock operations. Fix and regression coverage are in branch `fix/session-log-parent-symlink-2026-11`; CI is pending.
+- AUD-048: session-log parent symlink redirection is fixed in PR #101; its prior head passed CI run #763.
+- AUD-049: compaction ledger reads/writes were vulnerable to symlink redirection through a predictable temporary filename. The updated PR #101 adds no-follow reads, parent checks, random exclusive temp files, and three regression tests; fresh CI is pending.
 - No live Vercel acceptance, cloud workspace transfer, or bounded SDK streaming is claimed. D-110/D-117/D-118 remain binding.
 
 The next audit pass continues with retrieval, embeddings/vector storage, orchestration, policy, tools, CLI, scripts, tests, and cross-folder call paths.
