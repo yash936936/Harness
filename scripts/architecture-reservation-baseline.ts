@@ -162,7 +162,7 @@ if (WORKER) {
     console.log(output)
     if (process.env.GITHUB_STEP_SUMMARY) {
       const { appendFile } = await import('node:fs/promises')
-      await appendFile(process.env.GITHUB_STEP_SUMMARY, ['', '## Independent-process reservation baseline', '', '\`\`\`json', output, '\`\`\`', ''].join('\\n'))
+      await appendFile(process.env.GITHUB_STEP_SUMMARY, ['', '## Independent-process reservation baseline', '', '\`\`\`json', output, '\`\`\`', ''].join('\n'))
     }
   } finally {
     await rm(root, { recursive: true, force: true })
