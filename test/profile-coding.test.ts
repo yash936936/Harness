@@ -205,7 +205,7 @@ describe('verifyGates refuses a context whose gates are not enforcing', () => {
     expect(ctx.tools.has('run_command')).toBe(false)
     await expect(verifyGates(ctx)).resolves.toBeUndefined()
   })
-  it('keeps the command tool absent even when a permissive custom signal is configured', async () => {
+  it('rejects a permissive policy that would allow the boot self-test probe', async () => {
     const lenient: Signal = () => ({ name: 'lenient', score: 1 })
     const { ctx } = await bare({ policy: [lenient] })
     expect(ctx.tools.has('run_command')).toBe(false)
