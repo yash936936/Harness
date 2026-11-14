@@ -25,7 +25,7 @@ Updated 2026-11-14. This file records the current implementation state and bindi
 | Provider lifecycle audit | Incomplete | Must capture request, lease, command, timeout/cancel, cleanup, and failures. |
 | Coding profile command tool | Disabled | Do not enable `run_command` until workspace transfer, result sync, lifecycle audit, and policy integration are accepted. |
 | Shared-state SQLite provider | Not implemented | Phase 2, after Phase 1 policy gates. |
-| Architecture contracts | Merged via PR #94 | Type-only interfaces and migration specification; no runtime changes. Four D-119 policy choices approved. Session-log/episodic baselines captured by PR #95 and Windows measurements by PR #97. Independent-process budget reservation baseline captured by PR #99; it confirms current cross-process oversubscription. Deterministic indexing benchmark workload is added to CI in the current PR; numeric results are pending its first run. Semantic-reindex and streaming-output baselines remain. |
+| Architecture contracts | Merged via PR #94 | Type-only interfaces and migration specification; no runtime changes. Four D-119 policy choices approved. Session-log/episodic baselines captured by PR #95 and Windows measurements by PR #97. Independent-process budget reservation baseline captured by PR #99; it confirms current cross-process oversubscription. Deterministic indexing baseline captured in CI run #749: 31 files, 1,740 chunks, including one 540-chunk file; p50 306.759 ms and median observed RSS delta 24,248,320 bytes. Semantic-reindex and streaming-output baselines remain. |
 | Memory scaling changes | Not implemented | AUD-007/008/014/025 remain open. |
 | Streaming output enforcement | Not implemented | AUD-023 remains open. |
 
@@ -49,7 +49,7 @@ Updated 2026-11-14. This file records the current implementation state and bindi
 - PR #98, `docs/phase1-closeout-sync-2026-11`, merged on 2026-11-14 as `9e508b472b60a561c8e197cdea27813269833011`, synchronizes the approved D-119 policy and Windows baseline status.
 - CI run #724 on PR head `5741d23058dca0dc0112810e6c35fa87a47e8d0f` passed: Ubuntu and Windows on Node 20.19.0 and 22.12.0, typecheck, lint, full tests, docs/component drift, secret scan, dependency audit, license inventory, and `ci-pass`.
 - The green run verifies the PR head. It is not a live sandbox/model acceptance result.
-- Phase 0 is complete. Phase 1 contracts and D-119 policy decisions merged in PR #94. Initial numeric baselines merged in PR #95; Windows baselines merged in PR #97; the independent-process reservation baseline was captured in PR #99 (CI run #744). Reservation measurements in CI run #744 confirm oversubscription in the current process-local implementation. Numeric indexing results, semantic-reindex, and streaming-output baselines remain before Phase 1 can close.
+- Phase 0 is complete. Phase 1 contracts and D-119 policy decisions merged in PR #94. Initial numeric baselines merged in PR #95; Windows baselines merged in PR #97; the independent-process reservation baseline was captured in PR #99 (CI run #744). Reservation measurements in CI run #744 confirm oversubscription in the current process-local implementation. Semantic-reindex and streaming-output baselines remain before Phase 1 can close.
 
 ## D-119 approved deployment and operating policy
 
