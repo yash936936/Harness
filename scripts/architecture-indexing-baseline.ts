@@ -82,7 +82,7 @@ async function runSample(root: string, sample: number) {
       egress: inner.egress,
       embed: async (texts, signal) => {
         calls++
-        return inner.embed(texts, signal)
+        return inner.embed(texts)
       },
     })
     fibers.push(await ctx.plugin(LanceVectorStore, { path: db }))
@@ -113,7 +113,6 @@ async function runSample(root: string, sample: number) {
       rssBeforeBytes: rssBefore,
       peakRssBytes: peakRss,
       peakRssDeltaBytes: Math.max(0, peakRss - rssBefore),
-      fixtureBytes: files.reduce((sum, rel) => sum, 0), // replaced below with deterministic source-size accounting
       largeFileExpectedChunks: LARGE_FILE_FUNCTIONS,
       indexGroupChunks: INDEX_GROUP_CHUNKS,
     }
