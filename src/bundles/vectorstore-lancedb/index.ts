@@ -146,7 +146,7 @@ class LanceCollection implements VectorCollection {
         if (bad) return fail('input', bad)
       }
       let q = this.table.vectorSearch(vec).distanceType('cosine').select(['id', 'source', 'metadata', '_distance']).limit(k)
-      if (opts.source !== undefined) q = q.where(`\`source\` = ${sql(opts.source)}`)
+      if (opts.source !== undefined) q = q.where(``source` = ${sql(opts.source)}`)
       const rows = await q.toArray()
       const hits: VectorHit[] = rows.map((r: any) => {
         let metadata: Record<string, unknown> | undefined
@@ -186,7 +186,7 @@ class LanceCollection implements VectorCollection {
     return this.guard(async () => {
       const bad = checkText('source', source, MAX_SOURCE)
       if (bad) return fail('input', bad)
-      const rows = await this.table.query().where(`\`source\` = ${sql(source)}`).select(['id']).toArray()
+      const rows = await this.table.query().where(``source` = ${sql(source)}`).select(['id']).toArray()
       return { ok: true as const, ids: rows.map((r: any) => r.id as string) }
     })
   }
@@ -195,7 +195,7 @@ class LanceCollection implements VectorCollection {
     return this.guard(async () => {
       const bad = checkText('source', source, MAX_SOURCE)
       if (bad) return fail('input', bad)
-      return this.serial(async () => ({ ok: true as const, deleted: (await this.table.delete(`\`source\` = ${sql(source)}`)).numDeletedRows }))
+      return this.serial(async () => ({ ok: true as const, deleted: (await this.table.delete(``source` = ${sql(source)}`)).numDeletedRows }))
     })
   }
 
@@ -242,7 +242,7 @@ export class LanceVectorStore extends Service {
     if (this.disposed) return fail('closed', 'the vector store has been disposed')
     if (typeof name !== 'string' || !NAME_RE.test(name)) return fail('input', 'collection name must be 1-64 characters of A-Z a-z 0-9 _ -')
     if (typeof opts?.fingerprint !== 'string' || opts.fingerprint.trim() === '') return fail('input', 'fingerprint is required')
-    if (!Number.isInteger(opts.dimensions) || opts.dimensions < 1 || opts.dimensions > MAX_DIMENSIONS) return fail('input', \`dimensions must be an integer from 1 to \${MAX_DIMENSIONS}\`)
+    if (!Number.isInteger(opts.dimensions) || opts.dimensions < 1 || opts.dimensions > MAX_DIMENSIONS) return fail('input', `dimensions must be an integer from 1 to ${MAX_DIMENSIONS}`)
     if (opts.owner !== undefined) {
       const bad = checkText('owner', opts.owner, 512)
       if (bad) return fail('input', bad)
@@ -253,12 +253,12 @@ export class LanceVectorStore extends Service {
     try {
       lance = await this.loadLance()
     } catch (e) {
-      return fail('unavailable', \`could not load the native LanceDB module: \${msg(e)}\`)
+      return fail('unavailable', `could not load the native LanceDB module: ${msg(e)}`)
     }
     try {
       conn = await this.connect(lance)
     } catch (e) {
-      return fail('io', \`cannot open the database at \${this.path}: \${msg(e)}\`)
+      return fail('io', `cannot open the database at ${this.path}: ${msg(e)}`)
     }
 
     try {
@@ -293,11 +293,11 @@ export class LanceVectorStore extends Service {
         } else {
           if (storedFp === undefined || !Number.isInteger(storedDims)) {
             table.close()
-            return fail('corrupt', \`table "\${name}" exists but was not created by this store (no fingerprint recorded)\`)
+            return fail('corrupt', `table "${name}" exists but was not created by this store (no fingerprint recorded)`)
           }
           if (storedFp !== opts.fingerprint || storedDims !== opts.dimensions) {
             table.close()
-            return fail('fingerprint_mismatch', \`collection "\${name}" was built with "\${storedFp}" (\${storedDims} dims), not "\${opts.fingerprint}" (\${opts.dimensions} dims); open it with reset: true to rebuild it\`)
+            return fail('fingerprint_mismatch', `collection "${name}" was built with "${storedFp}" (${storedDims} dims), not "${opts.fingerprint}" (${opts.dimensions} dims); open it with reset: true to rebuild it`)
           }
           const col = new LanceCollection(name, storedFp, storedDims, storedOwner, table)
           this.collections.set(name, col)
