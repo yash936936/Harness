@@ -47,6 +47,12 @@ const SECRET_EXCLUDES = [
   '!**/secrets.json', '!**/secrets.toml', '!**/etc/shadow', '!**/proc/self/environ',
 ]
 
+function sameCanonicalPath(a: string, b: string): boolean {
+  const left = resolve(a)
+  const right = resolve(b)
+  return process.platform === 'win32' ? left.toLowerCase() === right.toLowerCase() : left === right
+}
+
 /** True if `target` is `root` or lies under it. Both must already be real, absolute paths. */
 function isInside(root: string, target: string): boolean {
   const rel = relative(root, target)
@@ -201,7 +207,7 @@ export class RetrievalGrep extends Service {
     let target: string
     try {
       const current = lstatSync(this.root)
-      if (!current.isDirectory() || current.isSymbolicLink() || realpathSync(this.root) !== this.root ||
+      if (!current.isDirectory() || current.isSymbolicLink() || !sameCanonicalPath(realpathSync(this.root), this.root) ||
           (process.platform !== 'win32' && this.rootIdentity.ino !== 0 && (current.ino !== this.rootIdentity.ino || current.dev !== this.rootIdentity.dev))) {
         return { ok: false, error: { kind: 'path_not_found', detail: 'root identity changed after service construction' } }
       }
