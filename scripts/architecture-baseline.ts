@@ -1,11 +1,12 @@
-import { copyFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { performance } from 'node:perf_hooks'
 import { JsonlStore } from '../src/bundles/session-log/store.js'
 import { JsonlEpisodeStore } from '../src/bundles/memory/store.js'
 import { EpisodicMemory } from '../src/bundles/memory/episodic.js'
-import type { Episode, SessionEvent } from '../src/bundles/session-log/index.js'
+import type { SessionEvent } from '../src/bundles/session-log/index.js'
+import type { Episode } from '../src/bundles/memory/types.js'
 
 const COUNTS = [0, 50_000, 100_000]
 const SAMPLES = 5
@@ -81,7 +82,7 @@ try {
         await writeFile(file, '', { encoding: 'utf8', mode: 0o600 })
       }
       const store = new JsonlStore(dir)
-      fixtureBytes = Buffer.byteLength(await (await import('node:fs/promises')).readFile(file))
+      fixtureBytes = (await readFile(file)).byteLength
       const started = performance.now()
       await store.withLock('baseline-session', async () => {
         const last = await store.lastSeq('baseline-session')
