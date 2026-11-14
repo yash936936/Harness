@@ -153,7 +153,7 @@ Each sample indexed 31 files and 1,740 chunks and made 7 embedding calls. The el
 
 This measures the current implementation, not bounded-memory indexing. `indexFiles` prepares all file chunks before embedding groups; `indexGroupChunks` bounds an embedding group, not total prepared memory. Hashing embeddings are deterministic local test infrastructure and provide no semantic-quality evidence.
 
-Still unmeasured: semantic reindex and bounded streaming output. No estimates are substituted for measurements.
+Still unmeasured: bounded streaming output. No estimates are substituted for measurements.
 
 | Area | Baseline workload | Required measurements |
 |---|---|---|
@@ -161,11 +161,11 @@ Still unmeasured: semantic reindex and bounded streaming output. No estimates ar
 | Episodic memory | 100k episodes with duplicate and selective queries | Duplicate-check cost, query latency, rows scanned, peak RSS |
 | Reservations | Concurrent independent processes contending for one hard limit | Accepted/rejected count, oversubscription count (must be zero), wait time |
 | Indexing | Small files plus one file larger than the configured chunk batch | Peak RSS, batch size, throughput, cancellation latency |
-| Output | Under/at/over-cap output and endless stream | Peak buffered bytes, termination latency, truncation correctness |
+| Semantic reindex | 2,000 persisted facts, deterministic 64-dimensional embeddings, 64-item provider batches | Reindex latency, throughput, embedding request/batch counts, vector count, peak RSS |\n| Output | Under/at/over-cap output and endless stream | Peak buffered bytes, termination latency, truncation correctness |
 
 
 
-The current-code baseline runner is `npm run bench:architecture` (also executed by the `architecture performance baseline` CI job). It records Node/platform/CPU metadata, fixture sizes, p50/p95 timings, file-size-based read-volume estimates, and observed RSS. It measures session-log append at 0/50k/100k events, episodic duplicate-check/selective-query at 100k episodes, independent-process reservations, and deterministic indexing. Semantic-reindex and bounded streaming-output workloads remain unmeasured; do not fill those rows with estimates or in-process substitutes.
+The current-code baseline runner is `npm run bench:architecture` (also executed by the `architecture performance baseline` CI job). It records Node/platform/CPU metadata, fixture sizes, p50/p95 timings, file-size-based read-volume estimates, and observed RSS. It measures session-log append at 0/50k/100k events, episodic duplicate-check/selective-query at 100k episodes, independent-process reservations, deterministic indexing, and semantic reindex. Bounded streaming-output measurements remain unmeasured; do not fill that row with estimates or in-process substitutes.
 
 ## Approved deployment and operating policy
 
