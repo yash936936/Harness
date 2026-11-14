@@ -1,6 +1,5 @@
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { mkdir, rename, unlink, writeFile } from 'node:fs/promises'
-import { randomUUID } from 'node:crypto'
 import { assertNoSymlinkParents, readTextFileNoFollow } from '../../util/secure-file.js'
 import { join } from 'node:path'
 import { withFileLock } from '../../util/filelock.js'
