@@ -17,6 +17,8 @@
 
 **Scope boundary:** This decision does not authorize enabling `run_command` in the coding profile. D-110, D-117, and D-118 remain in force. No Docker, WSL, Crabbox, host command fallback, or live sandbox acceptance is authorized by this architecture decision.
 
+**Contract specification:** [architecture-contracts.md](architecture-contracts.md); type definitions: `src/architecture/contracts.ts`.
+
 **Affects:** `docs/STATE.md`, `docs/ROADMAP.md`, `docs/CODEBASE-AUDIT-CHECKLIST.md`, storage, memory, sandbox, and profile architecture.
 
 ## D-118 — Vercel Sandbox selected as first cloud provider — 2026-11-13
