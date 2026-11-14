@@ -48,9 +48,12 @@ const SECRET_EXCLUDES = [
 ]
 
 function sameCanonicalPath(a: string, b: string): boolean {
-  const left = resolve(a)
-  const right = resolve(b)
-  return process.platform === 'win32' ? left.toLowerCase() === right.toLowerCase() : left === right
+  const normalize = (path: string) => {
+    const absolute = resolve(path)
+    if (process.platform !== 'win32') return absolute
+    return absolute.replace(/^\\\\\\?\\UNC\\/i, '\\\\').replace(/^\\\\\\?\\/, '').replace(/[\\/]+$/, '').toLowerCase()
+  }
+  return normalize(a) === normalize(b)
 }
 
 /** True if `target` is `root` or lies under it. Both must already be real, absolute paths. */
