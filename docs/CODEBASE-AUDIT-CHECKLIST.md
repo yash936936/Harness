@@ -207,8 +207,8 @@ CI note: PR #93's earlier run `43527326589` failed in `npm test` on both operati
 - [x] Phase 1 backend-neutral contracts drafted in `src/architecture/contracts.ts`.
 - [x] Transaction, idempotency, lease fencing, memory projection, workspace capability, migration, rollback, and failure-recovery rules documented in `docs/architecture-contracts.md`.
 - [x] State, roadmap, architecture, and D-119 decision docs cross-linked and reconciled.
-- [ ] Phase 1 final approval gates: deployment topology, database ownership, durable-history retention/deletion, and crashed-workspace recovery. These require owner decisions and are not inferred from provisional defaults.
+- [x] Phase 1 owner approvals: single-host/multi-process deployment on supported local filesystems; one SQLite database per project; no automatic durable-history deletion; workspace resume only after lease expiry, explicit ownership, and provider-validated recovery. Recorded as binding D-119 policy in `docs/decisions.md`.
 - [ ] Capture numeric performance baselines before Phase 2 changes each corresponding hot path.
-- [ ] Run the full CI matrix on the Phase 1 contract PR before merge.
+- [x] Full CI matrix and `ci-pass` on PR #94, run #726: Ubuntu and Windows on Node 20.19.0 and 22.12.0; typecheck, lint, tests, docs/component drift, secret/dependency checks, and license inventory passed.
 
-This closes Phase 0 and completes the Phase 1 contract/migration-safety artifacts. It does not close Phase 1's policy approval or baseline measurement gates, and it does not claim the full file-by-file audit is complete.
+Phase 0 is complete. Phase 1 contract/migration-safety artifacts, owner policy approvals, and CI verification are complete. Numeric performance baselines remain before Phase 1 closure. The full file-by-file audit is not complete.
