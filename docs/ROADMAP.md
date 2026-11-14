@@ -1,6 +1,6 @@
 # Roadmap: Harness audit closeout and scalable architecture
 
-Updated 2026-11-14. This is the active implementation roadmap. Phase 0 is complete on the merged audit PR. Phase 1 contract artifacts are drafted; four user policy approvals and measured performance baselines remain before Phase 1 can be closed. Current project state and binding constraints are in [STATE.md](STATE.md); architecture decisions are in [decisions.md](decisions.md); detailed findings are tracked in [CODEBASE-AUDIT-CHECKLIST.md](CODEBASE-AUDIT-CHECKLIST.md).
+Updated 2026-11-14. This is the active implementation roadmap. Phase 0 is complete on the merged audit PR. Phase 1 contract artifacts are drafted, all four D-119 policy choices are approved and recorded, and measured performance baselines remain before Phase 1 can be closed. Current project state and binding constraints are in [STATE.md](STATE.md); architecture decisions are in [decisions.md](decisions.md); detailed findings are tracked in [CODEBASE-AUDIT-CHECKLIST.md](CODEBASE-AUDIT-CHECKLIST.md).
 
 ## Target outcome
 
@@ -8,11 +8,11 @@ Complete the current security and reliability audit, then migrate Harness toward
 
 ## Binding architecture decisions
 
-- **Shared state:** SQLite first, behind a storage interface. Multi-process transactions are required. Deployment topology remains open: the initial implementation can target multiple local processes on a supported local filesystem, but multi-machine requirements must be confirmed before the storage provider is finalized.
+- **Shared state:** SQLite first, behind a storage interface. Support multiple local processes on one host using a supported local filesystem. Multi-machine shared state and arbitrary network filesystems are out of scope.
 - **Sandbox:** capability-based, task-scoped workspace sessions added alongside the one-shot sandbox API.
 - **Memory:** hybrid retention. Durable append-only history is authoritative; bounded searchable memory and vector indexes are rebuildable projections.
 - **Compatibility:** preserve public APIs, existing provider contracts, persisted data, and caller-visible behavior through adapters and incremental migration.
-- **Provisional defaults, not approved decisions:** one SQLite database per project; no automatic durable-history deletion; workspace resume only with explicit lease ownership and validated provider recovery. Confirm database ownership, retention/deletion, crash recovery, and single-host versus multi-machine deployment before Phase 1 implementation.
+- **Approved operating policy:** one SQLite database per project; retain durable history indefinitely by default with no automatic deletion; permit workspace resume only after lease expiry, explicit ownership acquisition, and provider-validated recovery. Otherwise create a fresh workspace.
 - **Security:** D-110, D-117, and D-118 remain binding. No Docker/WSL/Crabbox, no host command fallback, no automatic sandbox provider selection, and no coding-profile `run_command` exposure before the existing acceptance requirements are met.
 
 ## Open audit work
@@ -51,11 +51,11 @@ Withdrawn findings AUD-009, AUD-022, and AUD-027 must remain withdrawn unless ne
 - Added backend-neutral type contracts in `src/architecture/contracts.ts` for budget reservations, rate-limit permits, resource leases, durable history, searchable memory, reindex checkpoints, workspace sessions/capabilities, workspace transfer, and schema migrations.
 - Added [architecture contract and migration specification](architecture-contracts.md), including transaction/idempotency rules, fencing tokens, failure recovery, compatibility, migration sequence, and acceptance tests.
 - Preserved existing public APIs and provider contracts. This phase adds types and documentation only; it does not change runtime behavior or persisted formats.
-- The four D-119 policy approvals remain open: deployment topology, database ownership, durable-history retention/deletion, and crashed-workspace recovery. They must be recorded in `docs/decisions.md` before Phase 2 implementation.
+- All four D-119 policy choices are approved and recorded in `docs/decisions.md`: single-host/multi-process deployment, one database per project, no automatic durable-history deletion, and guarded crash recovery.
 - The reproducible performance baseline plan is documented. Numeric baselines have not yet been captured; capture them before changing each corresponding hot path.
 - Phase 1 must also pass typecheck, lint, docs checks, and the full CI matrix on its PR.
 
-**Exit:** contract definitions and migration invariants are reviewed; four policy choices are explicitly approved and recorded; reproducible baseline measurements are captured; CI is green. No production behavior changes in this phase.
+**Exit:** contract definitions and migration invariants are reviewed; four policy choices are explicitly approved and recorded; reproducible baseline measurements are captured; CI is green. Policy approval and CI are complete on PR #94. Numeric performance baselines remain. No production behavior changes in this phase.
 
 ### Phase 2: SQLite shared-state foundation
 
