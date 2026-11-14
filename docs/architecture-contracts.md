@@ -103,6 +103,10 @@ No performance numbers are claimed in this contract-only phase. Capture a reprod
 | Indexing | Small files plus one file larger than the configured chunk batch | Peak RSS, batch size, throughput, cancellation latency |
 | Output | Under/at/over-cap output and endless stream | Peak buffered bytes, termination latency, truncation correctness |
 
+
+
+The current-code baseline runner is `npm run bench:architecture` (also executed by the `architecture performance baseline` CI job). It records Node/platform/CPU metadata, fixture sizes, p50/p95 timings, file-size-based read-volume estimates, and observed RSS. It currently measures session-log append at 0/50k/100k events and episodic duplicate-check/selective-query at 100k episodes. The remaining reservation, indexing, semantic-reindex, and output workloads are deliberately reported as not measured until deterministic multi-process/provider fixtures exist; do not fill those rows with estimates or in-process substitutes.
+
 ## Approved deployment and operating policy
 
 The four D-119 owner decisions are approved and binding for the initial implementation:
