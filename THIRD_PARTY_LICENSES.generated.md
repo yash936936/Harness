@@ -171,7 +171,7 @@ Generated from package-lock.json (272 package entries). Lockfile metadata only; 
 | `get-stream` | 6.0.1 | MIT |
 | `github-from-package` | 0.0.0 | MIT |
 | `guarded-fetch` | 0.1.3 | Apache-2.0 |
-| `guarded-fetch/node_modules/undici` | 7.29.0 | MIT |
+| `guarded-fetch/node_modules/undici` | 7.30.2 | MIT |
 | `has-flag` | 4.0.0 | MIT |
 | `human-signals` | 2.1.0 | Apache-2.0 |
 | `ieee754` | 1.2.1 | BSD-3-Clause |
