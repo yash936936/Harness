@@ -1,10 +1,12 @@
 // Skills service: discovers skill folders and serves their instructions and resources.
 import { randomBytes } from 'node:crypto'
-import { open, readdir, readFile, realpath, stat } from 'node:fs/promises'
+import { constants } from 'node:fs'
+import { lstat, open, readdir, realpath, stat } from 'node:fs/promises'
 import { basename, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { Context, Service } from 'cordis'
 import { defaultEstimateTokens } from '../memory/hot.js'
 import type { ToolDefinition } from '../tool-registry/types.js'
+import { assertNoSymlinkParents, readTextFileNoFollow } from '../../util/secure-file.js'
 import { parseSkillMd } from './frontmatter.js'
 import { SkillsConfigError, type Skill, type SkillProblem, type SkillsConfig } from './types.js'
 
@@ -133,7 +135,7 @@ export class Skills extends Service {
     await this.load()
     const skill = this.skills.get(name)
     if (!skill) throw new Error(`unknown skill "${name}". Available: ${[...this.skills.keys()].join(', ') || '(none)'}`)
-    const parsed = parseSkillMd(await readFile(join(skill.dir, 'SKILL.md'), 'utf8'))
+    const parsed = parseSkillMd(await readTextFileNoFollow(join(skill.dir, 'SKILL.md')))
     if (!parsed.ok) throw new Error(`skill "${name}" can no longer be read: ${parsed.error}`)
     const body = this.ctx.egress.redactValue(parsed.body.trim())
     if (this.estimate(body) > this.maxInstructionTokens) throw new Error(`skill "${name}" instructions are too large (over ${this.maxInstructionTokens} estimated tokens)`)
@@ -231,13 +233,24 @@ export class Skills extends Service {
       throw new Error(`no such file in skill "${name}": ${path}`)
     }
     if (!isInside(skill.dir, real)) throw new Error('the path leads outside the skill folder') // a symlink pointing out
-    const st = await stat(real)
-    if (!st.isFile()) throw new Error(`"${path}" is not a file`)
+    await assertNoSymlinkParents(real)
+    const before = await lstat(real)
+    if (before.isSymbolicLink() || !before.isFile()) throw new Error(`"${path}" is not a file (not a regular file)`)
 
-    // read at most the limit (+1 to know it was cut), never the whole of a huge file
-    const fh = await open(real, 'r')
+    // Open the resolved target without following a final-component symlink, then
+    // verify that the path still names the file held by this handle.
+    const noFollow = typeof constants.O_NOFOLLOW === 'number' ? constants.O_NOFOLLOW : 0
+    const fh = await open(real, constants.O_RDONLY | noFollow)
     let buf: Buffer
+    let st: Awaited<ReturnType<typeof stat>>
     try {
+      st = await fh.stat()
+      const after = await lstat(real)
+      if (after.isSymbolicLink() || !after.isFile() ||
+          (process.platform !== 'win32' && st.ino !== 0 && (st.ino !== after.ino || st.dev !== after.dev))) {
+        throw new Error(`"${path}" changed while it was being read; refusing`)
+      }
+      await assertNoSymlinkParents(real)
       buf = Buffer.alloc(Math.min(st.size, this.maxResourceChars * 4 + 4))
       await fh.read(buf, 0, buf.length, 0)
     } finally {
@@ -268,13 +281,25 @@ export class Skills extends Service {
       const candidates: string[] = []
       if (await pathExists(join(root, 'SKILL.md'))) candidates.push(root)
       else {
+        let rejectedDirectory = false
         const entries = await readdir(root, { withFileTypes: true }).catch(() => [])
         for (const e of entries.sort((a, b) => a.name.localeCompare(b.name))) {
           if (e.name.startsWith('.') || !(e.isDirectory() || e.isSymbolicLink())) continue
           const d = join(root, e.name)
-          if (await pathExists(join(d, 'SKILL.md'))) candidates.push(d)
+          let resolvedDir: string
+          try {
+            resolvedDir = await realpath(d)
+          } catch {
+            continue
+          }
+          if (!isInside(root, resolvedDir)) {
+            problems.push({ dir: d, kind: 'unreadable', reason: 'skill directory resolves outside its configured root' })
+            rejectedDirectory = true
+            continue
+          }
+          if (await pathExists(join(resolvedDir, 'SKILL.md'))) candidates.push(resolvedDir)
         }
-        if (candidates.length === 0) problems.push({ dir: configured, kind: 'no_skill_md', reason: 'no SKILL.md here and none in its subfolders' })
+        if (candidates.length === 0 && !rejectedDirectory) problems.push({ dir: configured, kind: 'no_skill_md', reason: 'no SKILL.md here and none in its subfolders' })
       }
       for (const c of candidates) {
         const dir = await realpath(c)
@@ -298,9 +323,11 @@ export class Skills extends Service {
     const bad = (kind: SkillProblem['kind'], reason: string) => ({ problem: { dir, kind, reason } as SkillProblem })
     let text: string
     try {
-      const st = await stat(join(dir, 'SKILL.md'))
+      const file = join(dir, 'SKILL.md')
+      const st = await lstat(file)
+      if (st.isSymbolicLink() || !st.isFile()) return bad('unreadable', 'SKILL.md must be a regular non-symlink file')
       if (st.size > MAX_SKILL_MD_BYTES) return bad('too_large', `SKILL.md is ${st.size} bytes (limit ${MAX_SKILL_MD_BYTES})`)
-      text = await readFile(join(dir, 'SKILL.md'), 'utf8')
+      text = await readTextFileNoFollow(file)
     } catch (err) {
       return bad('unreadable', err instanceof Error ? err.message : String(err))
     }

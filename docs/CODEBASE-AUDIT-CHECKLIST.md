@@ -1,7 +1,7 @@
 # Full codebase audit checklist
 
 Baseline: `main` at `41ca36359b6502c986fd41924cbc6b1d643b1077` (2026-11-14).
-Audit continuation branch: `fix/session-log-parent-symlink-2026-11`.
+Audit continuation branch: `fix/skills-directory-symlink-boundary-2026-11-v2`.
 
 This is a staged, evidence-based audit. Review each file, then each folder, then cross-folder flows. The follow-up fix pass updates selected findings but does not claim the full file-by-file audit is complete. Do not remove code solely because it appears old or duplicated; first verify imports, runtime registration, scripts, tests, docs, and history. Do not weaken D-110/D-117/D-118 security boundaries.
 
@@ -165,6 +165,7 @@ This is a staged, evidence-based audit. Review each file, then each folder, then
 | AUD-047 | P2 | `src/bundles/router/index.ts` | `Router.shadow()` reuses `resolve()`, which increments `failures` when Needle throws or returns an invalid choice. This mutates `stats()` even though the shadow API promises no stats changes. | Fixed in main: shadow resolution does not mutate failure counters; regression test added |
 | AUD-048 | P1 | `src/bundles/session-log/store.ts`, `test/session-log.test.ts` | The store rejected symlinks at the final session filename but did not validate parent directories. A symlinked configured session directory or ancestor could redirect audit-log reads, appends, locks, and listing outside the configured project state path. | Fixed in PR #101: parent components are checked before/after directory creation and file open; regression test covers append/read/list. Current head passed CI run #768 |
 | AUD-049 | P1 | `src/bundles/memory/compaction.ts`, `test/memory-compaction.test.ts` | The compaction ledger followed symlinked final/parent paths and replaced the ledger through a predictable `${process.pid}.tmp` path opened with default overwrite semantics. A planted temp symlink could redirect the ledger write to an arbitrary file. | Fixed in PR #101: no-follow ledger read, parent validation, unique `randomUUID()` temp path opened with `wx` and mode `0600`, regression tests for parent/ledger/temp symlinks. Current head passed CI run #768 |
+| AUD-050 | P1 | `src/bundles/skills/index.ts`, `test/skills.test.ts` | Skill discovery followed child directory symlinks outside the configured root and read external `SKILL.md` content. `readSkill()` and `instructions()` also followed a symlinked `SKILL.md`; resource reads had a realpath containment check but opened the resolved path without no-follow/file-identity validation. | Fix in `fix/skills-directory-symlink-boundary-2026-11-v2`: reject discovered directories outside configured roots, require regular non-symlink `SKILL.md`, use no-follow instruction reads, and verify resource file identity after opening. Regression tests cover external directory and instruction-file symlinks. CI pending |
 
 ### Verification corrections
 
@@ -227,3 +228,10 @@ Phase 0 is complete. Phase 1 contracts, owner policy approvals, CI, and initial 
 - Added AUD-048 after finding that the session-log store checked the final file but not symlinked parent directories. The fix and regression test are in PR #101; the expanded current head passed all jobs in CI run #768.
 - Added AUD-049 after finding that compaction ledger persistence followed symlinks and used a predictable overwriteable temporary path. The fix and three regression tests are in PR #101; the expanded current head passed all jobs in CI run #768.
 - Reviewed the Vercel adapter and profile call path: late-create cleanup is awaited and surfaced; the command tool rejects `released: false`; workspace transfer/result sync and real SDK streaming remain unimplemented. No live Vercel call was made.
+
+
+## Skills security audit — 2026-11-14
+
+- Confirmed AUD-050: configured skill roots are canonicalized, but child symlink directories were accepted and could resolve outside the configured root. `readSkill()` and `instructions()` followed a symlinked `SKILL.md`; resource reads checked containment but did not verify the opened file identity.
+- The fix and two regression tests are on `fix/skills-directory-symlink-boundary-2026-11-v2`. The changes have not yet been run through CI. No local tests were run.
+- PR #101 merged as `67fd1666fec0ae55ea4473459c36bce78fc5b611`; its final documentation-only head passed CI run #773. The complete file-by-file and cross-folder audit remains incomplete.

@@ -2169,3 +2169,12 @@ The exact proposal was preserved as `docs/ROADMAP.md`. D-116 was appended to `do
 **Correction in `fix/session-log-parent-symlink-2026-11`:** Use `readTextFileNoFollow` for the ledger; validate parent directories before/after directory creation and before replacement; create a random `randomUUID()` temporary filename with `flag: 'wx'` and mode `0600`; revalidate before rename; remove a failed temporary file. Add regression coverage for symlinked parent directories, a symlinked ledger, and a planted predictable-temp symlink.
 
 **Validation boundary:** Changes were made through the GitHub connector. No local tests were run. The expanded PR #101 head `022ae2725cf4575d0a4fbf00370ab2aceabbdf4d` passed all jobs in CI run #768, including Ubuntu/Windows Node 20.19.0/22.12.0, docs/component drift, secrets/dependencies, license inventory, architecture benchmarks, and aggregate `ci-pass`. No live sandbox or host command was used.
+
+
+## DBG-132 — skill discovery and instruction symlink escape — 2026-11-14
+
+**Finding:** `Skills.scan()` accepted child entries that were symbolic links, then used `pathExists()` and `realpath()` without requiring the resolved directory to remain under the configured skill root. A child link could therefore load an external `SKILL.md` into model context. `readSkill()` used `stat()` and `readFile()`, and `instructions()` also used `readFile()`, so a symlinked `SKILL.md` could redirect instruction reads. Resource reads already checked realpath containment but opened the resolved path without final-component no-follow and opened-file identity checks.
+
+**Correction in `fix/skills-directory-symlink-boundary-2026-11-v2`:** Resolve each child directory and reject it if outside the configured root; require `SKILL.md` to be a regular non-symlink file; use `readTextFileNoFollow()` for instruction loading; and open resource files with `O_NOFOLLOW` where supported, validating the opened file identity and parent path before bounded reading. Add tests for an external child-directory symlink and an external `SKILL.md` symlink.
+
+**Validation boundary:** Changes were written through the GitHub connector. No local test/typecheck/lint command was run. CI is pending. Symlink tests skip on Windows when creating symlinks is not permitted. No skill scripts, sandbox, host commands, or external provider were executed.

@@ -454,6 +454,44 @@ describe('skills: load_skill and read_skill_resource', () => {
     await bad('nope.md', /no such file/)
   })
 
+  it('does not discover a skill directory symlink that escapes its configured root', async (t) => {
+    const root = await tmp()
+    const outside = await tmp()
+    await makeSkill(outside, 'external-skill', { body: 'OUTSIDE-SKILL-INSTRUCTIONS' })
+    try {
+      await symlink(join(outside, 'external-skill'), join(root, 'linked-skill'), 'dir')
+    } catch {
+      t.skip()
+      return
+    }
+    const { ctx } = await boot({ dirs: [root] })
+    await ctx.skills.load()
+    expect(await ctx.skills.list()).toEqual([])
+    expect(ctx.skills.problems).toEqual([
+      expect.objectContaining({ kind: 'unreadable', reason: expect.stringMatching(/outside its configured root/) }),
+    ])
+    await expect(ctx.skills.instructions('external-skill')).rejects.toThrow(/unknown skill/)
+  })
+
+  it('rejects a SKILL.md symlink that points outside its skill directory', async (t) => {
+    const root = await tmp()
+    const outside = await tmp()
+    await writeFile(join(outside, 'SKILL.md'), '---\\nname: linked\\ndescription: external\\n---\\nOUTSIDE-SKILL-INSTRUCTIONS', 'utf8')
+    await mkdir(join(root, 'linked'), { recursive: true })
+    try {
+      await symlink(join(outside, 'SKILL.md'), join(root, 'linked', 'SKILL.md'))
+    } catch {
+      t.skip()
+      return
+    }
+    const { ctx } = await boot({ dirs: [root] })
+    await ctx.skills.load()
+    expect(await ctx.skills.list()).toEqual([])
+    expect(ctx.skills.problems).toEqual([
+      expect.objectContaining({ kind: 'unreadable', reason: expect.stringMatching(/regular non-symlink/) }),
+    ])
+  })
+
   it('a symlink inside the skill that points outside it is refused', async (t) => {
     const { ctx, root, dir } = await withFiles()
     try {
