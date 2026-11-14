@@ -478,7 +478,7 @@ export class RetrievalRank extends Service {
     if (!emb || !vs) return { ok: false, error: { kind: 'unavailable', detail: 'embeddings or vectorstore is not available' } }
     const info = await this.fingerprintOf(emb)
     if ('error' in info) return { ok: false, error: { kind: 'unavailable', detail: info.error } }
-    const o = await vs.open(this.collectionName, { fingerprint: info.fingerprint, dimensions: info.dimensions })
+    const o = await vs.open(this.collectionName, { fingerprint: info.fingerprint, dimensions: info.dimensions, owner: `retrieval-rank:${this.root}` })
     if (!o.ok) return { ok: false, error: { kind: 'vectorstore', detail: `${o.error.kind}: ${o.error.detail}` } }
     let removed = 0
     for (const f of new Set(files)) {
