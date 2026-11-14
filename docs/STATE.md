@@ -9,7 +9,7 @@ Updated 2026-11-14. This file records the current implementation state and bindi
 | D-110 | S0 / Docker, WSL, Crabbox is PERMANENT-HOLD. S1 is deferred. No probes, retries, diagnostics, or workarounds. |
 | D-117 | Development commands may run only in an explicitly selected remote cloud sandbox. No host/local fallback. |
 | D-118 | Vercel Sandbox is the first cloud provider. Provider selection is not integration or acceptance. |
-| D-119 | SQLite is the first shared transactional backend behind domain interfaces; add capability-based task workspaces alongside the one-shot API; separate durable history from bounded searchable memory; preserve public APIs, providers, and persisted formats. |
+| D-119 | SQLite is the first shared transactional backend behind domain interfaces; add capability-based task workspaces alongside the one-shot API; separate durable history from bounded searchable memory; preserve public APIs, providers, and persisted formats. Initial policy: multi-process/single-host only on supported local filesystems, one database per project, no automatic durable-history deletion, and crash resume only after lease expiry, explicit ownership, and provider-validated recovery. |
 | D-116 D3 / D-109 | Three demo sessions are qualitative. Scoring requires 10+ genuine sessions (20+ if available), with owner-authored good/bad labels committed and hashed before scoring. |
 | D-115 | Research prototype only. No package, release, hosted distribution, or model-weight distribution. |
 | D-114 | Qwen 7B artifact work is excluded. |
@@ -25,7 +25,7 @@ Updated 2026-11-14. This file records the current implementation state and bindi
 | Provider lifecycle audit | Incomplete | Must capture request, lease, command, timeout/cancel, cleanup, and failures. |
 | Coding profile command tool | Disabled | Do not enable `run_command` until workspace transfer, result sync, lifecycle audit, and policy integration are accepted. |
 | Shared-state SQLite provider | Not implemented | Phase 2, after Phase 1 policy gates. |
-| Architecture contracts | Drafted on `architecture/phase-1-contracts-2026-11` | Type-only interfaces and migration specification; no runtime changes yet. |
+| Architecture contracts | Drafted on `architecture/phase-1-contracts-2026-11` | Type-only interfaces and migration specification; no runtime changes yet. Four D-119 policy choices are approved; numeric performance baselines remain. |
 | Memory scaling changes | Not implemented | AUD-007/008/014/025 remain open. |
 | Streaming output enforcement | Not implemented | AUD-023 remains open. |
 
@@ -47,18 +47,18 @@ Updated 2026-11-14. This file records the current implementation state and bindi
 - PR #93, `audit/full-codebase-review-2026-11`, merged on 2026-11-14 as `8ee08673bd03b8548c44612093b447fadb03ce26`.
 - CI run #724 on PR head `5741d23058dca0dc0112810e6c35fa87a47e8d0f` passed: Ubuntu and Windows on Node 20.19.0 and 22.12.0, typecheck, lint, full tests, docs/component drift, secret scan, dependency audit, license inventory, and `ci-pass`.
 - The green run verifies the PR head. It is not a live sandbox/model acceptance result.
-- Phase 0 is complete. The Phase 1 contract artifacts are being prepared separately on `architecture/phase-1-contracts-2026-11`.
+- Phase 0 is complete. Phase 1 contract artifacts and the four D-119 policy decisions are recorded on PR #94. Its CI run #726 passed all matrix and required verification jobs. Numeric performance baselines remain before Phase 1 can close.
 
-## D-119 policy gates still open
+## D-119 approved deployment and operating policy
 
-These decisions must be approved and added to `docs/decisions.md` before Phase 2:
+The four owner decisions are approved and binding for the initial implementation:
 
-1. Deployment topology: multiple processes on one host, or multiple machines sharing state?
-2. Database ownership: one database per project, or one shared database with enforced project isolation?
-3. Durable history: retain indefinitely by default, or define a default retention period and deletion workflow?
-4. Workspace crash recovery: may another process resume after lease expiry, or must it always create a fresh session?
+1. **Topology:** multiple local processes on one host, using a supported local filesystem. Multi-machine shared state and arbitrary network filesystems are unsupported.
+2. **Database ownership:** one SQLite database per project.
+3. **Durable history:** retain indefinitely by default. No automatic deletion. A retention or deletion workflow requires a separate approved policy.
+4. **Crash recovery:** resume only after lease expiry, explicit acquisition of ownership, and provider-validated recovery. Otherwise create a fresh workspace.
 
-No provisional default is treated as approved. SQLite on arbitrary network filesystems is not supported by this plan.
+These constraints must be enforced in the Phase 2 design and tests. Changing them requires a new decision record and migration review.
 
 ## Open confirmed architecture findings
 
