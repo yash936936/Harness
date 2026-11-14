@@ -1,5 +1,6 @@
 // Retrieval ranking service: combines lexical BM25 with optional semantic results.
 import { lstatSync, realpathSync } from 'node:fs'
+import { createHash } from 'node:crypto'
 import { isAbsolute, relative, resolve, sep } from 'node:path'
 import { Context, Service } from 'cordis'
 import {
@@ -48,6 +49,7 @@ export class RetrievalRank extends Service {
   private readonly root: string
   private readonly rootIdentity: { dev: number; ino: number }
   private readonly collectionName: string
+  private readonly collectionOwner: string
   private readonly k: number
   private readonly weight: number
   private readonly rrfK: number
@@ -73,6 +75,7 @@ export class RetrievalRank extends Service {
       throw new RetrievalRankConfigError(`retrieval-rank: config.root cannot be pinned to a real directory (${error instanceof Error ? error.message : String(error)})`)
     }
     this.collectionName = config.collection ?? 'code-chunks'
+    this.collectionOwner = config.collectionOwner ?? createHash('sha256').update(this.root).digest('hex')
     this.k = config.k ?? 10
     this.weight = config.weight ?? 0.5
     this.rrfK = config.rrfK ?? 60
@@ -86,6 +89,7 @@ export class RetrievalRank extends Service {
     this.maxHitChars = config.maxHitChars ?? 1500
     this.indexGroupChunks = config.indexGroupChunks ?? 512
     if (typeof this.collectionName !== 'string' || !this.collectionName.trim()) throw new RetrievalRankConfigError('retrieval-rank: collection must be a non-empty string')
+    if (typeof this.collectionOwner !== 'string' || !this.collectionOwner.trim() || this.collectionOwner.length > 256 || this.collectionOwner.includes('\0')) throw new RetrievalRankConfigError('retrieval-rank: collectionOwner must be a non-empty string of at most 256 characters without NUL')
     if (!(this.weight >= 0 && this.weight <= 1)) throw new RetrievalRankConfigError('retrieval-rank: weight must be between 0 and 1')
     if (this.minVectorScore !== undefined && !(this.minVectorScore >= -1 && this.minVectorScore <= 1)) throw new RetrievalRankConfigError('retrieval-rank: minVectorScore must be between -1 and 1')
     for (const [n, v] of [['k', this.k], ['rrfK', this.rrfK], ['vectorTopK', this.vectorTopK], ['windowLines', this.chunkOpts.windowLines], ['maxChunkLines', this.chunkOpts.maxChunkLines], ['indexGroupChunks', this.indexGroupChunks], ['maxFileBytes', this.maxFileBytes], ['maxCandidateChunks', this.maxCandidateChunks], ['maxHitChars', this.maxHitChars], ['maxChunkChars', this.chunkOpts.maxChunkChars]] as const) {
@@ -259,7 +263,7 @@ export class RetrievalRank extends Service {
     if (!e.ok) return { ok: false, reason: `embeddings ${e.error.kind}: ${e.error.detail}` }
     const info = emb.info()
     if (!info?.fingerprint || !info.dimensions) return { ok: false, reason: 'embeddings did not report a fingerprint' }
-    const opened = await vs.open(this.collectionName, { fingerprint: info.fingerprint, dimensions: info.dimensions })
+    const opened = await vs.open(this.collectionName, { fingerprint: info.fingerprint, dimensions: info.dimensions, owner: this.collectionOwner })
     if (!opened.ok) return { ok: false, reason: `vectorstore ${opened.error.kind}: ${opened.error.detail}` }
     const q = await opened.collection.query(e.vectors[0] as Float32Array, this.vectorTopK)
     if (!q.ok) return { ok: false, reason: `vectorstore ${q.error.kind}: ${q.error.detail}` }
@@ -359,7 +363,7 @@ export class RetrievalRank extends Service {
     // Open the collection first: we need it to see what is already stored.
     const fp = await this.fingerprintOf(emb)
     if ('error' in fp) return { ok: false, error: { kind: 'embeddings', detail: fp.error } }
-    const opened = await vs.open(this.collectionName, { fingerprint: fp.fingerprint, dimensions: fp.dimensions, reset: opts.reset === true })
+    const opened = await vs.open(this.collectionName, { fingerprint: fp.fingerprint, dimensions: fp.dimensions, owner: this.collectionOwner, reset: opts.reset === true })
     if (!opened.ok) return { ok: false, error: { kind: 'vectorstore', detail: `${opened.error.kind}: ${opened.error.detail}` } }
     const col = opened.collection
 
@@ -412,8 +416,6 @@ export class RetrievalRank extends Service {
       }
       let at = 0
       for (const g of group) {
-        const d = await col.deleteSource(g.file)
-        if (!d.ok) return { ok: false, error: { kind: 'vectorstore', detail: `${d.error.kind}: ${d.error.detail}` } }
         const records = g.chunks.map((c, i) => ({
           id: c.id,
           vector: vectors[at + i] as Float32Array,
@@ -421,8 +423,22 @@ export class RetrievalRank extends Service {
           metadata: { file: c.file, startLine: c.startLine, endLine: c.endLine, kind: c.kind, hash: c.id.slice(c.id.lastIndexOf('#') + 1), ...(c.name ? { name: c.name } : {}) },
         }))
         at += g.chunks.length
-        const u = await col.upsert(records)
-        if (!u.ok) return { ok: false, error: { kind: 'vectorstore', detail: `${u.error.kind}: ${u.error.detail}` } }
+        if (col.replaceSource) {
+          const replaced = await col.replaceSource(g.file, records)
+          if (!replaced.ok) return { ok: false, error: { kind: 'vectorstore', detail: replaced.error.kind + ': ' + replaced.error.detail } }
+        } else {
+          // Compatibility path for third-party stores: write new rows before deleting stale ids.
+          const existing = await col.idsForSource(g.file)
+          if (!existing.ok) return { ok: false, error: { kind: 'vectorstore', detail: existing.error.kind + ': ' + existing.error.detail } }
+          const upserted = records.length > 0 ? await col.upsert(records) : { ok: true as const, written: 0 }
+          if (!upserted.ok) return { ok: false, error: { kind: 'vectorstore', detail: upserted.error.kind + ': ' + upserted.error.detail } }
+          const nextIds = new Set(records.map((record) => record.id))
+          const staleIds = existing.ids.filter((id) => !nextIds.has(id))
+          if (staleIds.length > 0) {
+            const deleted = await col.deleteIds(staleIds)
+            if (!deleted.ok) return { ok: false, error: { kind: 'vectorstore', detail: deleted.error.kind + ': ' + deleted.error.detail } }
+          }
+        }
         embeddedFiles++
         embeddedChunks += g.chunks.length
       }
@@ -456,7 +472,7 @@ export class RetrievalRank extends Service {
     if (!emb || !vs) return { ok: false, error: { kind: 'unavailable', detail: 'embeddings or vectorstore is not available' } }
     const info = await this.fingerprintOf(emb)
     if ('error' in info) return { ok: false, error: { kind: 'unavailable', detail: info.error } }
-    const o = await vs.open(this.collectionName, { fingerprint: info.fingerprint, dimensions: info.dimensions })
+    const o = await vs.open(this.collectionName, { fingerprint: info.fingerprint, dimensions: info.dimensions, owner: this.collectionOwner })
     if (!o.ok) return { ok: false, error: { kind: 'vectorstore', detail: `${o.error.kind}: ${o.error.detail}` } }
     let removed = 0
     for (const f of new Set(files)) {

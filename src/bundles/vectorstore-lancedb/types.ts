@@ -25,6 +25,7 @@ export type VectorStoreErrorKind =
   | 'input' // bad name, id, vector value, k, metadata ...
   | 'dimension_mismatch' // a vector's length is not the collection's dimensions
   | 'fingerprint_mismatch' // the stored collection was built with a different embedding model/setting
+  | 'owner_mismatch' // the stored collection belongs to a different project owner
   | 'corrupt' // a table exists under that name but this store did not create it (or it is damaged)
   | 'closed' // the store or collection has been disposed
   | 'io'
@@ -40,6 +41,8 @@ export interface OpenCollectionOptions {
    */
   fingerprint: string
   dimensions: number
+  /** Optional project identity. Owned collections cannot be opened without the same owner. */
+  owner?: string
   /** Drop any existing collection of this name first and start empty (use after changing the embedding model). */
   reset?: boolean
 }
@@ -50,6 +53,8 @@ export interface VectorCollection {
   readonly dimensions: number
   /** Insert or replace by `id`. All records are validated first: either all are written or none. Duplicate ids within one call: the last wins. */
   upsert(records: readonly VectorRecord[]): Promise<VectorStoreResult<{ written: number }>>
+  /** Optional failure-safe source replacement. New rows are written before stale rows are removed. */
+  replaceSource?(source: string, records: readonly VectorRecord[]): Promise<VectorStoreResult<{ written: number; deleted: number }>>
   /** The `k` most similar records (1..1000), best first; ties broken by id. */
   query(vector: ArrayLike<number>, k: number, opts?: { source?: string }): Promise<VectorStoreResult<{ hits: VectorHit[] }>>
   /** Returns how many records were removed. Ids that do not exist are ignored. */
