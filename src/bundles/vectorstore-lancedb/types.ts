@@ -25,6 +25,7 @@ export type VectorStoreErrorKind =
   | 'input' // bad name, id, vector value, k, metadata ...
   | 'dimension_mismatch' // a vector's length is not the collection's dimensions
   | 'fingerprint_mismatch' // the stored collection was built with a different embedding model/setting
+  | 'ownership_mismatch' // the collection belongs to a different feature or project
   | 'corrupt' // a table exists under that name but this store did not create it (or it is damaged)
   | 'closed' // the store or collection has been disposed
   | 'io'
@@ -40,6 +41,8 @@ export interface OpenCollectionOptions {
    */
   fingerprint: string
   dimensions: number
+  /** Stable feature/project owner. A collection cannot be opened or reset by a different owner. */
+  owner?: string
   /** Drop any existing collection of this name first and start empty (use after changing the embedding model). */
   reset?: boolean
 }
