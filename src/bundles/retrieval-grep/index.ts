@@ -47,18 +47,30 @@ const SECRET_EXCLUDES = [
   '!**/secrets.json', '!**/secrets.toml', '!**/etc/shadow', '!**/proc/self/environ',
 ]
 
+function comparablePath(path: string): string {
+  const absolute = resolve(path)
+  if (process.platform !== 'win32') return absolute
+  // Node realpath may return the Win32 extended-length namespace while child
+  // processes such as ripgrep return ordinary drive paths. Compare both forms
+  // in the same namespace, but retain case for the relative path returned to callers.
+  return absolute.replace(/^\\\\\?\\UNC\\/i, '\\\\').replace(/^\\\\\?\\/, '')
+}
+
 function sameCanonicalPath(a: string, b: string): boolean {
   const normalize = (path: string) => {
-    const absolute = resolve(path)
-    if (process.platform !== 'win32') return absolute
-    return absolute.replace(/^\\\\\\?\\UNC\\/i, '\\\\').replace(/^\\\\\\?\\/, '').replace(/[\\/]+$/, '').toLowerCase()
+    const absolute = comparablePath(path)
+    return process.platform === 'win32' ? absolute.replace(/[\\/]+$/, '').toLowerCase() : absolute
   }
   return normalize(a) === normalize(b)
 }
 
-/** True if `target` is `root` or lies under it. Both must already be real, absolute paths. */
+function relativePath(root: string, target: string): string {
+  return relative(comparablePath(root), comparablePath(target))
+}
+
+/** True if \`target\` is \`root\` or lies under it. Both must already be real, absolute paths. */
 function isInside(root: string, target: string): boolean {
-  const rel = relative(root, target)
+  const rel = relativePath(root, target)
   if (rel === '') return true
   if (isAbsolute(rel)) return false // different drive on Windows
   return rel !== '..' && !rel.startsWith('..' + sep)
@@ -102,7 +114,7 @@ export function parseRgJson(
       }
     }
     if (!isInside(root, real)) continue
-    const file = relative(root, real).split(sep).join('/')
+    const file = relativePath(root, real).split(sep).join('/')
     if (isAlwaysExcludedPath(file)) continue
     let entry = files.get(file)
     if (!entry) files.set(file, (entry = { matches: [], total: 0 }))
@@ -260,7 +272,7 @@ export class RetrievalGrep extends Service {
       if (!raw) continue
       const abs = resolve(realRoot, raw)
       if (!isInside(realRoot, abs)) continue
-      const file = relative(realRoot, abs).split(sep).join('/')
+      const file = relativePath(realRoot, abs).split(sep).join('/')
       if (isAlwaysExcludedPath(file)) continue
       files.push(file)
     }
