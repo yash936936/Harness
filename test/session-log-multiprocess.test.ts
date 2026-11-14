@@ -65,6 +65,20 @@ describe('BUG-07: concurrent processes on one session log', () => {
     expect(events.map((event) => [event.seq, event.type])).toEqual([[1, 'before-crash'], [2, 'after-restart']])
   }, 20_000)
 
+  it('reuses a validated tail and invalidates it after same-size external mutation', async () => {
+    const dir = tmp()
+    const store = new JsonlStore(dir)
+    await store.withLock('cached', async () => {
+      const seq = await store.lastSeq('cached')
+      await store.append({ seq: seq + 1, ts: 't', sessionId: 'cached', type: 'first', data: null })
+    })
+    const file = join(dir, 'cached.jsonl')
+    const original = readFileSync(file, 'utf8')
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    writeFileSync(file, original.replace('"seq":1', '?seq":1'), 'utf8')
+    await expect(store.lastSeq('cached')).rejects.toThrow(/Corrupt session log/)
+  })
+
   it('lastSeq reads the tail correctly, including a very long final event and a torn last line', async () => {
     const dir = tmp()
     const store = new JsonlStore(dir)
