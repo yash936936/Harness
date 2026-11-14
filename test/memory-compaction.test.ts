@@ -1,5 +1,5 @@
 import { Context } from 'cordis'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -9,6 +9,7 @@ import { ToolRegistry } from '../src/bundles/tool-registry/index.js'
 import { LLMService, MockProvider } from '../src/bundles/model-adapter/index.js'
 import { AgentLoop } from '../src/bundles/agent-loop/index.js'
 import { Memory, MemoryError, lessonId, normaliseLesson, type MemoryConfig } from '../src/bundles/memory/index.js'
+import { Compaction } from '../src/bundles/memory/compaction.js'
 
 const dirs: string[] = []
 afterEach(async () => {
@@ -159,6 +160,44 @@ describe('compaction (3.4): promotes a recurring lesson', () => {
     expect(results.reduce((n, result) => n + result.promoted.length, 0)).toBe(1)
     expect(results.reduce((n, result) => n + result.skipped.alreadyPromoted, 0)).toBe(1)
     expect(await second.memory.hot.list()).toHaveLength(1)
+  })
+
+  it.skipIf(process.platform === 'win32')('refuses a symlinked compaction directory before creating a lock or ledger', async () => {
+    const root = await tmp()
+    const outside = await tmp()
+    await symlink(outside, join(root, 'redirected'), 'dir')
+    const episodes = Array.from({ length: 3 }, (_, i) => ({ lesson: 'same safe lesson', agentId: 'main', sessionId: `s${i}` }))
+    const hot = { list: async () => [], add: async () => {} }
+    const compaction = new Compaction({ query: async () => episodes } as never, hot as never, join(root, 'redirected'), { minOccurrences: 2, promotedPriority: -1 }, () => new Date())
+    await expect(compaction.run()).rejects.toThrow(/state path parent is not a real directory/)
+    expect(await readdir(outside)).toEqual([])
+  })
+
+  it.skipIf(process.platform === 'win32')('refuses a symlinked compaction ledger without reading or replacing its target', async () => {
+    const dir = await tmp()
+    const outside = await tmp()
+    const target = join(outside, 'sentinel.txt')
+    await writeFile(target, 'leave this file unchanged', 'utf8')
+    await symlink(target, join(dir, 'compaction.json'))
+    const episodes = Array.from({ length: 3 }, (_, i) => ({ lesson: 'same safe lesson', agentId: 'main', sessionId: `s${i}` }))
+    const hot = { list: async () => [], add: async () => {} }
+    const compaction = new Compaction({ query: async () => episodes } as never, hot as never, dir, { minOccurrences: 2, promotedPriority: -1 }, () => new Date())
+    await expect(compaction.run()).rejects.toThrow(/state file is not a regular non-symlink file/)
+    expect(await readFile(target, 'utf8')).toBe('leave this file unchanged')
+  })
+
+  it.skipIf(process.platform === 'win32')('does not follow a predictable temporary-path symlink when replacing the compaction ledger', async () => {
+    const dir = await tmp()
+    const outside = await tmp()
+    const target = join(outside, 'sentinel.txt')
+    await writeFile(target, 'leave this file unchanged', 'utf8')
+    await symlink(target, join(dir, `compaction.json.${process.pid}.tmp`))
+    const episodes = Array.from({ length: 3 }, (_, i) => ({ lesson: 'same safe lesson', agentId: 'main', sessionId: `s${i}` }))
+    const hot = { list: async () => [], add: async () => {} }
+    const compaction = new Compaction({ query: async () => episodes } as never, hot as never, dir, { minOccurrences: 2, promotedPriority: -1 }, () => new Date())
+    const result = await compaction.run()
+    expect(result.promoted).toHaveLength(1)
+    expect(await readFile(target, 'utf8')).toBe('leave this file unchanged')
   })
 
   it('does not treat a lesson named __proto__ as already promoted', async () => {

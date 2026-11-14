@@ -1,6 +1,7 @@
 import { constants as fsConstants } from 'node:fs'
 import { lstat, mkdir, open, readdir } from 'node:fs/promises'
 import { withFileLock } from '../../util/filelock.js'
+import { assertNoSymlinkParents } from '../../util/secure-file.js'
 import { join } from 'node:path'
 import type { SessionEvent, SessionStore } from './types.js'
 
@@ -44,6 +45,7 @@ export class JsonlStore implements SessionStore {
    */
   private async openRegular(id: string, flags: number, mode?: number) {
     const file = this.file(id)
+    await assertNoSymlinkParents(file)
     try {
       const before = await lstat(file)
       if (!before.isFile() || before.isSymbolicLink()) {
@@ -57,6 +59,7 @@ export class JsonlStore implements SessionStore {
     const handle = await open(file, flags | noFollow, mode)
     try {
       const opened = await handle.stat()
+      await assertNoSymlinkParents(file)
       const after = await lstat(file)
       if (!after.isFile() || after.isSymbolicLink() ||
           (process.platform !== 'win32' && opened.ino !== 0 && (after.ino !== opened.ino || after.dev !== opened.dev))) {
@@ -71,8 +74,11 @@ export class JsonlStore implements SessionStore {
 
   /** Exclude other PROCESSES appending to this session (BUG-07). Held only for one read-tail + one append. */
   async withLock<T>(sessionId: string, fn: () => Promise<T>): Promise<T> {
+    const file = this.file(sessionId)
+    await assertNoSymlinkParents(file)
     await mkdir(this.dir, { recursive: true })
-    return withFileLock(`${this.file(sessionId)}.lock`, fn)
+    await assertNoSymlinkParents(file)
+    return withFileLock(`${file}.lock`, fn)
   }
 
   /**
@@ -149,7 +155,10 @@ export class JsonlStore implements SessionStore {
   }
 
   async append(event: SessionEvent) {
+    const file = this.file(event.sessionId)
+    await assertNoSymlinkParents(file)
     await mkdir(this.dir, { recursive: true })
+    await assertNoSymlinkParents(file)
     const fh = await this.openRegular(event.sessionId, fsConstants.O_WRONLY | fsConstants.O_APPEND | fsConstants.O_CREAT, 0o600)
     try {
       await fh.appendFile(JSON.stringify(event) + '\n', 'utf8')
@@ -189,6 +198,7 @@ export class JsonlStore implements SessionStore {
   }
 
   async list() {
+    await assertNoSymlinkParents(join(this.dir, '.session-log-path-check'))
     try {
       const names = await readdir(this.dir)
       return names.filter((n) => n.endsWith('.jsonl')).map((n) => n.slice(0, -6))

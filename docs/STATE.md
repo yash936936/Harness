@@ -70,10 +70,14 @@ These constraints must be enforced in the Phase 2 design and tests. Changing the
 | AUD-014, AUD-025 | Add bounded searchable memory, pagination, quotas, and resumable semantic reindexing. |
 | AUD-015, AUD-044 | Move budget, rate-limit, and concurrency reservations to transactional shared state. |
 | AUD-016 | Bound indexing memory and evaluate vector-search scaling. |
-| AUD-021 | Await and report cleanup after late sandbox-create cancellation. |
+
 | AUD-023 | Enforce output byte limits while streaming with bounded buffering. |
 | AUD-039 | Add task-scoped workspace lifecycle, capabilities, leases, transfer, and result synchronization. |
+| AUD-048 | Fixed in open PR #101: session-log files, locks, and listing reject symlinked parent directories; current expanded head passed CI run #768. |
+| AUD-049 | Fixed in open PR #101: compaction ledger no-follow reads, parent validation, and unique exclusive temp-file replacement; current expanded head passed CI run #768. |
 | Audit remainder | Complete the file-by-file audit and verify each checklist status against code and tests. |
+
+AUD-021 is fixed in main: late sandbox creation is awaited, cleanup is confirmed before cancellation returns, and cleanup failure is surfaced by the adapter. The command tool fails the task when `released` is false. AUD-048 is fixed in the current PR branch; its previous head passed CI run #763. AUD-049 is fixed in open PR #101; the no-follow ledger, parent validation, random exclusive temp file, and regression tests passed CI run #768.
 
 Withdrawn findings AUD-009, AUD-022, and AUD-027 remain withdrawn unless new evidence changes the conclusion.
 

@@ -1,5 +1,5 @@
 import { Context } from 'cordis'
-import { mkdtemp, readFile, appendFile, writeFile, symlink, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, appendFile, writeFile, symlink, rm, readdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -36,6 +36,21 @@ describe('bundle-session-log', () => {
     await expect(ctx.log.read('linked')).rejects.toThrow(/regular non-symlink file/)
     await expect(ctx.log.append('linked', 'overwrite')).rejects.toThrow(/regular non-symlink file/)
     expect(await readFile(external, 'utf8')).toBe('DO NOT MODIFY')
+    await rm(outside, { recursive: true, force: true })
+    await rm(dir, { recursive: true, force: true })
+  })
+
+  it.skipIf(process.platform === 'win32')('refuses symlinked session directories and ancestors', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'slog-parent-symlink-'))
+    const outside = await mkdtemp(join(tmpdir(), 'slog-parent-outside-'))
+    await symlink(outside, join(dir, 'redirected'), 'dir')
+    const ctx = await boot({ path: join(dir, 'redirected', 'sessions') })
+
+    await expect(ctx.log.append('blocked', 'must-not-write')).rejects.toThrow(/state path parent is not a real directory/)
+    await expect(ctx.log.read('blocked')).rejects.toThrow(/state path parent is not a real directory/)
+    await expect(ctx.log.list()).rejects.toThrow(/state path parent is not a real directory/)
+    expect(await readdir(outside)).toEqual([])
+
     await rm(outside, { recursive: true, force: true })
     await rm(dir, { recursive: true, force: true })
   })

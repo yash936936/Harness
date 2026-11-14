@@ -27,6 +27,7 @@ Composes the episodic and hot memory tiers behind `ctx.memory`. It records one l
 - The semantic tier is optional and depends on embeddings plus a vector store. Its presence does not prove live retrieval quality.
 - The token estimate defaults to `ceil(chars / 3)`; there is no tokenizer in this project.
 - Compaction uses deterministic templates and configured thresholds, not a model-generated summary.
+- The persistent compaction ledger rejects symlinked parent/final paths and uses exclusive, unique temporary files for atomic replacement.
 
 ---
 **Next:** Return to [`context.md`](../../context.md).
