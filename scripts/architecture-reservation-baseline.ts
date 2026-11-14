@@ -52,61 +52,57 @@ function stats(values: number[]) {
   }
 }
 
-async function waitForWorkers(children: ChildProcess[], count: number, type: 'ready' | 'result'): Promise<WorkerMessage[]> {
-  return new Promise((resolve, reject) => {
-    const messages: WorkerMessage[] = []
-    const seen = new Set<ChildProcess>()
-    const timeout = setTimeout(() => reject(new Error(`reservation benchmark timed out waiting for worker ${type}`)), 30_000)
-    const finish = () => {
-      if (seen.size !== count) return
-      clearTimeout(timeout)
-      resolve(messages)
-    }
-    for (const child of children) {
-      child.on('message', (raw: unknown) => {
-        const message = raw as WorkerMessage
-        if (!message || message.type !== type || seen.has(child)) return
-        seen.add(child)
-        messages.push(message)
-        finish()
-      })
-      child.once('error', (error) => {
-        clearTimeout(timeout)
-        reject(error)
-      })
-      child.once('exit', (code) => {
-        if (code !== 0 && seen.size !== count) {
-          clearTimeout(timeout)
-          reject(new Error(`reservation benchmark worker exited with code ${code}`))
-        }
-      })
-    }
-  })
-}
-
 async function runRound(processCount: number, root: string, sample: number) {
   const statePath = join(root, `reservation-state-${processCount}-${sample}.json`)
   const seed = new Budgets({ requests: { day: { hard: HARD_LIMIT } }, statePath })
   seed.record('requests', 0)
   const started = performance.now()
-  const children = Array.from({ length: processCount }, () => fork(fileURLToPath(import.meta.url), [], {
-    execArgv: process.execArgv,
-    env: {
-      ...process.env,
-      HARNESS_RESERVATION_BENCH_WORKER: '1',
-      HARNESS_RESERVATION_BENCH_STATE: statePath,
-    },
-    stdio: ['ignore', 'ignore', 'inherit', 'ipc'],
-  }))
+  const ready = new Set<ChildProcess>()
+  const results: WorkerMessage[] = []
+  let resolveReady!: () => void
+  let resolveResults!: (messages: WorkerMessage[]) => void
+  let rejectFailure!: (error: Error) => void
+  const readyPromise = new Promise<void>((resolve) => { resolveReady = resolve })
+  const resultsPromise = new Promise<WorkerMessage[]>((resolve) => { resolveResults = resolve })
+  const failurePromise = new Promise<never>((_resolve, reject) => { rejectFailure = reject })
+  const children = Array.from({ length: processCount }, () => {
+    const child = fork(fileURLToPath(import.meta.url), [], {
+      execArgv: process.execArgv,
+      env: {
+        ...process.env,
+        HARNESS_RESERVATION_BENCH_WORKER: '1',
+        HARNESS_RESERVATION_BENCH_STATE: statePath,
+      },
+      stdio: ['ignore', 'ignore', 'inherit', 'ipc'],
+    })
+    child.on('message', (raw: unknown) => {
+      const message = raw as WorkerMessage
+      if (message?.type === 'ready') {
+        ready.add(child)
+        if (ready.size === processCount) resolveReady()
+      } else if (message?.type === 'result') {
+        results.push(message)
+        if (results.length === processCount) resolveResults(results)
+      }
+    })
+    child.once('error', rejectFailure)
+    child.once('exit', (code) => {
+      if (code !== 0 && results.length !== processCount) {
+        rejectFailure(new Error(`reservation benchmark worker exited with code ${code}`))
+      }
+    })
+    return child
+  })
+  const timeout = setTimeout(() => rejectFailure(new Error('reservation benchmark worker timed out')), 30_000)
   try {
-    await waitForWorkers(children, processCount, 'ready')
+    await Promise.race([readyPromise, failurePromise])
     const startupMs = performance.now() - started
     const contentionStarted = performance.now()
     for (const child of children) child.send({ type: 'go' })
-    const results = await waitForWorkers(children, processCount, 'result')
+    const messages = await Promise.race([resultsPromise, failurePromise])
     const contentionMs = performance.now() - contentionStarted
-    const accepted = results.filter((message) => message.type === 'result' && message.accepted).length
-    const rejected = results.length - accepted
+    const accepted = messages.filter((message) => message.type === 'result' && message.accepted).length
+    const rejected = messages.length - accepted
     return {
       processCount,
       accepted,
@@ -117,6 +113,7 @@ async function runRound(processCount: number, root: string, sample: number) {
       contentionMs: Number(contentionMs.toFixed(3)),
     }
   } finally {
+    clearTimeout(timeout)
     for (const child of children) {
       if (child.exitCode === null && child.signalCode === null) child.kill()
     }
@@ -165,7 +162,7 @@ if (WORKER) {
     console.log(output)
     if (process.env.GITHUB_STEP_SUMMARY) {
       const { appendFile } = await import('node:fs/promises')
-      await appendFile(process.env.GITHUB_STEP_SUMMARY, `\\n## Independent-process reservation baseline\\n\\n\\`\\`\\`json\\n${output}\\n\\`\\`\\`\\n`)
+      await appendFile(process.env.GITHUB_STEP_SUMMARY, ['', '## Independent-process reservation baseline', '', '\`\`\`json', output, '\`\`\`', ''].join('\\n'))
     }
   } finally {
     await rm(root, { recursive: true, force: true })
