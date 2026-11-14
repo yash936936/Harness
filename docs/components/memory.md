@@ -28,6 +28,7 @@ Composes the episodic and hot memory tiers behind `ctx.memory`. It records one l
 - The token estimate defaults to `ceil(chars / 3)`; there is no tokenizer in this project.
 - Compaction uses deterministic templates and configured thresholds, not a model-generated summary.
 - The persistent compaction ledger rejects symlinked parent/final paths and uses exclusive, unique temporary files for atomic replacement.
+- Semantic fact mutations and vector-index writes share a serialized lock. A delayed embedding cannot overwrite a newer same-ID fact, and a removal cannot delete a replacement's vector.
 
 ---
 **Next:** Return to [`context.md`](../../context.md).
