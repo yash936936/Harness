@@ -1,31 +1,33 @@
 # Current project state
 
-Updated 2026-11-14. This is the single compact source of truth for current scope, implementation status, blockers, and next work. Older status entries and audit snapshots are historical.
+Updated 2026-11-14. This file records the current implementation state and binding project constraints. The active implementation order is in [ROADMAP.md](ROADMAP.md), architecture choices are in [decisions.md](decisions.md), and detailed audit findings are in [CODEBASE-AUDIT-CHECKLIST.md](CODEBASE-AUDIT-CHECKLIST.md).
 
 ## Binding decisions
 
 | Decision | Current rule |
 |---|---|
-| D-110 | S0 / Docker, WSL, Crabbox is PERMANENT-HOLD. S1 is deferred. No probes, retries, or workarounds. |
-| D-117 | Development commands may run only in an explicitly selected remote cloud sandbox. No host/local fallback. Cloud-hosted model testing is the target. |
-| D-118 | Vercel Sandbox is the first cloud provider. The provider-neutral sandbox interface remains. Selection does not mean integration or acceptance. |\n| D-119 | SQLite shared state (single-host initial scope), capability-based task workspaces, hybrid memory retention, and backward-compatible internal migration. |
-| D-116 D3 / D-109 | Three demo sessions are qualitative. Scoring requires 10+ genuine sessions (20+ if available), owner-authored good/bad labels committed and hashed before scoring. |
-| D-115 | Sample/research prototype only. No package, release, hosted distribution, or model-weight distribution. |
-| D-114 | Qwen 7B artifact work is excluded. The old 3B-only testing restriction is superseded only by D-117's cloud-hosted testing scope. |
+| D-110 | S0 / Docker, WSL, Crabbox is PERMANENT-HOLD. S1 is deferred. No probes, retries, diagnostics, or workarounds. |
+| D-117 | Development commands may run only in an explicitly selected remote cloud sandbox. No host/local fallback. |
+| D-118 | Vercel Sandbox is the first cloud provider. Provider selection is not integration or acceptance. |
+| D-119 | SQLite is the first shared transactional backend behind domain interfaces; add capability-based task workspaces alongside the one-shot API; separate durable history from bounded searchable memory; preserve public APIs, providers, and persisted formats. Initial policy: multi-process/single-host only on supported local filesystems, one database per project, no automatic durable-history deletion, and crash resume only after lease expiry, explicit ownership, and provider-validated recovery. |
+| D-116 D3 / D-109 | Three demo sessions are qualitative. Scoring requires 10+ genuine sessions (20+ if available), with owner-authored good/bad labels committed and hashed before scoring. |
+| D-115 | Research prototype only. No package, release, hosted distribution, or model-weight distribution. |
+| D-114 | Qwen 7B artifact work is excluded. |
 
-## Current implementation
+## Implementation status
 
 | Area | State | Boundary |
 |---|---|---|
-| Core harness, profiles, tools, policy gates, retrieval, memory, orchestrator | Implemented; CI-tested | Does not establish live model quality or external acceptance. |
+| Core harness, profiles, tools, policy gates, retrieval, memory, orchestrator | Implemented; CI-tested | CI does not establish live model quality or external acceptance. |
 | Sandbox service and provider contract | Implemented | Provider presence is not live execution proof. |
-| Vercel Sandbox adapter | Implemented, fake-client tested | Requests non-persistent, deny-all sandbox; argv command; delete in cleanup. Not live-verified. |
-| Vercel SDK dependency | Scoped override pins nested `@vercel/cli-config` Zod to 4.6.7 | `npm audit --omit=dev --audit-level=high` passes on the audit branch; no audit suppression or SDK downgrade. |
-| Project workspace transfer | Not implemented | No project files are currently transferred to the Vercel sandbox. |
-| Result synchronization | Not implemented | No remote changes are safely collected/applied to the local project. |
-| Provider lifecycle audit | Incomplete | Add events for request, lease, command, timeout/cancel, cleanup, and failures. |
-| Coding profile/CLI provider selection | Not integrated | `COMMAND_TOOL` remains filtered. Do not enable it. |
-| Cloud model authentication | Partially verified | OpenRouter-compatible path exists. Ollama cloud authentication/API compatibility is unverified. |
+| Vercel Sandbox adapter | Implemented; fake-client tested | Non-persistent, deny-all, argv-only execution with cleanup attempt. Not live-verified. |
+| Workspace transfer and result synchronization | Not implemented | No project snapshot transfer or conflict-safe result application. |
+| Provider lifecycle audit | Incomplete | Must capture request, lease, command, timeout/cancel, cleanup, and failures. |
+| Coding profile command tool | Disabled | Do not enable `run_command` until workspace transfer, result sync, lifecycle audit, and policy integration are accepted. |
+| Shared-state SQLite provider | Not implemented | Phase 2, after Phase 1 policy gates. |
+| Architecture contracts | Drafted on `architecture/phase-1-contracts-2026-11` | Type-only interfaces and migration specification; no runtime changes yet. Four D-119 policy choices are approved; numeric performance baselines remain. |
+| Memory scaling changes | Not implemented | AUD-007/008/014/025 remain open. |
+| Streaming output enforcement | Not implemented | AUD-023 remains open. |
 
 ## Acceptance state
 
@@ -34,34 +36,49 @@ Updated 2026-11-14. This is the single compact source of truth for current scope
 | S0 | PERMANENT-HOLD | No further work under D-110. |
 | S1 | DEFERRED | Depends on S0. |
 | S3 | CLOSED (D-111) | File-tool/policy acceptance only. No sandbox acceptance implied. |
-| S4 | OPEN, CLOUD-ONLY PLAN | Complete governed project workflow in Vercel Sandbox with live evidence. Not passed. |
+| S4 | OPEN, CLOUD-ONLY PLAN | Complete governed Vercel workflow with live evidence. Not passed. |
 | S5 / ENG-04 | OUT OF SCOPE (D-115) | Reopen only if distribution is approved. |
 | S6 | OPEN | D-109 genuine-session and owner-label requirements. |
-| S7 | OPEN / RECONCILE | Reconcile historical live embedding/poisoning evidence with current main; rerun only missing or stale checks. |
-| R3 demo | NOT STARTED | Three qualitative sessions, reviewed summary, measured cold start, Windows quickstart, demo script. |
+| S7 | OPEN / RECONCILE | Reconcile historical embedding/poisoning evidence with current main; rerun only missing or stale checks. |
+| R3 demo | NOT STARTED | Three qualitative sessions, reviewed summary, measured cold start, Windows quickstart, and demo script. |
 
-## Current CI and repository controls
+## CI and merge status
 
-- Main baseline for the audit branch: `81d7bf837254b8526b60aa240d6a31923647a890`.
-- Audit branch CI run `43516548037` passed on commit `30401b9267fbf5e2578b752f61ba802a2e1dba1c`: Ubuntu and Windows install, typecheck, lint, and tests; docs/component drift; secret scan; dependency audit; and license inventory. The run does not update `main`; PR #92 remains a draft and unmerged.
-- GitHub reports `main.protected=false`. The owner must enable PR-only merging, require `ci-pass`, require up-to-date branches, block force pushes/deletions, and disable admin bypass.
+- PR #93, `audit/full-codebase-review-2026-11`, merged on 2026-11-14 as `8ee08673bd03b8548c44612093b447fadb03ce26`.
+- CI run #724 on PR head `5741d23058dca0dc0112810e6c35fa87a47e8d0f` passed: Ubuntu and Windows on Node 20.19.0 and 22.12.0, typecheck, lint, full tests, docs/component drift, secret scan, dependency audit, license inventory, and `ci-pass`.
+- The green run verifies the PR head. It is not a live sandbox/model acceptance result.
+- Phase 0 is complete. Phase 1 contract artifacts and the four D-119 policy decisions are recorded on PR #94. Its CI run #726 passed all matrix and required verification jobs. Numeric performance baselines remain before Phase 1 can close.
 
-## Architecture decisions (D-119)\n\n- SQLite is the first shared transactional store, initially for multiple processes on one machine and a supported local filesystem. Keep a backend interface; no multi-machine guarantee.\n- Add capability-based task workspace sessions alongside the one-shot sandbox API. Bind capabilities to task/session, operation, path scope, expiry, and revocation.\n- Keep durable append-only history separate from bounded, rebuildable searchable memory. No automatic durable-history deletion until a retention policy is approved.\n- Preserve public APIs, provider contracts, persisted formats, and caller-visible behavior through adapters and incremental migration.\n- Initial defaults: one SQLite database per project; workspace resume only through explicit lease ownership and validated provider recovery.\n\n## Latest audit PR verification\n\n- PR #93 latest checked head: `52b61b4a30280e86f6ae1214f1a59ec7828d4a8b`. CI run `43527326589` failed on both Ubuntu and Windows in `npm test`; typecheck, lint, docs, secret/dependency checks, and license inventory passed. This run is not a green baseline. The failure details and remediation are tracked in the PR follow-up.\n\n## Ordered moving-forward plan
+## D-119 approved deployment and operating policy
 
-1. **Keep the CI/security baseline green.** The nested Zod advisory is resolved on the audit branch with a scoped `@vercel/cli-config` override to 4.6.7. Re-run all checks after remaining audit changes; do not suppress audit or downgrade the Vercel SDK.
-2. **Complete workspace transfer design.** Define a deterministic project snapshot, exclude secrets and sensitive paths, reject symlinks/path traversal, bound file count/size, and preserve Git metadata safely.
-3. **Implement safe result synchronization.** Collect a bounded patch/result manifest, validate paths and hashes, detect local conflicts, and apply only after policy/approval. Never overwrite unrelated local changes.
-4. **Add lifecycle audit and failure handling.** Log consent, provider host, lease, command argv/cwd, approval, timestamps, exit, bounded redacted output, timeout/cancel, and verified cleanup. Cleanup failure is task failure.
-5. **Integrate provider explicitly.** Register Vercel in the coding profile and CLI only after steps 2-4 pass. Keep the command tool unavailable otherwise. No fallback.
-6. **Verify cloud model path.** Keep OpenRouter as the current compatible route. Verify Ollama cloud auth/API before adding it to acceptance. Record provider, model, endpoint host, and hosting class.
-7. **Run staged acceptance.** Provider smoke in empty sandbox, workspace round-trip, approved/denied/hard-denied command cases, full build/test workflow, cleanup failure, and secret-leak tests. CI and fakes are not live acceptance.
-8. **Close S6/S7 and demo evidence.** Follow D-109 for scoring. Reconcile existing S7 evidence and run only missing current-main checks. Produce the three qualitative demo sessions separately.
-9. **Owner repository action.** Enable branch protection and verify required `ci-pass`.
+The four owner decisions are approved and binding for the initial implementation:
 
-## No-go list
+1. **Topology:** multiple local processes on one host, using a supported local filesystem. Multi-machine shared state and arbitrary network filesystems are unsupported.
+2. **Database ownership:** one SQLite database per project.
+3. **Durable history:** retain indefinitely by default. No automatic deletion. A retention or deletion workflow requires a separate approved policy.
+4. **Crash recovery:** resume only after lease expiry, explicit acquisition of ownership, and provider-validated recovery. Otherwise create a fresh workspace.
 
-Do not probe Docker, WSL, Crabbox, or use host execution. Do not enable `COMMAND_TOOL` while workspace transfer/result sync/audit are incomplete. Do not pass credentials into the sandbox. Do not weaken policy gates or silence npm audit. Do not fabricate live evidence, sessions, labels, or measurements. Do not create release/distribution work under D-115.
+These constraints must be enforced in the Phase 2 design and tests. Changing them requires a new decision record and migration review.
 
-## Evidence vocabulary
+## Open confirmed architecture findings
 
-Use **implemented**, **unit-tested**, **CI-verified**, **live-smoke-tested**, and **owner-accepted** precisely. A status can advance only with the corresponding evidence.
+| Findings | Required work |
+|---|---|
+| AUD-007, AUD-008 | Remove full-history scans from session-log and episodic-memory append/duplicate paths. |
+| AUD-014, AUD-025 | Add bounded searchable memory, pagination, quotas, and resumable semantic reindexing. |
+| AUD-015, AUD-044 | Move budget, rate-limit, and concurrency reservations to transactional shared state. |
+| AUD-016 | Bound indexing memory and evaluate vector-search scaling. |
+| AUD-021 | Await and report cleanup after late sandbox-create cancellation. |
+| AUD-023 | Enforce output byte limits while streaming with bounded buffering. |
+| AUD-039 | Add task-scoped workspace lifecycle, capabilities, leases, transfer, and result synchronization. |
+| Audit remainder | Complete the file-by-file audit and verify each checklist status against code and tests. |
+
+Withdrawn findings AUD-009, AUD-022, and AUD-027 remain withdrawn unless new evidence changes the conclusion.
+
+## Security boundaries
+
+- No Docker, WSL, Crabbox, host command probes, local execution fallback, or host-backed project search in the coding profile.
+- No automatic sandbox provider selection.
+- No `run_command` exposure in the coding profile.
+- Keep model-provider and sandbox-provider consent separate. Sandbox network access remains deny-all by default.
+- Fake-client tests and CI do not count as live S4 acceptance.

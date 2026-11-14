@@ -7,15 +7,22 @@
 3. **Memory retention: hybrid.** Keep durable append-only history separate from bounded searchable memory. Durable history remains the source of truth subject to an explicit retention/deletion policy. Searchable facts, episodes, summaries, and vector indexes are bounded, paginated, and rebuildable.
 4. **Backward compatibility: preserve.** Preserve public APIs, existing provider implementations, persisted formats, and caller-visible behavior where possible. Introduce adapters and migrate internals incrementally. Do not use dual writes without a defined reconciliation protocol.
 
-**Still to confirm before implementation:** deployment topology (single host or multi-machine); database ownership (one database per project or a shared database with project isolation); durable-history retention/deletion policy; and whether a crashed workspace may be resumed by another process. These are not approved decisions yet.
+**Approved deployment and operating-policy decisions:**
 
-**Provisional planning defaults only:** design SQLite for multiple local processes on a supported local filesystem; use one database per project; do not automatically delete durable history; resume a crashed workspace only with explicit lease ownership and validated provider recovery. Revisit these defaults when the four open questions are answered.
+1. **Deployment topology:** support multiple Harness processes on one machine using a supported local filesystem. Multi-machine shared-state operation is out of scope until separately designed and approved. Arbitrary network filesystems are unsupported.
+2. **Database ownership:** use one SQLite database per project. Do not use a shared cross-project database in this implementation.
+3. **Durable-history retention:** retain durable history indefinitely by default. Do not automatically delete it. Any retention period, deletion workflow, or user-requested deletion behavior requires a separately specified and approved policy.
+4. **Workspace crash recovery:** another process may resume a crashed workspace only after the prior lease has expired, ownership is explicitly acquired, and the provider validates recoverability. If any condition cannot be established, create a fresh workspace. Never assume that lease expiry alone proves safe recovery.
+
+These four policy choices are approved and binding for the initial implementation. Changing them requires a new decision record and migration review.
 
 **Migration order:** architecture contracts; SQLite foundation and transactional budget/rate-limit coordination; memory append/query/index/retention improvements; capability-based workspace sessions and leases; streaming output limits; cross-subsystem failure and compatibility testing.
 
 **Acceptance:** Multi-process tests must use independent processes. Workspace tests must cover cross-task isolation, least privilege, revocation, path escape, interrupted transfer, cancellation, and cleanup. Memory tests must prove bounded reads, writes, and reindexing. Existing API and provider contract tests must continue to pass.
 
 **Scope boundary:** This decision does not authorize enabling `run_command` in the coding profile. D-110, D-117, and D-118 remain in force. No Docker, WSL, Crabbox, host command fallback, or live sandbox acceptance is authorized by this architecture decision.
+
+**Contract specification:** [architecture-contracts.md](architecture-contracts.md); type definitions: `src/architecture/contracts.ts`.
 
 **Affects:** `docs/STATE.md`, `docs/ROADMAP.md`, `docs/CODEBASE-AUDIT-CHECKLIST.md`, storage, memory, sandbox, and profile architecture.
 

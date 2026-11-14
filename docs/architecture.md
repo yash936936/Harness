@@ -1,5 +1,7 @@
 # Architecture
 
+The backend-neutral persistence, memory, workspace, and migration contracts are specified in [architecture-contracts.md](architecture-contracts.md) and typed in `src/architecture/contracts.ts`.
+
 ## System shape
 
 Harness is a TypeScript application built on Cordis. Bundles register services on a shared context; profiles compose those bundles into runnable stacks.
