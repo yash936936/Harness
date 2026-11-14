@@ -1,6 +1,6 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto'
-import { chmod, mkdir, open, rename, writeFile } from 'node:fs/promises'
-import { assertNoSymlinkParents, readBufferFileNoFollow, readTextFileNoFollow } from '../../util/secure-file.js'
+import { mkdir, open, rename, writeFile } from 'node:fs/promises'
+import { assertNoSymlinkParents, chmodFileNoFollow, readBufferFileNoFollow, readTextFileNoFollow } from '../../util/secure-file.js'
 import { withFileLock } from '../../util/filelock.js'
 import { dirname, resolve } from 'node:path'
 
@@ -113,6 +113,7 @@ export class FileCredentialStore implements CredentialStore {
       try {
         const key = await readBufferFileNoFollow(this.keyPath)
         if (key.length !== 32) throw new Error(`credentials: encryption key ${this.keyPath} must contain exactly 32 bytes`)
+        await chmodFileNoFollow(this.keyPath, 0o600).catch((error) => { if (process.platform !== 'win32') throw error })
         return key
       } catch (e: any) {
         if (e?.code !== 'ENOENT') throw e
