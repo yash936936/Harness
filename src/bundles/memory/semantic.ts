@@ -130,23 +130,24 @@ export class MemorySemantic extends Service {
     if (opts.minScore !== undefined && (!Number.isFinite(opts.minScore) || opts.minScore < 0 || opts.minScore > 1)) throw new MemoryError('memory: query minScore must be between 0 and 1')
     if (!Number.isInteger(k) || k < 1 || k > 1000) throw new MemoryError('memory: query k must be an integer from 1 to 1000')
     if (typeof text !== 'string' || !oneLine(text)) throw new MemoryError('memory: query text must be a non-empty string')
-    const facts = await this.load()
-    if (facts.length === 0) return { ok: true, hits: [], stale: false }
-
     const emb = await this.ctx.embeddings.embed([text], { kind: 'query' })
     if (!emb.ok) return { ok: false, error: { kind: `embedding_${emb.error.kind}`, detail: emb.error.detail } }
-    const col = await this.collection()
-    if (!col.ok) return col
-    const found = await col.collection.query(emb.vectors[0]!, k)
-    if (!found.ok) return found
-    const count = await col.collection.count()
-    const byId = new Map(facts.map((f) => [f.id, f]))
-    const hits: SemanticHit[] = []
-    for (const h of found.hits) {
-      const fact = byId.get(h.id) // a vector whose fact was removed is ignored, never returned
-      if (fact && (opts.minScore === undefined || h.score >= opts.minScore)) hits.push({ fact: this.safeFact(fact), score: h.score })
-    }
-    return { ok: true, hits, stale: count.ok ? count.count !== facts.length : true }
+    return this.exclusive(async () => {
+      const facts = await this.load()
+      if (facts.length === 0) return { ok: true as const, hits: [], stale: false }
+      const col = await this.collection()
+      if (!col.ok) return col
+      const found = await col.collection.query(emb.vectors[0]!, k)
+      if (!found.ok) return found
+      const count = await col.collection.count()
+      const byId = new Map(facts.map((f) => [f.id, f]))
+      const hits: SemanticHit[] = []
+      for (const h of found.hits) {
+        const fact = byId.get(h.id) // a vector whose fact was removed is ignored, never returned
+        if (fact && (opts.minScore === undefined || h.score >= opts.minScore)) hits.push({ fact: this.safeFact(fact), score: h.score })
+      }
+      return { ok: true as const, hits, stale: count.ok ? count.count !== facts.length : true }
+    })
   }
 
   /** Rebuild the whole search index from the stored facts. Use `reset: true` after changing the embedding model. */
