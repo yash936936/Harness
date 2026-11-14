@@ -660,7 +660,7 @@ describe.skipIf(!hasRg)('indexing', () => {
       name: 'delayed-hash',
       model: inner.model,
       egress: inner.egress,
-      embed: async (texts, options) => {
+      embed: async (texts) => {
         if (texts.some((text) => text.includes('return 1'))) {
           entered()
           await blocked
