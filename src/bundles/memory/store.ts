@@ -33,7 +33,7 @@ export class MemoryEpisodeStore implements EpisodeStore {
   }
 }
 
-/** One JSONL file, `<dir>/episodic.jsonl`. Append-only, like the session log. */
+/** One JSONL file, \`<dir>/episodic.jsonl\`. Append-only, like the session log. */
 export class JsonlEpisodeStore implements EpisodeStore {
   private queue: Promise<unknown> = Promise.resolve()
 
@@ -49,9 +49,9 @@ export class JsonlEpisodeStore implements EpisodeStore {
       await assertNoSymlinkParents(this.file)
       await mkdir(this.dir, { recursive: true })
       await assertNoSymlinkParents(this.file)
-      return withFileLock(`${this.file}.lock`, async () => {
+      return withFileLock(\`\${this.file}.lock\`, async () => {
         if (await this.repairTailAndHasId(episode.id)) return false
-        await appendTextFileNoFollow(this.file, JSON.stringify(episode) + '\\n')
+        await appendTextFileNoFollow(this.file, JSON.stringify(episode) + '\n')
         return true
       })
     })
@@ -61,77 +61,79 @@ export class JsonlEpisodeStore implements EpisodeStore {
 
   /** Repair the final record and detect duplicates in one bounded-memory pass. */
   private async repairTailAndHasId(id: string): Promise<boolean> {
-    let pending: { line: string; newline: boolean; start: number } | undefined
+    let candidate: { line: string; start: number; lineNumber: number } | undefined
     let offset = 0
-    let lineNumber = 0
+    let trailingBlankBytes = 0
+    let endedWithNewline = true
+    let physicalLine = 0
     let found = false
-    let sawRecord = false
     try {
       for await (const item of readTextLinesNoFollow(this.file)) {
-        if (pending) {
-          lineNumber++
-          if (pending.line.trim()) {
-            let parsed: Episode
-            try {
-              parsed = JSON.parse(pending.line) as Episode
-            } catch {
-              throw new Error(`memory: corrupt episodic.jsonl at line ${lineNumber}`)
-            }
-            sawRecord = true
-            if (parsed.id === id) found = true
-          }
-          offset += Buffer.byteLength(pending.line, 'utf8') + (pending.newline ? 1 : 0)
+        physicalLine++
+        endedWithNewline = item.newline
+        const bytes = Buffer.byteLength(item.line, 'utf8') + (item.newline ? 1 : 0)
+        if (!item.line.trim()) {
+          trailingBlankBytes += bytes
+          continue
         }
-        pending = { ...item, start: offset }
+        if (candidate) {
+          let parsed: Episode
+          try {
+            parsed = JSON.parse(candidate.line) as Episode
+          } catch {
+            throw new Error(\`memory: corrupt episodic.jsonl at line \${candidate.lineNumber}\`)
+          }
+          if (parsed.id === id) found = true
+          offset = candidate.start + Buffer.byteLength(candidate.line, 'utf8') + 1 + trailingBlankBytes
+        } else {
+          offset += trailingBlankBytes
+        }
+        candidate = { line: item.line, start: offset, lineNumber: physicalLine }
+        trailingBlankBytes = 0
       }
     } catch (error: any) {
       if (error?.code === 'ENOENT') return false
       throw error
     }
 
-    if (pending) {
-      lineNumber++
-      if (pending.line.trim()) {
-        try {
-          const parsed = JSON.parse(pending.line) as Episode
-          sawRecord = true
-          if (parsed.id === id) found = true
-        } catch {
-          await truncateFileNoFollow(this.file, pending.start)
-          return found
-        }
+    if (candidate) {
+      let parsed: Episode
+      try {
+        parsed = JSON.parse(candidate.line) as Episode
+      } catch {
+        await truncateFileNoFollow(this.file, candidate.start)
+        return found
       }
-      if (!pending.newline && sawRecord) await appendTextFileNoFollow(this.file, '\\n')
+      if (parsed.id === id) found = true
+      if (!endedWithNewline) await appendTextFileNoFollow(this.file, '\n')
     }
     return found
   }
 
-  /** Stream valid records; tolerate only a malformed final record. */
+  /** Stream valid records; tolerate only a malformed final non-blank record. */
   async *iterate(): AsyncGenerator<Episode> {
-    let pending: string | undefined
-    let lineNumber = 0
+    let candidate: { line: string; lineNumber: number } | undefined
+    let physicalLine = 0
     try {
       for await (const item of readTextLinesNoFollow(this.file)) {
-        if (pending !== undefined) {
-          lineNumber++
-          if (pending.trim()) {
-            try {
-              yield JSON.parse(pending) as Episode
-            } catch {
-              throw new Error(`memory: corrupt episodic.jsonl at line ${lineNumber}`)
-            }
+        physicalLine++
+        if (!item.line.trim()) continue
+        if (candidate) {
+          try {
+            yield JSON.parse(candidate.line) as Episode
+          } catch {
+            throw new Error(\`memory: corrupt episodic.jsonl at line \${candidate.lineNumber}\`)
           }
         }
-        pending = item.line
+        candidate = { line: item.line, lineNumber: physicalLine }
       }
     } catch (error: any) {
       if (error?.code === 'ENOENT') return
       throw error
     }
-    if (pending !== undefined && pending.trim()) {
-      lineNumber++
+    if (candidate) {
       try {
-        yield JSON.parse(pending) as Episode
+        yield JSON.parse(candidate.line) as Episode
       } catch {
         // An interrupted final write is ignored; the next add() repairs it.
       }
