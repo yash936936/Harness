@@ -89,9 +89,19 @@ try {
         await store.append(sessionEvent(last + 1))
       })
       timings.push(performance.now() - started)
+      const warmTimings: number[] = []
+      for (let warm = 0; warm < SAMPLES; warm++) {
+        const warmStarted = performance.now()
+        await store.withLock('baseline-session', async () => {
+          const last = await store.lastSeq('baseline-session')
+          await store.append(sessionEvent(last + 1))
+        })
+        warmTimings.push(performance.now() - warmStarted)
+      }
       observeRss()
     }
     results[`sessionLogAppendAt${count}`] = { ...stats(timings), fixtureBytes, estimatedFullFileReadBytesPerAppend: fixtureBytes }
+    results[`sessionLogWarmAppendAt${count}`] = { ...stats(warmTimings), fixtureBytes, estimatedFullFileReadBytesPerAppend: 0 }
   }
 
   for (const count of [100_000]) {
