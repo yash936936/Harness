@@ -113,7 +113,7 @@ export class MemorySemantic extends Service {
     })
     if (!result.created) return result
 
-    const indexed = await this.index([result.fact])
+    const indexed = await this.indexOneIfCurrent(result.fact)
     return indexed.ok ? { ...result, indexed: true } : { ...result, indexed: false, indexError: `${indexed.error.kind}: ${indexed.error.detail}` }
   }
 
@@ -130,31 +130,39 @@ export class MemorySemantic extends Service {
     if (opts.minScore !== undefined && (!Number.isFinite(opts.minScore) || opts.minScore < 0 || opts.minScore > 1)) throw new MemoryError('memory: query minScore must be between 0 and 1')
     if (!Number.isInteger(k) || k < 1 || k > 1000) throw new MemoryError('memory: query k must be an integer from 1 to 1000')
     if (typeof text !== 'string' || !oneLine(text)) throw new MemoryError('memory: query text must be a non-empty string')
-    const facts = await this.load()
-    if (facts.length === 0) return { ok: true, hits: [], stale: false }
-
+    // Avoid paying for an embedding when the semantic tier is empty. Check under
+    // the same cross-process lock used by mutations, then recheck before reading
+    // the index because the facts may change while the provider is embedding.
+    const empty = await this.exclusive(async () => (await this.load()).length === 0)
+    if (empty) return { ok: true, hits: [], stale: false }
     const emb = await this.ctx.embeddings.embed([text], { kind: 'query' })
     if (!emb.ok) return { ok: false, error: { kind: `embedding_${emb.error.kind}`, detail: emb.error.detail } }
-    const col = await this.collection()
-    if (!col.ok) return col
-    const found = await col.collection.query(emb.vectors[0]!, k)
-    if (!found.ok) return found
-    const count = await col.collection.count()
-    const byId = new Map(facts.map((f) => [f.id, f]))
-    const hits: SemanticHit[] = []
-    for (const h of found.hits) {
-      const fact = byId.get(h.id) // a vector whose fact was removed is ignored, never returned
-      if (fact && (opts.minScore === undefined || h.score >= opts.minScore)) hits.push({ fact: this.safeFact(fact), score: h.score })
-    }
-    return { ok: true, hits, stale: count.ok ? count.count !== facts.length : true }
+    return this.exclusive(async () => {
+      const facts = await this.load()
+      if (facts.length === 0) return { ok: true as const, hits: [], stale: false }
+      const col = await this.collection()
+      if (!col.ok) return col
+      const found = await col.collection.query(emb.vectors[0]!, k)
+      if (!found.ok) return found
+      const count = await col.collection.count()
+      const byId = new Map(facts.map((f) => [f.id, f]))
+      const hits: SemanticHit[] = []
+      for (const h of found.hits) {
+        const fact = byId.get(h.id) // a vector whose fact was removed is ignored, never returned
+        if (fact && (opts.minScore === undefined || h.score >= opts.minScore)) hits.push({ fact: this.safeFact(fact), score: h.score })
+      }
+      return { ok: true as const, hits, stale: count.ok ? count.count !== facts.length : true }
+    })
   }
 
   /** Rebuild the whole search index from the stored facts. Use `reset: true` after changing the embedding model. */
   async reindex(opts: { reset?: boolean } = {}): Promise<{ ok: true; indexed: number } | SemanticFailure> {
-    const facts = await this.load()
-    if (facts.length === 0) return { ok: true, indexed: 0 } // nothing to index; query() returns early on an empty tier
-    const r = await this.index(facts, opts.reset === true)
-    return r.ok ? { ok: true, indexed: facts.length } : r
+    return this.exclusive(async () => {
+      const facts = await this.load()
+      if (facts.length === 0) return { ok: true as const, indexed: 0 } // nothing to index; query() returns early on an empty tier
+      const r = await this.index(facts, opts.reset === true)
+      return r.ok ? { ok: true as const, indexed: facts.length } : r
+    })
   }
 
   /** Remove a fact and its vector. Returns false if there was no such fact. */
@@ -170,8 +178,13 @@ export class MemorySemantic extends Service {
     // Best effort: if the index is unreachable, query() ignores the orphaned vector anyway.
     const emb = await this.ctx.embeddings.embed([gone.text])
     if (emb.ok) {
-      const col = await this.collection()
-      if (col.ok) await col.collection.deleteIds([id])
+      await this.exclusive(async () => {
+        // A same-id add may have completed while embedding the removed fact.
+        // Never delete the replacement's vector.
+        if ((await this.load()).some((fact) => fact.id === id)) return
+        const col = await this.collection()
+        if (col.ok) await col.collection.deleteIds([id])
+      })
     }
     return true
   }
@@ -203,6 +216,24 @@ export class MemorySemantic extends Service {
       facts.map((f, i) => ({ id: f.id, vector: emb.vectors[i]!, source: 'memory.semantic', metadata: { tier: 'semantic' } })),
     )
     return up.ok ? { ok: true } : up
+  }
+
+  /** Embed outside the shared lock, then verify the persisted version before writing its vector. */
+  private async indexOneIfCurrent(fact: SemanticFact): Promise<{ ok: true } | SemanticFailure> {
+    const emb = await this.ctx.embeddings.embed([fact.text], { kind: 'document' })
+    if (!emb.ok) return { ok: false, error: { kind: 'embedding_' + emb.error.kind, detail: emb.error.detail } }
+    return this.exclusive(async () => {
+      const current = (await this.load()).find((item) => item.id === fact.id)
+      if (!current || current.text !== fact.text) {
+        return { ok: false as const, error: { kind: 'superseded', detail: 'semantic fact "' + fact.id + '" changed before its vector could be written; the newer mutation owns indexing' } }
+      }
+      const col = await this.collection()
+      if (!col.ok) return col
+      const up = await col.collection.upsert([
+        { id: current.id, vector: emb.vectors[0]!, source: 'memory.semantic', metadata: { tier: 'semantic' } },
+      ])
+      return up.ok ? { ok: true as const } : up
+    })
   }
 
   /** Needs the embedding fingerprint, which only exists once a vector has been produced in this process. */
@@ -255,6 +286,18 @@ export class MemorySemantic extends Service {
   }
 
   /** Serialised read-modify-write; `fn` returns false when it changed nothing. Atomic file replace. */
+  private exclusive<T>(fn: () => Promise<T>): Promise<T> {
+    const job = this.queue.then(async () => {
+      if (!this.dir) return fn()
+      await assertNoSymlinkParents(this.file)
+      await mkdir(this.dir, { recursive: true })
+      await assertNoSymlinkParents(this.file)
+      return withFileLock(`${this.file}.lock`, fn)
+    })
+    this.queue = job.catch(() => {})
+    return job
+  }
+
   private mutate(fn: (list: SemanticFact[]) => boolean): Promise<void> {
     const work = async () => {
       const list = structuredClone(await this.load())
@@ -270,14 +313,6 @@ export class MemorySemantic extends Service {
       }
       this.facts = list
     }
-    const job = this.queue.then(async () => {
-      if (!this.dir) return work()
-      await assertNoSymlinkParents(this.file)
-      await mkdir(this.dir, { recursive: true })
-      await assertNoSymlinkParents(this.file)
-      return withFileLock(`${this.file}.lock`, work)
-    })
-    this.queue = job.catch(() => {})
-    return job
+    return this.exclusive(work)
   }
 }
