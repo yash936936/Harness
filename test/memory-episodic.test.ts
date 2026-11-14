@@ -52,6 +52,24 @@ describe('memory: JSONL tail recovery', () => {
   })
 
 
+  it('streams, counts, and looks up episodes without changing storage order', async () => {
+    const dir = await tmp()
+    const store = new JsonlEpisodeStore(dir)
+    const episode = (id: string) => ({
+      id, sessionId: 's', agentId: 'main', ts: '2026-11-07T00:00:00.000Z',
+      task: id, approach: 'none', result: 'ok', outcome: 'done' as const,
+      lesson: null, fromSeq: 1, toSeq: 1, steps: 1, toolCalls: 0,
+    })
+    await store.add(episode('one'))
+    await store.add(episode('two'))
+    const streamed: string[] = []
+    for await (const entry of store.iterate()) streamed.push(entry.id)
+    expect(streamed).toEqual(['one', 'two'])
+    expect(await store.count()).toBe(2)
+    expect(await store.findById('two')).toMatchObject({ id: 'two' })
+    expect(await store.findById('missing')).toBeUndefined()
+  })
+
   it('snapshots an episode before it waits in the persistence queue', async () => {
     const dir = await tmp()
     const store = new JsonlEpisodeStore(dir)
@@ -208,6 +226,24 @@ describe('memory: episodic tier (3.1)', () => {
     expect(await q({ agentId: 'nobody' })).toEqual([])
     expect(await q({ order: 'desc', limit: 2 })).toEqual(['Write tests', 'fix the lexer'])
     expect(await q({ outcome: 'error' })).toEqual([])
+  })
+
+  it('returns limited query results in the same stable order as an unbounded query', async () => {
+    const dir = await tmp()
+    const ctx = await boot([], { path: dir })
+    const session = ctx.log.create('ordered')
+    for (let i = 0; i < 12; i++) {
+      await ctx.log.append(session, 'test', { i })
+      const seq = (await ctx.log.resume(session)).nextSeq - 1
+      await ctx.memory.episodic.record({
+        sessionId: session, task: `task ${i}`, fromSeq: seq, toSeq: seq,
+        outcome: 'done', result: String(i),
+      })
+    }
+    const all = await ctx.memory.episodic.query({})
+    expect(await ctx.memory.episodic.query({ limit: 4 })).toEqual(all.slice(0, 4))
+    expect(await ctx.memory.episodic.query({ order: 'desc', limit: 4 })).toEqual(all.slice().reverse().slice(0, 4))
+    expect(await ctx.memory.episodic.count()).toBe(12)
   })
 
   it('a registered secret in the task or answer is redacted before it is stored', async () => {
