@@ -21,11 +21,13 @@ Complete the current security and reliability audit, then migrate Harness toward
 |---|---|---|
 | P1 | AUD-007, AUD-008 | Remove full-history work from session-log append and episodic-memory append/duplicate paths. Add sequence/offset indexes and indexed identity lookup with rebuild/recovery. |
 | P1 | AUD-015, AUD-044 | Replace process-local budget, rate-limit, and concurrency reservations with transactional shared state. |
-| P1 | AUD-021, AUD-039 | Fix late sandbox-create cancellation so cleanup is awaited and failures are surfaced; add task-scoped workspace sessions, capability checks, lease ownership, safe transfer, result synchronization, and verified cleanup. |
+| P1 | AUD-039 | Add task-scoped workspace sessions, capability checks, lease ownership, safe transfer, result synchronization, and verified cleanup. |
 | P2 | AUD-014, AUD-025 | Define durable-history policy and bounded searchable-memory quotas, paging, retention, batched embeddings, and resumable reindexing. |
 | P2 | AUD-016 | Bound indexing memory, including large single files; measure vector search and decide whether/when ANN is justified. |
 | P2 | AUD-023 | Enforce output byte limits while streaming or through a verified SDK-side cap, with cancellation and bounded buffering. |
 | P2 | Audit remainder | Finish the incomplete file-by-file audit, verify each status against code and tests, and correct stale or unsupported register claims. |
+
+AUD-021 is fixed in main: late sandbox creation is awaited, deletion is awaited, and cleanup failures are surfaced. Keep AUD-039 open for the separate workspace-session and transfer redesign.
 
 Withdrawn findings AUD-009, AUD-022, and AUD-027 must remain withdrawn unless new evidence changes the conclusion. Do not reopen them based on the old descriptions alone.
 
