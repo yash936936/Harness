@@ -195,9 +195,9 @@ CI for this follow-up must be treated as unverified until the new pull request's
 
 ## D-119 architecture decisions and current PR verification (2026-11-14)
 
-D-119 selects SQLite for shared transactional state (initially multi-process, single-machine/local-filesystem only), capability-based task-scoped workspace sessions alongside the one-shot sandbox API, hybrid durable-history plus bounded searchable-memory retention, and backward-compatible internal migration. Initial defaults are one database per project, no automatic durable-history deletion until policy approval, and workspace resume only through explicit lease ownership and validated recovery. See `docs/decisions.md` and `docs/ROADMAP.md` for the full migration plan.
+D-119 selects SQLite for shared transactional state (initially multi-process, single-machine/local-filesystem only), capability-based task-scoped workspace sessions alongside the one-shot sandbox API, hybrid durable-history plus bounded searchable-memory retention, and backward-compatible internal migration. Approved policy is one database per project, no automatic durable-history deletion, and workspace resume only after lease expiry, explicit ownership acquisition, and provider-validated recovery. See `docs/decisions.md` and `docs/ROADMAP.md` for the full migration plan.
 
-CI note: PR #93's earlier run `43527326589` failed in `npm test` on both operating systems. Cross-platform file identity/lock handling and stale command-profile test fixtures were updated in the follow-up. Run `43601042571` is the current verification attempt; update this note only after all matrix jobs and `ci-pass` finish.
+CI note: PR #95 is merged. Its initial run #731 had a Windows Node 20.19.0 test failure; the final head passed run #732 across Ubuntu and Windows on Node 20.19.0 and 22.12.0, including benchmark and `ci-pass`.
 
 
 ## Phase 0 / Phase 1 closeout — 2026-11-14
@@ -208,7 +208,8 @@ CI note: PR #93's earlier run `43527326589` failed in `npm test` on both operati
 - [x] Transaction, idempotency, lease fencing, memory projection, workspace capability, migration, rollback, and failure-recovery rules documented in `docs/architecture-contracts.md`.
 - [x] State, roadmap, architecture, and D-119 decision docs cross-linked and reconciled.
 - [x] Phase 1 owner approvals: single-host/multi-process deployment on supported local filesystems; one SQLite database per project; no automatic durable-history deletion; workspace resume only after lease expiry, explicit ownership, and provider-validated recovery. Recorded as binding D-119 policy in `docs/decisions.md`.
-- [ ] Capture numeric performance baselines before Phase 2 changes each corresponding hot path.
+- [x] Capture initial session-log and episodic-memory numeric baselines in PR #95; CI run #732 passed. Results and caveats are recorded in `docs/architecture-contracts.md`.
+- [ ] Capture independent-process reservation, indexing, semantic-reindex, and streaming-output baselines before changing those hot paths.
 - [x] Full CI matrix and `ci-pass` on PR #94, run #726: Ubuntu and Windows on Node 20.19.0 and 22.12.0; typecheck, lint, tests, docs/component drift, secret/dependency checks, and license inventory passed.
 
-Phase 0 is complete. Phase 1 contract/migration-safety artifacts, owner policy approvals, and CI verification are complete. Numeric performance baselines remain before Phase 1 closure. The full file-by-file audit is not complete.
+Phase 0 is complete. Phase 1 contracts, owner policy approvals, CI, and initial session-log/episodic baselines are complete. Reservation, indexing, semantic-reindex, and streaming-output baselines remain before Phase 1 closure. The full file-by-file audit is not complete.
