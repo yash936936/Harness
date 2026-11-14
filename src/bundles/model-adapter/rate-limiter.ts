@@ -127,6 +127,7 @@ export class RateLimiter {
   }
 
   private async takeSlot(signal?: AbortSignal) {
+    signal?.throwIfAborted()
     if (this.inFlight < this.maxConcurrent) {
       this.inFlight++
       return
