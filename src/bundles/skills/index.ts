@@ -281,6 +281,7 @@ export class Skills extends Service {
       const candidates: string[] = []
       if (await pathExists(join(root, 'SKILL.md'))) candidates.push(root)
       else {
+        let rejectedDirectory = false
         const entries = await readdir(root, { withFileTypes: true }).catch(() => [])
         for (const e of entries.sort((a, b) => a.name.localeCompare(b.name))) {
           if (e.name.startsWith('.') || !(e.isDirectory() || e.isSymbolicLink())) continue
@@ -293,6 +294,7 @@ export class Skills extends Service {
           }
           if (!isInside(root, resolvedDir)) {
             problems.push({ dir: d, kind: 'unreadable', reason: 'skill directory resolves outside its configured root' })
+            rejectedDirectory = true
             continue
           }
           if (await pathExists(join(resolvedDir, 'SKILL.md'))) candidates.push(resolvedDir)
