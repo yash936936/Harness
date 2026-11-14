@@ -45,6 +45,7 @@ Updated 2026-11-14. This file records the current implementation state and bindi
 ## CI and merge status
 
 - PR #93, `audit/full-codebase-review-2026-11`, merged on 2026-11-14 as `8ee08673bd03b8548c44612093b447fadb03ce26`.
+- PR #97, `audit/windows-baselines-undici-fix-2026-11`, merged on 2026-11-14 as `5aaee0dacdaace04959db508260a84590e941a0c`. It records Windows x64 / Node v22.18.0 session-log and episodic-memory baselines and pins the nested `guarded-fetch` Undici dependency to 7.30.2; the generated license inventory is synchronized.
 - CI run #724 on PR head `5741d23058dca0dc0112810e6c35fa87a47e8d0f` passed: Ubuntu and Windows on Node 20.19.0 and 22.12.0, typecheck, lint, full tests, docs/component drift, secret scan, dependency audit, license inventory, and `ci-pass`.
 - The green run verifies the PR head. It is not a live sandbox/model acceptance result.
 - Phase 0 is complete. Phase 1 contracts and D-119 policy decisions merged in PR #94. Initial numeric baselines merged in PR #95; CI run #732 passed all matrix and required jobs. Reservation, indexing, semantic-reindex, and streaming-output baselines remain before Phase 1 can close.

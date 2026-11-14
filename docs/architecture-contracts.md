@@ -9,7 +9,7 @@ Status: Phase 1 contract baseline. This document defines boundaries, not a produ
 - Durable append-only history is separate from bounded searchable memory.
 - Existing public APIs, providers, and persisted formats remain compatible during migration.
 - D-110, D-117, and D-118 remain binding. No host fallback, Docker/WSL/Crabbox work, implicit provider selection, or coding-profile `run_command` exposure is allowed.
-- The deployment topology, database ownership, durable-history deletion policy, and crashed-workspace recovery policy remain approval gates. No provisional default is treated as a decision.
+- The four D-119 owner decisions are approved and binding: multi-process/single-host operation on supported local filesystems, one SQLite database per project, no automatic durable-history deletion, and crash resume only after lease expiry, explicit ownership acquisition, and provider-validated recovery.
 
 ## Domain boundaries
 

@@ -53,6 +53,7 @@ Withdrawn findings AUD-009, AUD-022, and AUD-027 must remain withdrawn unless ne
 - Preserved existing public APIs and provider contracts. This phase adds types and documentation only; it does not change runtime behavior or persisted formats.
 - All four D-119 policy choices are approved and recorded in `docs/decisions.md`: single-host/multi-process deployment, one database per project, no automatic durable-history deletion, and guarded crash recovery.
 - [x] Initial CI numeric baselines captured for session-log append (0/50k/100k events) and episodic duplicate/query (100k episodes) in PR #95, run #732. Results and measurement caveats are in `docs/architecture-contracts.md`.
+- [x] Additional owner-run Windows x64 / Node v22.18.0 baselines recorded in PR #97. These are kept separate from the Ubuntu CI measurements and include the same session-log and episodic workloads.
 - [ ] Capture independent-process reservation, indexing, semantic-reindex, and streaming-output baselines with deterministic fixtures.
 - Phase 1 must also pass typecheck, lint, docs checks, and the full CI matrix on its PR.
 
