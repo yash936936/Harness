@@ -13,6 +13,8 @@ export interface LocalToolsConfig {
   maxCommandOutputBytes?: number
   /** Let `read_file` open `.env*`, key and credential files. Default false. */
   allowSecretReads?: boolean
+  /** Register the host-independent sandbox command tool. Coding profile keeps this disabled until D-118 acceptance. Default true. */
+  enableCommand?: boolean
 }
 
 /** Programmer error (bad config), not a tool outcome. */

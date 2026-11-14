@@ -1,5 +1,6 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto'
-import { chmod, lstat, mkdir, open, readFile, rename, writeFile } from 'node:fs/promises'
+import { mkdir, open, rename, writeFile } from 'node:fs/promises'
+import { assertNoSymlinkParents, chmodFileNoFollow, readBufferFileNoFollow, readTextFileNoFollow } from '../../util/secure-file.js'
 import { withFileLock } from '../../util/filelock.js'
 import { dirname, resolve } from 'node:path'
 
@@ -105,14 +106,14 @@ export class FileCredentialStore implements CredentialStore {
   }
 
   private async loadOrCreateKey(): Promise<Buffer> {
+    await assertNoSymlinkParents(this.keyPath)
     await mkdir(dirname(this.keyPath), { recursive: true })
+    await assertNoSymlinkParents(this.keyPath)
     return withFileLock(`${this.keyPath}.lock`, async () => {
       try {
-        const stat = await lstat(this.keyPath)
-        if (!stat.isFile() || stat.isSymbolicLink()) throw new Error('credentials: encryption key path must be a regular file, not a symlink')
-        const key = await readFile(this.keyPath)
+        const key = await readBufferFileNoFollow(this.keyPath)
         if (key.length !== 32) throw new Error(`credentials: encryption key ${this.keyPath} must contain exactly 32 bytes`)
-        if (process.platform !== 'win32') await chmod(this.keyPath, 0o600)
+        await chmodFileNoFollow(this.keyPath, 0o600).catch((error) => { if (process.platform !== 'win32') throw error })
         return key
       } catch (e: any) {
         if (e?.code !== 'ENOENT') throw e
@@ -124,7 +125,6 @@ export class FileCredentialStore implements CredentialStore {
         } finally {
           await fh.close()
         }
-        await chmod(this.keyPath, 0o600).catch(() => {}) // best-effort; a no-op-ish permission model on Windows
         return key
       }
     })
@@ -132,7 +132,7 @@ export class FileCredentialStore implements CredentialStore {
 
   private async readAll(): Promise<Record<string, string>> {
     try {
-      const raw = await readFile(this.config.path, 'utf8')
+      const raw = await readTextFileNoFollow(this.config.path)
       const parsed = JSON.parse(raw)
       if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('credentials: data file must contain an object')
       const all: Record<string, string> = Object.create(null)
@@ -148,9 +148,12 @@ export class FileCredentialStore implements CredentialStore {
   }
 
   private async writeAll(all: Record<string, string>): Promise<void> {
+    await assertNoSymlinkParents(this.config.path)
     await mkdir(dirname(this.config.path), { recursive: true })
+    await assertNoSymlinkParents(this.config.path)
     const tmp = `${this.config.path}.tmp-${process.pid}-${randomBytes(6).toString('hex')}`
     await writeFile(tmp, JSON.stringify(all, null, 2), { mode: 0o600, flag: 'wx' })
+    await assertNoSymlinkParents(this.config.path)
     await rename(tmp, this.config.path)
   }
 
@@ -164,7 +167,9 @@ export class FileCredentialStore implements CredentialStore {
 
   async set(key: string, value: string): Promise<void> {
     const keyBuf = await this.loadOrCreateKey()
+    await assertNoSymlinkParents(this.config.path)
     await mkdir(dirname(this.config.path), { recursive: true })
+    await assertNoSymlinkParents(this.config.path)
     await withFileLock(`${this.config.path}.lock`, async () => {
       const all = await this.readAll()
       all[key] = encrypt(value, keyBuf)
@@ -173,7 +178,9 @@ export class FileCredentialStore implements CredentialStore {
   }
 
   async delete(key: string): Promise<void> {
+    await assertNoSymlinkParents(this.config.path)
     await mkdir(dirname(this.config.path), { recursive: true })
+    await assertNoSymlinkParents(this.config.path)
     await withFileLock(`${this.config.path}.lock`, async () => {
       const all = await this.readAll()
       if (!(key in all)) return

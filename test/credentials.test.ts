@@ -81,7 +81,7 @@ describe('FileCredentialStore', () => {
     writeFileSync(target, Buffer.alloc(32, 7))
     symlinkSync(target, `${path}.key`)
     const store = new FileCredentialStore({ path })
-    await expect(store.set('k', 'v')).rejects.toThrow(/regular file, not a symlink/)
+    await expect(store.set('k', 'v')).rejects.toThrow(/regular non-symlink file/)
   })
 
   it('values are not stored as plaintext in the data file', async () => {

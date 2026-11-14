@@ -1,5 +1,5 @@
-import { mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises'
-import { readFileSync } from 'node:fs'
+import { mkdir, rename, unlink, writeFile } from 'node:fs/promises'
+import { assertNoSymlinkParents, readTextFileNoFollow, readTextFileSyncNoFollow } from '../../util/secure-file.js'
 import { randomBytes } from 'node:crypto'
 import { dirname } from 'node:path'
 import { withFileLock } from '../../util/filelock.js'
@@ -187,7 +187,9 @@ export class RateLimiter {
     // The persistent ceiling is shared across processes. Read, check, increment and
     // replace the state while holding one lock so concurrent Harness processes cannot
     // each spend the same final request slot.
+    await assertNoSymlinkParents(this.statePath)
     await mkdir(dirname(this.statePath), { recursive: true })
+    await assertNoSymlinkParents(this.statePath)
     await withFileLock(`${this.statePath}.lock`, async () => {
       const current = await this.readStateFile(day)
       if (this.perDay !== undefined && current.count >= this.perDay) {
@@ -198,10 +200,13 @@ export class RateLimiter {
         )
       }
       const next = { day, count: current.count + 1 }
+      await assertNoSymlinkParents(this.statePath!)
       await mkdir(dirname(this.statePath!), { recursive: true })
+      await assertNoSymlinkParents(this.statePath!)
       const tmp = `${this.statePath}.tmp-${process.pid}-${randomBytes(6).toString('hex')}`
       try {
         await writeFile(tmp, JSON.stringify(next), { encoding: 'utf8', mode: 0o600, flag: 'wx' })
+        await assertNoSymlinkParents(this.statePath!)
         await rename(tmp, this.statePath!)
       } catch (err) {
         await unlink(tmp).catch(() => {})
@@ -214,7 +219,7 @@ export class RateLimiter {
   private async readStateFile(today: string): Promise<DayState> {
     let rawText: string
     try {
-      rawText = await readFile(this.statePath!, 'utf8')
+      rawText = await readTextFileNoFollow(this.statePath!)
     } catch (err: any) {
       if (err?.code === 'ENOENT') return { day: today, count: 0 }
       throw new LLMError('config', `${this.provider}: could not read the daily request counter; refusing to send the request (${err?.message ?? String(err)})`, this.provider)
@@ -240,7 +245,7 @@ export class RateLimiter {
     const fresh = { day: this.dayKey(), count: 0 }
     if (!this.statePath) return fresh
     try {
-      const raw = JSON.parse(readFileSync(this.statePath, 'utf8'))
+      const raw = JSON.parse(readTextFileSyncNoFollow(this.statePath))
       if (!raw || typeof raw !== 'object' || Array.isArray(raw) ||
           !validDayKey(raw.day) ||
           !Number.isSafeInteger(raw.count) || raw.count < 0) {

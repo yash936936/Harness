@@ -1,4 +1,5 @@
-import { mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
+import { mkdirSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
+import { assertNoSymlinkParentsSync, readTextFileSyncNoFollow } from '../../util/secure-file.js'
 import { randomUUID } from 'node:crypto'
 import { dirname } from 'node:path'
 
@@ -155,7 +156,7 @@ export class Budgets {
     if (path) {
       let text: string
       try {
-        text = readFileSync(path, 'utf8')
+        text = readTextFileSyncNoFollow(path)
       } catch (e: any) {
         if (e?.code === 'ENOENT') return { day: today, requests: 0, tokens: 0 } // first run: nothing saved yet
         throw new BudgetStateError(path, `unreadable: ${e?.code ?? e?.message ?? e}`)
@@ -178,10 +179,13 @@ export class Budgets {
 
   private saveDay(): void {
     if (!this.config.statePath) return
+    assertNoSymlinkParentsSync(this.config.statePath)
     mkdirSync(dirname(this.config.statePath), { recursive: true })
+    assertNoSymlinkParentsSync(this.config.statePath)
     const tmp = `${this.config.statePath}.tmp-${process.pid}-${randomUUID()}`
     try {
       writeFileSync(tmp, JSON.stringify(this.day), { encoding: 'utf8', mode: 0o600, flag: 'wx' })
+      assertNoSymlinkParentsSync(this.config.statePath)
       renameSync(tmp, this.config.statePath)
     } catch (err) {
       try { unlinkSync(tmp) } catch {}

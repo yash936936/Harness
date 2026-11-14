@@ -58,7 +58,7 @@ export interface ProfileCodingConfig {
    * flag, and an attempt to pass one is refused at boot (see {@link ProfileError}). `commandRisk` is always added to the signals.
    */
   policy?: Omit<PolicyConfig, 'projectRoot'>
-  localTools?: Omit<LocalToolsConfig, 'root'>
+  localTools?: Omit<LocalToolsConfig, 'root' | 'enableCommand'>
   /** Fences and scans every tool result (D-083). Always on; this only tunes it. */
   inputGuard?: InputGuardConfig
   /** `deriveLessons` defaults to TRUE in this profile (templated from harness facts, D-083). */
@@ -198,8 +198,8 @@ export async function bootProfileCoding(config: ProfileCodingConfig): Promise<Co
       })
     }
     await ctx.plugin(RetrievalRank, { ...r.rank, root })
-    await ctx.plugin(RetrievalTools, r.tools)
-    await ctx.plugin(LocalTools, { ...config.localTools, root })
+    await ctx.plugin(RetrievalTools, { ...r.tools, enabled: false })
+    await ctx.plugin(LocalTools, { ...config.localTools, root, enableCommand: false })
     if (config.skills) await ctx.plugin(Skills, config.skills)
     await ctx.plugin(Orchestrator, config.orchestrator)
     await ctx.plugin(EvalRunner, config.eval) // 6.1: scores a run from its session log; reads nothing live

@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context, Service } from 'cordis'
@@ -40,6 +40,15 @@ describe('parseRgJson', () => {
       JSON.stringify({ type: 'summary', data: { stats: {} } }),
     ].join('\n')
     expect(parseRgJson(out, root, limits)).toEqual({
+      results: [{ file: 'a.txt', matches: [{ line: 3, text: 'hello' }], matchCount: 1 }],
+      truncated: false,
+    })
+  })
+
+  it.runIf(process.platform === 'win32')('accepts ripgrep paths without the Win32 extended-length prefix', () => {
+    const extendedRoot = '\\\\?\\' + root
+    const out = ev(p('a.txt'), 'hello', 3)
+    expect(parseRgJson(out, extendedRoot, limits)).toEqual({
       results: [{ file: 'a.txt', matches: [{ line: 3, text: 'hello' }], matchCount: 1 }],
       truncated: false,
     })
@@ -264,7 +273,7 @@ describe.skipIf(!hasRg)('RetrievalGrep with real ripgrep', () => {
   })
 
   it('extraArgs ignore globs work (positive control)', async () => {
-    const got = await files(Q, { extraArgs: ['--glob', '!skip/**'] })
+    const got = await files(Q, { extraArgs: ['--glob=!**/skip/**'] })
     expect(got).not.toContain('skip/other.ts')
     expect(got).toContain('src/app.ts')
   })
@@ -285,6 +294,20 @@ describe.skipIf(!hasRg)('RetrievalGrep with real ripgrep', () => {
       const r = await g.search(Q, { path })
       expect(r.ok ? 'ok' : r.error.kind, path).toBe('outside_root')
     }
+  })
+
+  it('keeps the originally resolved root when the configured root symlink is replaced', async () => {
+    const configured = join(base, 'configured-root')
+    const replacement = join(base, 'replacement-root')
+    mkdirSync(replacement, { recursive: true })
+    writeFileSync(join(replacement, 'replacement.txt'), `${Q}\\n`)
+    try { symlinkSync(root, configured, 'dir') } catch { return }
+    const g = await boot({ root: configured })
+    unlinkSync(configured)
+    symlinkSync(replacement, configured, 'dir')
+    const found = okResults(await g.search(Q)).results.map((x) => x.file)
+    expect(found).toContain('README.md')
+    expect(found).not.toContain('replacement.txt')
   })
 
   it('refuses a path that is a symlink to outside root', async () => {
@@ -410,7 +433,7 @@ describe('RetrievalGrep.listFiles', () => {
     })
 
     it('extraArgs can narrow the list but cannot re-include secrets', async () => {
-      const narrowed = await list({ extraArgs: ['--glob', '!skip/**'] })
+      const narrowed = await list({ extraArgs: ['--glob=!**/skip/**'] })
       expect(narrowed.ok && narrowed.files).not.toContain('skip/s.ts')
       expect(narrowed.ok && narrowed.files).toContain('src/app.ts')
       const tried = await list({ extraArgs: ['--glob', '.env', '--glob', '*.pem', '--glob', 'id_rsa', '--glob', 'credentials.json'] })

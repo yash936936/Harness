@@ -53,6 +53,9 @@ export class SubagentScope extends Service {
   }
 
   private scopes = new Map<string, Scope>()
+  /** Bounded tombstones preserve immediate no-reuse semantics without retaining closed scope objects. */
+  private closedIds = new Set<string>()
+  private readonly maxClosedIds = 1000
 
   constructor(ctx: Context) {
     super(ctx, 'subagents')
@@ -94,12 +97,20 @@ export class SubagentScope extends Service {
       s.closed = true
       this.mem?.access.revoke(s.actor)
     }
-    for (const s of order) await this.ctx.log.append(s.sessionId, 'subagent.close', { id: s.id, ...(s.id !== scope.id ? { cause: `ancestor ${scope.id} closed` } : {}) }, 'subagent-scope')
+    try {
+      for (const s of order) await this.ctx.log.append(s.sessionId, 'subagent.close', { id: s.id, ...(s.id !== scope.id ? { cause: 'ancestor ' + scope.id + ' closed' } : {}) }, 'subagent-scope')
+    } finally {
+      for (const s of order) {
+        this.scopes.delete(s.id)
+        this.closedIds.add(s.id)
+      }
+      while (this.closedIds.size > this.maxClosedIds) this.closedIds.delete(this.closedIds.values().next().value!)
+    }
   }
 
   async spawn(spec: SubagentSpec): Promise<SubAgent> {
     if (!ID_RE.test(spec.id)) throw new ScopeError(`invalid sub-agent id ${JSON.stringify(spec.id)} (use 1-64 of A-Z a-z 0-9 _ -)`)
-    if (this.scopes.has(spec.id)) throw new ScopeError(`sub-agent "${spec.id}" already exists`)
+    if (this.scopes.has(spec.id) || this.closedIds.has(spec.id)) throw new ScopeError(`sub-agent "${spec.id}" already exists`)
     const grant = [...new Set(spec.tools)]
     for (const t of grant) {
       if (!this.ctx.tools.has(t)) throw new ScopeError(`sub-agent "${spec.id}": granted tool "${t}" is not registered`)

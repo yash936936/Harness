@@ -54,6 +54,7 @@ describe('ModelStore.register', () => {
     expect(() => store.register(record({ sha256: 'not-a-digest' }))).toThrowError(expect.objectContaining({ kind: 'invalid_record' }))
     expect(() => store.register(record({ sourceDigest: 'bad' }))).toThrowError(expect.objectContaining({ kind: 'invalid_record' }))
     expect(() => store.register(record({ revision: '  ' }))).toThrowError(expect.objectContaining({ kind: 'invalid_record' }))
+    expect(() => store.register(record({ id: `bad${String.fromCharCode(0)}id` }))).toThrowError(expect.objectContaining({ kind: 'invalid_record' }))
     expect(() => store.verifyDigest('missing', 'bad')).toThrowError(expect.objectContaining({ kind: 'unknown_model' }))
   })
 

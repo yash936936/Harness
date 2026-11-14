@@ -1,5 +1,5 @@
 import { isAbsolute, relative, resolve, sep } from 'node:path'
-import { existsSync, realpathSync } from 'node:fs'
+import { existsSync, lstatSync, realpathSync } from 'node:fs'
 import { Context, Service } from 'cordis'
 import {
   RetrievalGrepConfigError,
@@ -47,9 +47,30 @@ const SECRET_EXCLUDES = [
   '!**/secrets.json', '!**/secrets.toml', '!**/etc/shadow', '!**/proc/self/environ',
 ]
 
-/** True if `target` is `root` or lies under it. Both must already be real, absolute paths. */
+function comparablePath(path: string): string {
+  const absolute = resolve(path)
+  if (process.platform !== 'win32') return absolute
+  // Node realpath may return the Win32 extended-length namespace while child
+  // processes such as ripgrep return ordinary drive paths. Compare both forms
+  // in the same namespace, but retain case for the relative path returned to callers.
+  return absolute.replace(/^\\\\\?\\UNC\\/i, '\\\\').replace(/^\\\\\?\\/, '')
+}
+
+function sameCanonicalPath(a: string, b: string): boolean {
+  const normalize = (path: string) => {
+    const absolute = comparablePath(path)
+    return process.platform === 'win32' ? absolute.replace(/[\\/]+$/, '').toLowerCase() : absolute
+  }
+  return normalize(a) === normalize(b)
+}
+
+function relativePath(root: string, target: string): string {
+  return relative(comparablePath(root), comparablePath(target))
+}
+
+/** True if \`target\` is \`root\` or lies under it. Both must already be real, absolute paths. */
 function isInside(root: string, target: string): boolean {
-  const rel = relative(root, target)
+  const rel = relativePath(root, target)
   if (rel === '') return true
   if (isAbsolute(rel)) return false // different drive on Windows
   return rel !== '..' && !rel.startsWith('..' + sep)
@@ -93,7 +114,7 @@ export function parseRgJson(
       }
     }
     if (!isInside(root, real)) continue
-    const file = relative(root, real).split(sep).join('/')
+    const file = relativePath(root, real).split(sep).join('/')
     if (isAlwaysExcludedPath(file)) continue
     let entry = files.get(file)
     if (!entry) files.set(file, (entry = { matches: [], total: 0 }))
@@ -116,6 +137,7 @@ export class RetrievalGrep extends Service {
   static inject = ['subprocess']
 
   private readonly root: string
+  private readonly rootIdentity: { dev: number; ino: number }
   private readonly rgPath: string
   private readonly extraArgs: string[]
   private readonly maxResults: number
@@ -129,7 +151,14 @@ export class RetrievalGrep extends Service {
     if (!config?.root || !isAbsolute(config.root)) {
       throw new RetrievalGrepConfigError('retrieval-grep: config.root must be an absolute path')
     }
-    this.root = config.root
+    try {
+      this.root = realpathSync(config.root)
+      const rootStat = lstatSync(this.root)
+      if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) throw new Error('not a real directory')
+      this.rootIdentity = { dev: rootStat.dev, ino: rootStat.ino }
+    } catch (error) {
+      throw new RetrievalGrepConfigError(`retrieval-grep: config.root cannot be pinned to a real directory (${error instanceof Error ? error.message : String(error)})`)
+    }
     this.rgPath = config.rgPath ?? 'rg'
     if (typeof this.rgPath !== 'string' || !this.rgPath.trim()) throw new RetrievalGrepConfigError('retrieval-grep: rgPath must be a non-empty executable')
     this.extraArgs = config.extraArgs ?? []
@@ -192,9 +221,14 @@ export class RetrievalGrep extends Service {
     let realRoot: string
     let target: string
     try {
-      realRoot = realpathSync(this.root)
+      const current = lstatSync(this.root)
+      if (!current.isDirectory() || current.isSymbolicLink() || !sameCanonicalPath(realpathSync(this.root), this.root) ||
+          (process.platform !== 'win32' && this.rootIdentity.ino !== 0 && (current.ino !== this.rootIdentity.ino || current.dev !== this.rootIdentity.dev))) {
+        return { ok: false, error: { kind: 'path_not_found', detail: 'root identity changed after service construction' } }
+      }
+      realRoot = this.root
     } catch {
-      return { ok: false, error: { kind: 'path_not_found', detail: 'root does not exist' } }
+      return { ok: false, error: { kind: 'path_not_found', detail: 'root does not exist or its identity changed' } }
     }
     try {
       target = realpathSync(resolve(realRoot, path ?? '.'))
@@ -238,7 +272,7 @@ export class RetrievalGrep extends Service {
       if (!raw) continue
       const abs = resolve(realRoot, raw)
       if (!isInside(realRoot, abs)) continue
-      const file = relative(realRoot, abs).split(sep).join('/')
+      const file = relativePath(realRoot, abs).split(sep).join('/')
       if (isAlwaysExcludedPath(file)) continue
       files.push(file)
     }

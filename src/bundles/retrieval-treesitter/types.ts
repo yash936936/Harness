@@ -39,7 +39,7 @@ export interface RetrievalTreesitterConfig {
   grammarDir?: string
   /** Languages this instance will accept. Default: all supported. */
   languages?: ParseLanguage[]
-  /** Refuse sources larger than this many UTF-16 code units. Default 524288. */
+  /** Refuse sources larger than this many UTF-8 bytes. Default 524288. */
   maxBytes?: number
   /** Cap on returned symbols. Default 2000. */
   maxSymbols?: number

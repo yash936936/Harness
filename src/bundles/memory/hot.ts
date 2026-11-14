@@ -1,4 +1,5 @@
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { mkdir, rename, writeFile } from 'node:fs/promises'
+import { assertNoSymlinkParents, readTextFileNoFollow } from '../../util/secure-file.js'
 import { withFileLock } from '../../util/filelock.js'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
@@ -137,7 +138,7 @@ export class HotTier {
     this.entries = []
     if (this.dir) {
       try {
-        const parsed = JSON.parse(await readFile(this.file, 'utf8'))
+        const parsed = JSON.parse(await readTextFileNoFollow(this.file))
         if (!Array.isArray(parsed)) throw new Error('not an array')
         const ids = new Set<string>()
         for (const [index, entry] of parsed.entries()) {
@@ -176,9 +177,12 @@ export class HotTier {
       const list = structuredClone(await this.load())
       fn(list)
       if (this.dir) {
+        await assertNoSymlinkParents(this.file)
         await mkdir(this.dir, { recursive: true })
+        await assertNoSymlinkParents(this.file)
         const tmp = `${this.file}.${process.pid}.${randomUUID()}.tmp`
-        await writeFile(tmp, JSON.stringify(list, null, 2), 'utf8')
+        await writeFile(tmp, JSON.stringify(list, null, 2), { encoding: 'utf8', mode: 0o600, flag: 'wx' })
+        await assertNoSymlinkParents(this.file)
         await rename(tmp, this.file)
       }
       this.entries = list
@@ -186,7 +190,9 @@ export class HotTier {
     // Read-modify-write must be exclusive across PROCESSES too (BUG-09), or one process's update is silently overwritten by another's.
     const job = this.queue.then(async () => {
       if (!this.dir) return work()
+      await assertNoSymlinkParents(this.file)
       await mkdir(this.dir, { recursive: true })
+      await assertNoSymlinkParents(this.file)
       return withFileLock(`${this.file}.lock`, work)
     })
     this.queue = job.catch(() => {})

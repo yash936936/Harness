@@ -59,7 +59,7 @@ export class JsonlStore implements SessionStore {
       const opened = await handle.stat()
       const after = await lstat(file)
       if (!after.isFile() || after.isSymbolicLink() ||
-          (opened.ino !== 0 && (after.ino !== opened.ino || after.dev !== opened.dev))) {
+          (process.platform !== 'win32' && opened.ino !== 0 && (after.ino !== opened.ino || after.dev !== opened.dev))) {
         throw new Error(`session log ${id}: file changed while opening; refusing`)
       }
       return handle
