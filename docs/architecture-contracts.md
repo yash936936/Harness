@@ -153,6 +153,22 @@ Each sample indexed 31 files and 1,740 chunks and made 7 embedding calls. The el
 
 This measures the current implementation, not bounded-memory indexing. `indexFiles` prepares all file chunks before embedding groups; `indexGroupChunks` bounds an embedding group, not total prepared memory. Hashing embeddings are deterministic local test infrastructure and provide no semantic-quality evidence.
 
+### Deterministic semantic reindex baseline: CI run #752
+
+Ubuntu x64, Node v22.12.0, 4 CPUs. Three sequential samples in one process. Each sample reindexed 2,000 persisted semantic facts into a fresh LanceDB collection using deterministic local 64-dimensional hashing embeddings. The embedding provider was configured for batches of 64 facts.
+
+| Measurement | p50 | Maximum of 3 samples |
+|---|---:|---:|
+| `MemorySemantic.reindex({ reset: true })` elapsed time | 78.332 ms | 142.656 ms |
+| Throughput | 25,532.5 facts/s | 27,627.7 facts/s |
+| Process RSS delta | 5,005,312 bytes | 75,137,024 bytes |
+
+Every sample indexed 2,000 facts and verified 2,000 vectors. Each made 32 embedding requests: 31 batches of 64 and one batch of 16. The current implementation performs one vector collection upsert containing all 2,000 records.
+
+Fixture generation and LanceDB module loading are outside the timed interval. RSS is sampled every 5 ms during setup and reindex; it is process-wide, includes setup, and can miss short-lived peaks. Samples run sequentially in one process, so retained heap and native allocations from earlier samples can affect later RSS deltas. The maximum of three samples is not a statistically stable p95.
+
+This measures the current all-at-once reindex path, not a resumable or bounded-memory implementation. Embedding provider requests are batched, but the full fact-text list, returned vector list, and vector-record list remain materialized before the single upsert. Hashing embeddings are deterministic local test infrastructure and provide no semantic-quality evidence.
+
 Still unmeasured: bounded streaming output. No estimates are substituted for measurements.
 
 | Area | Baseline workload | Required measurements |
