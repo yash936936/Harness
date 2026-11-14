@@ -219,6 +219,7 @@ export class LanceVectorStore extends Service {
   private lance: Promise<Lance> | undefined
   private conn: Promise<LanceConn> | undefined
   private readonly collections = new Map<string, LanceCollection>()
+  private openQueue: Promise<unknown> = Promise.resolve()
   private disposed = false
 
   constructor(ctx: Context, config: VectorStoreConfig) {
@@ -228,7 +229,16 @@ export class LanceVectorStore extends Service {
     this.ctx.effect(() => () => this.disposeAll())
   }
 
-  async open(name: string, opts: OpenCollectionOptions): Promise<VectorStoreResult<{ collection: VectorCollection }>> {
+  open(name: string, opts: OpenCollectionOptions): Promise<VectorStoreResult<{ collection: VectorCollection }>> {
+    const job = this.openQueue.then(
+      () => this.openNow(name, opts),
+      () => this.openNow(name, opts),
+    )
+    this.openQueue = job.catch(() => undefined)
+    return job
+  }
+
+  private async openNow(name: string, opts: OpenCollectionOptions): Promise<VectorStoreResult<{ collection: VectorCollection }>> {
     if (this.disposed) return fail('closed', 'the vector store has been disposed')
     if (typeof name !== 'string' || !NAME_RE.test(name)) return fail('input', 'collection name must be 1-64 characters of A-Z a-z 0-9 _ -')
     if (typeof opts?.fingerprint !== 'string' || opts.fingerprint.trim() === '') return fail('input', 'fingerprint is required')
