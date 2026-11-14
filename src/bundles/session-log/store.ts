@@ -107,6 +107,7 @@ export class JsonlStore implements SessionStore {
    */
   private async cursorMatches(sessionId: string, cursor: TailCursor): Promise<boolean> {
     try {
+      await assertNoSymlinkParents(this.file(sessionId))
       const stat = await lstat(this.file(sessionId), { bigint: true })
       return cursor.exists && stat.isFile() && !stat.isSymbolicLink() &&
         stat.size === cursor.size && stat.mtimeNs === cursor.mtimeNs &&
@@ -119,6 +120,7 @@ export class JsonlStore implements SessionStore {
   private async rememberTail(sessionId: string, seq: number): Promise<void> {
     let cursor: TailCursor
     try {
+      await assertNoSymlinkParents(this.file(sessionId))
       const stat = await lstat(this.file(sessionId), { bigint: true })
       if (!stat.isFile() || stat.isSymbolicLink()) {
         this.tailCursors.delete(sessionId)
