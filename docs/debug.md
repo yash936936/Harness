@@ -2151,3 +2151,12 @@ The owner supplied the exact `ROADMAP.md` proposal and explicitly approved D-116
 The exact proposal was preserved as `docs/ROADMAP.md`. D-116 was appended to `docs/decisions.md`; `docs/ROADMAP-DECISIONS.md` records each disposition; `docs/STATE.md` is the compact authoritative state table. README, context, status, build plan, and audit closeout were synchronized.
 
 **Evidence boundary:** This records scope approval only. R1 decision recording is closed. R2 remains partial (S7 live rerun and session-scoped approval work remain). R3 has not started; no demo sessions, JSONLs, owner-reviewed summary, or cold-start measurement are claimed. S6/S7 remain open. The retrieval-rank split was reviewed and not adopted under DBG-120. PR #88 remains the documentation follow-up branch until merged; its prior CI run #577 passed seven jobs. No local tests or runtime checks were run during this documentation update.
+
+
+## DBG-130 — session-log parent directory symlink redirection
+
+**Finding:** `JsonlStore.openRegular()` checked the final session file with `lstat` and `O_NOFOLLOW`, but did not reject symlinks in ancestor directories. `withLock()`, `append()`, and `list()` therefore could resolve a configured session directory through a symlink. For the CLI's `.harness/sessions` path, a symlinked `.harness` or `sessions` directory could redirect the audit log and lock files outside the project state directory.
+
+**Correction in `fix/session-log-parent-symlink-2026-11`:** Validate all parent components before and after directory creation and after opening a session file. Apply the same parent validation to session listing. Keep the existing final-file no-follow and opened-file identity checks. Add a regression test proving append, read, and list reject a symlinked parent and leave the external target directory untouched.
+
+**Validation boundary:** Source, test, and component-guide changes were written through the GitHub connector. No local command or test was run. The PR's Ubuntu/Windows CI must validate the change; the symlink regression is intentionally skipped on Windows, matching the existing final-file symlink test. The full file-by-file audit remains incomplete.
