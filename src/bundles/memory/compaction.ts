@@ -79,7 +79,8 @@ export class Compaction {
     // D-073: lessons are counted PER SUB-AGENT and promoted into that agent's scope only. Counting across agents and promoting
     // globally would let one agent's repeated (possibly poisoned) lesson become a standing rule in every other agent's prompt.
     const groups = new Map<string, { norm: string; scope: string | undefined; text: string; occurrences: number; sessions: Set<string> }>()
-    for await (const e of this.episodic.iterate()) {
+    const episodeSource = typeof this.episodic.iterate === 'function' ? this.episodic.iterate() : await this.episodic.query({})
+    for await (const e of episodeSource) {
       examined++
       if (!e.lesson) continue
       const norm = normaliseLesson(e.lesson)
