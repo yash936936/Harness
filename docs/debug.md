@@ -2160,3 +2160,12 @@ The exact proposal was preserved as `docs/ROADMAP.md`. D-116 was appended to `do
 **Correction in `fix/session-log-parent-symlink-2026-11`:** Validate all parent components before and after directory creation and after opening a session file. Apply the same parent validation to session listing. Keep the existing final-file no-follow and opened-file identity checks. Add a regression test proving append, read, and list reject a symlinked parent and leave the external target directory untouched.
 
 **Validation boundary:** Source, test, and component-guide changes were written through the GitHub connector. No local command or test was run. The PR's Ubuntu/Windows CI must validate the change; the symlink regression is intentionally skipped on Windows, matching the existing final-file symlink test. The full file-by-file audit remains incomplete.
+
+
+## DBG-131 — compaction ledger symlink and temporary-file redirection
+
+**Finding:** `Compaction.loadLedger()` used `readFile()`, which follows a symlink at `compaction.json`. `record()` wrote to the predictable `compaction.json.<pid>.tmp` path using default overwrite semantics. A symlink planted at that temporary path could redirect the write to an arbitrary target. The compaction lock and ledger directory also lacked parent-component validation, unlike the episodic, hot, semantic, and egress stores.
+
+**Correction in `fix/session-log-parent-symlink-2026-11`:** Use `readTextFileNoFollow` for the ledger; validate parent directories before/after directory creation and before replacement; create a random `randomUUID()` temporary filename with `flag: 'wx'` and mode `0600`; revalidate before rename; remove a failed temporary file. Add regression coverage for symlinked parent directories, a symlinked ledger, and a planted predictable-temp symlink.
+
+**Validation boundary:** Changes were made through the GitHub connector. No local tests were run. The prior session-log-only PR head passed CI run #763; this expanded head requires a new complete Ubuntu/Windows CI run. No live sandbox or host command was used.
