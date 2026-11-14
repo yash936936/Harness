@@ -242,7 +242,7 @@ export class Skills extends Service {
     const noFollow = typeof constants.O_NOFOLLOW === 'number' ? constants.O_NOFOLLOW : 0
     const fh = await open(real, constants.O_RDONLY | noFollow)
     let buf: Buffer
-    let st
+    let st: Awaited<ReturnType<typeof stat>>
     try {
       st = await fh.stat()
       const after = await lstat(real)
