@@ -151,7 +151,8 @@ async function realRun(script: (m: Msg[]) => unknown, opts: { maxSteps?: number;
     projectId: 'eval', projectRoot: root, sessionLog: { memory: true }, agentLoop: { maxSteps: opts.maxSteps ?? 12 },
     policy: { approvalTimeoutMs: 2000, approver: () => ({ approve: opts.approve ?? true, by: 'test' }) },
   } as any)
-  // Test-only synthetic provider. It never launches a host process.\n  registerTestSandbox(ctx)
+  // Test-only synthetic provider. It never launches a host process.
+  registerTestSandbox(ctx)
   ctx.llm.register('mock', new MockProvider(((req: { messages: Msg[] }) => script(req.messages)) as any), { default: true })
   await ctx.agentLoop.run({ sessionId: 'task', prompt: 'do the task', tools: ['read_file', 'edit_file', 'run_command'] }).catch(() => {})
   return { ctx, events: await ctx.log.read('task') }
