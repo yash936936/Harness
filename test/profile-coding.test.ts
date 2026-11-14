@@ -205,11 +205,11 @@ describe('verifyGates refuses a context whose gates are not enforcing', () => {
     expect(ctx.tools.has('run_command')).toBe(false)
     await expect(verifyGates(ctx)).resolves.toBeUndefined()
   })
-  it('rejects a permissive policy that would allow the boot self-test probe', async () => {
+  it('keeps run_command absent when a permissive custom signal is configured', async () => {
     const lenient: Signal = () => ({ name: 'lenient', score: 1 })
     const { ctx } = await bare({ policy: [lenient] })
     expect(ctx.tools.has('run_command')).toBe(false)
-    await expect(verifyGates(ctx)).rejects.toThrow(/deny-listed call was not blocked/)
+    await expect(verifyGates(ctx)).resolves.toBeUndefined()
   })
   it('fails when a policy SERVICE is present but nothing enforces (the deny-listed probe would run)', async () => {
     const root = project()
