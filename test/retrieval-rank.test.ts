@@ -685,6 +685,31 @@ describe.skipIf(!hasRg)('indexing', () => {
     expect(stored.ok && stored.ids).toEqual(expectedIds)
   })
 
+  it('preserves the previous file index when replacement upsert fails', async () => {
+    const rel = 'src/atomic/upsert-failure.ts'
+    const dir = join(root, 'src/atomic')
+    mkdirSync(dir, { recursive: true })
+    const file = join(dir, 'upsert-failure.ts')
+    writeFileSync(file, 'export function stable() {\\n  return 1\\n}\\n')
+    const b = await boot({ provider: new HashingEmbeddingProvider({ dimensions: 64 }) })
+    const first = await b.rank.indexFiles([rel])
+    expect(first.ok).toBe(true)
+    const collection = await col(b)
+    const before = await collection.idsForSource(rel)
+    expect(before.ok).toBe(true)
+    const original = collection.upsert.bind(collection)
+    const spy = vi.spyOn(collection, 'upsert').mockImplementation(async (records) => {
+      if (records.some((record) => record.source === rel)) return { ok: false, error: { kind: 'io', detail: 'injected upsert failure' } }
+      return original(records)
+    })
+    writeFileSync(file, 'export function stable() {\\n  return 2\\n}\\n')
+    const failed = await b.rank.indexFiles([rel])
+    expect(failed).toMatchObject({ ok: false, error: { kind: 'vectorstore', detail: 'io: injected upsert failure' } })
+    const after = await collection.idsForSource(rel)
+    expect(after).toEqual(before)
+    spy.mockRestore()
+  })
+
   it('reindexing the same files replaces their chunks instead of duplicating them', async () => {
     const b = await boot({ provider: new HashingEmbeddingProvider({ dimensions: 64 }) })
     const first = await b.rank.indexFiles(['src/config/parser.ts', 'src/net/client.ts'])
