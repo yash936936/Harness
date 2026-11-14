@@ -416,8 +416,6 @@ export class RetrievalRank extends Service {
       }
       let at = 0
       for (const g of group) {
-        const d = await col.deleteSource(g.file)
-        if (!d.ok) return { ok: false, error: { kind: 'vectorstore', detail: `${d.error.kind}: ${d.error.detail}` } }
         const records = g.chunks.map((c, i) => ({
           id: c.id,
           vector: vectors[at + i] as Float32Array,
@@ -425,8 +423,22 @@ export class RetrievalRank extends Service {
           metadata: { file: c.file, startLine: c.startLine, endLine: c.endLine, kind: c.kind, hash: c.id.slice(c.id.lastIndexOf('#') + 1), ...(c.name ? { name: c.name } : {}) },
         }))
         at += g.chunks.length
-        const u = await col.upsert(records)
-        if (!u.ok) return { ok: false, error: { kind: 'vectorstore', detail: `${u.error.kind}: ${u.error.detail}` } }
+        if (col.replaceSource) {
+          const replaced = await col.replaceSource(g.file, records)
+          if (!replaced.ok) return { ok: false, error: { kind: 'vectorstore', detail: replaced.error.kind + ': ' + replaced.error.detail } }
+        } else {
+          // Compatibility path for third-party stores: write new rows before deleting stale ids.
+          const existing = await col.idsForSource(g.file)
+          if (!existing.ok) return { ok: false, error: { kind: 'vectorstore', detail: existing.error.kind + ': ' + existing.error.detail } }
+          const upserted = records.length > 0 ? await col.upsert(records) : { ok: true as const, written: 0 }
+          if (!upserted.ok) return { ok: false, error: { kind: 'vectorstore', detail: upserted.error.kind + ': ' + upserted.error.detail } }
+          const nextIds = new Set(records.map((record) => record.id))
+          const staleIds = existing.ids.filter((id) => !nextIds.has(id))
+          if (staleIds.length > 0) {
+            const deleted = await col.deleteIds(staleIds)
+            if (!deleted.ok) return { ok: false, error: { kind: 'vectorstore', detail: deleted.error.kind + ': ' + deleted.error.detail } }
+          }
+        }
         embeddedFiles++
         embeddedChunks += g.chunks.length
       }
