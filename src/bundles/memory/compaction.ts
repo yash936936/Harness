@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto'
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { mkdir, rename, unlink, writeFile } from 'node:fs/promises'
+import { randomUUID } from 'node:crypto'
+import { assertNoSymlinkParents, readTextFileNoFollow } from '../../util/secure-file.js'
 import { join } from 'node:path'
 import { withFileLock } from '../../util/filelock.js'
 import type { EpisodicMemory } from './index.js'
@@ -56,7 +58,9 @@ export class Compaction {
   run(opts: { minOccurrences?: number; dryRun?: boolean; approve?: (c: PromotionCandidate) => boolean | Promise<boolean> } = {}): Promise<CompactionResult> {
     const job = this.queue.then(async () => {
       if (!this.dir) return this.runNow(opts)
+      await assertNoSymlinkParents(this.file)
       await mkdir(this.dir, { recursive: true })
+      await assertNoSymlinkParents(this.file)
       // Compaction state is shared across Harness processes. Serialize the whole
       // read/decide/promote/ledger cycle, then reload the ledger inside the lock.
       return withFileLock(`${this.file}.lock`, async () => {
@@ -144,7 +148,7 @@ export class Compaction {
     this.ledger = { promoted: Object.create(null) as Ledger['promoted'] }
     if (this.dir) {
       try {
-        const parsed: unknown = JSON.parse(await readFile(this.file, 'utf8'))
+        const parsed: unknown = JSON.parse(await readTextFileNoFollow(this.file))
         if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) ||
           !('promoted' in parsed) || !parsed.promoted || typeof parsed.promoted !== 'object' || Array.isArray(parsed.promoted)) {
           throw new Error('unexpected shape')
@@ -174,10 +178,18 @@ export class Compaction {
     const ledger = await this.loadLedger()
     const next: Ledger = { promoted: Object.assign(Object.create(null), ledger.promoted, { [key]: { ts: this.now().toISOString(), occurrences: c.occurrences, text: c.text } }) }
     if (this.dir) {
+      await assertNoSymlinkParents(this.file)
       await mkdir(this.dir, { recursive: true })
-      const tmp = `${this.file}.${process.pid}.tmp`
-      await writeFile(tmp, JSON.stringify(next, null, 2), 'utf8')
-      await rename(tmp, this.file)
+      await assertNoSymlinkParents(this.file)
+      const tmp = `${this.file}.${process.pid}.${randomUUID()}.tmp`
+      try {
+        await writeFile(tmp, JSON.stringify(next, null, 2), { encoding: 'utf8', mode: 0o600, flag: 'wx' })
+        await assertNoSymlinkParents(this.file)
+        await rename(tmp, this.file)
+      } catch (error) {
+        await unlink(tmp).catch(() => {})
+        throw error
+      }
     }
     this.ledger = next
   }
