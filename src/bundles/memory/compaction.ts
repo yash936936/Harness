@@ -75,16 +75,18 @@ export class Compaction {
     const min = opts.minOccurrences ?? this.defaults.minOccurrences
     if (!Number.isSafeInteger(min) || min < 2) throw new MemoryError('memory: minOccurrences must be an integer >= 2')
     const dryRun = opts.dryRun === true
-    const episodes = await this.episodic.query({}) // oldest first
+    let examined = 0
     // D-073: lessons are counted PER SUB-AGENT and promoted into that agent's scope only. Counting across agents and promoting
     // globally would let one agent's repeated (possibly poisoned) lesson become a standing rule in every other agent's prompt.
     const groups = new Map<string, { norm: string; scope: string | undefined; text: string; occurrences: number; sessions: Set<string> }>()
-    for (const e of episodes) {
+    const episodeSource = typeof this.episodic.iterate === 'function' ? this.episodic.iterate() : await this.episodic.query({})
+    for await (const e of episodeSource) {
+      examined++
       if (!e.lesson) continue
       const norm = normaliseLesson(e.lesson)
       if (!norm) continue
       const scope = isScopedActor(e.agentId) ? e.agentId : undefined
-      const key = scope ? `${scope}\u0000${norm}` : norm
+      const key = scope ? scope + String.fromCharCode(0) + norm : norm
       const g = groups.get(key) ?? { norm, scope, text: e.lesson, occurrences: 0, sessions: new Set<string>() }
       g.text = e.lesson // keep the most recent wording
       g.occurrences++
@@ -94,7 +96,7 @@ export class Compaction {
 
     const ledger = await this.loadLedger()
     const inHot = new Set((await this.hot.list()).map((h) => h.id))
-    const result: CompactionResult = { examined: episodes.length, promoted: [], skipped: { alreadyPromoted: 0, belowThreshold: 0, rejected: 0 }, failed: [], dryRun }
+    const result: CompactionResult = { examined, promoted: [], skipped: { alreadyPromoted: 0, belowThreshold: 0, rejected: 0 }, failed: [], dryRun }
 
     for (const [key, g] of groups) {
       if (g.occurrences < min) {

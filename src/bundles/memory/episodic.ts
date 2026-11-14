@@ -65,26 +65,74 @@ export class EpisodicMemory {
     episode = this.ctx.egress.redactValue(episode)
     const created = await this.store.add(episode)
     if (!created) {
-      const existing = (await this.store.all()).find((e) => e.id === episode.id)!
+      const existing = this.store.findById
+        ? await this.store.findById(episode.id)
+        : (await this.store.all()).find((e) => e.id === episode.id)
+      if (!existing) throw new MemoryError(`memory: episode ${episode.id} already exists but could not be read`)
       return { episode: this.ctx.egress.redactValue(existing), created: false }
     }
     return { episode, created: true }
   }
 
+  /** Stream redacted episodes in storage order for bounded-memory consumers. */
+  async *iterate(): AsyncGenerator<Episode> {
+    if (this.store.iterate) {
+      for await (const episode of this.store.iterate()) yield this.ctx.egress.redactValue(episode)
+      return
+    }
+    for (const episode of await this.store.all()) yield this.ctx.egress.redactValue(episode)
+  }
+
+  /** Count without materialising the episode collection when the store supports it. */
+  async count(): Promise<number> {
+    if (this.store.count) return this.store.count()
+    let count = 0
+    for await (const _episode of this.iterate()) count++
+    return count
+  }
+
   async query(q: EpisodeQuery = {}): Promise<Episode[]> {
     const needle = q.task?.toLowerCase()
-    let items = (await this.store.all()).map((episode) => this.ctx.egress.redactValue(episode)).filter(
-      (e) =>
-        (q.sessionId === undefined || e.sessionId === q.sessionId) &&
-        (q.agentId === undefined || e.agentId === q.agentId) &&
-        (q.outcome === undefined || e.outcome === q.outcome) &&
-        (needle === undefined || e.task.toLowerCase().includes(needle)) &&
-        (q.from === undefined || e.ts >= q.from) &&
-        (q.to === undefined || e.ts < q.to),
-    )
-    items.sort((a, b) => (a.ts === b.ts ? a.sessionId.localeCompare(b.sessionId) || a.fromSeq - b.fromSeq : a.ts < b.ts ? -1 : 1))
+    const matches = (e: Episode) =>
+      (q.sessionId === undefined || e.sessionId === q.sessionId) &&
+      (q.agentId === undefined || e.agentId === q.agentId) &&
+      (q.outcome === undefined || e.outcome === q.outcome) &&
+      (needle === undefined || e.task.toLowerCase().includes(needle)) &&
+      (q.from === undefined || e.ts >= q.from) &&
+      (q.to === undefined || e.ts < q.to)
+    const compareAsc = (a: Episode, b: Episode) =>
+      a.ts === b.ts ? a.sessionId.localeCompare(b.sessionId) || a.fromSeq - b.fromSeq : a.ts < b.ts ? -1 : 1
+
+    if (q.limit !== undefined) {
+      const limit = Math.trunc(Math.max(0, q.limit))
+      if (!(limit > 0)) return []
+      const descending = q.order === 'desc'
+      const selected: Array<{ episode: Episode; ordinal: number }> = []
+      let ordinal = 0
+      for await (const episode of this.iterate()) {
+        if (!matches(episode)) { ordinal++; continue }
+        const entry = { episode, ordinal: ordinal++ }
+        const compare = (a: typeof entry, b: typeof entry) => {
+          const order = compareAsc(a.episode, b.episode)
+          return (descending ? -order : order) || (descending ? b.ordinal - a.ordinal : a.ordinal - b.ordinal)
+        }
+        let low = 0
+        let high = selected.length
+        while (low < high) {
+          const middle = (low + high) >>> 1
+          if (compare(selected[middle]!, entry) <= 0) low = middle + 1
+          else high = middle
+        }
+        selected.splice(low, 0, entry)
+        if (selected.length > limit) selected.pop()
+      }
+      return selected.map((entry) => entry.episode)
+    }
+
+    const items: Episode[] = []
+    for await (const episode of this.iterate()) if (matches(episode)) items.push(episode)
+    items.sort(compareAsc)
     if (q.order === 'desc') items.reverse()
-    if (q.limit !== undefined) items = items.slice(0, Math.max(0, q.limit))
     return items
   }
 

@@ -194,7 +194,7 @@ export class Memory extends Service {
     })
     if (created && this.everyTurns !== undefined) {
       // Counted from the stored episodes, not a counter, so the schedule survives a restart.
-      const n = (await this.episodic.query({})).length
+      const n = await this.episodic.count()
       if (n % this.everyTurns === 0) await this.autoCompact()
     }
     return { ...result, episode }

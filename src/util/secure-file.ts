@@ -1,4 +1,5 @@
 import { constants, lstatSync, openSync, fstatSync, readFileSync, closeSync } from 'node:fs'
+import { StringDecoder } from 'node:string_decoder'
 import { lstat, open } from 'node:fs/promises'
 import { dirname, parse, resolve, sep, join } from 'node:path'
 
@@ -68,6 +69,33 @@ export async function readTextFileNoFollow(path: string): Promise<string> {
   const handle = await openExisting(path)
   try { return await handle.readFile({ encoding: 'utf8' }) }
   finally { await handle.close() }
+}
+
+/** Stream UTF-8 lines from a verified regular file without following a symlink. */
+export async function* readTextLinesNoFollow(path: string): AsyncGenerator<{ line: string; newline: boolean }> {
+  const handle = await openExisting(path)
+  const decoder = new StringDecoder('utf8')
+  const buffer = Buffer.alloc(64 * 1024)
+  let pending = ''
+  let position = 0
+  try {
+    for (;;) {
+      const { bytesRead } = await handle.read(buffer, 0, buffer.length, position)
+      if (bytesRead === 0) break
+      position += bytesRead
+      pending += decoder.write(buffer.subarray(0, bytesRead))
+      for (;;) {
+        const newlineAt = pending.indexOf('\n')
+        if (newlineAt < 0) break
+        yield { line: pending.slice(0, newlineAt), newline: true }
+        pending = pending.slice(newlineAt + 1)
+      }
+    }
+    pending += decoder.end()
+    if (pending.length > 0) yield { line: pending, newline: false }
+  } finally {
+    await handle.close()
+  }
 }
 
 export async function readBufferFileNoFollow(path: string): Promise<Buffer> {

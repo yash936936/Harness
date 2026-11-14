@@ -124,7 +124,7 @@ try {
     results.episodicDuplicateCheckAt100k = {
       ...stats(duplicateTimings),
       fixtureBytes,
-      estimatedFullFileReadBytesPerCheck: fixtureBytes * 2,
+      estimatedFullFileReadBytesPerCheck: fixtureBytes,
     }
     results.episodicSelectiveQueryAt100k = {
       ...stats(queryTimings),
