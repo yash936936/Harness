@@ -151,7 +151,7 @@ export interface DurableHistoryEvent {
 export interface AppendHistoryInput extends IdempotentCommand {
   readonly projectId: ProjectId
   readonly partitionId: string
-  readonly event: Omit<DurableHistoryEvent, 'sequence'>
+  readonly event: Omit<DurableHistoryEvent, 'sequence' | 'projectId' | 'partitionId'>
 }
 
 export interface AppendHistoryResult {
