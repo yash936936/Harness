@@ -1,7 +1,7 @@
 # Full codebase audit checklist
 
-Baseline: `main` at `41ca36359b6502c986fd41924cbc6b1d643b1077` (2026-11-14).
-Audit continuation branch: `fix/skills-directory-symlink-boundary-2026-11-v2`.
+Baseline: `main` at `0bb27968955b218c5ea188f35b3d0939623a32cb` (2026-11-14).
+Audit continuation branch: `docs/audit-findings-050-051-closeout-2026-11`.
 
 This is a staged, evidence-based audit. Review each file, then each folder, then cross-folder flows. The follow-up fix pass updates selected findings but does not claim the full file-by-file audit is complete. Do not remove code solely because it appears old or duplicated; first verify imports, runtime registration, scripts, tests, docs, and history. Do not weaken D-110/D-117/D-118 security boundaries.
 
@@ -97,8 +97,7 @@ This is a staged, evidence-based audit. Review each file, then each folder, then
 - [ ] `src/bundles/vectorstore-lancedb`
 - [ ] `src/cli`
 - [ ] `src/profiles`
-- [ ] `src/util`
-- [ ] `scripts` (including historical/held utilities)
+- [ ] `src/util`- [ ] `scripts` (including historical/held utilities)
 - [ ] `app/desktop/bench`
 - [ ] `test` and `test/fixtures`
 - [ ] Cross-folder integration and data-flow review
@@ -165,7 +164,8 @@ This is a staged, evidence-based audit. Review each file, then each folder, then
 | AUD-047 | P2 | `src/bundles/router/index.ts` | `Router.shadow()` reuses `resolve()`, which increments `failures` when Needle throws or returns an invalid choice. This mutates `stats()` even though the shadow API promises no stats changes. | Fixed in main: shadow resolution does not mutate failure counters; regression test added |
 | AUD-048 | P1 | `src/bundles/session-log/store.ts`, `test/session-log.test.ts` | The store rejected symlinks at the final session filename but did not validate parent directories. A symlinked configured session directory or ancestor could redirect audit-log reads, appends, locks, and listing outside the configured project state path. | Fixed in PR #101: parent components are checked before/after directory creation and file open; regression test covers append/read/list. Current head passed CI run #768 |
 | AUD-049 | P1 | `src/bundles/memory/compaction.ts`, `test/memory-compaction.test.ts` | The compaction ledger followed symlinked final/parent paths and replaced the ledger through a predictable `${process.pid}.tmp` path opened with default overwrite semantics. A planted temp symlink could redirect the ledger write to an arbitrary file. | Fixed in PR #101: no-follow ledger read, parent validation, unique `randomUUID()` temp path opened with `wx` and mode `0600`, regression tests for parent/ledger/temp symlinks. Current head passed CI run #768 |
-| AUD-050 | P1 | `src/bundles/skills/index.ts`, `test/skills.test.ts` | Skill discovery followed child directory symlinks outside the configured root and read external `SKILL.md` content. `readSkill()` and `instructions()` also followed a symlinked `SKILL.md`; resource reads had a realpath containment check but opened the resolved path without no-follow/file-identity validation. | Fix in `fix/skills-directory-symlink-boundary-2026-11-v2`: reject discovered directories outside configured roots, require regular non-symlink `SKILL.md`, use no-follow instruction reads, and verify resource file identity after opening. Regression tests cover external directory and instruction-file symlinks. CI pending |
+| AUD-050 | P1 | `src/bundles/skills/index.ts`, `test/skills.test.ts` | Skill discovery followed child directory symlinks outside the configured root and read external `SKILL.md` content. `readSkill()` and `instructions()` also followed a symlinked `SKILL.md`; resource reads had a realpath containment check but opened the resolved path without no-follow/file-identity validation. | Fixed in PR #102, merged as `082e83629ea20ead62e001cf27357bd4952fd6a5`; CI run #777 passed all Linux/Windows Node 20/22 jobs and `ci-pass`. Regression tests cover external directory and instruction-file symlinks |
+| AUD-051 | P1 | `src/bundles/memory/semantic.ts`, `test/memory-semantic.test.ts` | Concurrent same-ID semantic fact updates could complete embeddings out of order, allowing an older embedding to overwrite the newer fact's vector. Delayed removal could also delete a replacement vector. | Fixed in PR #103, merged as `0bb27968955b218c5ea188f35b3d0939623a32cb`; serialize index mutations, verify fact version after embedding, recheck removals, and serialize queries with rebuilds. Deterministic race regression test; CI run #778 and follow-up run #780 passed all matrix jobs and `ci-pass` |
 
 ### Verification corrections
 
@@ -197,7 +197,6 @@ CI for this follow-up must be treated as unverified until the new pull request's
 
 
 ## D-119 architecture decisions and current PR verification (2026-11-14)
-
 D-119 selects SQLite for shared transactional state (initially multi-process, single-machine/local-filesystem only), capability-based task-scoped workspace sessions alongside the one-shot sandbox API, hybrid durable-history plus bounded searchable-memory retention, and backward-compatible internal migration. Approved policy is one database per project, no automatic durable-history deletion, and workspace resume only after lease expiry, explicit ownership acquisition, and provider-validated recovery. See `docs/decisions.md` and `docs/ROADMAP.md` for the full migration plan.
 
 CI note: PR #95 is merged. Its initial run #731 had a Windows Node 20.19.0 test failure; the final head passed run #732 across Ubuntu and Windows on Node 20.19.0 and 22.12.0, including benchmark and `ci-pass`.
@@ -232,6 +231,6 @@ Phase 0 is complete. Phase 1 contracts, owner policy approvals, CI, and initial 
 
 ## Skills security audit — 2026-11-14
 
-- Confirmed AUD-050: configured skill roots are canonicalized, but child symlink directories were accepted and could resolve outside the configured root. `readSkill()` and `instructions()` followed a symlinked `SKILL.md`; resource reads checked containment but did not verify the opened file identity.
-- The fix and two regression tests are on `fix/skills-directory-symlink-boundary-2026-11-v2`. The changes have not yet been run through CI. No local tests were run.
-- PR #101 merged as `67fd1666fec0ae55ea4473459c36bce78fc5b611`; its final documentation-only head passed CI run #773. The complete file-by-file and cross-folder audit remains incomplete.
+- Confirmed AUD-050: configured skill roots were canonicalized, but child symlink directories and symlinked `SKILL.md` files could escape the configured root. Fixed in PR #102, merged as `082e83629ea20ead62e001cf27357bd4952fd6a5`; CI run #777 passed all Linux/Windows Node 20/22 jobs and `ci-pass`.
+- Confirmed AUD-051: concurrent same-ID semantic updates could write vectors out of order, and delayed removal could delete a replacement vector. Fixed in PR #103, merged as `0bb27968955b218c5ea188f35b3d0939623a32cb`; CI run #778 passed all Linux/Windows Node 20/22 jobs and `ci-pass`.
+- The complete file-by-file and cross-folder audit remains incomplete.
