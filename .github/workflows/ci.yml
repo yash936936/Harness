@@ -85,7 +85,7 @@ jobs:
           node-version: 22.12.0
           cache: npm
       - run: npm ci
-      - name: measure current session-log and episodic-memory hot paths
+      - name: measure architecture hot paths, reservations, and indexing
         run: npm run bench:architecture
   not-run:
     name: acceptance gates NOT run by CI
