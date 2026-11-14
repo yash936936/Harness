@@ -18,7 +18,7 @@ The keyword and embedding matchers live in `matching.ts`. They select relevant s
 - `index` defaults to true. `autoLoad` is optional and requires a matcher function; its `max` value, when supplied, must be a positive integer.
 - Index and instruction token budgets and resource character limits are positive integers. The defaults are 2,000 index tokens, 5,000 instruction tokens, and 20,000 resource characters.
 - Skill names must be 1-64 lowercase letters/digits separated by single hyphens and must match their containing folder.
-- Resources must resolve inside the skill directory. Hidden files, `SKILL.md` siblings, binary files, symlink escapes, and oversized instruction files are refused or bounded.
+- Discovered skill directories must resolve inside their configured root. `SKILL.md` must be a regular non-symlink file, and instruction/resource reads reject final-component symlinks and verify opened-file identity. Resources must resolve inside the skill directory. Hidden files, `SKILL.md` siblings, binary files, symlink escapes, and oversized instruction files are refused or bounded.
 - Instructions and resources are redacted through egress before being returned to the model.
 
 ## Known limits
