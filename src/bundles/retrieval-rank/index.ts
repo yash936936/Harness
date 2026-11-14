@@ -36,6 +36,12 @@ declare module 'cordis' {
 const MAX_QUERY_CHARS = 2000
 const MAX_K = 100
 
+function sameCanonicalPath(a: string, b: string): boolean {
+  const left = resolve(a)
+  const right = resolve(b)
+  return process.platform === 'win32' ? left.toLowerCase() === right.toLowerCase() : left === right
+}
+
 /**
  * `ctx.retrievalRank` — the last stage of the retrieval pipeline. Lexical candidates come from
  * ripgrep (2.1), chunks from tree-sitter symbols (2.2), scored with BM25; when embeddings (2.3) and
@@ -100,7 +106,7 @@ export class RetrievalRank extends Service {
   private realRoot(): string | undefined {
     try {
       const current = lstatSync(this.root)
-      if (!current.isDirectory() || current.isSymbolicLink() || realpathSync(this.root) !== this.root ||
+      if (!current.isDirectory() || current.isSymbolicLink() || !sameCanonicalPath(realpathSync(this.root), this.root) ||
           (process.platform !== 'win32' && this.rootIdentity.ino !== 0 && (current.ino !== this.rootIdentity.ino || current.dev !== this.rootIdentity.dev))) return undefined
       return this.root
     } catch {
