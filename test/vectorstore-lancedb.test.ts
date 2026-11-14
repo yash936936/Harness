@@ -327,7 +327,7 @@ describe('persistence and the embedding fingerprint', () => {
   })
 
   it('prevents a different feature from opening or resetting an owned collection', async () => {
-    const { store } = await collection()
+    const { store } = await boot()
     const owned = ok(await store.open('chunks', { fingerprint: FP, dimensions: 3, owner: 'memory.semantic' })).collection
     ok(await owned.upsert([{ id: 'fact-1', vector: [1, 0, 0], source: 'memory.semantic' }]))
     expect(kind(await store.open('chunks', { fingerprint: FP, dimensions: 3, owner: 'retrieval-rank:/project', reset: true }))).toBe('ownership_mismatch')
@@ -337,7 +337,7 @@ describe('persistence and the embedding fingerprint', () => {
   })
 
   it('requires an explicit reset before claiming a legacy unowned collection', async () => {
-    const { store } = await collection()
+    const { store } = await boot()
     const legacy = ok(await store.open('chunks', { fingerprint: FP, dimensions: 3 })).collection
     ok(await legacy.upsert([{ id: 'legacy', vector: [1, 0, 0] }]))
     expect(kind(await store.open('chunks', { fingerprint: FP, dimensions: 3, owner: 'retrieval-rank:/project' }))).toBe('ownership_mismatch')
