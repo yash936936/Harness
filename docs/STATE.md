@@ -49,7 +49,7 @@ Updated 2026-11-14. This file records the current implementation state and bindi
 - PR #98, `docs/phase1-closeout-sync-2026-11`, merged on 2026-11-14 as `9e508b472b60a561c8e197cdea27813269833011`, synchronizes the approved D-119 policy and Windows baseline status.
 - CI run #724 on PR head `5741d23058dca0dc0112810e6c35fa87a47e8d0f` passed: Ubuntu and Windows on Node 20.19.0 and 22.12.0, typecheck, lint, full tests, docs/component drift, secret scan, dependency audit, license inventory, and `ci-pass`.
 - The green run verifies the PR head. It is not a live sandbox/model acceptance result.
-- Phase 0 is complete. Phase 1 contracts and D-119 policy decisions merged in PR #94. Initial numeric baselines merged in PR #95; Windows baselines merged in PR #97; the independent-process reservation baseline is being added in PR #99. Reservation measurements confirm oversubscription in the current process-local implementation. Indexing, semantic-reindex, and streaming-output baselines remain before Phase 1 can close.
+- Phase 0 is complete. Phase 1 contracts and D-119 policy decisions merged in PR #94. Initial numeric baselines merged in PR #95; Windows baselines merged in PR #97; the independent-process reservation baseline was captured in PR #99 (CI run #744). Reservation measurements confirm oversubscription in the current process-local implementation. Indexing, semantic-reindex, and streaming-output baselines remain before Phase 1 can close.
 
 ## D-119 approved deployment and operating policy
 
