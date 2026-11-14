@@ -101,7 +101,7 @@ export class RetrievalRank extends Service {
     try {
       const current = lstatSync(this.root)
       if (!current.isDirectory() || current.isSymbolicLink() || realpathSync(this.root) !== this.root ||
-          (this.rootIdentity.ino !== 0 && (current.ino !== this.rootIdentity.ino || current.dev !== this.rootIdentity.dev))) return undefined
+          (process.platform !== 'win32' && this.rootIdentity.ino !== 0 && (current.ino !== this.rootIdentity.ino || current.dev !== this.rootIdentity.dev))) return undefined
       return this.root
     } catch {
       return undefined
