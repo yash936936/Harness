@@ -1,5 +1,6 @@
 import { Context } from 'cordis'
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync, realpathSync } from 'node:fs'
+import { mkdtempSync, writeFileSync, mkdirSync, realpathSync } from 'node:fs'
+import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { createHash } from 'node:crypto'
 import { join } from 'node:path'
@@ -10,7 +11,13 @@ import { NEEDLE_PIN, ROUTER_BINDING } from '../src/bundles/model-store/index.js'
 
 const FAKE = join(__dirname, 'fixtures', 'fake-needle.mjs')
 const dirs: string[] = []
-afterEach(() => { for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true }) })
+afterEach(async () => {
+  for (const d of dirs.splice(0)) {
+    // Windows can briefly retain child-process handles after exit. Retry transient
+    // ENOTEMPTY/EBUSY failures instead of failing an otherwise successful test.
+    await rm(d, { recursive: true, force: true, maxRetries: 8, retryDelay: 100 })
+  }
+})
 const tmp = () => { const d = realpathSync(mkdtempSync(join(tmpdir(), 'harness-router-'))); dirs.push(d); return d }
 
 const CANDS: Candidate[] = [
