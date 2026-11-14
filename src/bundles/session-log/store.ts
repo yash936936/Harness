@@ -22,20 +22,9 @@ export class MemoryStore implements SessionStore {
   private sessions = new Map<string, SessionEvent[]>()
 
   async append(event: SessionEvent) {
-    const file = this.file(event.sessionId)
-    const cached = this.tailCursors.get(event.sessionId)
-    const cacheValid = cached ? await this.cursorMatches(event.sessionId, cached) : false
-    await assertNoSymlinkParents(file)
-    await mkdir(this.dir, { recursive: true })
-    await assertNoSymlinkParents(file)
-    const fh = await this.openRegular(event.sessionId, fsConstants.O_WRONLY | fsConstants.O_APPEND | fsConstants.O_CREAT, 0o600)
-    try {
-      await fh.appendFile(JSON.stringify(event) + '\n', 'utf8')
-    } finally {
-      await fh.close()
-    }
-    if (cacheValid) await this.rememberTail(event.sessionId, event.seq)
-    else this.tailCursors.delete(event.sessionId)
+    const list = this.sessions.get(event.sessionId) ?? []
+    list.push(structuredClone(event))
+    this.sessions.set(event.sessionId, list)
   }
 
   async read(sessionId: string) {
@@ -233,6 +222,8 @@ export class JsonlStore implements SessionStore {
 
   async append(event: SessionEvent) {
     const file = this.file(event.sessionId)
+    const cached = this.tailCursors.get(event.sessionId)
+    const cacheValid = cached ? await this.cursorMatches(event.sessionId, cached) : false
     await assertNoSymlinkParents(file)
     await mkdir(this.dir, { recursive: true })
     await assertNoSymlinkParents(file)
@@ -242,6 +233,8 @@ export class JsonlStore implements SessionStore {
     } finally {
       await fh.close()
     }
+    if (cacheValid) await this.rememberTail(event.sessionId, event.seq)
+    else this.tailCursors.delete(event.sessionId)
   }
 
   async read(sessionId: string): Promise<SessionEvent[]> {
