@@ -80,7 +80,7 @@ async function runSample(root: string, sample: number) {
       name: inner.name,
       model: inner.model,
       egress: inner.egress,
-      embed: async (texts, signal) => {
+      embed: async (texts) => {
         calls++
         return inner.embed(texts)
       },
