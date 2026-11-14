@@ -1,18 +1,35 @@
 import { mkdir } from 'node:fs/promises'
-import { appendTextFileNoFollow, assertNoSymlinkParents, readTextFileNoFollow, truncateFileNoFollow } from '../../util/secure-file.js'
+import { appendTextFileNoFollow, assertNoSymlinkParents, readTextLinesNoFollow, truncateFileNoFollow } from '../../util/secure-file.js'
 import { withFileLock } from '../../util/filelock.js'
 import { join } from 'node:path'
 import type { Episode, EpisodeStore } from './types.js'
 
 export class MemoryEpisodeStore implements EpisodeStore {
   private items = new Map<string, Episode>()
+
   async add(e: Episode) {
     if (this.items.has(e.id)) return false
     this.items.set(e.id, structuredClone(e))
     return true
   }
+
+  async *iterate(): AsyncGenerator<Episode> {
+    for (const episode of this.items.values()) yield structuredClone(episode)
+  }
+
+  async findById(id: string): Promise<Episode | undefined> {
+    const episode = this.items.get(id)
+    return episode ? structuredClone(episode) : undefined
+  }
+
+  async count(): Promise<number> {
+    return this.items.size
+  }
+
   async all() {
-    return structuredClone([...this.items.values()])
+    const out: Episode[] = []
+    for await (const episode of this.iterate()) out.push(episode)
+    return out
   }
 }
 
@@ -27,19 +44,14 @@ export class JsonlEpisodeStore implements EpisodeStore {
   }
 
   async add(e: Episode): Promise<boolean> {
-    // Snapshot at the API boundary; this write may wait behind a queue or file lock.
     const episode = structuredClone(e)
-    // Serialised so two concurrent writes of the same turn cannot both pass the duplicate check.
-    // BUG-09: and across PROCESSES: under a file lock the ids are re-read from the file, so two processes cannot both add the same turn.
     const job = this.queue.then(async () => {
       await assertNoSymlinkParents(this.file)
       await mkdir(this.dir, { recursive: true })
       await assertNoSymlinkParents(this.file)
       return withFileLock(`${this.file}.lock`, async () => {
-        await this.repairTail()
-        const ids = new Set((await this.all()).map((x) => x.id))
-        if (ids.has(episode.id)) return false
-        await appendTextFileNoFollow(this.file, JSON.stringify(episode) + '\n')
+        if (await this.repairTailAndHasId(episode.id)) return false
+        await appendTextFileNoFollow(this.file, JSON.stringify(episode) + '\\n')
         return true
       })
     })
@@ -47,53 +59,100 @@ export class JsonlEpisodeStore implements EpisodeStore {
     return job
   }
 
-  /** Repair only an incomplete final record while holding the store lock. */
-  private async repairTail(): Promise<void> {
-    let text: string
+  /** Repair the final record and detect duplicates in one bounded-memory pass. */
+  private async repairTailAndHasId(id: string): Promise<boolean> {
+    let pending: { line: string; newline: boolean; start: number } | undefined
+    let offset = 0
+    let lineNumber = 0
+    let found = false
+    let sawRecord = false
     try {
-      text = await readTextFileNoFollow(this.file)
-    } catch (err: any) {
-      if (err?.code === 'ENOENT') return
-      throw err
+      for await (const item of readTextLinesNoFollow(this.file)) {
+        if (pending) {
+          lineNumber++
+          if (pending.line.trim()) {
+            let parsed: Episode
+            try {
+              parsed = JSON.parse(pending.line) as Episode
+            } catch {
+              throw new Error(`memory: corrupt episodic.jsonl at line ${lineNumber}`)
+            }
+            sawRecord = true
+            if (parsed.id === id) found = true
+          }
+          offset += Buffer.byteLength(pending.line, 'utf8') + (pending.newline ? 1 : 0)
+        }
+        pending = { ...item, start: offset }
+      }
+    } catch (error: any) {
+      if (error?.code === 'ENOENT') return false
+      throw error
     }
-    const lines = text.split('\n')
-    let last = lines.length - 1
-    while (last >= 0 && !lines[last]!.trim()) last--
-    for (let i = 0; i <= last; i++) {
+
+    if (pending) {
+      lineNumber++
+      if (pending.line.trim()) {
+        try {
+          const parsed = JSON.parse(pending.line) as Episode
+          sawRecord = true
+          if (parsed.id === id) found = true
+        } catch {
+          await truncateFileNoFollow(this.file, pending.start)
+          return found
+        }
+      }
+      if (!pending.newline && sawRecord) await appendTextFileNoFollow(this.file, '\\n')
+    }
+    return found
+  }
+
+  /** Stream valid records; tolerate only a malformed final record. */
+  async *iterate(): AsyncGenerator<Episode> {
+    let pending: string | undefined
+    let lineNumber = 0
+    try {
+      for await (const item of readTextLinesNoFollow(this.file)) {
+        if (pending !== undefined) {
+          lineNumber++
+          if (pending.trim()) {
+            try {
+              yield JSON.parse(pending) as Episode
+            } catch {
+              throw new Error(`memory: corrupt episodic.jsonl at line ${lineNumber}`)
+            }
+          }
+        }
+        pending = item.line
+      }
+    } catch (error: any) {
+      if (error?.code === 'ENOENT') return
+      throw error
+    }
+    if (pending !== undefined && pending.trim()) {
+      lineNumber++
       try {
-        JSON.parse(lines[i]!)
+        yield JSON.parse(pending) as Episode
       } catch {
-        if (i !== last) throw new Error(`memory: corrupt episodic.jsonl at line ${i + 1}`)
-        // Only a torn final record is recoverable. Do not append past corruption
-        // in the middle of the file, even when a later record is valid JSON.
-        const end = lines.slice(0, i).join('\n').length + (i > 0 ? 1 : 0)
-        await truncateFileNoFollow(this.file, end)
-        return
+        // An interrupted final write is ignored; the next add() repairs it.
       }
     }
-    if (last >= 0 && !text.endsWith('\n')) await appendTextFileNoFollow(this.file, '\n')
+  }
+
+  async findById(id: string): Promise<Episode | undefined> {
+    let found: Episode | undefined
+    for await (const episode of this.iterate()) if (episode.id === id) found = episode
+    return found ? structuredClone(found) : undefined
+  }
+
+  async count(): Promise<number> {
+    let count = 0
+    for await (const _episode of this.iterate()) count++
+    return count
   }
 
   async all(): Promise<Episode[]> {
-    let text: string
-    try {
-      text = await readTextFileNoFollow(this.file)
-    } catch (err: any) {
-      if (err?.code === 'ENOENT') return []
-      throw err
-    }
-    const lines = text.split('\n')
     const out: Episode[] = []
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i]!
-      if (!line.trim()) continue
-      try {
-        out.push(JSON.parse(line))
-      } catch {
-        // A torn final line (crash mid-write) is tolerated; corruption elsewhere is not.
-        if (lines.slice(i + 1).some((l) => l.trim())) throw new Error(`memory: corrupt episodic.jsonl at line ${i + 1}`)
-      }
-    }
+    for await (const episode of this.iterate()) out.push(episode)
     return out
   }
 }
