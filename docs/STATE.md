@@ -73,8 +73,9 @@ These constraints must be enforced in the Phase 2 design and tests. Changing the
 
 | AUD-023 | Enforce output byte limits while streaming with bounded buffering. |
 | AUD-039 | Add task-scoped workspace lifecycle, capabilities, leases, transfer, and result synchronization. |
-| AUD-048 | Fixed in open PR #101: session-log files, locks, and listing reject symlinked parent directories; current expanded head passed CI run #768. |
-| AUD-049 | Fixed in open PR #101: compaction ledger no-follow reads, parent validation, and unique exclusive temp-file replacement; current expanded head passed CI run #768. |
+| AUD-048 | Fixed in open PR #101: session-log files, locks, and listing reject symlinked parent directories; merged as `67fd166` after the expanded head passed CI run #768. |
+| AUD-049 | Fixed in PR #101, merged as `67fd166`: compaction ledger no-follow reads, parent validation, and unique exclusive temp-file replacement; CI run #768 passed. |
+| AUD-050 | Reject skill directory and `SKILL.md` symlink escapes; fix and regression tests in `fix/skills-directory-symlink-boundary-2026-11-v2`, CI pending. |
 | Audit remainder | Complete the file-by-file audit and verify each checklist status against code and tests. |
 
 AUD-021 is fixed in main: late sandbox creation is awaited, cleanup is confirmed before cancellation returns, and cleanup failure is surfaced by the adapter. The command tool fails the task when `released` is false. AUD-048 is fixed in the current PR branch; its previous head passed CI run #763. AUD-049 is fixed in open PR #101; the no-follow ledger, parent validation, random exclusive temp file, and regression tests passed CI run #768.
