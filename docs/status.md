@@ -8,7 +8,7 @@
 - Cross-process SQLite reservation acceptance is NOT complete. There is no SQLite provider/runtime on this baseline. The existing independent-process benchmark is a negative control showing oversubscription (2/4/8 processes admit 2/4/8 reservations at hard limit 1).
 - Task-scoped workspace acceptance is NOT complete. Only type contracts/design rules exist; lifecycle, capability enforcement, workspace transfer, result synchronization, and crash recovery are not implemented. COMMAND_TOOL remains disabled.
 - Live Vercel acceptance is NOT run. No VERCEL_TOKEN / VERCEL_TEAM_ID / VERCEL_PROJECT_ID are present in this sandbox, and its network allow-list excludes Vercel hosts. No egress consent or allow-list changes were made.
-- The previous Windows Node 20/22 CI run applies to the unchanged main commit, not this new streaming diff. Windows CI for this diff remains pending.
+- PR #106 head 305d2e5 passed CI run #784 on Ubuntu and Windows with Node 20.19.0 and 22.12.0. The run passed typecheck, lint, full tests, architecture benchmarks, docs/component drift, secrets/dependencies, license inventory, and ci-pass. The separate Vercel deployment status failed due its deployment rate limit; it is not a test failure.
 - Performance baseline documentation was reconciled to main 74ae26a and current measurements. Full file-by-file audit remains open and was excluded from this pass.
 
 ## 2026-11-14 post-PR-100 audit continuation
