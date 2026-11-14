@@ -46,16 +46,17 @@ Withdrawn findings AUD-009, AUD-022, and AUD-027 must remain withdrawn unless ne
 
 ### Phase 1: Architecture contracts and migration safety
 
-**Status: contract artifacts drafted; policy and baseline gates remain.**
+**Status: contracts and policy approved; partial numeric baseline captured.**
 
 - Added backend-neutral type contracts in `src/architecture/contracts.ts` for budget reservations, rate-limit permits, resource leases, durable history, searchable memory, reindex checkpoints, workspace sessions/capabilities, workspace transfer, and schema migrations.
 - Added [architecture contract and migration specification](architecture-contracts.md), including transaction/idempotency rules, fencing tokens, failure recovery, compatibility, migration sequence, and acceptance tests.
 - Preserved existing public APIs and provider contracts. This phase adds types and documentation only; it does not change runtime behavior or persisted formats.
 - All four D-119 policy choices are approved and recorded in `docs/decisions.md`: single-host/multi-process deployment, one database per project, no automatic durable-history deletion, and guarded crash recovery.
-- The reproducible performance baseline plan is documented. Numeric baselines have not yet been captured; capture them before changing each corresponding hot path.
+- [x] Initial CI numeric baselines captured for session-log append (0/50k/100k events) and episodic duplicate/query (100k episodes) in PR #95, run #732. Results and measurement caveats are in `docs/architecture-contracts.md`.
+- [ ] Capture independent-process reservation, indexing, semantic-reindex, and streaming-output baselines with deterministic fixtures.
 - Phase 1 must also pass typecheck, lint, docs checks, and the full CI matrix on its PR.
 
-**Exit:** contract definitions and migration invariants are reviewed; four policy choices are explicitly approved and recorded; reproducible baseline measurements are captured; CI is green. Policy approval and CI are complete on PR #94. Numeric performance baselines remain. No production behavior changes in this phase.
+**Exit:** contract definitions and migration invariants are reviewed; four policy choices are approved; numeric baselines cover all hot paths; CI is green. Policy approval and CI are complete. Initial session-log and episodic-memory baselines are captured; reservation, indexing, semantic-reindex, and streaming-output measurements remain. Phase 1 is not fully closed. No production behavior changes in this phase.
 
 ### Phase 2: SQLite shared-state foundation
 

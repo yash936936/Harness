@@ -93,7 +93,25 @@ Status: Phase 1 contract baseline. This document defines boundaries, not a produ
 
 ## Baseline and verification plan
 
-No performance numbers are claimed in this contract-only phase. Capture a reproducible baseline before each corresponding migration, using fixed fixtures and recording runtime, Node version, OS, hardware class, dataset size, warm/cold state, p50/p95, bytes read/written, peak RSS, and result correctness.
+### Captured baseline: 2026-11-14
+
+CI run #732, Ubuntu x64, Node v22.12.0, 4 CPUs. Five samples per measurement. Times are milliseconds.
+
+| Operation | Dataset | p50 | p95 |
+|---|---:|---:|---:|
+| Session-log append | 0 events | 1.128 | 2.329 |
+| Session-log append | 50,000 events | 45.353 | 65.068 |
+| Session-log append | 100,000 events | 82.867 | 90.514 |
+| Episodic duplicate check | 100,000 episodes | 265.950 | 289.235 |
+| Episodic selective query | 100,000 episodes | 133.019 | 134.148 |
+
+Fixture sizes: session log 25,788,895 bytes at 100k events; episodic store 27,635,492 bytes at 100k episodes. The benchmark reports file-size-based read-volume estimates, not OS-level I/O counters. At 100k records, the implementation's append path reads the session file; duplicate checking reads the episodic store twice in this code path; selective query reads it once.
+
+Peak observed RSS delta was 551,690,240 bytes (~526 MiB), but fixture generation contributes materially to this process-wide peak. Do not attribute it to one store operation.
+
+The runner uses five samples, so p95 is the maximum observed sample, not a statistically stable tail-latency estimate. Results are an initial reproducible baseline, not a performance target. Compare future changes on the same runner class and increase sample count for release-quality tail estimates.
+
+Still unmeasured: independent-process reservations, indexing, semantic reindex, and bounded streaming output. These need dedicated deterministic fixtures; no estimates are substituted for measurements.
 
 | Area | Baseline workload | Required measurements |
 |---|---|---|
