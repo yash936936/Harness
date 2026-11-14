@@ -60,6 +60,12 @@ export interface EpisodeStore {
   /** Returns false (and writes nothing) when an entry with this id already exists. */
   add(episode: Episode): Promise<boolean>
   all(): Promise<Episode[]>
+  /** Optional streaming read; implementations yield in storage order. */
+  iterate?(): AsyncIterable<Episode>
+  /** Optional lookup used after an idempotent add. */
+  findById?(id: string): Promise<Episode | undefined>
+  /** Optional count that does not materialise all records. */
+  count?(): Promise<number>
 }
 
 /** One always-loaded rule or fact. */
