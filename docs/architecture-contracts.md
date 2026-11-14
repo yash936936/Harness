@@ -171,7 +171,18 @@ This measures the current all-at-once reindex path, not a resumable or bounded-m
 
 ### Output capture baseline: Vercel adapter contract
 
-A deterministic fake-client workload is now wired into architecture CI. It tests 99,000, 100,000, 1,000,000, and 8,000,000 ASCII characters on each of stdout and stderr, with a 100,000-byte cap per returned stream. It records elapsed time, observed process RSS delta, returned byte counts, truncation, and sandbox cleanup. Numeric results are pending the first CI run.
+A deterministic fake-client workload is now wired into architecture CI. It tests 99,000, 100,000, 1,000,000, and 8,000,000 ASCII characters on each of stdout and stderr, with a 100,000-byte cap per returned stream. It records elapsed time, observed process RSS delta, returned byte counts, truncation, and sandbox cleanup. CI run #759, Ubuntu x64, Node v22.12.0, 4 CPUs. Three samples per size. Times are milliseconds; RSS values are bytes.
+
+| Source characters per stream | Elapsed p50 / max | Observed RSS delta p50 / max |
+|---:|---:|---:|
+| 99,000 | 17.312 / 23.943 | 10,092,544 / 10,223,616 |
+| 100,000 | 11.248 / 12.494 | 2,621,440 / 7,602,176 |
+| 1,000,000 | 12.892 / 19.426 | 3,801,088 / 4,063,232 |
+| 8,000,000 | 24.942 / 25.592 | 16,011,264 / 20,262,912 |
+
+For inputs above the 100,000-byte cap, each returned stream contains 100,038 bytes: the 100,000-byte payload plus the 38-byte truncation marker. At or below the cap, output is returned unchanged. The test verifies independent truncation and confirmed sandbox deletion in every sample.
+
+The fake client explicitly materializes both complete strings before returning them. The 8 MB-per-stream case therefore supplies 16 MB of source output per invocation while the adapter returns about 100 KB per stream. RSS is sampled every 5 ms and explicitly after each complete string is materialized. RSS is process-wide and can still miss transient allocation peaks; sequential samples share one process. Three-sample maxima are not stable tail estimates. These numbers characterize the adapter and fake string source, not the real Vercel SDK's internal buffers or remote execution.
 
 This is explicitly an output-capture/truncation baseline, not a streaming-output benchmark. The current `VercelSandboxHandle` contract exposes `stdout(): Promise<string>` and `stderr(): Promise<string>`; both complete strings are materialized before the adapter applies its cap. The interface has no chunk iterator or readable stream, so the adapter cannot bound SDK-side buffering, enforce a byte limit while data arrives, or stop an endless output stream. The fake client does not establish how the real SDK buffers output internally. A streaming contract and provider implementation change are required before bounded streaming acceptance can be measured.
 
