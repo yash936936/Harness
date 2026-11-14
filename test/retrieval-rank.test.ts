@@ -639,7 +639,7 @@ describe.skipIf(!hasRg)('hybrid ranking', () => {
 describe.skipIf(!hasRg)('indexing', () => {
   const col = async (b: Awaited<ReturnType<typeof boot>>) => {
     const info = b.ctx.embeddings.info()!
-    const o = await b.ctx.vectorstore.open('code-chunks', { fingerprint: info.fingerprint!, dimensions: info.dimensions! })
+    const o = await b.ctx.vectorstore.open('code-chunks', { fingerprint: info.fingerprint!, dimensions: info.dimensions!, owner: `retrieval-rank:${realpathSync(root)}` })
     if (!o.ok) throw new Error(o.error.detail)
     return o.collection
   }
