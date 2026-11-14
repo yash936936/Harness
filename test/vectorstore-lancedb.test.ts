@@ -333,7 +333,7 @@ describe('persistence and the embedding fingerprint', () => {
     expect(kind(await store.open('chunks', { fingerprint: FP, dimensions: 3, owner: 'retrieval-rank:/project', reset: true }))).toBe('ownership_mismatch')
     expect(kind(await store.open('chunks', { fingerprint: FP, dimensions: 3 }))).toBe('ownership_mismatch')
     expect(ok(await owned.count()).count).toBe(1)
-    expect(kind(await store.open('chunks', { fingerprint: FP, dimensions: 3, owner: 'memory.semantic' }))).toBeUndefined()
+    expect(kind(await store.open('chunks', { fingerprint: FP, dimensions: 3, owner: 'memory.semantic' }))).toBe('ok')
   })
 
   it('requires an explicit reset before claiming a legacy unowned collection', async () => {
