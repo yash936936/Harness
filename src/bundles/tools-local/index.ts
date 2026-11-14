@@ -170,7 +170,7 @@ export class LocalTools extends Service {
       // BUG-05: the handle we hold must still be the file the path names inside the root, not a symlink swapped in after confine().
       const again = confine(this.realRoot, p)
       const now = statSync(again)
-      if (st.ino !== 0 && (now.ino !== st.ino || now.dev !== st.dev)) throw new Error(`"${p}" changed while it was being read; refusing`)
+      if (process.platform !== 'win32' && st.ino !== 0 && (now.ino !== st.ino || now.dev !== st.dev)) throw new Error(`"${p}" changed while it was being read; refusing`)
       let buf: Buffer
       try {
         buf = await readBounded(fh, this.maxFileBytes) // BUG-04: limit enforced while reading, not only before
