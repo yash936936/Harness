@@ -131,7 +131,8 @@ describe('semantic tier configuration and persisted data validation', () => {
       reset: true,
     })
     expect(other).toMatchObject({ ok: false, error: { kind: 'ownership_mismatch' } })
-    expect((await ctx.memorySemantic.query('datastore')).hits).toHaveLength(1)
+    const queried = await ctx.memorySemantic.query('datastore')
+    expect(queried.ok && queried.hits).toHaveLength(1)
   })
 
 
