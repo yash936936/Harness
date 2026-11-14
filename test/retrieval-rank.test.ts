@@ -644,6 +644,47 @@ describe.skipIf(!hasRg)('indexing', () => {
     return o.collection
   }
 
+  it('serializes concurrent indexing so an older slow embedding cannot overwrite a newer file version', async () => {
+    const rel = 'src/atomic/latest.ts'
+    const dir = join(root, 'src/atomic')
+    mkdirSync(dir, { recursive: true })
+    const oldText = 'export function latest() {\\n  return 1\\n}\\n'
+    const newText = 'export function latest() {\\n  return 2\\n}\\n'
+    writeFileSync(join(dir, 'latest.ts'), oldText)
+    const inner = new HashingEmbeddingProvider({ dimensions: 64 })
+    let entered!: () => void
+    let release!: () => void
+    const embeddingStarted = new Promise<void>((resolve) => { entered = resolve })
+    const blocked = new Promise<void>((resolve) => { release = resolve })
+    const provider: EmbeddingProvider = {
+      name: 'delayed-hash',
+      model: inner.model,
+      egress: inner.egress,
+      embed: async (texts, options) => {
+        if (texts.some((text) => text.includes('return 1'))) {
+          entered()
+          await blocked
+        }
+        return inner.embed(texts, options)
+      },
+    }
+    const b = await boot({ provider })
+    const older = b.rank.indexFiles([rel])
+    await embeddingStarted
+    writeFileSync(join(dir, 'latest.ts'), newText)
+    const newer = b.rank.indexFiles([rel])
+    release()
+    const firstResult = await older
+    const secondResult = await newer
+    expect(firstResult.ok).toBe(true)
+    expect(secondResult.ok).toBe(true)
+
+    const parsed = await b.ctx.retrievalParse.parse(newText, { filename: rel })
+    const expectedIds = chunkSource(rel, newText, parsed.ok ? parsed.file.symbols : undefined, DEFAULT_CHUNK_OPTIONS).map((chunk) => chunk.id)
+    const stored = await (await col(b)).idsForSource(rel)
+    expect(stored.ok && stored.ids).toEqual(expectedIds)
+  })
+
   it('reindexing the same files replaces their chunks instead of duplicating them', async () => {
     const b = await boot({ provider: new HashingEmbeddingProvider({ dimensions: 64 }) })
     const first = await b.rank.indexFiles(['src/config/parser.ts', 'src/net/client.ts'])
