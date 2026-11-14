@@ -10,7 +10,7 @@ import {
   type ChunkOptions,
 } from './chunk.js'
 import { bm25, queryTerms, tokenize } from './text.js'
-import { isInside, readProjectFile, type FileRead } from './file-access.js'
+import { isInside, readProjectFile, sameCanonicalPath, type FileRead } from './file-access.js'
 import {
   RetrievalRankConfigError,
   type IndexOptions,
@@ -35,12 +35,6 @@ declare module 'cordis' {
 
 const MAX_QUERY_CHARS = 2000
 const MAX_K = 100
-
-function sameCanonicalPath(a: string, b: string): boolean {
-  const left = resolve(a)
-  const right = resolve(b)
-  return process.platform === 'win32' ? left.toLowerCase() === right.toLowerCase() : left === right
-}
 
 /**
  * `ctx.retrievalRank` — the last stage of the retrieval pipeline. Lexical candidates come from
