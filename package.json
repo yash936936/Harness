@@ -23,7 +23,8 @@
     "docs:check": "node scripts/docs/gen-components.mjs --check && node scripts/docs/check-docs.mjs",
     "events:report": "node scripts/events/failure-report.mjs",
     "ci:secrets": "node scripts/ci/secret-scan.mjs",
-    "smoke:vercel-sandbox": "tsx scripts/smoke-vercel-sandbox.ts"
+    "smoke:vercel-sandbox": "tsx scripts/smoke-vercel-sandbox.ts",
+    "bench:architecture": "tsx scripts/architecture-baseline.ts"
   },
   "dependencies": {
     "@lancedb/lancedb": "0.30.0",

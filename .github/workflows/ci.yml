@@ -75,6 +75,18 @@ jobs:
       - run: npm run license:inventory
       - name: inventory must be committed
         run: git diff --exit-code THIRD_PARTY_LICENSES.generated.md
+  architecture-baseline:
+    name: architecture performance baseline
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.12.0
+          cache: npm
+      - run: npm ci
+      - name: measure current session-log and episodic-memory hot paths
+        run: npm run bench:architecture
   not-run:
     name: acceptance gates NOT run by CI
     runs-on: ubuntu-latest
@@ -90,7 +102,7 @@ jobs:
   ci-pass:
     name: ci-pass
     if: always()
-    needs: [verify, docs, security, licenses]
+    needs: [verify, docs, security, licenses, architecture-baseline]
     runs-on: ubuntu-latest
     steps:
       - run: |
