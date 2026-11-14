@@ -209,7 +209,7 @@ describe('verifyGates refuses a context whose gates are not enforcing', () => {
     const lenient: Signal = () => ({ name: 'lenient', score: 1 })
     const { ctx } = await bare({ policy: [lenient] })
     expect(ctx.tools.has('run_command')).toBe(false)
-    await expect(verifyGates(ctx)).resolves.toBeUndefined()
+    await expect(verifyGates(ctx)).rejects.toThrow(/deny-listed call was not blocked/)
   })
   it('fails when a policy SERVICE is present but nothing enforces (the deny-listed probe would run)', async () => {
     const root = project()
