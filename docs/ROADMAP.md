@@ -8,11 +8,11 @@ Complete the current security and reliability audit, then migrate Harness toward
 
 ## Binding architecture decisions
 
-- **Shared state:** SQLite first, behind a storage interface. Initial scope is multiple processes on one machine and a supported local filesystem. No multi-machine guarantee.
+- **Shared state:** SQLite first, behind a storage interface. Multi-process transactions are required. Deployment topology remains open: the initial implementation can target multiple local processes on a supported local filesystem, but multi-machine requirements must be confirmed before the storage provider is finalized.
 - **Sandbox:** capability-based, task-scoped workspace sessions added alongside the one-shot sandbox API.
 - **Memory:** hybrid retention. Durable append-only history is authoritative; bounded searchable memory and vector indexes are rebuildable projections.
 - **Compatibility:** preserve public APIs, existing provider contracts, persisted data, and caller-visible behavior through adapters and incremental migration.
-- **Initial defaults:** one SQLite database per project; no automatic deletion of durable history until retention policy is approved; workspace resume requires explicit lease ownership and validated provider recovery.
+- **Provisional defaults, not approved decisions:** one SQLite database per project; no automatic durable-history deletion; workspace resume only with explicit lease ownership and validated provider recovery. Confirm database ownership, retention/deletion, crash recovery, and single-host versus multi-machine deployment before Phase 1 implementation.
 - **Security:** D-110, D-117, and D-118 remain binding. No Docker/WSL/Crabbox, no host command fallback, no automatic sandbox provider selection, and no coding-profile `run_command` exposure before the existing acceptance requirements are met.
 
 ## Open audit work
@@ -36,13 +36,16 @@ Withdrawn findings AUD-009, AUD-022, and AUD-027 must remain withdrawn unless ne
 - Fix every failing test in the current PR matrix without weakening security boundaries.
 - Keep Node 20.19.0 and 22.12.0 coverage on Ubuntu and Windows.
 - Verify typecheck, lint, complete test suite, docs drift, full Markdown links, secret scan, dependency audit, license inventory, and `ci-pass`.
-- Review Windows-specific file identity and lock behavior. Do not treat skipped tests as passing coverage.
+- Review Windows-specific file identity and lock behavior, including the distinction between Win32 extended-length paths returned by Node and ordinary drive paths returned by child processes.
+- Add regression coverage for Windows path normalization in ripgrep JSON parsing and file enumeration. Do not treat skipped tests as passing coverage.
 - Correct audit-register claims that are not supported by the actual diff or tests.
 
-**Exit:** all required CI jobs pass on the latest PR head; no acceptance claim is made for live sandbox/model work.
+**Exit:** all four OS/Node test combinations pass on the latest PR head; `ci-pass`, docs, security, and license jobs pass; no acceptance claim is made for live sandbox/model work.
 
 ### Phase 1: Architecture contracts and migration safety
 
+- Resolve the four D-119 open policies: deployment topology, database ownership, durable-history retention/deletion, and crashed-workspace recovery.
+- Record the selected policies in `docs/decisions.md` before writing migrations or lifecycle code.
 - Define small domain interfaces for shared state, budget reservations, rate limits, task leases, memory history, searchable memory, and workspace sessions.
 - Record ownership, transaction, idempotency, expiry, recovery, and compatibility rules.
 - Define schema versioning, backup, migration, rollback, and reconciliation strategy.
