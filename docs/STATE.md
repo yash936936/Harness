@@ -25,7 +25,7 @@ Updated 2026-11-14. This file records the current implementation state and bindi
 | Provider lifecycle audit | Incomplete | Must capture request, lease, command, timeout/cancel, cleanup, and failures. |
 | Coding profile command tool | Disabled | Do not enable `run_command` until workspace transfer, result sync, lifecycle audit, and policy integration are accepted. |
 | Shared-state SQLite provider | Not implemented | Phase 2, after Phase 1 policy gates. |
-| Architecture contracts | Drafted on `architecture/phase-1-contracts-2026-11` | Type-only interfaces and migration specification; no runtime changes yet. Four D-119 policy choices are approved; numeric performance baselines remain. |
+| Architecture contracts | Merged via PR #94 | Type-only interfaces and migration specification; no runtime changes. Four D-119 policy choices approved. Initial session-log/episodic baselines captured by PR #95; other hot-path baselines remain. |
 | Memory scaling changes | Not implemented | AUD-007/008/014/025 remain open. |
 | Streaming output enforcement | Not implemented | AUD-023 remains open. |
 
@@ -47,7 +47,7 @@ Updated 2026-11-14. This file records the current implementation state and bindi
 - PR #93, `audit/full-codebase-review-2026-11`, merged on 2026-11-14 as `8ee08673bd03b8548c44612093b447fadb03ce26`.
 - CI run #724 on PR head `5741d23058dca0dc0112810e6c35fa87a47e8d0f` passed: Ubuntu and Windows on Node 20.19.0 and 22.12.0, typecheck, lint, full tests, docs/component drift, secret scan, dependency audit, license inventory, and `ci-pass`.
 - The green run verifies the PR head. It is not a live sandbox/model acceptance result.
-- Phase 0 is complete. Phase 1 contract artifacts and the four D-119 policy decisions are recorded on PR #94. Its CI run #726 passed all matrix and required verification jobs. Numeric performance baselines remain before Phase 1 can close.
+- Phase 0 is complete. Phase 1 contracts and D-119 policy decisions merged in PR #94. Initial numeric baselines merged in PR #95; CI run #732 passed all matrix and required jobs. Reservation, indexing, semantic-reindex, and streaming-output baselines remain before Phase 1 can close.
 
 ## D-119 approved deployment and operating policy
 
