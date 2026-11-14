@@ -16,10 +16,12 @@ A profile or host installs the LanceDB adapter as `ctx.vectorstore`. Retrieval-r
 - IDs, source strings, metadata, result counts, and vector dimensions have explicit upper bounds.
 - Vectors must have the collection's dimension count, finite values, and at least one non-zero value.
 - Writes are serialized in call order and validate a full batch before mutating storage.
-- Collection metadata records the embedding fingerprint and dimensions so incompatible vectors are not silently mixed.
+- Collection metadata records the embedding fingerprint, dimensions, and optional feature/project owner. An owned collection cannot be opened or reset by a different owner. Legacy unowned collections require an explicit reset before an owner can claim them.
 - Closed collections return structured failures.
 
 ## Known limits
+
+- Collection opens are serialized within a store instance. Ownership is persisted in table metadata; cross-feature resets are refused even with `reset: true`. Legacy unowned collections need an explicit reset before a feature can claim them.
 
 - LanceDB is an optional semantic index, not the source of truth for project files.
 - Indexed records can become stale; retrieval-rank must validate current file hashes before returning content.

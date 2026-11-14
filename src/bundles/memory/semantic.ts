@@ -240,7 +240,7 @@ export class MemorySemantic extends Service {
   private async collection(reset = false): Promise<{ ok: true; collection: VectorCollection } | SemanticFailure> {
     const info = this.ctx.embeddings.info()
     if (!info?.fingerprint || !info.dimensions) return { ok: false, error: { kind: 'embedding_config', detail: 'no embedding fingerprint yet (no provider, or no vector produced)' } }
-    const opened = await this.ctx.vectorstore.open(this.collectionName, { fingerprint: info.fingerprint, dimensions: info.dimensions, reset })
+    const opened = await this.ctx.vectorstore.open(this.collectionName, { fingerprint: info.fingerprint, dimensions: info.dimensions, owner: 'memory.semantic', reset })
     if (!opened.ok) {
       const hint = opened.error.kind === 'fingerprint_mismatch' ? ' (the embedding model changed: call reindex({ reset: true }))' : ''
       return { ok: false, error: { kind: opened.error.kind, detail: opened.error.detail + hint } }

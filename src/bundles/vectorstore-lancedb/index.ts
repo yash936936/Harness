@@ -270,6 +270,7 @@ export class LanceVectorStore extends Service {
   private lance: Promise<Lance> | undefined
   private conn: Promise<LanceConn> | undefined
   private readonly collections = new Map<string, LanceCollection>()
+  private openQueue: Promise<unknown> = Promise.resolve()
   private disposed = false
 
   constructor(ctx: Context, config: VectorStoreConfig) {
@@ -279,12 +280,25 @@ export class LanceVectorStore extends Service {
     this.ctx.effect(() => () => this.disposeAll())
   }
 
-  async open(name: string, opts: OpenCollectionOptions): Promise<VectorStoreResult<{ collection: VectorCollection }>> {
+  open(name: string, opts: OpenCollectionOptions): Promise<VectorStoreResult<{ collection: VectorCollection }>> {
+    const job = this.openQueue.then(
+      () => this.openNow(name, opts),
+      () => this.openNow(name, opts),
+    )
+    this.openQueue = job.catch(() => undefined)
+    return job
+  }
+
+  private async openNow(name: string, opts: OpenCollectionOptions): Promise<VectorStoreResult<{ collection: VectorCollection }>> {
     if (this.disposed) return fail('closed', 'the vector store has been disposed')
     if (typeof name !== 'string' || !NAME_RE.test(name)) return fail('input', 'collection name must be 1-64 characters of A-Z a-z 0-9 _ -')
     if (typeof opts?.fingerprint !== 'string' || opts.fingerprint.trim() === '') return fail('input', 'fingerprint is required')
     if (opts.owner !== undefined && (typeof opts.owner !== 'string' || opts.owner.trim() === '' || opts.owner.length > 256 || opts.owner.includes('\0'))) return fail('input', 'owner must be a non-empty string of at most 256 characters without NUL')
     if (!Number.isInteger(opts.dimensions) || opts.dimensions < 1 || opts.dimensions > MAX_DIMENSIONS) return fail('input', `dimensions must be an integer from 1 to ${MAX_DIMENSIONS}`)
+    if (opts.owner !== undefined) {
+      const bad = checkText('owner', opts.owner, 512)
+      if (bad) return fail('input', bad)
+    }
 
     let conn: LanceConn
     let lance: Lance
@@ -301,40 +315,50 @@ export class LanceVectorStore extends Service {
 
     try {
       const cached = this.collections.get(name)
-      if (cached && opts.reset) {
-        cached.close()
-        this.collections.delete(name)
+      if (cached) {
+        const ownership = this.checkOwner(name, cached.owner, opts.owner, opts.reset === true)
+        if (ownership) return ownership
+        if (opts.reset) {
+          cached.close()
+          this.collections.delete(name)
+        } else {
+          return this.checkOpen(cached, opts)
+        }
       }
-      if (cached && !opts.reset) return this.checkOpen(cached, opts)
 
-      const exists = (await conn.tableNames()).includes(name)
-      if (exists && opts.reset) await conn.dropTable(name)
-
-      if (exists && !opts.reset) {
+      let exists = (await conn.tableNames()).includes(name)
+      if (exists) {
         const table = await conn.openTable(name)
         const md = (await table.schema()).metadata
         const storedFp = md.get(META_FINGERPRINT)
         const storedDims = Number(md.get(META_DIMENSIONS))
         const storedOwner = md.get(META_OWNER)
-        if (storedFp === undefined || !Number.isInteger(storedDims)) {
+        const ownership = this.checkOwner(name, storedOwner, opts.owner, opts.reset === true)
+        if (ownership) {
           table.close()
-          return fail('corrupt', `table "${name}" exists but was not created by this store (no fingerprint recorded)`)
+          return ownership
         }
-        if (storedOwner !== opts.owner) {
+        if (opts.reset) {
           table.close()
-          return fail('owner_mismatch', 'collection "' + name + '" belongs to a different owner; use the same owner or explicitly reset it')
+          await conn.dropTable(name)
+          exists = false
+        } else {
+          if (storedFp === undefined || !Number.isInteger(storedDims)) {
+            table.close()
+            return fail('corrupt', `table "${name}" exists but was not created by this store (no fingerprint recorded)`)
+          }
+          if (storedFp !== opts.fingerprint || storedDims !== opts.dimensions) {
+            table.close()
+            return fail('fingerprint_mismatch', `collection "${name}" was built with "${storedFp}" (${storedDims} dims), not "${opts.fingerprint}" (${opts.dimensions} dims); open it with reset: true to rebuild it`)
+          }
+          const col = new LanceCollection(name, storedFp, storedDims, storedOwner, table)
+          this.collections.set(name, col)
+          return { ok: true, collection: col }
         }
-        if (storedFp !== opts.fingerprint || storedDims !== opts.dimensions) {
-          table.close()
-          return fail('fingerprint_mismatch', `collection "${name}" was built with "${storedFp}" (${storedDims} dims), not "${opts.fingerprint}" (${opts.dimensions} dims); open it with reset: true to rebuild it`)
-        }
-        const col = new LanceCollection(name, storedFp, storedDims, storedOwner, table)
-        this.collections.set(name, col)
-        return { ok: true, collection: col }
       }
 
-      const tableMetadata = new Map([[META_FINGERPRINT, opts.fingerprint], [META_DIMENSIONS, String(opts.dimensions)]])
-      if (opts.owner !== undefined) tableMetadata.set(META_OWNER, opts.owner)
+      const metadata = new Map([[META_FINGERPRINT, opts.fingerprint], [META_DIMENSIONS, String(opts.dimensions)]])
+      if (opts.owner !== undefined) metadata.set(META_OWNER, opts.owner)
       const schema = new Schema(
         [
           new Field('id', new Utf8(), false),
@@ -342,7 +366,7 @@ export class LanceVectorStore extends Service {
           new Field('metadata', new Utf8(), true),
           new Field('vector', new FixedSizeList(opts.dimensions, new Field('item', new Float32(), true)), false),
         ],
-        tableMetadata,
+        metadata,
       )
       const table = await conn.createTable(name, [], { schema })
       const col = new LanceCollection(name, opts.fingerprint, opts.dimensions, opts.owner, table)
@@ -353,8 +377,17 @@ export class LanceVectorStore extends Service {
     }
   }
 
+  private checkOwner(name: string, stored: string | undefined, requested: string | undefined, reset: boolean): VectorStoreFailure | undefined {
+    if (stored === requested) return undefined
+    // Explicit reset may claim a legacy, unowned table. A known owner's collection is never
+    // reset by a different owner, even when reset:true is supplied.
+    if (stored === undefined && requested !== undefined && reset) return undefined
+    return fail('ownership_mismatch', `collection "${name}" belongs to ${stored ?? 'an unowned/legacy caller'}, not ${requested ?? 'an unowned caller'}; choose another collection name`)
+  }
+
   private checkOpen(col: LanceCollection, opts: OpenCollectionOptions): VectorStoreResult<{ collection: VectorCollection }> {
-    if (col.owner !== opts.owner) return fail('owner_mismatch', 'collection "' + col.name + '" belongs to a different owner')
+    const ownership = this.checkOwner(col.name, col.owner, opts.owner, false)
+    if (ownership) return ownership
     if (col.fingerprint !== opts.fingerprint || col.dimensions !== opts.dimensions) {
       return fail('fingerprint_mismatch', `collection "${col.name}" is already open with "${col.fingerprint}" (${col.dimensions} dims), not "${opts.fingerprint}" (${opts.dimensions} dims)`)
     }
