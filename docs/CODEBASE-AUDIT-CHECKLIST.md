@@ -198,3 +198,17 @@ CI for this follow-up must be treated as unverified until the new pull request's
 D-119 selects SQLite for shared transactional state (initially multi-process, single-machine/local-filesystem only), capability-based task-scoped workspace sessions alongside the one-shot sandbox API, hybrid durable-history plus bounded searchable-memory retention, and backward-compatible internal migration. Initial defaults are one database per project, no automatic durable-history deletion until policy approval, and workspace resume only through explicit lease ownership and validated recovery. See `docs/decisions.md` and `docs/ROADMAP.md` for the full migration plan.
 
 CI note: PR #93's earlier run `43527326589` failed in `npm test` on both operating systems. Cross-platform file identity/lock handling and stale command-profile test fixtures were updated in the follow-up. Run `43601042571` is the current verification attempt; update this note only after all matrix jobs and `ci-pass` finish.
+
+
+## Phase 0 / Phase 1 closeout — 2026-11-14
+
+- [x] Phase 0 CI stabilization merged in PR #93. Run #724 passed all four OS/Node combinations, `ci-pass`, docs/component drift, secret scan, dependency audit, and license inventory.
+- [x] Windows retrieval root normalization regression fixed and covered by a Windows-only test.
+- [x] Phase 1 backend-neutral contracts drafted in `src/architecture/contracts.ts`.
+- [x] Transaction, idempotency, lease fencing, memory projection, workspace capability, migration, rollback, and failure-recovery rules documented in `docs/architecture-contracts.md`.
+- [x] State, roadmap, architecture, and D-119 decision docs cross-linked and reconciled.
+- [ ] Phase 1 final approval gates: deployment topology, database ownership, durable-history retention/deletion, and crashed-workspace recovery. These require owner decisions and are not inferred from provisional defaults.
+- [ ] Capture numeric performance baselines before Phase 2 changes each corresponding hot path.
+- [ ] Run the full CI matrix on the Phase 1 contract PR before merge.
+
+This closes Phase 0 and completes the Phase 1 contract/migration-safety artifacts. It does not close Phase 1's policy approval or baseline measurement gates, and it does not claim the full file-by-file audit is complete.
