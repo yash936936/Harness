@@ -283,6 +283,7 @@ export class LanceVectorStore extends Service {
     if (this.disposed) return fail('closed', 'the vector store has been disposed')
     if (typeof name !== 'string' || !NAME_RE.test(name)) return fail('input', 'collection name must be 1-64 characters of A-Z a-z 0-9 _ -')
     if (typeof opts?.fingerprint !== 'string' || opts.fingerprint.trim() === '') return fail('input', 'fingerprint is required')
+    if (opts.owner !== undefined && (typeof opts.owner !== 'string' || opts.owner.trim() === '' || opts.owner.length > 256 || opts.owner.includes('\0'))) return fail('input', 'owner must be a non-empty string of at most 256 characters without NUL')
     if (!Number.isInteger(opts.dimensions) || opts.dimensions < 1 || opts.dimensions > MAX_DIMENSIONS) return fail('input', `dimensions must be an integer from 1 to ${MAX_DIMENSIONS}`)
 
     let conn: LanceConn
@@ -314,19 +315,26 @@ export class LanceVectorStore extends Service {
         const md = (await table.schema()).metadata
         const storedFp = md.get(META_FINGERPRINT)
         const storedDims = Number(md.get(META_DIMENSIONS))
+        const storedOwner = md.get(META_OWNER)
         if (storedFp === undefined || !Number.isInteger(storedDims)) {
           table.close()
           return fail('corrupt', `table "${name}" exists but was not created by this store (no fingerprint recorded)`)
+        }
+        if (storedOwner !== opts.owner) {
+          table.close()
+          return fail('owner_mismatch', 'collection "' + name + '" belongs to a different owner; use the same owner or explicitly reset it')
         }
         if (storedFp !== opts.fingerprint || storedDims !== opts.dimensions) {
           table.close()
           return fail('fingerprint_mismatch', `collection "${name}" was built with "${storedFp}" (${storedDims} dims), not "${opts.fingerprint}" (${opts.dimensions} dims); open it with reset: true to rebuild it`)
         }
-        const col = new LanceCollection(name, storedFp, storedDims, table)
+        const col = new LanceCollection(name, storedFp, storedDims, storedOwner, table)
         this.collections.set(name, col)
         return { ok: true, collection: col }
       }
 
+      const tableMetadata = new Map([[META_FINGERPRINT, opts.fingerprint], [META_DIMENSIONS, String(opts.dimensions)]])
+      if (opts.owner !== undefined) tableMetadata.set(META_OWNER, opts.owner)
       const schema = new Schema(
         [
           new Field('id', new Utf8(), false),
@@ -334,10 +342,10 @@ export class LanceVectorStore extends Service {
           new Field('metadata', new Utf8(), true),
           new Field('vector', new FixedSizeList(opts.dimensions, new Field('item', new Float32(), true)), false),
         ],
-        new Map([[META_FINGERPRINT, opts.fingerprint], [META_DIMENSIONS, String(opts.dimensions)]]),
+        tableMetadata,
       )
       const table = await conn.createTable(name, [], { schema })
-      const col = new LanceCollection(name, opts.fingerprint, opts.dimensions, table)
+      const col = new LanceCollection(name, opts.fingerprint, opts.dimensions, opts.owner, table)
       this.collections.set(name, col)
       return { ok: true, collection: col }
     } catch (e) {
@@ -346,6 +354,7 @@ export class LanceVectorStore extends Service {
   }
 
   private checkOpen(col: LanceCollection, opts: OpenCollectionOptions): VectorStoreResult<{ collection: VectorCollection }> {
+    if (col.owner !== opts.owner) return fail('owner_mismatch', 'collection "' + col.name + '" belongs to a different owner')
     if (col.fingerprint !== opts.fingerprint || col.dimensions !== opts.dimensions) {
       return fail('fingerprint_mismatch', `collection "${col.name}" is already open with "${col.fingerprint}" (${col.dimensions} dims), not "${opts.fingerprint}" (${opts.dimensions} dims)`)
     }
