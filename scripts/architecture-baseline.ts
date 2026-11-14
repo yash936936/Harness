@@ -70,6 +70,7 @@ const results: Record<string, unknown> = {}
 try {
   for (const count of COUNTS) {
     const timings: number[] = []
+    const warmTimings: number[] = []
     let fixtureBytes = 0
     for (let sample = 0; sample < SAMPLES; sample++) {
       const dir = join(root, `session-${count}-${sample}`)
@@ -89,7 +90,6 @@ try {
         await store.append(sessionEvent(last + 1))
       })
       timings.push(performance.now() - started)
-      const warmTimings: number[] = []
       for (let warm = 0; warm < SAMPLES; warm++) {
         const warmStarted = performance.now()
         await store.withLock('baseline-session', async () => {
