@@ -146,7 +146,7 @@ class LanceCollection implements VectorCollection {
         if (bad) return fail('input', bad)
       }
       let q = this.table.vectorSearch(vec).distanceType('cosine').select(['id', 'source', 'metadata', '_distance']).limit(k)
-      if (opts.source !== undefined) q = q.where(``source` = ${sql(opts.source)}`)
+      if (opts.source !== undefined) q = q.where(`\`source\` = ${sql(opts.source)}`)
       const rows = await q.toArray()
       const hits: VectorHit[] = rows.map((r: any) => {
         let metadata: Record<string, unknown> | undefined
@@ -186,7 +186,7 @@ class LanceCollection implements VectorCollection {
     return this.guard(async () => {
       const bad = checkText('source', source, MAX_SOURCE)
       if (bad) return fail('input', bad)
-      const rows = await this.table.query().where(``source` = ${sql(source)}`).select(['id']).toArray()
+      const rows = await this.table.query().where(`\`source\` = ${sql(source)}`).select(['id']).toArray()
       return { ok: true as const, ids: rows.map((r: any) => r.id as string) }
     })
   }
@@ -195,7 +195,7 @@ class LanceCollection implements VectorCollection {
     return this.guard(async () => {
       const bad = checkText('source', source, MAX_SOURCE)
       if (bad) return fail('input', bad)
-      return this.serial(async () => ({ ok: true as const, deleted: (await this.table.delete(``source` = ${sql(source)}`)).numDeletedRows }))
+      return this.serial(async () => ({ ok: true as const, deleted: (await this.table.delete(`\`source\` = ${sql(source)}`)).numDeletedRows }))
     })
   }
 
