@@ -1,6 +1,19 @@
 # Current project state
 
-Updated 2026-11-14, main `0bb27968955b218c5ea188f35b3d0939623a32cb`. This file records the current implementation state and binding project constraints. The active implementation order is in [ROADMAP.md](ROADMAP.md), architecture choices are in [decisions.md](decisions.md), and detailed audit findings are in [CODEBASE-AUDIT-CHECKLIST.md](CODEBASE-AUDIT-CHECKLIST.md).
+Updated 2026-11-14, main `74ae26a6273ff0fd2267e6d2ebf4b78df72bc9d1`. This file records the current implementation state and binding project constraints. The active implementation order is in [ROADMAP.md](ROADMAP.md), architecture choices are in [decisions.md](decisions.md), and detailed audit findings are in [CODEBASE-AUDIT-CHECKLIST.md](CODEBASE-AUDIT-CHECKLIST.md).
+
+## 2026-11-14 open architecture work and streaming follow-up
+
+- Current main baseline: 74ae26a6273ff0fd2267e6d2ebf4b78df72bc9d1. The checkout for this session is detached at this commit.
+- The Vercel SDK @vercel/sandbox@3.9.1 supports detached commands with an async Command.logs() iterator. The adapter now consumes that iterator and retains at most maxOutputBytes per stream, preserving complete UTF-8 code points and adding a truncation marker.
+- Focused fake-client coverage now exercises independent stream caps and a multi-byte UTF-8 boundary. This is adapter acceptance only, not live Vercel acceptance.
+- Live Vercel execution remains blocked: this sandbox has no Vercel credentials in its environment, and its network allow-list intentionally excludes Vercel control-plane hosts. No egress consent or allow-list change was made.
+- Cross-process SQLite reservation acceptance remains blocked because this main commit has no SQLite runtime/provider implementation. The existing reservation benchmark is a negative baseline: at a daily hard limit of one, 2/4/8 independent processes accept 2/4/8 reservations, respectively. It does not demonstrate a transactional shared backend.
+- Task-scoped workspace acceptance remains blocked because only type contracts and design rules exist. Workspace lifecycle, capability enforcement, transfer, synchronization, and recovery are not implemented. COMMAND_TOOL remains disabled under D-118.
+- Architecture benchmarks were rerun on Node 22.23.5, Linux x64, 2 vCPUs. Session-log append at 100k events: p50 120.151 ms / p95 125.015 ms. Episodic duplicate check at 100k: p50 329.936 ms / p95 348.579 ms. Selective episode query: p50 183.223 ms / p95 192.947 ms.
+- Retrieval indexing: 1,740 chunks, p50 548.634 ms / p95 617.717 ms, 7 embedding calls, 512-chunk groups; total prepared chunks remain in memory. Semantic reindex: 2,000 facts, 64-item embedding batches; source facts remain loaded as a full array and vector-upsert paging still needs review.
+- Streaming output benchmark: fake SDK emitted 99k, 100k, 1m, and 8m characters per stream in 64 KiB chunks. At 1m and 8m, retained output was 100,038 bytes per stream including the truncation marker. At 8m, p50 25.761 ms / p95 38.410 ms. RSS is process-wide and sampled, not a strict peak-memory proof.
+- Full file-by-file audit is explicitly excluded from this closeout request and remains open.
 
 ## Binding decisions
 

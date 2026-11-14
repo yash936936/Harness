@@ -1,6 +1,6 @@
 # Roadmap: Harness audit closeout and scalable architecture
 
-Updated 2026-11-14, main `0bb27968955b218c5ea188f35b3d0939623a32cb`. This is the active implementation roadmap. Phase 0 is complete on the merged audit PR. Phase 1 contract artifacts are drafted, all four D-119 policy choices are approved and recorded, and measured performance baselines remain before Phase 1 can be closed. Current project state and binding constraints are in [STATE.md](STATE.md); architecture decisions are in [decisions.md](decisions.md); detailed findings are tracked in [CODEBASE-AUDIT-CHECKLIST.md](CODEBASE-AUDIT-CHECKLIST.md).
+Updated 2026-11-14, main `74ae26a6273ff0fd2267e6d2ebf4b78df72bc9d1`. This is the active implementation roadmap. Phase 0 is complete on the merged audit PR. Phase 1 contract artifacts are drafted and all four D-119 policy choices are approved and recorded. Numeric baselines now cover session logs, episodic memory, reservations (legacy negative control), retrieval indexing, semantic reindex, and fake-provider streaming. Shared SQLite runtime, task workspaces, live Vercel acceptance, and bounded total-memory/query paths remain open. Current project state and binding constraints are in [STATE.md](STATE.md); architecture decisions are in [decisions.md](decisions.md); detailed findings are tracked in [CODEBASE-AUDIT-CHECKLIST.md](CODEBASE-AUDIT-CHECKLIST.md).
 
 ## Target outcome
 

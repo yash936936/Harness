@@ -5,6 +5,11 @@ import { SandboxError, type SandboxDoctor, type SandboxProvider, type SandboxRun
  * Minimal structural surface of @vercel/sandbox. Keeping the SDK behind this
  * interface lets tests exercise lifecycle and policy without cloud credentials.
  */
+export interface VercelSandboxCommand {
+  logs(options?: { signal?: AbortSignal }): AsyncIterable<{ stream: 'stdout' | 'stderr'; data: string }>
+  wait(options?: { signal?: AbortSignal }): Promise<{ exitCode: number | null }>
+}
+
 export interface VercelSandboxHandle {
   name?: string
   runCommand(options: {
@@ -12,11 +17,9 @@ export interface VercelSandboxHandle {
     args: string[]
     cwd?: string
     signal?: AbortSignal
-  }): Promise<{
-    exitCode: number | null
-    stdout(): Promise<string>
-    stderr(): Promise<string>
-  }>
+    timeoutMs?: number
+    detached: true
+  }): Promise<VercelSandboxCommand>
   delete(): Promise<void>
 }
 
@@ -37,6 +40,40 @@ export interface VercelSandboxConfig {
   maxOutputBytes?: number
 }
 
+class BoundedTextCapture {
+  private value = ''
+  private bytes = 0
+  truncated = false
+  constructor(private readonly limit: number) {}
+  write(chunk: string): void {
+    if (this.truncated || !chunk) return
+    let kept = ''
+    for (const char of chunk) {
+      const size = Buffer.byteLength(char, 'utf8')
+      if (this.bytes + size > this.limit) { this.truncated = true; break }
+      kept += char
+      this.bytes += size
+    }
+    this.value += kept
+  }
+  text(): string {
+    return this.truncated ? this.value + '\n[output truncated by Vercel provider]' : this.value
+  }
+}
+
+async function captureCommand(command: VercelSandboxCommand, signal: AbortSignal, limit: number): Promise<{ exitCode: number | null; stdout: string; stderr: string }> {
+  const stdout = new BoundedTextCapture(limit)
+  const stderr = new BoundedTextCapture(limit)
+  const consume = async () => {
+    for await (const log of command.logs({ signal })) {
+      signal.throwIfAborted()
+      if (log.stream === 'stdout') stdout.write(log.data)
+      else if (log.stream === 'stderr') stderr.write(log.data)
+    }
+  }
+  const [result] = await Promise.all([raceAbort(command.wait({ signal }), signal), consume()])
+  return { exitCode: result.exitCode, stdout: stdout.text(), stderr: stderr.text() }
+}
 function raceAbort<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
   if (!signal) return promise
   if (signal.aborted) return Promise.reject(signal.reason ?? new Error('aborted'))
@@ -185,9 +222,13 @@ export class VercelSandboxProvider implements SandboxProvider {
         args: req.command.slice(1),
         ...(req.cwd ? { cwd: req.cwd } : {}),
         signal: commandController.signal,
+        timeoutMs,
+        detached: true,
       }), commandController.signal)
-      exitCode = command.exitCode
-      ;[stdout, stderr] = await raceAbort(Promise.all([command.stdout(), command.stderr()]), commandController.signal)
+      const captured = await captureCommand(command, commandController.signal, this.cfg.maxOutputBytes ?? 100_000)
+      exitCode = captured.exitCode
+      stdout = captured.stdout
+      stderr = captured.stderr
     } catch (error) {
       if (req.signal?.aborted) commandError = req.signal.reason ?? error
       else {
@@ -205,21 +246,6 @@ export class VercelSandboxProvider implements SandboxProvider {
         releaseNote = `delete failed: ${String((error as any)?.message ?? error).slice(0, 180)}`
       }
     }
-
-    const outputLimit = this.cfg.maxOutputBytes ?? 100_000
-    const bound = (value: string) => {
-      let bytes = 0
-      let out = ''
-      for (const char of value) {
-        const size = Buffer.byteLength(char, 'utf8')
-        if (bytes + size > outputLimit) return out + '\n[output truncated by Vercel provider]'
-        out += char
-        bytes += size
-      }
-      return out
-    }
-    stdout = bound(stdout)
-    stderr = bound(stderr)
 
     if (commandError) {
       const error = commandError instanceof Error ? commandError : new Error(String(commandError))

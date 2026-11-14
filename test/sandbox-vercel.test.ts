@@ -11,7 +11,7 @@ function fake(over: { deleteFails?: boolean; createFails?: boolean; runFails?: E
     async runCommand(options) {
       calls.push(['run', options])
       if (over.runFails) throw over.runFails
-      return { exitCode: 7, stdout: async () => 'out', stderr: async () => 'err' }
+      return { async *logs() { yield { stream: 'stdout' as const, data: 'out' }; yield { stream: 'stderr' as const, data: 'err' } }, async wait() { return { exitCode: 7 } } }
     },
     async delete() {
       calls.push(['delete'])
@@ -166,7 +166,7 @@ describe('Vercel Sandbox provider (D-118)', () => {
         return {
           name: 'sbx-output',
           async runCommand() {
-            return { exitCode: 0, stdout: async () => 'abcdef', stderr: async () => 'uvwxyz' }
+            return { async *logs() { yield { stream: 'stdout' as const, data: 'abcdef' }; yield { stream: 'stderr' as const, data: 'uvwxyz' } }, async wait() { return { exitCode: 0 } } }
           },
           async delete() {},
         }
@@ -179,6 +179,30 @@ describe('Vercel Sandbox provider (D-118)', () => {
     expect(result.stderr).toBe('uvw\n[output truncated by Vercel provider]')
   })
 
+  it('streams output into bounded captures and preserves UTF-8 code points', async () => {
+    const client: VercelSandboxClient = {
+      async create() {
+        return {
+          name: 'sbx-stream-bounded',
+          async runCommand() {
+            return {
+              async *logs() {
+                yield { stream: 'stdout' as const, data: 'ab😀cdef' }
+                yield { stream: 'stderr' as const, data: 'uvwxyz' }
+              },
+              async wait() { return { exitCode: 0 } },
+            }
+          },
+          async delete() {},
+        }
+      },
+    }
+    const ctx = await boot()
+    ctx.sandbox.register(new VercelSandboxProvider({ client, maxOutputBytes: 5 }), { default: true })
+    const result = await ctx.sandbox.run({ command: ['emit'] })
+    expect(result.stdout).toBe('ab' + String.fromCharCode(10) + '[output truncated by Vercel provider]')
+    expect(result.stderr).toBe('uvwxy' + String.fromCharCode(10) + '[output truncated by Vercel provider]')
+  })
   it('deletes the remote sandbox when a command is cancelled', async () => {
     let started!: () => void
     const began = new Promise<void>((resolve) => { started = resolve })

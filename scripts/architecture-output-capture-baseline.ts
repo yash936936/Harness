@@ -29,17 +29,16 @@ async function runSample(outputChars: number, sample: number) {
         name: `output-baseline-${outputChars}-${sample}`,
         async runCommand() {
           return {
-            exitCode: 0,
-            stdout: async () => {
-              const value = Buffer.alloc(outputChars, 0x78).toString('utf8')
-              observe()
-              return value
+            async *logs() {
+              const chunk = 64 * 1024
+              for (let sent = 0; sent < outputChars; sent += chunk) {
+                const size = Math.min(chunk, outputChars - sent)
+                yield { stream: 'stdout' as const, data: Buffer.alloc(size, 0x78).toString('utf8') }
+                yield { stream: 'stderr' as const, data: Buffer.alloc(size, 0x79).toString('utf8') }
+                observe()
+              }
             },
-            stderr: async () => {
-              const value = Buffer.alloc(outputChars, 0x79).toString('utf8')
-              observe()
-              return value
-            },
+            async wait() { return { exitCode: 0 } },
           }
         },
         async delete() {},
@@ -102,12 +101,12 @@ const report = {
     samplesPerSize: SAMPLES,
     streams: 2,
     provider: 'VercelSandboxProvider with injected in-process fake client; no cloud request',
-    timing: 'provider.run including fake output string creation, Promise.all capture, byte-cap pass, and cleanup',
-    memory: 'process RSS sampled every 5 ms and explicitly after each complete output string is materialized; process-wide and may miss transient allocation peaks',
-    limitation: 'The provider contract returns Promise<string> for each complete stream. The adapter cannot consume chunks, bound SDK-side buffering, or terminate an endless stream based on output bytes. This measures post-capture truncation, not streaming enforcement.',
+    timing: 'provider.run including detached command log iteration, bounded per-stream capture, and cleanup',
+    memory: 'process RSS sampled every 5 ms while fake provider yields 64 KiB chunks without materializing complete stream strings; process-wide and may miss transient allocation peaks',
+    streaming: 'The adapter consumes the SDK detached command logs async iterator and retains no more than outputLimitBytes per stream. The fake validates adapter behavior only; live Vercel acceptance remains separate.',
   },
   results,
-  interpretation: 'The fake SDK materializes both complete output strings before the adapter applies its independent per-stream caps. The returned output is bounded, but upstream output materialization is not.',
+  interpretation: 'The fake emits bounded chunks through the same async log interface as the SDK. Captured output stays within the configured per-stream byte limit plus the explicit truncation marker.',
 }
 const output = JSON.stringify(report, null, 2)
 console.log(output)

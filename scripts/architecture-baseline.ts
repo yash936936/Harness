@@ -148,10 +148,10 @@ try {
     memory: { rssStartBytes: rssStart, peakObservedRssBytes: peakRss, observedRssDeltaBytes: Math.max(0, peakRss - rssStart) },
     results,
     notMeasured: {
-      reservations: 'Requires independent-process contention and a shared hard-limit oracle; do not substitute in-process calls.',
-      indexing: 'Requires a deterministic project tree, parser and embedding/vector fixtures with controlled provider behavior.',
-      output: 'Requires a streaming-capable provider fixture; the current Vercel adapter receives complete stdout/stderr strings.',
-      semanticReindex: 'Requires a deterministic embedding provider and vector-store fixture; current implementation has no paging checkpoint.',
+      reservations: 'The separate reservation baseline measures the legacy process-local implementation as a negative control. Shared SQLite acceptance is not measurable until a transactional SQLite provider exists.',
+      indexing: 'Measured separately by architecture-indexing-baseline.ts with a deterministic project tree and local hashing embeddings; the project-wide prepared chunk list remains in memory.',
+      output: 'Measured separately by architecture-output-capture-baseline.ts using detached command log iteration and bounded fake chunks; live Vercel provider acceptance remains unverified.',
+      semanticReindex: 'Measured separately by architecture-semantic-reindex-baseline.ts with deterministic embeddings; full source facts remain loaded in memory and the vector-upsert path still needs paging review.',
     },
   }
   console.log(JSON.stringify(report, null, 2))
