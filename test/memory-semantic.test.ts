@@ -62,6 +62,28 @@ class ConceptProvider implements EmbeddingProvider {
     })
   }
 }
+class OrderedRaceProvider implements EmbeddingProvider {
+  readonly name = 'ordered-race'
+  readonly model = 'ordered-race-2'
+  readonly egress = { host: 'localhost', remote: false }
+  private holdFirst = true
+  private releaseGate!: () => void
+  private markStarted!: () => void
+  private readonly gate = new Promise<void>((resolve) => { this.releaseGate = resolve })
+  readonly firstStarted = new Promise<void>((resolve) => { this.markStarted = resolve })
+
+  releaseFirst(): void { this.releaseGate() }
+
+  async embed(texts: readonly string[]) {
+    if (this.holdFirst && texts.includes('first version')) {
+      this.holdFirst = false
+      this.markStarted()
+      await this.gate
+    }
+    return texts.map((text) => text === 'first version' ? [1, 0] : [0, 1])
+  }
+}
+
 const tokens = (s: string) => new Set(s.toLowerCase().match(/[a-z]+/g) ?? [])
 
 async function boot(o: { provider?: EmbeddingProvider; dbPath?: string; sem?: SemanticConfig; emb?: EmbeddingsConfig; withMemory?: boolean } = {}) {
@@ -156,6 +178,28 @@ describe('semantic tier (3.3): write, retrieve by meaning', () => {
     await pending
     const fact = (await ctx.memorySemantic.list())[0]!
     expect(fact).toMatchObject({ id: 'snapshot-id', tags: ['original'], source: 'original-source' })
+  })
+
+  it('does not let a slower stale embedding overwrite a newer replacement with the same id', async () => {
+    const provider = new OrderedRaceProvider()
+    const { ctx } = await boot({ provider, sem: { path: await tmp() } })
+
+    const first = ctx.memorySemantic.add({ id: 'stable-id', text: 'first version', why: WHY })
+    await provider.firstStarted
+    const second = await ctx.memorySemantic.add({ id: 'stable-id', text: 'second version', why: WHY })
+    expect(second.indexed).toBe(true)
+
+    provider.releaseFirst()
+    const firstResult = await first
+    expect(firstResult.indexed).toBe(false)
+    expect(firstResult.indexError).toMatch(/superseded/)
+
+    const found = await ctx.memorySemantic.query('second version', { k: 1 })
+    expect(found.ok).toBe(true)
+    if (!found.ok) return
+    expect(found.hits[0]?.fact.text).toBe('second version')
+    expect(found.hits[0]?.score).toBeCloseTo(1, 5)
+    expect(found.stale).toBe(false)
   })
 
   it('finds a fact by a query that shares NO words with it, and ranks it first among unrelated facts', async () => {
