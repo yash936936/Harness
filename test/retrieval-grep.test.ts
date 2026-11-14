@@ -264,7 +264,7 @@ describe.skipIf(!hasRg)('RetrievalGrep with real ripgrep', () => {
   })
 
   it('extraArgs ignore globs work (positive control)', async () => {
-    const got = await files(Q, { extraArgs: ['--glob=!skip/**'] })
+    const got = await files(Q, { extraArgs: ['--glob=!**/skip/**'] })
     expect(got).not.toContain('skip/other.ts')
     expect(got).toContain('src/app.ts')
   })
@@ -424,7 +424,7 @@ describe('RetrievalGrep.listFiles', () => {
     })
 
     it('extraArgs can narrow the list but cannot re-include secrets', async () => {
-      const narrowed = await list({ extraArgs: ['--glob=!skip/**'] })
+      const narrowed = await list({ extraArgs: ['--glob=!**/skip/**'] })
       expect(narrowed.ok && narrowed.files).not.toContain('skip/s.ts')
       expect(narrowed.ok && narrowed.files).toContain('src/app.ts')
       const tried = await list({ extraArgs: ['--glob', '.env', '--glob', '*.pem', '--glob', 'id_rsa', '--glob', 'credentials.json'] })
