@@ -110,7 +110,7 @@ export function assertSameDir(realRoot: string, dir: string, id: DirIdentity): v
   } catch {
     throw new PathRefused('the target directory changed while the operation was running; refusing')
   }
-  if (now.real !== id.real || now.dev !== id.dev || now.ino !== id.ino || !isInside(realRoot, now.real)) {
+  if (now.real !== id.real || (process.platform !== 'win32' && (now.dev !== id.dev || now.ino !== id.ino)) || !isInside(realRoot, now.real)) {
     throw new PathRefused('the target directory changed while the operation was running; refusing')
   }
 }
