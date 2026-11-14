@@ -21,6 +21,8 @@ A profile or host installs the LanceDB adapter as `ctx.vectorstore`. Retrieval-r
 
 ## Known limits
 
+- Collection opens are serialized within a store instance. Ownership is persisted in table metadata; cross-feature resets are refused even with `reset: true`. Legacy unowned collections need an explicit reset before a feature can claim them.
+
 - LanceDB is an optional semantic index, not the source of truth for project files.
 - Indexed records can become stale; retrieval-rank must validate current file hashes before returning content.
 - Storage success does not prove embedding quality or live retrieval acceptance.
