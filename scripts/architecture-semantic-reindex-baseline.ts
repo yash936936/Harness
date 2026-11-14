@@ -77,7 +77,7 @@ async function runSample(root: string, sample: number) {
 
     const info = ctx.embeddings.info()
     if (!info?.fingerprint || !info.dimensions) throw new Error('embedding fingerprint unavailable after reindex')
-    const opened = await ctx.vectorstore.open('memory-semantic', { fingerprint: info.fingerprint, dimensions: info.dimensions })
+    const opened = await ctx.vectorstore.open('memory-semantic', { fingerprint: info.fingerprint, dimensions: info.dimensions, owner: 'memory.semantic' })
     if (!opened.ok) throw new Error(`cannot inspect semantic collection: ${opened.error.kind}: ${opened.error.detail}`)
     const count = await opened.collection.count()
     if (!count.ok || count.count !== FACTS) throw new Error(`expected ${FACTS} vectors, got ${count.ok ? count.count : count.error.detail}`)
