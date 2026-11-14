@@ -326,6 +326,26 @@ describe('persistence and the embedding fingerprint', () => {
     expect(ok(await right.count()).count).toBe(1)
   })
 
+  it('prevents a different feature from opening or resetting an owned collection', async () => {
+    const { store } = await collection()
+    const owned = ok(await store.open('chunks', { fingerprint: FP, dimensions: 3, owner: 'memory.semantic' })).collection
+    ok(await owned.upsert([{ id: 'fact-1', vector: [1, 0, 0], source: 'memory.semantic' }]))
+    expect(kind(await store.open('chunks', { fingerprint: FP, dimensions: 3, owner: 'retrieval-rank:/project', reset: true }))).toBe('ownership_mismatch')
+    expect(kind(await store.open('chunks', { fingerprint: FP, dimensions: 3 }))).toBe('ownership_mismatch')
+    expect(ok(await owned.count()).count).toBe(1)
+    expect(kind(await store.open('chunks', { fingerprint: FP, dimensions: 3, owner: 'memory.semantic' }))).toBeUndefined()
+  })
+
+  it('requires an explicit reset before claiming a legacy unowned collection', async () => {
+    const { store } = await collection()
+    const legacy = ok(await store.open('chunks', { fingerprint: FP, dimensions: 3 })).collection
+    ok(await legacy.upsert([{ id: 'legacy', vector: [1, 0, 0] }]))
+    expect(kind(await store.open('chunks', { fingerprint: FP, dimensions: 3, owner: 'retrieval-rank:/project' }))).toBe('ownership_mismatch')
+    const claimed = await store.open('chunks', { fingerprint: FP, dimensions: 3, owner: 'retrieval-rank:/project', reset: true })
+    expect(claimed.ok).toBe(true)
+    if (claimed.ok) expect(ok(await claimed.collection.count()).count).toBe(0)
+  })
+
   it('the same collection already open in this store also refuses a different fingerprint', async () => {
     const { store } = await collection()
     expect(kind(await store.open('chunks', { fingerprint: 'other', dimensions: 3 }))).toBe('fingerprint_mismatch')
