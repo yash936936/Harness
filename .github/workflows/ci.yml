@@ -61,7 +61,7 @@ jobs:
           cache: npm
       - run: npm run ci:secrets
       - run: npm ci --ignore-scripts
-      - run: npm audit --omit=dev --audit-level=high
+      - run: npm audit --audit-level=high
   licenses:
     name: license inventory
     runs-on: ubuntu-latest
