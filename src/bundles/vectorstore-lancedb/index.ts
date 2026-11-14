@@ -136,6 +136,57 @@ class LanceCollection implements VectorCollection {
     })
   }
 
+  /**
+   * Replace one source without a delete-first gap. New rows are written before stale rows
+   * are removed, and writes are serialized with other collection writes. If cleanup fails,
+   * old rows remain; retrieval validates their content hashes against the live files.
+   */
+  replaceSource(source: string, records: readonly VectorRecord[]): Promise<VectorStoreResult<{ written: number; deleted: number }>> {
+    return this.guard(async () => {
+      const sourceError = checkText('source', source, MAX_SOURCE)
+      if (sourceError) return fail('input', sourceError)
+      if (!Array.isArray(records)) return fail('input', 'records must be an array')
+      const rows = new Map<string, Record<string, unknown>>()
+      for (let i = 0; i < records.length; i++) {
+        const r = records[i] as VectorRecord
+        const at = 'record ' + i
+        const idError = checkText(at + ': id', r?.id, MAX_ID)
+        if (idError) return fail('input', idError)
+        if (r.source !== source) return fail('input', at + ': source must equal the replacement source')
+        const vec = checkVector(r.vector, this.dimensions, at + ': vector')
+        if (typeof vec === 'string') return fail(/dimensions/.test(vec) ? 'dimension_mismatch' : 'input', vec)
+        let metadata: string | null = null
+        if (r.metadata !== undefined) {
+          if (r.metadata === null || typeof r.metadata !== 'object' || Array.isArray(r.metadata)) return fail('input', at + ': metadata must be a plain object')
+          try {
+            metadata = JSON.stringify(r.metadata)
+          } catch (e) {
+            return fail('input', at + ': metadata is not JSON-serialisable (' + msg(e) + ')')
+          }
+          if (metadata.length > MAX_METADATA_CHARS) return fail('input', at + ': metadata is longer than ' + MAX_METADATA_CHARS + ' characters')
+        }
+        rows.delete(r.id)
+        rows.set(r.id, { id: r.id, source, metadata, vector: vec })
+      }
+
+      return this.serial(async () => {
+        if (this.closed) return fail('closed', 'collection "' + this.name + '" is closed')
+        const quotedSource = String.fromCharCode(96) + 'source' + String.fromCharCode(96)
+        const existing = await this.table.query().where(quotedSource + ' = ' + sql(source)).select(['id']).toArray()
+        const stale = existing.map((row: any) => row.id as string).filter((id) => !rows.has(id))
+        if (rows.size > 0) {
+          await this.table.mergeInsert('id').whenMatchedUpdateAll().whenNotMatchedInsertAll().execute([...rows.values()])
+        }
+        // Keep the source predicate so a coincident id in another source cannot be deleted.
+        for (let i = 0; i < stale.length; i += 1000) {
+          const batch = stale.slice(i, i + 1000)
+          await this.table.delete(quotedSource + ' = ' + sql(source) + ' AND id IN (' + batch.map(sql).join(', ') + ')')
+        }
+        return { ok: true as const, written: rows.size, deleted: stale.length }
+      })
+    })
+  }
+
   query(vector: ArrayLike<number>, k: number, opts: { source?: string } = {}): Promise<VectorStoreResult<{ hits: VectorHit[] }>> {
     return this.guard(async () => {
       if (!Number.isInteger(k) || k < 1 || k > MAX_K) return fail('input', `k must be an integer from 1 to ${MAX_K}`)
@@ -242,6 +293,7 @@ export class LanceVectorStore extends Service {
     if (this.disposed) return fail('closed', 'the vector store has been disposed')
     if (typeof name !== 'string' || !NAME_RE.test(name)) return fail('input', 'collection name must be 1-64 characters of A-Z a-z 0-9 _ -')
     if (typeof opts?.fingerprint !== 'string' || opts.fingerprint.trim() === '') return fail('input', 'fingerprint is required')
+    if (opts.owner !== undefined && (typeof opts.owner !== 'string' || opts.owner.trim() === '' || opts.owner.length > 256 || opts.owner.includes('\0'))) return fail('input', 'owner must be a non-empty string of at most 256 characters without NUL')
     if (!Number.isInteger(opts.dimensions) || opts.dimensions < 1 || opts.dimensions > MAX_DIMENSIONS) return fail('input', `dimensions must be an integer from 1 to ${MAX_DIMENSIONS}`)
     if (opts.owner !== undefined) {
       const bad = checkText('owner', opts.owner, 512)

@@ -3,6 +3,8 @@ export interface RetrievalRankConfig {
   root: string
   /** Vector-store collection holding indexed chunks. Default `'code-chunks'`. */
   collection?: string
+  /** Stable project owner for the collection. Defaults to SHA-256 of the canonical project root. */
+  collectionOwner?: string
   /** Results returned by default. Default 10. */
   k?: number
   /**

@@ -1,5 +1,6 @@
 // Retrieval ranking service: combines lexical BM25 with optional semantic results.
 import { lstatSync, realpathSync } from 'node:fs'
+import { createHash } from 'node:crypto'
 import { isAbsolute, relative, resolve, sep } from 'node:path'
 import { Context, Service } from 'cordis'
 import {
@@ -48,6 +49,7 @@ export class RetrievalRank extends Service {
   private readonly root: string
   private readonly rootIdentity: { dev: number; ino: number }
   private readonly collectionName: string
+  private readonly collectionOwner: string
   private readonly k: number
   private readonly weight: number
   private readonly rrfK: number
@@ -75,6 +77,7 @@ export class RetrievalRank extends Service {
       throw new RetrievalRankConfigError(`retrieval-rank: config.root cannot be pinned to a real directory (${error instanceof Error ? error.message : String(error)})`)
     }
     this.collectionName = config.collection ?? 'code-chunks'
+    this.collectionOwner = config.collectionOwner ?? createHash('sha256').update(this.root).digest('hex')
     this.k = config.k ?? 10
     this.weight = config.weight ?? 0.5
     this.rrfK = config.rrfK ?? 60
@@ -88,6 +91,7 @@ export class RetrievalRank extends Service {
     this.maxHitChars = config.maxHitChars ?? 1500
     this.indexGroupChunks = config.indexGroupChunks ?? 512
     if (typeof this.collectionName !== 'string' || !this.collectionName.trim()) throw new RetrievalRankConfigError('retrieval-rank: collection must be a non-empty string')
+    if (typeof this.collectionOwner !== 'string' || !this.collectionOwner.trim() || this.collectionOwner.length > 256 || this.collectionOwner.includes('\0')) throw new RetrievalRankConfigError('retrieval-rank: collectionOwner must be a non-empty string of at most 256 characters without NUL')
     if (!(this.weight >= 0 && this.weight <= 1)) throw new RetrievalRankConfigError('retrieval-rank: weight must be between 0 and 1')
     if (this.minVectorScore !== undefined && !(this.minVectorScore >= -1 && this.minVectorScore <= 1)) throw new RetrievalRankConfigError('retrieval-rank: minVectorScore must be between -1 and 1')
     for (const [n, v] of [['k', this.k], ['rrfK', this.rrfK], ['vectorTopK', this.vectorTopK], ['windowLines', this.chunkOpts.windowLines], ['maxChunkLines', this.chunkOpts.maxChunkLines], ['indexGroupChunks', this.indexGroupChunks], ['maxFileBytes', this.maxFileBytes], ['maxCandidateChunks', this.maxCandidateChunks], ['maxHitChars', this.maxHitChars], ['maxChunkChars', this.chunkOpts.maxChunkChars]] as const) {
