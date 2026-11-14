@@ -34,6 +34,7 @@ const MAX_K = 1000
 const MAX_DIMENSIONS = 16_384
 const META_FINGERPRINT = 'harness.fingerprint'
 const META_DIMENSIONS = 'harness.dimensions'
+const META_OWNER = 'harness.owner'
 
 const fail = (kind: VectorStoreErrorKind, detail: string): VectorStoreFailure => ({ ok: false, error: { kind, detail } })
 const msg = (e: unknown): string => (e instanceof Error ? e.message : String(e))
@@ -79,6 +80,7 @@ class LanceCollection implements VectorCollection {
     readonly name: string,
     readonly fingerprint: string,
     readonly dimensions: number,
+    readonly owner: string | undefined,
     private readonly table: LanceTable,
   ) {}
 
@@ -230,50 +232,71 @@ export class LanceVectorStore extends Service {
     if (this.disposed) return fail('closed', 'the vector store has been disposed')
     if (typeof name !== 'string' || !NAME_RE.test(name)) return fail('input', 'collection name must be 1-64 characters of A-Z a-z 0-9 _ -')
     if (typeof opts?.fingerprint !== 'string' || opts.fingerprint.trim() === '') return fail('input', 'fingerprint is required')
-    if (!Number.isInteger(opts.dimensions) || opts.dimensions < 1 || opts.dimensions > MAX_DIMENSIONS) return fail('input', `dimensions must be an integer from 1 to ${MAX_DIMENSIONS}`)
+    if (!Number.isInteger(opts.dimensions) || opts.dimensions < 1 || opts.dimensions > MAX_DIMENSIONS) return fail('input', \`dimensions must be an integer from 1 to \${MAX_DIMENSIONS}\`)
+    if (opts.owner !== undefined) {
+      const bad = checkText('owner', opts.owner, 512)
+      if (bad) return fail('input', bad)
+    }
 
     let conn: LanceConn
     let lance: Lance
     try {
       lance = await this.loadLance()
     } catch (e) {
-      return fail('unavailable', `could not load the native LanceDB module: ${msg(e)}`)
+      return fail('unavailable', \`could not load the native LanceDB module: \${msg(e)}\`)
     }
     try {
       conn = await this.connect(lance)
     } catch (e) {
-      return fail('io', `cannot open the database at ${this.path}: ${msg(e)}`)
+      return fail('io', \`cannot open the database at \${this.path}: \${msg(e)}\`)
     }
 
     try {
       const cached = this.collections.get(name)
-      if (cached && opts.reset) {
-        cached.close()
-        this.collections.delete(name)
+      if (cached) {
+        const ownership = this.checkOwner(name, cached.owner, opts.owner, opts.reset === true)
+        if (ownership) return ownership
+        if (opts.reset) {
+          cached.close()
+          this.collections.delete(name)
+        } else {
+          return this.checkOpen(cached, opts)
+        }
       }
-      if (cached && !opts.reset) return this.checkOpen(cached, opts)
 
-      const exists = (await conn.tableNames()).includes(name)
-      if (exists && opts.reset) await conn.dropTable(name)
-
-      if (exists && !opts.reset) {
+      let exists = (await conn.tableNames()).includes(name)
+      if (exists) {
         const table = await conn.openTable(name)
         const md = (await table.schema()).metadata
         const storedFp = md.get(META_FINGERPRINT)
         const storedDims = Number(md.get(META_DIMENSIONS))
-        if (storedFp === undefined || !Number.isInteger(storedDims)) {
+        const storedOwner = md.get(META_OWNER)
+        const ownership = this.checkOwner(name, storedOwner, opts.owner, opts.reset === true)
+        if (ownership) {
           table.close()
-          return fail('corrupt', `table "${name}" exists but was not created by this store (no fingerprint recorded)`)
+          return ownership
         }
-        if (storedFp !== opts.fingerprint || storedDims !== opts.dimensions) {
+        if (opts.reset) {
           table.close()
-          return fail('fingerprint_mismatch', `collection "${name}" was built with "${storedFp}" (${storedDims} dims), not "${opts.fingerprint}" (${opts.dimensions} dims); open it with reset: true to rebuild it`)
+          await conn.dropTable(name)
+          exists = false
+        } else {
+          if (storedFp === undefined || !Number.isInteger(storedDims)) {
+            table.close()
+            return fail('corrupt', \`table "\${name}" exists but was not created by this store (no fingerprint recorded)\`)
+          }
+          if (storedFp !== opts.fingerprint || storedDims !== opts.dimensions) {
+            table.close()
+            return fail('fingerprint_mismatch', \`collection "\${name}" was built with "\${storedFp}" (\${storedDims} dims), not "\${opts.fingerprint}" (\${opts.dimensions} dims); open it with reset: true to rebuild it\`)
+          }
+          const col = new LanceCollection(name, storedFp, storedDims, storedOwner, table)
+          this.collections.set(name, col)
+          return { ok: true, collection: col }
         }
-        const col = new LanceCollection(name, storedFp, storedDims, table)
-        this.collections.set(name, col)
-        return { ok: true, collection: col }
       }
 
+      const metadata = new Map([[META_FINGERPRINT, opts.fingerprint], [META_DIMENSIONS, String(opts.dimensions)]])
+      if (opts.owner !== undefined) metadata.set(META_OWNER, opts.owner)
       const schema = new Schema(
         [
           new Field('id', new Utf8(), false),
@@ -281,10 +304,10 @@ export class LanceVectorStore extends Service {
           new Field('metadata', new Utf8(), true),
           new Field('vector', new FixedSizeList(opts.dimensions, new Field('item', new Float32(), true)), false),
         ],
-        new Map([[META_FINGERPRINT, opts.fingerprint], [META_DIMENSIONS, String(opts.dimensions)]]),
+        metadata,
       )
       const table = await conn.createTable(name, [], { schema })
-      const col = new LanceCollection(name, opts.fingerprint, opts.dimensions, table)
+      const col = new LanceCollection(name, opts.fingerprint, opts.dimensions, opts.owner, table)
       this.collections.set(name, col)
       return { ok: true, collection: col }
     } catch (e) {
