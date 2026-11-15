@@ -1,6 +1,6 @@
 # Full codebase audit checklist
 
-Baseline: `main` at `c9426622c0c9ba0df1d8c1498fbd8ad2991ae6c2` (2026-11-15).
+Baseline: `main` at `cf79353a0aa66c96354724980288861467257bd9` (2026-11-16).
 Audit continuation branch: `docs/audit-findings-050-051-closeout-2026-11`.
 
 This is a staged, evidence-based audit. Review each file, then each folder, then cross-folder flows. The follow-up fix pass updates selected findings but does not claim the full file-by-file audit is complete. Do not remove code solely because it appears old or duplicated; first verify imports, runtime registration, scripts, tests, docs, and history. Do not weaken D-110/D-117/D-118 security boundaries.
@@ -195,7 +195,7 @@ These are first-pass findings, not the final register. Some fixes have been impl
 
 Contained fixes in this pass include: direct-profile run_command removal; host-backed retrieval tool disablement under D-117; pinned retrieval roots; UTF-8 parser byte limits; NUL validation; bounded router and sub-agent retention; no-follow persistent state helpers for memory, credentials, budgets, rate limits, and egress consent; test-inclusive secret scanning; full-tree Markdown link checks; explicit ripgrep CI setup; and Node 20/22 CI coverage.
 
-The following findings remain open or partially mitigated: AUD-007/AUD-008 (cross-process/history scans and episodic indexing), AUD-014/AUD-025 (retention, paging, and resumable semantic reindex), AUD-015/AUD-044 (cross-process transactional reservations), AUD-016 (large-file indexing memory and ANN evaluation), AUD-023 (cancel-at-cap and live SDK acceptance), and AUD-039 (task-scoped workspace lifecycle/transfer/result sync). PRs #113-119 address collection ownership, queue bounds, host execution paths, and bounded tool serialization. D-110/D-117/D-118 remain in force. No live sandbox acceptance was run.
+The following findings remain open or partially mitigated: AUD-007/AUD-008 (cross-process/history scans and episodic indexing), AUD-014/AUD-025 (retention, paging, and resumable semantic reindex), AUD-015/AUD-044 (cross-process transactional reservations), AUD-016 (large-file indexing memory and ANN evaluation), AUD-023 (cancel-at-cap and live SDK acceptance), and AUD-039 (task-scoped workspace lifecycle/transfer/result sync). PRs #113-121 address collection ownership, queue bounds, host execution paths, bounded tool serialization, and batched semantic reindex; PR #120 synchronizes the audit documents. D-110/D-117/D-118 remain in force. No live sandbox acceptance was run.
 
 CI for this follow-up must be treated as unverified until the new pull request's complete matrix and ci-pass job succeed.
 
@@ -241,6 +241,6 @@ Phase 0 is complete. Phase 1 contracts, owner policy approvals, CI, and initial 
 
 ## Current audit continuation — 2026-11-16
 
-- Main baseline: `c9426622c0c9ba0df1d8c1498fbd8ad2991ae6c2`. PR #113 (retrieval collection ownership and safer replacement), #114 (strict aggregate CI and full dependency audit), #115-117 (bounded session, semantic, and episodic queues), #118 (D-117 host-path shutdown), and #119 (bounded tool-output serialization) are merged.
-- PR-head CI passed for #113 (`43632476855`), #114 (`43632866040`), #115 (`43754058474`), #116 (`43754660989`), #117 (`43755063045`), #118 (`43755514677`), and #119 (`43756237948`). Post-merge main CI passed through PR #118 (`43755802017`); PR #119 post-merge run `43756562349` is recorded separately in `docs/status.md`.
+- Main baseline: `cf79353a0aa66c96354724980288861467257bd9`. PR #113 (retrieval collection ownership and safer replacement), #114 (strict aggregate CI and full dependency audit), #115-117 (bounded session, semantic, and episodic queues), #118 (D-117 host-path shutdown), #119 (bounded tool-output serialization), #120 (audit documentation reconciliation), and #121 (batched semantic reindex) are merged.
+- PR-head CI passed for #113 (`43632476855`), #114 (`43632866040`), #115 (`43754058474`), #116 (`43754660989`), #117 (`43755063045`), #118 (`43755514677`), and #119 (`43756237948`). PR #121 is merged; its full CI run `43757877742` and post-merge main run `43757888191` are still running. The semantic reindex architecture benchmark passed in `43757666162`.
 - The full file-by-file and cross-folder audit remains incomplete. D-110/D-117/D-118/D-119 remain binding.
