@@ -16,7 +16,7 @@ A host integration must construct and register `VercelSandboxProvider` with `ctx
 - Required host credentials are `VERCEL_TOKEN`, `VERCEL_TEAM_ID`, and `VERCEL_PROJECT_ID`. Never pass them to the guest or log their values.
 - Each lease requests `persistent: false` and `networkPolicy: 'deny-all'`.
 - Commands are passed as `cmd` plus `args`; no shell command string is constructed.
-- Session timeout defaults to 10 minutes; output is bounded to 100 KB per stream by default.
+- Session timeout defaults to 10 minutes; output is bounded to 100 KB per stream by default. When either stream exceeds its cap, the adapter sends `SIGTERM` through the SDK command's `kill()` method and continues draining logs until the command settles.
 - Deletion is attempted in cleanup. A failed or unconfirmed delete means `released: false` and must fail the task.
 - The current adapter starts an empty sandbox. It does not upload the project or collect remote changes.
 
@@ -24,7 +24,7 @@ A host integration must construct and register `VercelSandboxProvider` with `ctx
 
 - Workspace snapshot/upload/download, secret and sensitive-file exclusion, symlink/path defenses, transfer limits, conflict-safe result application, and lifecycle audit are incomplete.
 - Profile/CLI registration is intentionally absent. Keep `COMMAND_TOOL` disabled until those controls and tests pass.
-- Fake-client tests prove adapter behavior against the fake only.
+- Fake-client tests prove adapter behavior against the fake only. Live SDK command termination and SDK-internal buffering remain unverified.
 - Live smoke is an empty-sandbox `true` command, not project acceptance.
 - The development dependency tree previously resolved `undici@7.29.0` through `just-bash -> guarded-fetch`; the lockfile and package override now pin that nested dependency to patched `undici@7.30.2`. Re-run `npm audit` and the full CI matrix to verify the remediation.
 - S4 is open, cloud-only, and not passed. See [STATE.md](../STATE.md).
