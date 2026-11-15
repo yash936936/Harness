@@ -85,7 +85,7 @@ The four owner decisions are approved and binding for the initial implementation
 
 These constraints must be enforced in the Phase 2 design and tests. Changing them requires a new decision record and migration review.
 
-## Open confirmed architecture findings
+## Confirmed architecture findings and remaining work
 
 | Findings | Required work |
 |---|---|
