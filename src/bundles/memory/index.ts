@@ -60,7 +60,11 @@ export class Memory extends Service {
 
   constructor(ctx: Context, config: MemoryConfig = {}) {
     super(ctx, 'memory')
-    const store = config.path ? new JsonlEpisodeStore(config.path) : new MemoryEpisodeStore()
+    const maxPendingEpisodeWrites = config.maxPendingEpisodeWrites ?? 1024
+    if (!Number.isSafeInteger(maxPendingEpisodeWrites) || maxPendingEpisodeWrites < 1) {
+      throw new MemoryError('memory: maxPendingEpisodeWrites must be a positive safe integer')
+    }
+    const store = config.path ? new JsonlEpisodeStore(config.path, maxPendingEpisodeWrites) : new MemoryEpisodeStore()
     const now = config.now ?? (() => new Date())
     const maxFieldChars = config.maxFieldChars ?? DEFAULT_MAX_CHARS
     if (!Number.isSafeInteger(maxFieldChars) || maxFieldChars < 1) throw new MemoryError('memory: maxFieldChars must be a positive safe integer')
