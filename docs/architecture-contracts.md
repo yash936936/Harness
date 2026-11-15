@@ -182,11 +182,11 @@ A deterministic fake-client workload is now wired into architecture CI. It tests
 
 For inputs above the 100,000-byte cap, each returned stream contains 100,038 bytes: the 100,000-byte payload plus the 38-byte truncation marker. At or below the cap, output is returned unchanged. The test verifies independent truncation and confirmed sandbox deletion in every sample.
 
-The fake client explicitly materializes both complete strings before returning them. The 8 MB-per-stream case therefore supplies 16 MB of source output per invocation while the adapter returns about 100 KB per stream. RSS is sampled every 5 ms and explicitly after each complete string is materialized. RSS is process-wide and can still miss transient allocation peaks; sequential samples share one process. Three-sample maxima are not stable tail estimates. These numbers characterize the adapter and fake string source, not the real Vercel SDK's internal buffers or remote execution.
+The fake client yields 64 KiB chunks through the same async log iterator used by the adapter; it does not materialize either complete output stream. RSS is sampled every 5 ms while chunks are yielded. RSS is process-wide and can still miss transient allocation peaks; sequential samples share one process. Three-sample maxima are not stable tail estimates. These numbers characterize adapter-side bounded capture, not the real Vercel SDK's internal buffers or remote execution.
 
-This is explicitly an output-capture/truncation baseline, not a streaming-output benchmark. The current `VercelSandboxHandle` contract exposes `stdout(): Promise<string>` and `stderr(): Promise<string>`; both complete strings are materialized before the adapter applies its cap. The interface has no chunk iterator or readable stream, so the adapter cannot bound SDK-side buffering, enforce a byte limit while data arrives, or stop an endless output stream. The fake client does not establish how the real SDK buffers output internally. A streaming contract and provider implementation change are required before bounded streaming acceptance can be measured.
+The Vercel adapter now consumes the SDK detached-command `Command.logs()` async iterator and applies independent byte caps while chunks arrive. The fake-client baseline verifies that adapter-side retained buffers stay within the configured limit. When a stream reaches its cap, the adapter currently discards later chunks but continues draining the iterator until command completion or timeout; it does not yet cancel the remote command at the cap. The fake client also does not establish how the real SDK buffers internally. Live SDK buffer behavior, endless-output termination, and cancel-at-cap remain separate acceptance requirements.
 
-No numeric estimate is substituted for the missing streaming behavior.
+No numeric estimate is substituted for live SDK-internal buffering or cancel-at-cap behavior.
 
 | Area | Baseline workload | Required measurements |
 |---|---|---|
@@ -198,7 +198,7 @@ No numeric estimate is substituted for the missing streaming behavior.
 
 
 
-The current-code baseline runner is `npm run bench:architecture` (also executed by the `architecture performance baseline` CI job). It records Node/platform/CPU metadata, fixture sizes, p50/p95 timings, file-size-based read-volume estimates, and observed RSS. It measures session-log append at 0/50k/100k events, episodic duplicate-check/selective-query at 100k episodes, independent-process reservations, deterministic indexing, and semantic reindex. Bounded streaming-output measurements remain unmeasured; do not fill that row with estimates or in-process substitutes.
+The current-code baseline runner is `npm run bench:architecture` (also executed by the `architecture performance baseline` CI job). It records Node/platform/CPU metadata, fixture sizes, p50/p95 timings, file-size-based read-volume estimates, and observed RSS. It measures session-log append at 0/50k/100k events, episodic duplicate-check/selective-query at 100k episodes, independent-process reservations, deterministic indexing, and semantic reindex. Adapter-side bounded streaming measurements are recorded above; live SDK-internal buffering and cancel-at-cap remain unmeasured.
 
 ## Approved deployment and operating policy
 

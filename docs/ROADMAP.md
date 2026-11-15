@@ -1,6 +1,6 @@
 # Roadmap: Harness audit closeout and scalable architecture
 
-Updated 2026-11-14, main `74ae26a6273ff0fd2267e6d2ebf4b78df72bc9d1`. This is the active implementation roadmap. Phase 0 is complete on the merged audit PR. Phase 1 contract artifacts are drafted and all four D-119 policy choices are approved and recorded. Numeric baselines now cover session logs, episodic memory, reservations (legacy negative control), retrieval indexing, semantic reindex, and fake-provider streaming. Shared SQLite runtime, task workspaces, live Vercel acceptance, and bounded total-memory/query paths remain open. Current project state and binding constraints are in [STATE.md](STATE.md); architecture decisions are in [decisions.md](decisions.md); detailed findings are tracked in [CODEBASE-AUDIT-CHECKLIST.md](CODEBASE-AUDIT-CHECKLIST.md).
+Updated 2026-11-16, main `c9426622c0c9ba0df1d8c1498fbd8ad2991ae6c2`. This is the active implementation roadmap. Phase 0 is complete on the merged audit PR. Phase 1 contract artifacts are drafted and all four D-119 policy choices are approved and recorded. Numeric baselines now cover session logs, episodic memory, reservations (legacy negative control), retrieval indexing, semantic reindex, and fake-provider streaming. Shared SQLite runtime, task workspaces, live Vercel acceptance, and bounded total-memory/query paths remain open. Current project state and binding constraints are in [STATE.md](STATE.md); architecture decisions are in [decisions.md](decisions.md); detailed findings are tracked in [CODEBASE-AUDIT-CHECKLIST.md](CODEBASE-AUDIT-CHECKLIST.md).
 
 ## Target outcome
 
@@ -19,16 +19,16 @@ Complete the current security and reliability audit, then migrate Harness toward
 
 | Priority | Findings | Required work |
 |---|---|---|
-| P1 | AUD-007, AUD-008 | Remove full-history work from session-log append and episodic-memory append/duplicate paths. Add sequence/offset indexes and indexed identity lookup with rebuild/recovery. |
+| P1 | AUD-007, AUD-008 | Tail cursors reduce same-process session-log scans and episodic writes are bounded. Remove remaining full-history scans, add indexed episode identity lookup, and add paged queries with rebuild/recovery. |
 | P1 | AUD-015, AUD-044 | Replace process-local budget, rate-limit, and concurrency reservations with transactional shared state. |
 | P1 | AUD-039 | Add task-scoped workspace sessions, capability checks, lease ownership, safe transfer, result synchronization, and verified cleanup. |
 
-| P2 | AUD-014, AUD-025 | Define durable-history policy and bounded searchable-memory quotas, paging, retention, batched embeddings, and resumable reindexing. |
-| P2 | AUD-016 | Bound indexing memory, including large single files; measure vector search and decide whether/when ANN is justified. |
-| P2 | AUD-023 | Enforce output byte limits while streaming or through a verified SDK-side cap, with cancellation and bounded buffering. |
-| P1 | AUD-050 | Reject skill-directory and `SKILL.md` symlink escapes; verify no-follow reads and opened-file identity. |\n| P2 | Audit remainder | Finish the incomplete file-by-file audit, verify each status against code and tests, and correct stale or unsupported register claims. |
+| P2 | AUD-014, AUD-025 | Queue/cache bounds are implemented. Add bounded searchable-memory quotas, paging, batched vector upserts, and resumable semantic reindexing without deleting durable history automatically. |
+| P2 | AUD-016 | Collection ownership and safer replacement are implemented in PR #113. Bound prepared chunks/vectors for large files; measure vector search and decide whether/when ANN is justified. |
+| P2 | AUD-023 | Vercel async log capture and bounded per-stream buffers are implemented; add cancel-at-cap behavior and live SDK internal-buffer acceptance. |
+| P2 | Audit remainder | Finish the incomplete file-by-file audit, verify each status against code and tests, and correct stale or unsupported register claims. |
 
-AUD-021 is fixed in main: late sandbox creation is awaited, deletion is awaited, and cleanup failures are surfaced. Keep AUD-039 open for the separate workspace-session and transfer redesign. AUD-048 and AUD-049 are fixed in main through PR #101, merged as `67fd1666fec0ae55ea4473459c36bce78fc5b611`; the expanded head passed CI run #768. AUD-050 is fixed in PR #102, merged as `082e83629ea20ead62e001cf27357bd4952fd6a5` (CI run #777). AUD-051 is fixed in PR #103, merged as `0bb27968955b218c5ea188f35b3d0939623a32cb` (CI run #780). The remaining audit is still incomplete.
+AUD-021 is fixed in main: late sandbox creation is awaited, deletion is awaited, and cleanup failures are surfaced. Keep AUD-039 open for the separate workspace-session and transfer redesign. AUD-048 and AUD-049 are fixed in main through PR #101, merged as `67fd1666fec0ae55ea4473459c36bce78fc5b611`; the expanded head passed CI run #768. AUD-050 is fixed in PR #102 (CI run #777); AUD-051 is fixed in PR #103 (CI run #780). PRs #113-119 are merged: retrieval ownership/replacement, stricter CI gates and full dependency audit, bounded session/semantic/episodic queues, D-117 host-path shutdown, and bounded tool-output serialization. Post-merge CI run #43756562349 passed. The remaining audit is still incomplete.
 
 Withdrawn findings AUD-009, AUD-022, and AUD-027 must remain withdrawn unless new evidence changes the conclusion. Do not reopen them based on the old descriptions alone.
 
@@ -58,10 +58,12 @@ Withdrawn findings AUD-009, AUD-022, and AUD-027 must remain withdrawn unless ne
 - [x] Initial CI numeric baselines captured for session-log append (0/50k/100k events) and episodic duplicate/query (100k episodes) in PR #95, run #732. Results and measurement caveats are in `docs/architecture-contracts.md`.
 - [x] Additional owner-run Windows x64 / Node v22.18.0 baselines recorded in PR #97. These are kept separate from the Ubuntu CI measurements and include the same session-log and episodic workloads.
 - [x] Capture an independent-process budget reservation baseline with deterministic workers in PR #99. CI run #744 confirms that 2, 4, and 8 independent processes all reserve against a daily hard limit of 1, producing 1, 3, and 7 excess reservations respectively. This records the current process-local limitation; it does not satisfy the Phase 2 shared-transaction acceptance test.
-- [x] Capture deterministic indexing baseline in CI run #749: 31 files, 1,740 chunks, including one 540-chunk file; p50 indexing time 306.759 ms, p50 throughput 5,672.2 chunks/s, and median observed RSS delta 24,248,320 bytes. Measurement caveats are in `architecture-contracts.md`.\n- [x] Capture deterministic semantic-reindex baseline in CI run #752: 2,000 facts, 32 embedding requests (31 x 64 and one x 16), one 2,000-vector upsert; p50 78.332 ms and median observed RSS delta 5,005,312 bytes. Measurement caveats are in `architecture-contracts.md`.\n- [x] Capture output capture/truncation baseline in CI run #759 for 99k/100k/1M/8M characters per stream. At 8 MB per stream, p50 adapter time was 24.942 ms and median observed RSS delta was 16,011,264 bytes; returned output was 100,038 bytes per stream including the truncation marker. The current `Promise<string>` provider contract cannot measure bounded streaming or endless-output termination; see `architecture-contracts.md`.
+- [x] Capture deterministic indexing baseline in CI run #749: 31 files, 1,740 chunks, including one 540-chunk file; p50 indexing time 306.759 ms, p50 throughput 5,672.2 chunks/s, and median observed RSS delta 24,248,320 bytes. Measurement caveats are in `architecture-contracts.md`.
+- [x] Capture deterministic semantic-reindex baseline in CI run #752: 2,000 facts, 32 embedding requests (31 x 64 and one x 16), one 2,000-vector upsert; p50 78.332 ms and median observed RSS delta 5,005,312 bytes. Measurement caveats are in `architecture-contracts.md`.
+- [x] Capture output capture/truncation baseline in CI run #759 for 99k/100k/1M/8M characters per stream. PR #106 subsequently moved Vercel capture to the SDK async logs iterator with bounded per-stream buffers. Live SDK internal buffering and cancel-at-cap are still not measured; see `architecture-contracts.md`.
 - Phase 1 must also pass typecheck, lint, docs checks, and the full CI matrix on its PR.
 
-**Exit:** contract definitions and migration invariants are reviewed; four policy choices are approved; numeric baselines cover all hot paths; CI is green. Policy approval and CI are complete. Session-log, episodic-memory, independent-process budget-reservation, and indexing baselines are captured. Session-log, episodic-memory, independent-process reservation, indexing, and semantic-reindex baselines are captured. Output capture/truncation baseline is captured. True streaming-output enforcement remains blocked on a streaming provider contract. Phase 1 is not fully closed. No production behavior changes in this phase.
+**Exit:** contract definitions and migration invariants are reviewed; four policy choices are approved; numeric baselines cover all hot paths; CI is green. Policy approval and CI are complete. Session-log, episodic-memory, independent-process budget-reservation, and indexing baselines are captured. Session-log, episodic-memory, independent-process reservation, indexing, and semantic-reindex baselines are captured. Output capture/truncation baseline is captured. Vercel async log capture and bounded output buffers are implemented; cancel-at-cap and live SDK buffer acceptance remain open. Phase 1 is not fully closed. No production behavior changes in this phase.
 
 ### Phase 2: SQLite shared-state foundation
 
@@ -97,13 +99,15 @@ Withdrawn findings AUD-009, AUD-022, and AUD-027 must remain withdrawn unless ne
 
 ### Phase 5: Streaming output enforcement
 
+**Status: partial.** The Vercel adapter consumes `Command.logs()` and retains bounded stdout/stderr buffers; tool-result JSON serialization is also bounded by PR #119.
+
 - Count output bytes as chunks arrive.
 - Bound buffered stdout/stderr independently where required by the public contract.
 - Cancel or terminate the operation at the configured cap.
 - Preserve truncation metadata and deterministic timeout/cancellation behavior.
 - Test UTF-8 boundaries, oversized chunks, endless streams, and provider read failures.
 
-**Exit:** tests demonstrate bounded peak buffering, not just bounded returned strings.
+**Exit:** tests demonstrate bounded peak buffering, cancellation at the cap, and no unbounded drain of endless output. Live SDK internal buffering remains a separate owner-run acceptance gate.
 
 ### Phase 6: Integration, compatibility, and audit closeout
 
