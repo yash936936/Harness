@@ -26,6 +26,27 @@ describe('bundle-session-log', () => {
     expect(events.map((e: any) => e.data.i)).toEqual(Array.from({ length: 50 }, (_, i) => i))
   })
 
+  it('bounds outstanding appends per session and rejects overflow without reordering accepted events', async () => {
+    const ctx = await boot({ memory: true, maxPendingAppends: 1 })
+    const first = ctx.log.append('bounded', 'accepted')
+    await expect(ctx.log.append('bounded', 'overflow')).rejects.toThrow(/pending append queue is full/)
+    await first
+    expect((await ctx.log.read('bounded')).map((event) => event.type)).toEqual(['accepted'])
+  })
+
+  it('validates the append queue limit', () => {
+    expect(() => new SessionLog(new Context(), { maxPendingAppends: 0 })).toThrow(/maxPendingAppends must be a positive safe integer/)
+    expect(() => new SessionLog(new Context(), { maxPendingAppends: 1.5 })).toThrow(/maxPendingAppends must be a positive safe integer/)
+  })
+
+  it('releases completed queue entries and bounds the sequence cache across sessions', async () => {
+    const ctx = await boot({ memory: true })
+    await Promise.all(Array.from({ length: 300 }, (_, i) => ctx.log.append(`session-${i}`, 'event')))
+    const internals = ctx.log as any
+    expect(internals.queues.size).toBe(0)
+    expect(internals.seqs.size).toBeLessThanOrEqual(256)
+  })
+
   it.skipIf(process.platform === 'win32')('refuses symlinked session files for reads, appends, and torn-tail repair', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'slog-symlink-'))
     const outside = await mkdtemp(join(tmpdir(), 'slog-outside-'))
