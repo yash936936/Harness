@@ -14,6 +14,7 @@ Composes the episodic and hot memory tiers behind `ctx.memory`. It records one l
 
 - `path` selects persistent episodic and hot-tier storage. Without it, memory remains in process.
 - `maxFieldChars` bounds stored episode fields; `hotTokenCap` bounds the rendered hot tier.
+- `maxPendingEpisodeWrites` bounds outstanding writes to persistent episodic storage, including the active write. It defaults to 1024 and must be a positive safe integer.
 - `MemorySemantic` accepts `maxPendingOperations` to bound serialized semantic mutations and reads per service instance. It defaults to 256 outstanding operations and must be a positive safe integer.
 - `deriveLessons` defaults to false. When enabled, lessons are templated only from harness facts in the session log, never model or file text.
 - `injectHot` defaults to true. The hot tier is added as a system section at order 10.
@@ -25,6 +26,7 @@ Composes the episodic and hot memory tiers behind `ctx.memory`. It records one l
 ## Known limits
 
 - Episodic memory is a record of turns, not evidence that a real model learns from it.
+- The persistent episode write queue limit is per process and per store instance. It does not coordinate queue capacity across processes.
 - The semantic tier is optional and depends on embeddings plus a vector store. Its presence does not prove live retrieval quality.
 - The token estimate defaults to `ceil(chars / 3)`; there is no tokenizer in this project.
 - Compaction uses deterministic templates and configured thresholds, not a model-generated summary.

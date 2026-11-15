@@ -70,6 +70,28 @@ describe('memory: JSONL tail recovery', () => {
     expect(await store.findById('missing')).toBeUndefined()
   })
 
+  it('bounds concurrent persistent episode writes and releases capacity after completion', async () => {
+    const dir = await tmp()
+    const store = new JsonlEpisodeStore(dir, 1)
+    const episode = (id: string) => ({
+      id, sessionId: 's', agentId: 'main', ts: '2026-11-07T00:00:00.000Z',
+      task: id, approach: 'none', result: 'ok', outcome: 'done' as const,
+      lesson: null, fromSeq: 1, toSeq: 1, steps: 1, toolCalls: 0,
+    })
+    const first = store.add(episode('one'))
+    await expect(store.add(episode('overflow'))).rejects.toThrow(/episodic write queue is full/)
+    await first
+    await expect(store.add(episode('two'))).resolves.toBe(true)
+    expect(await store.count()).toBe(2)
+  })
+
+  it('rejects invalid persistent episode write queue limits', async () => {
+    const dir = await tmp()
+    expect(() => new JsonlEpisodeStore(dir, 0)).toThrow(/maxPendingEpisodeWrites must be a positive safe integer/)
+    expect(() => new JsonlEpisodeStore(dir, 1.5)).toThrow(/maxPendingEpisodeWrites must be a positive safe integer/)
+    await expect(boot([], { maxPendingEpisodeWrites: 0 })).rejects.toThrow(/maxPendingEpisodeWrites must be a positive safe integer/)
+  })
+
   it('snapshots an episode before it waits in the persistence queue', async () => {
     const dir = await tmp()
     const store = new JsonlEpisodeStore(dir)
