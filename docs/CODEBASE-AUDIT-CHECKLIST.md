@@ -1,6 +1,6 @@
 # Full codebase audit checklist
 
-Baseline: `main` at `c9426622c0c9ba0df1d8c1498fbd8ad2991ae6c2` (2026-11-15).
+Baseline: `main` at `cf79353a0aa66c96354724980288861467257bd9` (2026-11-16).
 Audit continuation branch: `docs/audit-findings-050-051-closeout-2026-11`.
 
 This is a staged, evidence-based audit. Review each file, then each folder, then cross-folder flows. The follow-up fix pass updates selected findings but does not claim the full file-by-file audit is complete. Do not remove code solely because it appears old or duplicated; first verify imports, runtime registration, scripts, tests, docs, and history. Do not weaken D-110/D-117/D-118 security boundaries.
@@ -195,7 +195,7 @@ These are first-pass findings, not the final register. Some fixes have been impl
 
 Contained fixes in this pass include: direct-profile run_command removal; host-backed retrieval tool disablement under D-117; pinned retrieval roots; UTF-8 parser byte limits; NUL validation; bounded router and sub-agent retention; no-follow persistent state helpers for memory, credentials, budgets, rate limits, and egress consent; test-inclusive secret scanning; full-tree Markdown link checks; explicit ripgrep CI setup; and Node 20/22 CI coverage.
 
-The following findings remain open or partially mitigated: AUD-007/AUD-008 (cross-process/history scans and episodic indexing), AUD-014/AUD-025 (retention, paging, and resumable semantic reindex), AUD-015/AUD-044 (cross-process transactional reservations), AUD-016 (large-file indexing memory and ANN evaluation), AUD-023 (cancel-at-cap and live SDK acceptance), and AUD-039 (task-scoped workspace lifecycle/transfer/result sync). PRs #113-119 address collection ownership, queue bounds, host execution paths, and bounded tool serialization. D-110/D-117/D-118 remain in force. No live sandbox acceptance was run.
+The following findings remain open or partially mitigated: AUD-007/AUD-008 (cross-process/history scans and episodic indexing), AUD-014/AUD-025 (retention, paging, and resumable semantic reindex), AUD-015/AUD-044 (cross-process transactional reservations), AUD-016 (large-file indexing memory and ANN evaluation), AUD-023 (cancel-at-cap and live SDK acceptance), and AUD-039 (task-scoped workspace lifecycle/transfer/result sync). PRs #113-121 address collection ownership, queue bounds, host execution paths, bounded tool serialization, and batched semantic reindex; PR #120 synchronizes the audit documents. D-110/D-117/D-118 remain in force. No live sandbox acceptance was run.
 
 CI for this follow-up must be treated as unverified until the new pull request's complete matrix and ci-pass job succeed.
 
