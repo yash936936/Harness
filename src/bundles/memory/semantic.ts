@@ -46,6 +46,8 @@ export class MemorySemantic extends Service {
 
   private facts: SemanticFact[] | undefined
   private queue: Promise<unknown> = Promise.resolve()
+  private pendingOperations = 0
+  private readonly maxPendingOperations: number
   private readonly dir: string | undefined
   private readonly collectionName: string
   private readonly maxText: number
@@ -55,6 +57,10 @@ export class MemorySemantic extends Service {
   constructor(ctx: Context, config: SemanticConfig = {}) {
     super(ctx, 'memorySemantic')
     this.dir = config.path
+    this.maxPendingOperations = config.maxPendingOperations ?? 256
+    if (!Number.isSafeInteger(this.maxPendingOperations) || this.maxPendingOperations < 1) {
+      throw new MemoryError('memory: semantic maxPendingOperations must be a positive safe integer')
+    }
     this.collectionName = config.collection ?? 'memory-semantic'
     this.maxText = config.maxTextChars ?? 1000
     this.maxWhy = config.maxWhyChars ?? 500
@@ -287,6 +293,10 @@ export class MemorySemantic extends Service {
 
   /** Serialised read-modify-write; `fn` returns false when it changed nothing. Atomic file replace. */
   private exclusive<T>(fn: () => Promise<T>): Promise<T> {
+    if (this.pendingOperations >= this.maxPendingOperations) {
+      throw new MemoryError(`memory: semantic operation queue is full (${this.pendingOperations}/${this.maxPendingOperations})`)
+    }
+    this.pendingOperations++
     const job = this.queue.then(async () => {
       if (!this.dir) return fn()
       await assertNoSymlinkParents(this.file)
@@ -295,6 +305,10 @@ export class MemorySemantic extends Service {
       return withFileLock(`${this.file}.lock`, fn)
     })
     this.queue = job.catch(() => {})
+    void job.then(
+      () => { this.pendingOperations-- },
+      () => { this.pendingOperations-- },
+    )
     return job
   }
 
