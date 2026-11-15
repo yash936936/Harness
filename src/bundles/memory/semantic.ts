@@ -225,13 +225,17 @@ export class MemorySemantic extends Service {
   // ---- index plumbing -------------------------------------------------------------------------
 
   private async index(facts: SemanticFact[], reset = false): Promise<{ ok: true } | SemanticFailure> {
-    const col = await this.collection(reset)
-    if (!col.ok) return col
+    let collection: VectorCollection | undefined
     for (let offset = 0; offset < facts.length; offset += this.reindexBatchSize) {
       const batch = facts.slice(offset, offset + this.reindexBatchSize)
       const emb = await this.ctx.embeddings.embed(batch.map((fact) => fact.text), { kind: 'document' })
       if (!emb.ok) return { ok: false, error: { kind: `embedding_${emb.error.kind}`, detail: emb.error.detail } }
-      const up = await col.collection.upsert(
+      if (!collection) {
+        const opened = await this.collection(reset)
+        if (!opened.ok) return opened
+        collection = opened.collection
+      }
+      const up = await collection.upsert(
         batch.map((fact, index) => ({ id: fact.id, vector: emb.vectors[index]!, source: 'memory.semantic', metadata: { tier: 'semantic' } })),
       )
       if (!up.ok) return up
