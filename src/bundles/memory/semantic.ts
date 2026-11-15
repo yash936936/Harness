@@ -184,13 +184,19 @@ export class MemorySemantic extends Service {
     // Best effort: if the index is unreachable, query() ignores the orphaned vector anyway.
     const emb = await this.ctx.embeddings.embed([gone.text])
     if (emb.ok) {
-      await this.exclusive(async () => {
-        // A same-id add may have completed while embedding the removed fact.
-        // Never delete the replacement's vector.
-        if ((await this.load()).some((fact) => fact.id === id)) return
-        const col = await this.collection()
-        if (col.ok) await col.collection.deleteIds([id])
-      })
+      try {
+        await this.exclusive(async () => {
+          // A same-id add may have completed while embedding the removed fact.
+          // Never delete the replacement's vector.
+          if ((await this.load()).some((fact) => fact.id === id)) return
+          const col = await this.collection()
+          if (col.ok) await col.collection.deleteIds([id])
+        })
+      } catch (error) {
+        // The fact is already removed from the source of truth. A saturated queue
+        // may leave an orphaned vector, which query() filters against current facts.
+        if (!(error instanceof MemoryError && error.message.includes('semantic operation queue is full'))) throw error
+      }
     }
     return true
   }
