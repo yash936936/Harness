@@ -10,6 +10,8 @@ export interface SessionLogConfig {
   /** Directory for JSONL files. Omit (or set `memory`) to keep the log in memory. */
   path?: string
   memory?: boolean
+  /** Maximum outstanding appends per session, including the active append. Default 1024. */
+  maxPendingAppends?: number
 }
 
 declare module 'cordis' {
@@ -27,14 +29,20 @@ declare module 'cordis' {
  */
 export class SessionLog extends Service {
   private store: SessionStore
-  /** Last assigned seq per session; loaded lazily so resume works after restart. */
+  /** Last assigned seq per session; bounded LRU cache, loaded lazily after eviction/restart. */
   private seqs = new Map<string, number>()
-  /** Serialises appends per session so seq order equals file order. */
-  private queues = new Map<string, Promise<unknown>>()
+  private readonly maxCachedSessions = 256
+  /** Serialises appends per session and tracks bounded outstanding work. */
+  private queues = new Map<string, { tail: Promise<unknown>; pending: number }>()
+  private readonly maxPendingAppends: number
   private redactors = new Set<<T>(value: T) => T>()
 
   constructor(ctx: Context, config: SessionLogConfig = {}) {
     super(ctx, 'log')
+    this.maxPendingAppends = config.maxPendingAppends ?? 1024
+    if (!Number.isSafeInteger(this.maxPendingAppends) || this.maxPendingAppends < 1) {
+      throw new Error('session log: maxPendingAppends must be a positive safe integer')
+    }
     this.store = config.path && !config.memory ? new JsonlStore(config.path) : new MemoryStore()
   }
 
@@ -78,7 +86,7 @@ export class SessionLog extends Service {
       // Fail loudly on non-serialisable payloads instead of silently dropping fields.
       JSON.stringify(event)
       await this.store.append(event)
-      this.seqs.set(sessionId, event.seq)
+      this.rememberSeq(sessionId, event.seq)
       return event
     }
     return this.enqueue(sessionId, () => (store.withLock ? store.withLock(sessionId, job) : job()))
@@ -132,18 +140,49 @@ export class SessionLog extends Service {
       return this.store.withLock ? this.store.withLock(sessionId, read) : read()
     }
     const cached = this.seqs.get(sessionId)
-    if (cached !== undefined) return cached
+    if (cached !== undefined) {
+      this.seqs.delete(sessionId)
+      this.seqs.set(sessionId, cached)
+      return cached
+    }
     const events = await this.store.read(sessionId)
     const last = events.length ? events[events.length - 1]!.seq : 0
-    this.seqs.set(sessionId, last)
+    this.rememberSeq(sessionId, last)
     return last
   }
 
+  private rememberSeq(sessionId: string, seq: number): void {
+    this.seqs.delete(sessionId)
+    this.seqs.set(sessionId, seq)
+    if (this.seqs.size > this.maxCachedSessions) {
+      const oldest = this.seqs.keys().next().value as string | undefined
+      if (oldest !== undefined) this.seqs.delete(oldest)
+    }
+  }
+
   private enqueue<T>(sessionId: string, job: () => Promise<T>): Promise<T> {
-    const prev = this.queues.get(sessionId) ?? Promise.resolve()
-    const next = prev.then(job, job)
-    this.queues.set(sessionId, next.catch(() => {}))
+    let queue = this.queues.get(sessionId)
+    if (!queue) {
+      queue = { tail: Promise.resolve(), pending: 0 }
+      this.queues.set(sessionId, queue)
+    }
+    if (queue.pending >= this.maxPendingAppends) {
+      if (queue.pending === 0 && this.queues.get(sessionId) === queue) this.queues.delete(sessionId)
+      throw new Error(`session log ${sessionId}: pending append queue is full (${queue.pending}/${this.maxPendingAppends})`)
+    }
+    queue.pending++
+    const next = queue.tail.then(job, job)
+    queue.tail = next.catch(() => {})
+    void next.then(
+      () => this.finishAppend(sessionId, queue!),
+      () => this.finishAppend(sessionId, queue!),
+    )
     return next
+  }
+
+  private finishAppend(sessionId: string, queue: { tail: Promise<unknown>; pending: number }): void {
+    queue.pending--
+    if (queue.pending === 0 && this.queues.get(sessionId) === queue) this.queues.delete(sessionId)
   }
 }
 

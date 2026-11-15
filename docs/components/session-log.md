@@ -8,11 +8,13 @@ Persists ordered session events as JSONL and exposes append, read, replay, resum
 
 ## Route (how control reaches it)
 
-Profiles install the service as `ctx.log`. Bundles append events through the service rather than writing session files directly. The service delegates persistence to a configured store and serializes in-process appends; file-backed stores also use cross-process locking.
+Profiles install the service as `ctx.log`. Bundles append events through the service rather than writing session files directly. The service delegates persistence to a configured store and serializes in-process appends with a configurable per-session outstanding-work limit; completed queue entries are released. File-backed stores also use cross-process locking.
 
 ## Config surface and invariants
 
 - The configured path selects the session directory.
+- `maxPendingAppends` bounds outstanding appends per session, including the active append. It defaults to 1024 and must be a positive safe integer; overflow is rejected rather than queued indefinitely.
+- The in-process sequence cache is an LRU capped at 256 sessions. Evicted entries are reloaded from the store.
 - Session IDs are validated before file access.
 - Session file and lock paths reject symlinked parent directories as well as symlinked final files.
 - Event sequence numbers are monotonic per session.
@@ -24,6 +26,7 @@ Profiles install the service as `ctx.log`. Bundles append events through the ser
 
 - The log is an audit trail, not a tamper-proof external ledger.
 - Cross-process safety depends on the local filesystem and lock semantics.
+- The append queue limit is per process and per session. It does not coordinate queue capacity across processes.
 - Redaction only covers registered secrets and configured redactors.
 - See D-044 and the session-log evidence in `docs/status.md`.
 
