@@ -39,6 +39,8 @@ async function runSample(outputChars: number, sample: number) {
               }
             },
             async wait() { return { exitCode: 0 } },
+            // The benchmark fake never exceeds the cap, so kill is intentionally a no-op.
+            async kill() {},
           }
         },
         async delete() {},
