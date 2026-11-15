@@ -126,6 +126,8 @@ export interface MemoryConfig {
   /** Add the hot tier to every agent run's system prompt. Default true. */
   injectHot?: boolean
   compaction?: CompactionConfig
+  /** Maximum outstanding persistent episodic writes, including the active write. Default 1024. */
+  maxPendingEpisodeWrites?: number
   /** Longest stored task / result / approach text. Default 2000 chars. */
   maxFieldChars?: number
   /** Injectable clock for tests. */
