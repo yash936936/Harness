@@ -199,7 +199,8 @@ export class ToolRegistry extends Service {
     if (typeof out === 'string') return this.truncate(out)
     if (out === undefined) return ''
     try {
-      return this.truncate(JSON.stringify(out))
+      const rendered = stringifyBoundedJson(out, this.maxOutput)
+      return rendered.truncated ? `${rendered.text}\n[output truncated]` : rendered.text
     } catch {
       return this.truncate(String(out))
     }
@@ -208,6 +209,117 @@ export class ToolRegistry extends Service {
   private truncate(s: string): string {
     return s.length > this.maxOutput ? `${s.slice(0, this.maxOutput)}\n[output truncated: ${s.length - this.maxOutput} more characters]` : s
   }
+}
+
+
+/**
+ * Serialize JSON-compatible tool output without first materializing the whole
+ * JSON string. Stop visiting values once the output budget is exhausted.
+ *
+ * The traversal is deliberately bounded by both characters and nodes/depth.
+ * Non-plain objects fall back to String(out) in ToolRegistry.render rather than
+ * invoking arbitrary toJSON methods that may allocate an unbounded result.
+ */
+function stringifyBoundedJson(value: unknown, maxChars: number): { text: string; truncated: boolean } {
+  let text = ''
+  let truncated = false
+  let visited = 0
+  const active = new WeakSet<object>()
+  const maxNodes = 10_000
+  const maxDepth = 32
+
+  const append = (part: string): boolean => {
+    const remaining = maxChars - text.length
+    if (remaining <= 0) {
+      truncated = true
+      return false
+    }
+    if (part.length > remaining) {
+      text += part.slice(0, remaining)
+      truncated = true
+      return false
+    }
+    text += part
+    return true
+  }
+
+  const appendQuoted = (value: string): boolean => {
+    const remaining = maxChars - text.length
+    const clipped = value.length > Math.max(0, remaining - 2)
+      ? value.slice(0, Math.max(0, remaining - 2))
+      : value
+    const ok = append(JSON.stringify(clipped))
+    if (clipped.length < value.length) truncated = true
+    return ok && clipped.length === value.length
+  }
+
+  const write = (current: unknown, depth: number, inArray = false): boolean => {
+    visited++
+    if (visited > maxNodes) {
+      truncated = true
+      return appendQuoted('[node limit]')
+    }
+    if (depth > maxDepth) {
+      truncated = true
+      return appendQuoted('[depth limit]')
+    }
+    if (current === null) return append('null')
+
+    switch (typeof current) {
+      case 'string':
+        return appendQuoted(current)
+      case 'number':
+        return append(Number.isFinite(current) ? String(current) : 'null')
+      case 'boolean':
+        return append(current ? 'true' : 'false')
+      case 'undefined':
+      case 'function':
+      case 'symbol':
+        return inArray ? append('null') : true
+      case 'bigint':
+        throw new TypeError('Do not know how to serialize a BigInt')
+      case 'object':
+        break
+    }
+
+    if (current instanceof Date) {
+      const date = current.toJSON()
+      return date === null ? append('null') : appendQuoted(date)
+    }
+    const prototype = Object.getPrototypeOf(current)
+    if (!Array.isArray(current) && prototype !== Object.prototype && prototype !== null) {
+      throw new TypeError('Only plain objects and arrays use bounded JSON serialization')
+    }
+    if (active.has(current)) throw new TypeError('Converting circular structure to JSON')
+    active.add(current)
+    try {
+      if (Array.isArray(current)) {
+        if (!append('[')) return false
+        for (let i = 0; i < current.length; i++) {
+          if (i > 0 && !append(',')) return false
+          if (!write(current[i], depth + 1, true)) return false
+        }
+        return append(']')
+      }
+
+      if (!append('{')) return false
+      let first = true
+      for (const key in current) {
+        if (!Object.hasOwn(current, key)) continue
+        const item = (current as Record<string, unknown>)[key]
+        if (item === undefined || typeof item === 'function' || typeof item === 'symbol') continue
+        if (!first && !append(',')) return false
+        if (!appendQuoted(key) || !append(':') || !write(item, depth + 1)) return false
+        first = false
+      }
+      return append('}')
+    } finally {
+      active.delete(current)
+    }
+  }
+
+  write(value, 0)
+  return { text, truncated }
 }
 
 function info(d: ToolDefinition): ToolInfo {
