@@ -48,6 +48,7 @@ export class MemorySemantic extends Service {
   private queue: Promise<unknown> = Promise.resolve()
   private pendingOperations = 0
   private readonly maxPendingOperations: number
+  private readonly reindexBatchSize: number
   private readonly dir: string | undefined
   private readonly collectionName: string
   private readonly maxText: number
@@ -60,6 +61,10 @@ export class MemorySemantic extends Service {
     this.maxPendingOperations = config.maxPendingOperations ?? 256
     if (!Number.isSafeInteger(this.maxPendingOperations) || this.maxPendingOperations < 1) {
       throw new MemoryError('memory: semantic maxPendingOperations must be a positive safe integer')
+    }
+    this.reindexBatchSize = config.reindexBatchSize ?? 64
+    if (!Number.isSafeInteger(this.reindexBatchSize) || this.reindexBatchSize < 1) {
+      throw new MemoryError('memory: semantic reindexBatchSize must be a positive safe integer')
     }
     this.collectionName = config.collection ?? 'memory-semantic'
     this.maxText = config.maxTextChars ?? 1000
@@ -220,14 +225,18 @@ export class MemorySemantic extends Service {
   // ---- index plumbing -------------------------------------------------------------------------
 
   private async index(facts: SemanticFact[], reset = false): Promise<{ ok: true } | SemanticFailure> {
-    const emb = await this.ctx.embeddings.embed(facts.map((f) => f.text), { kind: 'document' })
-    if (!emb.ok) return { ok: false, error: { kind: `embedding_${emb.error.kind}`, detail: emb.error.detail } }
     const col = await this.collection(reset)
     if (!col.ok) return col
-    const up = await col.collection.upsert(
-      facts.map((f, i) => ({ id: f.id, vector: emb.vectors[i]!, source: 'memory.semantic', metadata: { tier: 'semantic' } })),
-    )
-    return up.ok ? { ok: true } : up
+    for (let offset = 0; offset < facts.length; offset += this.reindexBatchSize) {
+      const batch = facts.slice(offset, offset + this.reindexBatchSize)
+      const emb = await this.ctx.embeddings.embed(batch.map((fact) => fact.text), { kind: 'document' })
+      if (!emb.ok) return { ok: false, error: { kind: `embedding_${emb.error.kind}`, detail: emb.error.detail } }
+      const up = await col.collection.upsert(
+        batch.map((fact, index) => ({ id: fact.id, vector: emb.vectors[index]!, source: 'memory.semantic', metadata: { tier: 'semantic' } })),
+      )
+      if (!up.ok) return up
+    }
+    return { ok: true }
   }
 
   /** Embed outside the shared lock, then verify the persisted version before writing its vector. */
