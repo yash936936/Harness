@@ -1,13 +1,15 @@
-## 2026-11-16 current main status (baseline c9426622)
+## 2026-11-16 current main status (baseline cf79353a)
 
-- Current main: `c9426622c0c9ba0df1d8c1498fbd8ad2991ae6c2`. Post-merge CI run #43756562349 passed all jobs, including the Ubuntu/Windows Node 20.19.0/22.12.0 matrix and `ci-pass`.
+- Current main: `cf79353a0aa66c96354724980288861467257bd9`. Previous post-merge CI run #43756562349 passed all jobs. Latest PR-head run #43757877742 and post-merge main run #43757888191 are running; the architecture benchmark job passed in #43757666162.
 - PR #113 merged retrieval collection ownership checks, owner-aware collection resets, and safer per-file replacement ordering. PR #114 made `ci-pass` require every mandatory job to succeed and expanded `npm audit` to include development dependencies.
 - PRs #115-117 bounded outstanding session-log appends, semantic-memory operations, and persistent episodic writes. Session-log queue entries are released after completion and its sequence cache is capped at 256 sessions.
 - PR #118 disabled host-generated-code execution, host-backed retrieval smoke, and arbitrary host command execution under D-117. `AGENTS.md` now directs repository checks to GitHub Actions and does not direct agents to use the disabled host runner.
 - PR #119 added incremental bounded serialization for plain object/array tool results, with character, node, and depth limits. It avoids invoking arbitrary custom serializers for unsupported objects.
-- PR-head CI passed for #113 (`43632476855`), #114 (`43632866040`), #115 (`43754058474`), #116 (`43754660989`), #117 (`43755063045`), #118 (`43755514677`), and #119 (`43756237948`). Post-merge main CI also passed through #119 (`43756562349`).
+- PR #120 reconciled the audit checklist, state, roadmap, and architecture documentation with merged main.
+- PR #121 added `reindexBatchSize` (default 64) and performs semantic embedding/vector upserts in batches. CI run #43757666162 measured 2,000 facts, 32 embedding requests, and 32 vector upserts (31 x 64, one x 16). p50 reindex time was 193.104 ms; p50 observed RSS delta was 1,941,504 bytes, with a 67,715,072-byte maximum across three samples. The complete fact array is still loaded and reindex is not resumable.
+- PR-head CI passed for #113 (`43632476855`), #114 (`43632866040`), #115 (`43754058474`), #116 (`43754660989`), #117 (`43755063045`), #118 (`43755514677`), and #119 (`43756237948`). PR #121 is merged; its full matrix and post-merge main CI are still running.
 - Vercel adapter output capture now uses the SDK async logs iterator with bounded per-stream UTF-8 buffers. It still drains after reaching the cap; cancel-at-cap and live SDK internal-buffer behavior remain unverified. No live Vercel execution is claimed.
-- Remaining architecture work: SQLite shared transactional state; task-scoped workspace lifecycle/transfer/result synchronization; indexed episodic duplicate lookup and full-history scan reduction; durable-history paging and searchable-memory quotas; bounded indexing for large files; semantic reindex paging/checkpoints; cross-process reservations; and the incomplete file-by-file audit.
+- Remaining architecture work: SQLite shared transactional state; task-scoped workspace lifecycle/transfer/result synchronization; indexed episodic duplicate lookup and full-history scan reduction; durable-history paging and searchable-memory quotas; bounded indexing for large files; semantic fact-array paging/checkpoints; cross-process reservations; and the incomplete file-by-file audit.
 - D-110/D-117/D-118/D-119 remain binding. `COMMAND_TOOL` remains disabled.
 
 ---
