@@ -218,8 +218,8 @@ export class ToolRegistry extends Service {
  * JSON string. Stop visiting values once the output budget is exhausted.
  *
  * The traversal is deliberately bounded by both characters and nodes/depth.
- * Non-plain objects fall back to String(out) in ToolRegistry.render rather than
- * invoking arbitrary toJSON methods that may allocate an unbounded result.
+ * Non-plain objects use a bounded placeholder in ToolRegistry.render rather than
+ * invoking arbitrary toJSON or toString methods that may allocate unbounded results.
  */
 function stringifyBoundedJson(value: unknown, maxChars: number): { text: string; truncated: boolean } {
   let text = ''
@@ -286,8 +286,8 @@ function stringifyBoundedJson(value: unknown, maxChars: number): { text: string;
     }
 
     if (current instanceof Date) {
-      const date = current.toJSON()
-      return date === null ? append('null') : appendQuoted(date)
+      const date = Date.prototype.toISOString.call(current)
+      return appendQuoted(date)
     }
     const prototype = Object.getPrototypeOf(current)
     if (!Array.isArray(current) && prototype !== Object.prototype && prototype !== null) {
