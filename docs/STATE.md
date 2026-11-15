@@ -1,16 +1,16 @@
 # Current project state
 
-Updated 2026-11-16, main `c9426622c0c9ba0df1d8c1498fbd8ad2991ae6c2`. This file records the current implementation state and binding project constraints. The active implementation order is in [ROADMAP.md](ROADMAP.md), architecture choices are in [decisions.md](decisions.md), and detailed audit findings are in [CODEBASE-AUDIT-CHECKLIST.md](CODEBASE-AUDIT-CHECKLIST.md).
+Updated 2026-11-16, main `cf79353a0aa66c96354724980288861467257bd9`. This file records the current implementation state and binding project constraints. The active implementation order is in [ROADMAP.md](ROADMAP.md), architecture choices are in [decisions.md](decisions.md), and detailed audit findings are in [CODEBASE-AUDIT-CHECKLIST.md](CODEBASE-AUDIT-CHECKLIST.md).
 
 ## 2026-11-16 current main status
 
-- Current main baseline: `c9426622c0c9ba0df1d8c1498fbd8ad2991ae6c2`. Post-merge CI run #43756562349 passed all jobs, including Ubuntu/Windows Node 20.19.0/22.12.0 and `ci-pass`.
-- PRs #113-119 are merged. They add retrieval collection ownership and safer replacement, strict aggregate CI and full dependency auditing, bounded session/semantic/episodic queues, fail-closed D-117 smoke paths, and bounded tool-output serialization.
+- Current main baseline: `cf79353a0aa66c96354724980288861467257bd9`. The latest post-merge CI run #43757888191 is running; the semantic reindex architecture benchmark passed in run #43757666162. Previous post-merge CI run #43756562349 passed all jobs.
+- PRs #113-121 are merged. PR #120 reconciles audit/state documentation. PR #121 adds 64-fact semantic embedding and vector-upsert batches. Earlier PRs add retrieval collection ownership and safer replacement, strict aggregate CI and full dependency auditing, bounded session/semantic/episodic queues, fail-closed D-117 smoke paths, and bounded tool-output serialization.
 - Session-log append queues are bounded at 1024 outstanding operations per session; completed queue entries are released and the sequence cache is capped at 256. A validated tail cursor avoids full scans for same-process JSONL appends, but cursor invalidation after restart or external-process writes can still trigger a full scan.
 - Semantic operations are bounded at 256 outstanding operations per service. Persistent episodic writes are bounded at 1024 outstanding operations per store. These limits do not replace D-119's shared SQLite backend, indexed episode identity, durable-history paging, or retention policy.
 - Tool output for plain objects/arrays is serialized incrementally with a character cap plus 10,000-node and 32-level limits. Vercel stdout/stderr capture uses the SDK async logs iterator and bounded per-stream UTF-8 buffers. The Vercel adapter still drains after the output cap; cancel-at-cap and live SDK peak-buffer acceptance remain open.
 - D-117 host execution paths in `smoke-coding.ts`, `smoke-phase2.ts`, and `run-logged.mjs` now fail closed. No host subprocess, generated-code execution, or local fallback was used.
-- Shared-state SQLite, task-scoped workspace transfer/result synchronization, provider lifecycle acceptance, live Vercel execution, S6, and S7 remain open. `COMMAND_TOOL` remains disabled. D-110/D-117/D-118/D-119 remain binding.
+- Semantic fact-array paging and resumable reindex remain open despite bounded 64-fact embedding/upsert batches. Shared-state SQLite, task-scoped workspace transfer/result synchronization, provider lifecycle acceptance, live Vercel execution, S6, and S7 remain open. `COMMAND_TOOL` remains disabled. D-110/D-117/D-118/D-119 remain binding.
 
 ## 2026-11-14 open architecture work and streaming follow-up
 
