@@ -7,7 +7,7 @@ This file is the single authoritative instruction set for coding agents. Start w
 1. Read `context.md`, this file, `docs/STATE.md`, and the newest entry in `docs/status.md`.
 2. Read `docs/FAILURE-LEDGER.md`. Respect every HOLD.
 3. Check relevant entries in `docs/decisions.md`; read the matching component guides before changing code.
-4. Inspect the working tree and current branch. Run the narrowest relevant checks first.
+4. Inspect the working tree and current branch. Do not execute development commands on the host; use GitHub Actions for repository checks until an explicitly selected remote cloud sandbox and workspace integration are available.
 5. Before editing docs, check whether the file or section is generated.
 
 ## Current hard boundaries
@@ -51,17 +51,18 @@ Never invent sessions, labels, measurements, provider results, or acceptance. St
 
 - Keep one source file per responsibility, not one file per function. Keep cohesive Cordis services together; split only when a file mixes concerns or tests need unrelated stubs. Refactors are behavior-preserving and should not be mixed with feature work.
 - The failure ledger counts repeated normalized signatures. At 2 occurrences, stop and state a new hypothesis. At 3, stop work on that area, document attempts/unknowns, and record one decision: change the approach wholesale or put the area on hold. Log the resolution; never delete or rewrite event history.
-- The event log is append-only. Record reviews with `scripts/events/log-event.mjs`, commands through `scripts/events/run-logged.mjs`, technical findings in `docs/debug.md`, decisions in `docs/decisions.md`, and current state in `docs/status.md`.
+- The event log is append-only. Record reviews with `scripts/events/log-event.mjs`, technical findings in `docs/debug.md`, decisions in `docs/decisions.md`, and current state in `docs/status.md`.
+- `scripts/events/run-logged.mjs` is intentionally disabled because it used to spawn arbitrary host commands. Do not replace it with a host runner or a marker-based bypass. A remote command event bridge is not implemented; do not fabricate command events.
 
 ## Engineering workflow
 
 1. State the hypothesis and the smallest reproducer before changing code.
 2. Add a regression test that fails on the old behavior.
-3. Change one responsibility at a time. Run focused tests, then typecheck/lint, then the full suite.
-4. Run the repository's documented CI-equivalent checks before opening a PR. Do not merge red.
+3. Change one responsibility at a time. Run focused tests, then typecheck/lint, then the full suite through GitHub Actions.
+4. Use GitHub Actions for repository checks. Do not execute development commands on the host or through a local subprocess. Do not merge red.
 5. Do not claim a check was run unless its output is available.
 
-Log commands through `scripts/events/run-logged.mjs` when working in a checkout. Record technical findings in `docs/debug.md`, decisions in `docs/decisions.md`, and the current state in `docs/status.md`. The event log is append-only.
+Do not use `scripts/events/run-logged.mjs`; it is disabled under D-117. Record technical findings in `docs/debug.md`, decisions in `docs/decisions.md`, and the current state in `docs/status.md`. The event log is append-only.
 
 ## Merge and handoff
 
