@@ -25,7 +25,7 @@ Complete the current security and reliability audit, then migrate Harness toward
 
 | P2 | AUD-014, AUD-025 | Queue/cache bounds are implemented. Add bounded searchable-memory quotas, paging, batched vector upserts, and resumable semantic reindexing without deleting durable history automatically. |
 | P2 | AUD-016 | Collection ownership and safer replacement are implemented in PR #113. Bound prepared chunks/vectors for large files; measure vector search and decide whether/when ANN is justified. |
-| P2 | AUD-023 | Vercel async log capture and bounded per-stream buffers are implemented; add cancel-at-cap behavior and live SDK internal-buffer acceptance. |
+| P2 | AUD-023 | Vercel async log capture, bounded per-stream buffers, and SIGTERM at the cap are implemented; verify live SDK internal-buffer and remote kill behavior. |
 | P2 | Audit remainder | Finish the incomplete file-by-file audit, verify each status against code and tests, and correct stale or unsupported register claims. |
 
 AUD-021 is fixed in main: late sandbox creation is awaited, deletion is awaited, and cleanup failures are surfaced. Keep AUD-039 open for the separate workspace-session and transfer redesign. AUD-048 and AUD-049 are fixed in main through PR #101, merged as `67fd1666fec0ae55ea4473459c36bce78fc5b611`; the expanded head passed CI run #768. AUD-050 is fixed in PR #102 (CI run #777); AUD-051 is fixed in PR #103 (CI run #780). PRs #113-119 are merged: retrieval ownership/replacement, stricter CI gates and full dependency audit, bounded session/semantic/episodic queues, D-117 host-path shutdown, and bounded tool-output serialization. Post-merge CI run #43756562349 passed. The remaining audit is still incomplete.
@@ -64,7 +64,7 @@ Withdrawn findings AUD-009, AUD-022, and AUD-027 must remain withdrawn unless ne
 - [x] Capture output capture/truncation baseline in CI run #759 for 99k/100k/1M/8M characters per stream. PR #106 subsequently moved Vercel capture to the SDK async logs iterator with bounded per-stream buffers. Live SDK internal buffering and cancel-at-cap are still not measured; see `architecture-contracts.md`.
 - Phase 1 must also pass typecheck, lint, docs checks, and the full CI matrix on its PR.
 
-**Exit:** contract definitions and migration invariants are reviewed; four policy choices are approved; numeric baselines cover all hot paths; CI is green. Policy approval and CI are complete. Session-log, episodic-memory, independent-process budget-reservation, and indexing baselines are captured. Session-log, episodic-memory, independent-process reservation, indexing, and semantic-reindex baselines are captured. Output capture/truncation baseline is captured. Vercel async log capture and bounded output buffers are implemented; cancel-at-cap and live SDK buffer acceptance remain open. Phase 1 is not fully closed. No production behavior changes in this phase.
+**Exit:** contract definitions and migration invariants are reviewed; four policy choices are approved; numeric baselines cover all hot paths; CI is green. Policy approval and CI are complete. Session-log, episodic-memory, independent-process budget-reservation, and indexing baselines are captured. Session-log, episodic-memory, independent-process reservation, indexing, and semantic-reindex baselines are captured. Output capture/truncation baseline is captured. Vercel async log capture, bounded output buffers, and SIGTERM at the cap are implemented; live SDK buffer and remote kill acceptance remain open. Phase 1 is not fully closed. No production behavior changes in this phase.
 
 ### Phase 2: SQLite shared-state foundation
 
@@ -100,7 +100,7 @@ Withdrawn findings AUD-009, AUD-022, and AUD-027 must remain withdrawn unless ne
 
 ### Phase 5: Streaming output enforcement
 
-**Status: partial.** The Vercel adapter consumes `Command.logs()` and retains bounded stdout/stderr buffers; tool-result JSON serialization is also bounded by PR #119.
+**Status: partial.** The Vercel adapter consumes `Command.logs()`, retains bounded stdout/stderr buffers, and sends SIGTERM at the cap; tool-result JSON serialization is also bounded by PR #119.
 
 - Count output bytes as chunks arrive.
 - Bound buffered stdout/stderr independently where required by the public contract.
