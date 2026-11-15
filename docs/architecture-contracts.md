@@ -163,11 +163,25 @@ Ubuntu x64, Node v22.12.0, 4 CPUs. Three sequential samples in one process. Each
 | Throughput | 25,532.5 facts/s | 27,627.7 facts/s |
 | Process RSS delta | 5,005,312 bytes | 75,137,024 bytes |
 
-Every sample indexed 2,000 facts and verified 2,000 vectors. Each made 32 embedding requests: 31 batches of 64 and one batch of 16. The current implementation performs one vector collection upsert containing all 2,000 records.
+Every sample indexed 2,000 facts and verified 2,000 vectors. Each made 32 embedding requests: 31 batches of 64 and one batch of 16. The pre-batching implementation in run #752 performed one vector collection upsert containing all 2,000 records.
 
 Fixture generation and LanceDB module loading are outside the timed interval. RSS is sampled every 5 ms during setup and reindex; it is process-wide, includes setup, and can miss short-lived peaks. Samples run sequentially in one process, so retained heap and native allocations from earlier samples can affect later RSS deltas. The maximum of three samples is not a statistically stable p95.
 
-This measures the current all-at-once reindex path, not a resumable or bounded-memory implementation. Embedding provider requests are batched, but the full fact-text list, returned vector list, and vector-record list remain materialized before the single upsert. Hashing embeddings are deterministic local test infrastructure and provide no semantic-quality evidence.
+This run measures the pre-batching implementation. PR #121 changes the current path to embed and upsert one 64-fact batch at a time. The complete fact array is still loaded from `semantic.json`, and reindex still restarts from the beginning after interruption; paging and resumable checkpoints remain open. Hashing embeddings are deterministic local test infrastructure and provide no semantic-quality evidence.
+
+### Batched semantic reindex baseline: CI run #43757666162
+
+Ubuntu x64, Node v22.12.0, 4 CPUs. Three sequential samples in one process. Each sample reindexed 2,000 persisted facts using `reindexBatchSize: 64`, deterministic local 64-dimensional hashing embeddings, and 64-record vector upserts.
+
+| Measurement | p50 | Maximum of 3 samples |
+|---|---:|---:|
+| `MemorySemantic.reindex({ reset: true })` elapsed time | 193.104 ms | 238.922 ms |
+| Throughput | 10,357.1 facts/s | 10,384.1 facts/s |
+| Process RSS delta | 1,941,504 bytes | 67,715,072 bytes |
+
+Each sample made 32 embedding requests and 32 vector upserts. Both used 31 batches of 64 facts and one final batch of 16. Every sample verified 2,000 indexed facts and 2,000 vectors.
+
+The p50 RSS delta is lower than the pre-batching run #752, but the maximum of three samples remains high because the first sample observed a 67,715,072-byte process RSS delta. RSS is process-wide, includes setup, is sampled every 5 ms, and can miss transient peaks. Three samples are not a stable tail estimate. This change bounds the vector/record working set per upsert; it does not bound the full fact array loaded from JSON or provide resumable checkpoints. The timing increase relative to run #752 reflects 32 sequential upserts instead of one and must not be treated as a like-for-like speed regression without repeated controlled measurements.
 
 ### Output capture baseline: Vercel adapter contract
 
@@ -194,11 +208,11 @@ No numeric estimate is substituted for live SDK-internal buffering or cancel-at-
 | Episodic memory | 100k episodes with duplicate and selective queries | Duplicate-check cost, query latency, rows scanned, peak RSS |
 | Reservations | Concurrent independent processes contending for one hard limit | Accepted/rejected count, oversubscription count (must be zero), wait time |
 | Indexing | Small files plus one file larger than the configured chunk batch | Peak RSS, batch size, throughput, cancellation latency |
-| Semantic reindex | 2,000 persisted facts, deterministic 64-dimensional embeddings, 64-item provider batches | Reindex latency, throughput, embedding request/batch counts, vector count, peak RSS |\n| Output capture | 99k/100k/1M/8M ASCII characters per stream, two streams, 100k returned-byte cap | Adapter latency, process RSS observation, returned bytes, truncation and cleanup; does not measure SDK-internal buffering or endless streams |
+| Semantic reindex | 2,000 persisted facts, deterministic 64-dimensional embeddings, 64-item embedding and vector-upsert batches | Reindex latency, throughput, embedding/upsert batch counts, vector count, peak RSS; full fact-array paging and checkpoints remain open |\n| Output capture | 99k/100k/1M/8M ASCII characters per stream, two streams, 100k returned-byte cap | Adapter latency, process RSS observation, returned bytes, truncation and cleanup; does not measure SDK-internal buffering or endless streams |
 
 
 
-The current-code baseline runner is `npm run bench:architecture` (also executed by the `architecture performance baseline` CI job). It records Node/platform/CPU metadata, fixture sizes, p50/p95 timings, file-size-based read-volume estimates, and observed RSS. It measures session-log append at 0/50k/100k events, episodic duplicate-check/selective-query at 100k episodes, independent-process reservations, deterministic indexing, and semantic reindex. Adapter-side bounded streaming measurements are recorded above; live SDK-internal buffering and cancel-at-cap remain unmeasured.
+The current-code baseline runner is `npm run bench:architecture` (also executed by the `architecture performance baseline` CI job). It records Node/platform/CPU metadata, fixture sizes, p50/p95 timings, file-size-based read-volume estimates, and observed RSS. It measures session-log append at 0/50k/100k events, episodic duplicate-check/selective-query at 100k episodes, independent-process reservations, deterministic indexing, and batched semantic reindex. Adapter-side bounded streaming measurements are recorded above; live SDK-internal buffering and cancel-at-cap remain unmeasured.
 
 ## Approved deployment and operating policy
 
