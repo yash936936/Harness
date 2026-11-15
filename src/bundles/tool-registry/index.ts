@@ -286,8 +286,8 @@ function stringifyBoundedJson(value: unknown, maxChars: number): { text: string;
     }
 
     if (current instanceof Date) {
-      const date = Date.prototype.toISOString.call(current)
-      return appendQuoted(date)
+      const time = Date.prototype.getTime.call(current)
+      return Number.isNaN(time) ? append('null') : appendQuoted(Date.prototype.toISOString.call(current))
     }
     const prototype = Object.getPrototypeOf(current)
     if (!Array.isArray(current) && prototype !== Object.prototype && prototype !== null) {
