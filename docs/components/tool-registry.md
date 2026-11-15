@@ -14,7 +14,7 @@ Profiles install `ToolRegistry`. Tool-producing bundles register definitions thr
 
 ## Config and invariants
 
-- `maxOutputChars` bounds tool output.
+- `maxOutputChars` bounds tool output. Strings are clipped directly; plain objects and arrays are serialized incrementally and stop visiting values at the character budget, with additional 10,000-node and 32-level traversal caps. Non-plain objects use the bounded string fallback.
 - Tool definitions and schemas are cloned/frozen at registration. Call inputs are cloned/frozen before policy and execution.
 - The original input and any canonical normalized input are logged.
 - `allowedTools` and `requiredToolSequence` are enforced before policy hooks and execution.
