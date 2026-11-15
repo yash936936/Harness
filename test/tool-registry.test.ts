@@ -189,6 +189,16 @@ describe('bundle-tool-registry', () => {
     expect(laterPropertyRead).toBe(false)
   })
 
+  it('does not invoke an unbounded custom stringifier for unsupported objects', async () => {
+    const ctx = await boot({ maxOutputChars: 10 })
+    const unsupported = Object.create({ toString: () => 'z'.repeat(100_000) })
+    ctx.tools.register(tool({ name: 'unsupported', execute: () => unsupported }))
+    const result = await ctx.tools.call('unsupported', { text: '' }, S)
+    expect(result.ok).toBe(true)
+    expect(result.content).toContain('[output truncated:')
+    expect(result.content).not.toContain('zzzzzz')
+  })
+
   it('logs tool.call BEFORE execution and tool.result after; the logged result equals what was returned', async () => {
     const ctx = await boot()
     let before: string[] = []
