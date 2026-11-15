@@ -166,6 +166,7 @@ describe('Vercel Sandbox provider (D-118)', () => {
 
   it('bounds stdout and stderr independently', async () => {
     const killed: Array<string | number | undefined> = []
+    let finishCommand!: (value: { exitCode: number | null }) => void
     const client: VercelSandboxClient = {
       async create() {
         return {
@@ -173,8 +174,8 @@ describe('Vercel Sandbox provider (D-118)', () => {
           async runCommand() {
             return {
               async *logs() { yield { stream: 'stdout' as const, data: 'abcdef' }; yield { stream: 'stderr' as const, data: 'uvwxyz' } },
-              async wait() { return { exitCode: 143 } },
-              async kill(signal) { killed.push(signal) },
+              async wait() { return new Promise<{ exitCode: number | null }>((resolve) => { finishCommand = resolve }) },
+              async kill(signal) { killed.push(signal); finishCommand({ exitCode: 143 }) },
             }
           },
           async delete() {},
@@ -192,6 +193,7 @@ describe('Vercel Sandbox provider (D-118)', () => {
 
   it('streams output into bounded captures and preserves UTF-8 code points', async () => {
     const killed: Array<string | number | undefined> = []
+    let finishCommand!: (value: { exitCode: number | null }) => void
     const client: VercelSandboxClient = {
       async create() {
         return {
@@ -202,8 +204,8 @@ describe('Vercel Sandbox provider (D-118)', () => {
                 yield { stream: 'stdout' as const, data: 'ab😀cdef' }
                 yield { stream: 'stderr' as const, data: 'uvwxyz' }
               },
-              async wait() { return { exitCode: 143 } },
-              async kill(signal) { killed.push(signal) },
+              async wait() { return new Promise<{ exitCode: number | null }>((resolve) => { finishCommand = resolve }) },
+              async kill(signal) { killed.push(signal); finishCommand({ exitCode: 143 }) },
             }
           },
           async delete() {},
