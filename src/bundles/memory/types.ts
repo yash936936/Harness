@@ -167,6 +167,8 @@ export type SemanticFailure = { ok: false; error: { kind: string; detail: string
 export interface SemanticConfig {
   /** Directory for `semantic.json` (the facts themselves). Omit to keep facts in-process. */
   path?: string
+  /** Maximum outstanding serialized semantic operations, including the active operation. Default 256. */
+  maxPendingOperations?: number
   /** Vector collection holding the search index. Default `memory-semantic`. */
   collection?: string
   /** Default 1000 chars. */

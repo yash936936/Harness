@@ -46,6 +46,8 @@ export class MemorySemantic extends Service {
 
   private facts: SemanticFact[] | undefined
   private queue: Promise<unknown> = Promise.resolve()
+  private pendingOperations = 0
+  private readonly maxPendingOperations: number
   private readonly dir: string | undefined
   private readonly collectionName: string
   private readonly maxText: number
@@ -55,6 +57,10 @@ export class MemorySemantic extends Service {
   constructor(ctx: Context, config: SemanticConfig = {}) {
     super(ctx, 'memorySemantic')
     this.dir = config.path
+    this.maxPendingOperations = config.maxPendingOperations ?? 256
+    if (!Number.isSafeInteger(this.maxPendingOperations) || this.maxPendingOperations < 1) {
+      throw new MemoryError('memory: semantic maxPendingOperations must be a positive safe integer')
+    }
     this.collectionName = config.collection ?? 'memory-semantic'
     this.maxText = config.maxTextChars ?? 1000
     this.maxWhy = config.maxWhyChars ?? 500
@@ -178,13 +184,19 @@ export class MemorySemantic extends Service {
     // Best effort: if the index is unreachable, query() ignores the orphaned vector anyway.
     const emb = await this.ctx.embeddings.embed([gone.text])
     if (emb.ok) {
-      await this.exclusive(async () => {
-        // A same-id add may have completed while embedding the removed fact.
-        // Never delete the replacement's vector.
-        if ((await this.load()).some((fact) => fact.id === id)) return
-        const col = await this.collection()
-        if (col.ok) await col.collection.deleteIds([id])
-      })
+      try {
+        await this.exclusive(async () => {
+          // A same-id add may have completed while embedding the removed fact.
+          // Never delete the replacement's vector.
+          if ((await this.load()).some((fact) => fact.id === id)) return
+          const col = await this.collection()
+          if (col.ok) await col.collection.deleteIds([id])
+        })
+      } catch (error) {
+        // The fact is already removed from the source of truth. A saturated queue
+        // may leave an orphaned vector, which query() filters against current facts.
+        if (!(error instanceof MemoryError && error.message.includes('semantic operation queue is full'))) throw error
+      }
     }
     return true
   }
@@ -222,18 +234,25 @@ export class MemorySemantic extends Service {
   private async indexOneIfCurrent(fact: SemanticFact): Promise<{ ok: true } | SemanticFailure> {
     const emb = await this.ctx.embeddings.embed([fact.text], { kind: 'document' })
     if (!emb.ok) return { ok: false, error: { kind: 'embedding_' + emb.error.kind, detail: emb.error.detail } }
-    return this.exclusive(async () => {
-      const current = (await this.load()).find((item) => item.id === fact.id)
-      if (!current || current.text !== fact.text) {
-        return { ok: false as const, error: { kind: 'superseded', detail: 'semantic fact "' + fact.id + '" changed before its vector could be written; the newer mutation owns indexing' } }
+    try {
+      return await this.exclusive(async () => {
+        const current = (await this.load()).find((item) => item.id === fact.id)
+        if (!current || current.text !== fact.text) {
+          return { ok: false as const, error: { kind: 'superseded', detail: 'semantic fact "' + fact.id + '" changed before its vector could be written; the newer mutation owns indexing' } }
+        }
+        const col = await this.collection()
+        if (!col.ok) return col
+        const up = await col.collection.upsert([
+          { id: current.id, vector: emb.vectors[0]!, source: 'memory.semantic', metadata: { tier: 'semantic' } },
+        ])
+        return up.ok ? { ok: true as const } : up
+      })
+    } catch (error) {
+      if (error instanceof MemoryError && error.message.includes('semantic operation queue is full')) {
+        return { ok: false, error: { kind: 'queue_full', detail: error.message } }
       }
-      const col = await this.collection()
-      if (!col.ok) return col
-      const up = await col.collection.upsert([
-        { id: current.id, vector: emb.vectors[0]!, source: 'memory.semantic', metadata: { tier: 'semantic' } },
-      ])
-      return up.ok ? { ok: true as const } : up
-    })
+      throw error
+    }
   }
 
   /** Needs the embedding fingerprint, which only exists once a vector has been produced in this process. */
@@ -286,7 +305,11 @@ export class MemorySemantic extends Service {
   }
 
   /** Serialised read-modify-write; `fn` returns false when it changed nothing. Atomic file replace. */
-  private exclusive<T>(fn: () => Promise<T>): Promise<T> {
+  private async exclusive<T>(fn: () => Promise<T>): Promise<T> {
+    if (this.pendingOperations >= this.maxPendingOperations) {
+      throw new MemoryError(`memory: semantic operation queue is full (${this.pendingOperations}/${this.maxPendingOperations})`)
+    }
+    this.pendingOperations++
     const job = this.queue.then(async () => {
       if (!this.dir) return fn()
       await assertNoSymlinkParents(this.file)
@@ -295,6 +318,10 @@ export class MemorySemantic extends Service {
       return withFileLock(`${this.file}.lock`, fn)
     })
     this.queue = job.catch(() => {})
+    void job.then(
+      () => { this.pendingOperations-- },
+      () => { this.pendingOperations-- },
+    )
     return job
   }
 

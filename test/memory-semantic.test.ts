@@ -169,9 +169,26 @@ describe('semantic tier configuration and persisted data validation', () => {
   it('rejects invalid size limits and query thresholds', async () => {
     await expect(boot({ sem: { maxTextChars: 0 } })).rejects.toThrow(/positive safe integers/)
     await expect(boot({ sem: { maxWhyChars: Number.POSITIVE_INFINITY } })).rejects.toThrow(/positive safe integers/)
+    await expect(boot({ sem: { maxPendingOperations: 0 } })).rejects.toThrow(/maxPendingOperations must be a positive safe integer/)
+    await expect(boot({ sem: { maxPendingOperations: 1.5 } })).rejects.toThrow(/maxPendingOperations must be a positive safe integer/)
     const { ctx } = await boot()
     await expect(ctx.memorySemantic.query('query', { minScore: Number.NaN })).rejects.toThrow(/minScore/)
     await expect(ctx.memorySemantic.query('query', { minScore: 1.1 })).rejects.toThrow(/minScore/)
+  })
+
+  it('bounds serialized semantic operations and releases capacity after completion', async () => {
+    const { ctx } = await boot({ sem: { maxPendingOperations: 1 } })
+    const service = ctx.memorySemantic as any
+    let release!: () => void
+    let started!: () => void
+    const gate = new Promise<void>((resolve) => { release = resolve })
+    const entered = new Promise<void>((resolve) => { started = resolve })
+    const first = service.exclusive(async () => { started(); await gate; return 'first' })
+    await entered
+    await expect(service.exclusive(async () => 'overflow')).rejects.toThrow(/operation queue is full/)
+    release()
+    await expect(first).resolves.toBe('first')
+    await expect(service.exclusive(async () => 'next')).resolves.toBe('next')
   })
 
   it('rejects malformed persisted facts rather than returning them to callers', async () => {
