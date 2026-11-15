@@ -305,7 +305,7 @@ export class MemorySemantic extends Service {
   }
 
   /** Serialised read-modify-write; `fn` returns false when it changed nothing. Atomic file replace. */
-  private exclusive<T>(fn: () => Promise<T>): Promise<T> {
+  private async exclusive<T>(fn: () => Promise<T>): Promise<T> {
     if (this.pendingOperations >= this.maxPendingOperations) {
       throw new MemoryError(`memory: semantic operation queue is full (${this.pendingOperations}/${this.maxPendingOperations})`)
     }
