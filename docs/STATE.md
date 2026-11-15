@@ -1,6 +1,16 @@
 # Current project state
 
-Updated 2026-11-14, main `74ae26a6273ff0fd2267e6d2ebf4b78df72bc9d1`. This file records the current implementation state and binding project constraints. The active implementation order is in [ROADMAP.md](ROADMAP.md), architecture choices are in [decisions.md](decisions.md), and detailed audit findings are in [CODEBASE-AUDIT-CHECKLIST.md](CODEBASE-AUDIT-CHECKLIST.md).
+Updated 2026-11-16, main `c9426622c0c9ba0df1d8c1498fbd8ad2991ae6c2`. This file records the current implementation state and binding project constraints. The active implementation order is in [ROADMAP.md](ROADMAP.md), architecture choices are in [decisions.md](decisions.md), and detailed audit findings are in [CODEBASE-AUDIT-CHECKLIST.md](CODEBASE-AUDIT-CHECKLIST.md).
+
+## 2026-11-16 current main status
+
+- Current main baseline: `c9426622c0c9ba0df1d8c1498fbd8ad2991ae6c2`. Post-merge CI run #43756562349 passed all jobs, including Ubuntu/Windows Node 20.19.0/22.12.0 and `ci-pass`.
+- PRs #113-119 are merged. They add retrieval collection ownership and safer replacement, strict aggregate CI and full dependency auditing, bounded session/semantic/episodic queues, fail-closed D-117 smoke paths, and bounded tool-output serialization.
+- Session-log append queues are bounded at 1024 outstanding operations per session; completed queue entries are released and the sequence cache is capped at 256. A validated tail cursor avoids full scans for same-process JSONL appends, but cursor invalidation after restart or external-process writes can still trigger a full scan.
+- Semantic operations are bounded at 256 outstanding operations per service. Persistent episodic writes are bounded at 1024 outstanding operations per store. These limits do not replace D-119's shared SQLite backend, indexed episode identity, durable-history paging, or retention policy.
+- Tool output for plain objects/arrays is serialized incrementally with a character cap plus 10,000-node and 32-level limits. Vercel stdout/stderr capture uses the SDK async logs iterator and bounded per-stream UTF-8 buffers. The Vercel adapter still drains after the output cap; cancel-at-cap and live SDK peak-buffer acceptance remain open.
+- D-117 host execution paths in `smoke-coding.ts`, `smoke-phase2.ts`, and `run-logged.mjs` now fail closed. No host subprocess, generated-code execution, or local fallback was used.
+- Shared-state SQLite, task-scoped workspace transfer/result synchronization, provider lifecycle acceptance, live Vercel execution, S6, and S7 remain open. `COMMAND_TOOL` remains disabled. D-110/D-117/D-118/D-119 remain binding.
 
 ## 2026-11-14 open architecture work and streaming follow-up
 
@@ -38,9 +48,9 @@ Updated 2026-11-14, main `74ae26a6273ff0fd2267e6d2ebf4b78df72bc9d1`. This file r
 | Provider lifecycle audit | Incomplete | Must capture request, lease, command, timeout/cancel, cleanup, and failures. |
 | Coding profile command tool | Disabled | Do not enable `run_command` until workspace transfer, result sync, lifecycle audit, and policy integration are accepted. |
 | Shared-state SQLite provider | Not implemented | Phase 2, after Phase 1 policy gates. |
-| Architecture contracts | Merged via PR #94 | Type-only interfaces and migration specification; no runtime changes. Four D-119 policy choices approved. Session-log/episodic baselines captured by PR #95 and Windows measurements by PR #97. Independent-process budget reservation baseline captured by PR #99; it confirms current cross-process oversubscription. Deterministic indexing baseline captured in CI run #749: 31 files, 1,740 chunks, including one 540-chunk file; p50 306.759 ms and median observed RSS delta 24,248,320 bytes. Semantic-reindex baseline captured in CI run #752: 2,000 facts, 32 embedding requests, one 2,000-vector upsert; p50 78.332 ms and median observed RSS delta 5,005,312 bytes. Output capture/truncation baseline captured in CI run #759 (99k/100k/1M/8M characters per stream). At 8 MB per stream, p50 adapter time was 24.942 ms and median observed RSS delta was 16,011,264 bytes; returned output was 100,038 bytes per stream including the marker. True bounded streaming remains unsupported by the current Promise<string> SDK contract. |
-| Memory scaling changes | Not implemented | AUD-007/008/014/025 remain open. |
-| Streaming output enforcement | Not implemented | AUD-023 remains open. |
+| Architecture contracts | Merged via PR #94 | Type-only interfaces and migration specification; no runtime changes. Four D-119 policy choices approved. Session-log/episodic baselines captured by PR #95 and Windows measurements by PR #97. Independent-process budget reservation baseline captured by PR #99; it confirms current cross-process oversubscription. Deterministic indexing baseline captured in CI run #749: 31 files, 1,740 chunks, including one 540-chunk file; p50 306.759 ms and median observed RSS delta 24,248,320 bytes. Semantic-reindex baseline captured in CI run #752: 2,000 facts, 32 embedding requests, one 2,000-vector upsert; p50 78.332 ms and median observed RSS delta 5,005,312 bytes. Output capture/truncation baseline captured in CI run #759 (99k/100k/1M/8M characters per stream). At 8 MB per stream, p50 adapter time was 24.942 ms and median observed RSS delta was 16,011,264 bytes; returned output was 100,038 bytes per stream including the marker. Vercel now uses the SDK async logs iterator with bounded per-stream capture; live SDK internal buffering and cancel-at-cap are not yet accepted. |
+| Memory scaling changes | Partially implemented | Queue growth and selected caches are bounded by PRs #115-117. AUD-007/008 history scans, AUD-014 retention/paging, and AUD-025 resumable semantic reindex remain open. |
+| Streaming output enforcement | Partially implemented | Vercel uses async SDK logs with bounded per-stream capture; generic tool serialization is bounded by PR #119. Cancel-at-cap and live SDK buffer acceptance remain open. |
 
 ## Acceptance state
 
@@ -79,19 +89,20 @@ These constraints must be enforced in the Phase 2 design and tests. Changing the
 
 | Findings | Required work |
 |---|---|
-| AUD-007, AUD-008 | Remove full-history scans from session-log and episodic-memory append/duplicate paths. |
-| AUD-014, AUD-025 | Add bounded searchable memory, pagination, quotas, and resumable semantic reindexing. |
+| AUD-007, AUD-008 | Tail cursor reduces same-process session-log scans; episodic writes are bounded. Remove remaining external-change/full-history scans and add indexed episode identity lookup and paging. |
+| AUD-014, AUD-025 | Queue bounds are implemented. Add durable-history paging, searchable-memory quotas, batched vector upserts, and resumable semantic reindexing. |
 | AUD-015, AUD-044 | Move budget, rate-limit, and concurrency reservations to transactional shared state. |
-| AUD-016 | Bound indexing memory and evaluate vector-search scaling. |
+| AUD-016 | Collection ownership and safer replacement are implemented in PR #113. Bound large-file indexing memory and evaluate vector-search scaling. |
 
-| AUD-023 | Enforce output byte limits while streaming with bounded buffering. |
+| AUD-023 | Bounded Vercel log capture is implemented. Add cancel-at-cap behavior and live SDK buffer acceptance. |
 | AUD-039 | Add task-scoped workspace lifecycle, capabilities, leases, transfer, and result synchronization. |
 | AUD-048 | Fixed in open PR #101: session-log files, locks, and listing reject symlinked parent directories; merged as `67fd166` after the expanded head passed CI run #768. |
 | AUD-049 | Fixed in PR #101, merged as `67fd166`: compaction ledger no-follow reads, parent validation, and unique exclusive temp-file replacement; CI run #768 passed. |
 | AUD-050 | Fixed in PR #102, merged as `082e83629ea20ead62e001cf27357bd4952fd6a5`; CI run #777 passed all OS/Node jobs and `ci-pass`. |
-| AUD-051 | Fixed in PR #103, merged as `0bb27968955b218c5ea188f35b3d0939623a32cb`; CI run #780 passed all OS/Node jobs and `ci-pass`. Semantic vector writes now verify the current fact version under the shared lock; delayed removals cannot delete replacements. |\n| Audit remainder | Complete the file-by-file audit and verify each checklist status against code and tests. |
+| AUD-051 | Fixed in PR #103, merged as `0bb27968955b218c5ea188f35b3d0939623a32cb`; CI run #780 passed all OS/Node jobs and `ci-pass`. Semantic vector writes now verify the current fact version under the shared lock; delayed removals cannot delete replacements. |
+| Audit remainder | Complete the file-by-file audit and verify each checklist status against code and tests. |
 
-AUD-021 is fixed in main: late sandbox creation is awaited, cleanup is confirmed before cancellation returns, and cleanup failure is surfaced by the adapter. The command tool fails the task when `released` is false. AUD-048 and AUD-049 are fixed in main through PR #101; the expanded head passed CI run #768 and the final documentation-only head passed run #773. AUD-050 is fixed in main through PR #102 (run #777). AUD-051 is fixed in main through PR #103 (run #780).
+AUD-021 is fixed in main: late sandbox creation is awaited, cleanup is confirmed before cancellation returns, and cleanup failure is surfaced by the adapter. The command tool fails the task when `released` is false. AUD-048 and AUD-049 are fixed in main through PR #101; the expanded head passed CI run #768 and the final documentation-only head passed run #773. AUD-050 is fixed in main through PR #102 (run #777). AUD-051 is fixed in main through PR #103 (run #780). PR #113 fixes collection ownership and safer replacement; PR #114 fixes aggregate CI gating and audits dev dependencies; PRs #115-117 bound memory queues/caches; PR #118 disables host execution paths under D-117; PR #119 bounds tool-output serialization.
 
 Withdrawn findings AUD-009, AUD-022, and AUD-027 remain withdrawn unless new evidence changes the conclusion.
 
