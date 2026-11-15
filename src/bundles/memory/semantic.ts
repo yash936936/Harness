@@ -228,18 +228,25 @@ export class MemorySemantic extends Service {
   private async indexOneIfCurrent(fact: SemanticFact): Promise<{ ok: true } | SemanticFailure> {
     const emb = await this.ctx.embeddings.embed([fact.text], { kind: 'document' })
     if (!emb.ok) return { ok: false, error: { kind: 'embedding_' + emb.error.kind, detail: emb.error.detail } }
-    return this.exclusive(async () => {
-      const current = (await this.load()).find((item) => item.id === fact.id)
-      if (!current || current.text !== fact.text) {
-        return { ok: false as const, error: { kind: 'superseded', detail: 'semantic fact "' + fact.id + '" changed before its vector could be written; the newer mutation owns indexing' } }
+    try {
+      return await this.exclusive(async () => {
+        const current = (await this.load()).find((item) => item.id === fact.id)
+        if (!current || current.text !== fact.text) {
+          return { ok: false as const, error: { kind: 'superseded', detail: 'semantic fact "' + fact.id + '" changed before its vector could be written; the newer mutation owns indexing' } }
+        }
+        const col = await this.collection()
+        if (!col.ok) return col
+        const up = await col.collection.upsert([
+          { id: current.id, vector: emb.vectors[0]!, source: 'memory.semantic', metadata: { tier: 'semantic' } },
+        ])
+        return up.ok ? { ok: true as const } : up
+      })
+    } catch (error) {
+      if (error instanceof MemoryError && error.message.includes('semantic operation queue is full')) {
+        return { ok: false, error: { kind: 'queue_full', detail: error.message } }
       }
-      const col = await this.collection()
-      if (!col.ok) return col
-      const up = await col.collection.upsert([
-        { id: current.id, vector: emb.vectors[0]!, source: 'memory.semantic', metadata: { tier: 'semantic' } },
-      ])
-      return up.ok ? { ok: true as const } : up
-    })
+      throw error
+    }
   }
 
   /** Needs the embedding fingerprint, which only exists once a vector has been produced in this process. */
