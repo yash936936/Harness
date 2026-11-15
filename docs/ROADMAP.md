@@ -59,7 +59,8 @@ Withdrawn findings AUD-009, AUD-022, and AUD-027 must remain withdrawn unless ne
 - [x] Additional owner-run Windows x64 / Node v22.18.0 baselines recorded in PR #97. These are kept separate from the Ubuntu CI measurements and include the same session-log and episodic workloads.
 - [x] Capture an independent-process budget reservation baseline with deterministic workers in PR #99. CI run #744 confirms that 2, 4, and 8 independent processes all reserve against a daily hard limit of 1, producing 1, 3, and 7 excess reservations respectively. This records the current process-local limitation; it does not satisfy the Phase 2 shared-transaction acceptance test.
 - [x] Capture deterministic indexing baseline in CI run #749: 31 files, 1,740 chunks, including one 540-chunk file; p50 indexing time 306.759 ms, p50 throughput 5,672.2 chunks/s, and median observed RSS delta 24,248,320 bytes. Measurement caveats are in `architecture-contracts.md`.
-- [x] Capture deterministic semantic-reindex baseline in CI run #752: 2,000 facts, 32 embedding requests (31 x 64 and one x 16), one 2,000-vector upsert; p50 78.332 ms and median observed RSS delta 5,005,312 bytes. Measurement caveats are in `architecture-contracts.md`.
+- [x] Capture pre-batching semantic-reindex baseline in CI run #752: 2,000 facts, 32 embedding requests (31 x 64 and one x 16), one 2,000-vector upsert; p50 78.332 ms and median observed RSS delta 5,005,312 bytes.
+- [x] Batch semantic embedding and vector upserts in PR #121 with a default batch size of 64. CI run #43757666162 measured 32 upserts for 2,000 facts; p50 193.104 ms, p50 observed RSS delta 1,941,504 bytes, and a 67,715,072-byte maximum across three samples. The full fact array remains loaded and reindex is not resumable. Measurement caveats are in `architecture-contracts.md`.
 - [x] Capture output capture/truncation baseline in CI run #759 for 99k/100k/1M/8M characters per stream. PR #106 subsequently moved Vercel capture to the SDK async logs iterator with bounded per-stream buffers. Live SDK internal buffering and cancel-at-cap are still not measured; see `architecture-contracts.md`.
 - Phase 1 must also pass typecheck, lint, docs checks, and the full CI matrix on its PR.
 
@@ -82,7 +83,7 @@ Withdrawn findings AUD-009, AUD-022, and AUD-027 must remain withdrawn unless ne
 - Add indexed episodic identity/duplicate checks and paginated queries.
 - Separate durable event history from searchable memory.
 - Add configurable quotas, retention, cursor paging, bounded session maps, and bounded embedding batches.
-- Make vector reindexing checkpointed, resumable, and rebuildable.
+- Make vector reindexing checkpointed, resumable, and rebuildable. Semantic embedding and vector upserts are now batched at 64; paging the source fact array and adding checkpoints remain open.
 
 **Exit:** scale tests show bounded per-operation reads and memory use; deletion and retention behavior is documented and tested.
 
