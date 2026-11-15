@@ -14,6 +14,7 @@ Composes the episodic and hot memory tiers behind `ctx.memory`. It records one l
 
 - `path` selects persistent episodic and hot-tier storage. Without it, memory remains in process.
 - `maxFieldChars` bounds stored episode fields; `hotTokenCap` bounds the rendered hot tier.
+- `MemorySemantic` accepts `maxPendingOperations` to bound serialized semantic mutations and reads per service instance. It defaults to 256 outstanding operations and must be a positive safe integer.
 - `deriveLessons` defaults to false. When enabled, lessons are templated only from harness facts in the session log, never model or file text.
 - `injectHot` defaults to true. The hot tier is added as a system section at order 10.
 - `compaction.everyTurns`, when set, must be a positive safe integer. Compaction errors are recorded in `lastCompaction` and do not fail the user's turn.
@@ -29,6 +30,7 @@ Composes the episodic and hot memory tiers behind `ctx.memory`. It records one l
 - Compaction uses deterministic templates and configured thresholds, not a model-generated summary.
 - The persistent compaction ledger rejects symlinked parent/final paths and uses exclusive, unique temporary files for atomic replacement.
 - Semantic fact mutations and vector-index writes share a serialized lock. A delayed embedding cannot overwrite a newer same-ID fact, and a removal cannot delete a replacement's vector.
+- The semantic operation queue limit is per process and per service instance; it does not coordinate capacity across processes.
 
 ---
 **Next:** Return to [`context.md`](../../context.md).
