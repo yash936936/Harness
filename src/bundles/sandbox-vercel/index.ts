@@ -8,6 +8,7 @@ import { SandboxError, type SandboxDoctor, type SandboxProvider, type SandboxRun
 export interface VercelSandboxCommand {
   logs(options?: { signal?: AbortSignal }): AsyncIterable<{ stream: 'stdout' | 'stderr'; data: string }>
   wait(options?: { signal?: AbortSignal }): Promise<{ exitCode: number | null }>
+  kill(signal?: 'SIGHUP' | 'SIGINT' | 'SIGQUIT' | 'SIGKILL' | 'SIGTERM' | 'SIGCONT' | 'SIGSTOP' | number): Promise<void>
 }
 
 export interface VercelSandboxHandle {
@@ -64,14 +65,29 @@ class BoundedTextCapture {
 async function captureCommand(command: VercelSandboxCommand, signal: AbortSignal, limit: number): Promise<{ exitCode: number | null; stdout: string; stderr: string }> {
   const stdout = new BoundedTextCapture(limit)
   const stderr = new BoundedTextCapture(limit)
+  let waitSettled = false
+  let killRequested = false
+  const wait = raceAbort(command.wait({ signal }), signal).finally(() => { waitSettled = true })
   const consume = async () => {
     for await (const log of command.logs({ signal })) {
       signal.throwIfAborted()
       if (log.stream === 'stdout') stdout.write(log.data)
       else if (log.stream === 'stderr') stderr.write(log.data)
+      if ((stdout.truncated || stderr.truncated) && !killRequested && !waitSettled) {
+        killRequested = true
+        // Stop the remote command as soon as either stream exceeds its independent
+        // capture budget. Continue consuming logs so the SDK iterator can settle.
+        try {
+          await command.kill('SIGTERM')
+        } catch (error) {
+          // The command may have exited between the wait-state check and kill.
+          await Promise.resolve()
+          if (!waitSettled) throw error
+        }
+      }
     }
   }
-  const [result] = await Promise.all([raceAbort(command.wait({ signal }), signal), consume()])
+  const [result] = await Promise.all([wait, consume()])
   return { exitCode: result.exitCode, stdout: stdout.text(), stderr: stderr.text() }
 }
 function raceAbort<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
