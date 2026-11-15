@@ -202,7 +202,8 @@ export class ToolRegistry extends Service {
       const rendered = stringifyBoundedJson(out, this.maxOutput)
       return rendered.truncated ? `${rendered.text}\n[output truncated]` : rendered.text
     } catch {
-      return this.truncate(String(out))
+      const kind = out !== null && typeof out === 'object' ? 'object' : typeof out
+      return this.truncate(`[unserializable ${kind} output]`)
     }
   }
 
