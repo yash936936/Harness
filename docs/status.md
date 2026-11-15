@@ -1,3 +1,17 @@
+## 2026-11-16 current main status (baseline c9426622)
+
+- Current main: `c9426622c0c9ba0df1d8c1498fbd8ad2991ae6c2`. Post-merge CI run #43756562349 passed all jobs, including the Ubuntu/Windows Node 20.19.0/22.12.0 matrix and `ci-pass`.
+- PR #113 merged retrieval collection ownership checks, owner-aware collection resets, and safer per-file replacement ordering. PR #114 made `ci-pass` require every mandatory job to succeed and expanded `npm audit` to include development dependencies.
+- PRs #115-117 bounded outstanding session-log appends, semantic-memory operations, and persistent episodic writes. Session-log queue entries are released after completion and its sequence cache is capped at 256 sessions.
+- PR #118 disabled host-generated-code execution, host-backed retrieval smoke, and arbitrary host command execution under D-117. `AGENTS.md` now directs repository checks to GitHub Actions and does not direct agents to use the disabled host runner.
+- PR #119 added incremental bounded serialization for plain object/array tool results, with character, node, and depth limits. It avoids invoking arbitrary custom serializers for unsupported objects.
+- PR-head CI passed for #113 (`43632476855`), #114 (`43632866040`), #115 (`43754058474`), #116 (`43754660989`), #117 (`43755063045`), #118 (`43755514677`), and #119 (`43756237948`). Post-merge main CI also passed through #119 (`43756562349`).
+- Vercel adapter output capture now uses the SDK async logs iterator with bounded per-stream UTF-8 buffers. It still drains after reaching the cap; cancel-at-cap and live SDK internal-buffer behavior remain unverified. No live Vercel execution is claimed.
+- Remaining architecture work: SQLite shared transactional state; task-scoped workspace lifecycle/transfer/result synchronization; indexed episodic duplicate lookup and full-history scan reduction; durable-history paging and searchable-memory quotas; bounded indexing for large files; semantic reindex paging/checkpoints; cross-process reservations; and the incomplete file-by-file audit.
+- D-110/D-117/D-118/D-119 remain binding. `COMMAND_TOOL` remains disabled.
+
+---
+
 ## 2026-11-14 open-item closeout pass (main baseline 74ae26a)
 
 - Implemented bounded Vercel output collection using the SDK detached-command logs async iterator. The adapter no longer calls stdout()/stderr() methods that collect full strings. It retains at most the configured byte limit per stream, does not split UTF-8 code points, and marks truncation.
