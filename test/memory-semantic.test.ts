@@ -171,6 +171,8 @@ describe('semantic tier configuration and persisted data validation', () => {
     await expect(boot({ sem: { maxWhyChars: Number.POSITIVE_INFINITY } })).rejects.toThrow(/positive safe integers/)
     await expect(boot({ sem: { maxPendingOperations: 0 } })).rejects.toThrow(/maxPendingOperations must be a positive safe integer/)
     await expect(boot({ sem: { maxPendingOperations: 1.5 } })).rejects.toThrow(/maxPendingOperations must be a positive safe integer/)
+    await expect(boot({ sem: { reindexBatchSize: 0 } })).rejects.toThrow(/reindexBatchSize must be a positive safe integer/)
+    await expect(boot({ sem: { reindexBatchSize: 1.5 } })).rejects.toThrow(/reindexBatchSize must be a positive safe integer/)
     const { ctx } = await boot()
     await expect(ctx.memorySemantic.query('query', { minScore: Number.NaN })).rejects.toThrow(/minScore/)
     await expect(ctx.memorySemantic.query('query', { minScore: 1.1 })).rejects.toThrow(/minScore/)
@@ -337,6 +339,41 @@ describe('semantic tier (3.3): a different tier with different retention', () =>
 })
 
 describe('semantic tier (3.3): the index is derived and recoverable', () => {
+  it('reindexes facts with bounded embedding and vector-upsert batches', async () => {
+    const dir = await tmp()
+    const facts = Array.from({ length: 70 }, (_, i) => ({
+      tier: 'semantic' as const,
+      id: `batch-fact-${i}`,
+      text: `Durable architecture fact ${i}`,
+      why: WHY,
+      ts: '2026-11-16T00:00:00.000Z',
+    }))
+    await writeFile(join(dir, 'semantic.json'), JSON.stringify(facts), 'utf8')
+    const { ctx } = await boot({ sem: { path: dir, reindexBatchSize: 32 } })
+    const store = ctx.vectorstore as any
+    const open = store.open.bind(store)
+    const upsertBatchSizes: number[] = []
+    store.open = async (...args: any[]) => {
+      const result = await open(...args)
+      if (result.ok) {
+        const collection = result.collection as any
+        const upsert = collection.upsert.bind(collection)
+        collection.upsert = async (rows: any[]) => {
+          upsertBatchSizes.push(rows.length)
+          return upsert(rows)
+        }
+      }
+      return result
+    }
+
+    await expect(ctx.memorySemantic.reindex({ reset: true })).resolves.toEqual({ ok: true, indexed: 70 })
+    expect(upsertBatchSizes).toEqual([32, 32, 6])
+    const info = ctx.embeddings.info()!
+    const opened = await open('memory-semantic', { fingerprint: info.fingerprint!, dimensions: info.dimensions!, owner: 'memory.semantic' })
+    expect(opened.ok).toBe(true)
+    if (opened.ok) await expect(opened.collection.count()).resolves.toMatchObject({ ok: true, count: 70 })
+  })
+
   it('an embedding outage loses nothing: the fact is saved, reported unindexed, and reindex() makes it searchable', async () => {
     const provider = new ConceptProvider()
     provider.down = true
