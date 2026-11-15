@@ -258,11 +258,13 @@ function stringifyBoundedJson(value: unknown, maxChars: number): { text: string;
     visited++
     if (visited > maxNodes) {
       truncated = true
-      return appendQuoted('[node limit]')
+      appendQuoted('[node limit]')
+      return false
     }
     if (depth > maxDepth) {
       truncated = true
-      return appendQuoted('[depth limit]')
+      appendQuoted('[depth limit]')
+      return false
     }
     if (current === null) return append('null')
 
