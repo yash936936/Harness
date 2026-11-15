@@ -171,6 +171,8 @@ export interface SemanticConfig {
   path?: string
   /** Maximum outstanding serialized semantic operations, including the active operation. Default 256. */
   maxPendingOperations?: number
+  /** Maximum facts embedded and upserted per reindex batch. Default 64. */
+  reindexBatchSize?: number
   /** Vector collection holding the search index. Default `memory-semantic`. */
   collection?: string
   /** Default 1000 chars. */
