@@ -241,6 +241,6 @@ Phase 0 is complete. Phase 1 contracts, owner policy approvals, CI, and initial 
 
 ## Current audit continuation — 2026-11-16
 
-- Main baseline: `c9426622c0c9ba0df1d8c1498fbd8ad2991ae6c2`. PR #113 (retrieval collection ownership and safer replacement), #114 (strict aggregate CI and full dependency audit), #115-117 (bounded session, semantic, and episodic queues), #118 (D-117 host-path shutdown), and #119 (bounded tool-output serialization) are merged.
-- PR-head CI passed for #113 (`43632476855`), #114 (`43632866040`), #115 (`43754058474`), #116 (`43754660989`), #117 (`43755063045`), #118 (`43755514677`), and #119 (`43756237948`). Post-merge main CI passed through PR #118 (`43755802017`); PR #119 post-merge run `43756562349` is recorded separately in `docs/status.md`.
+- Main baseline: `cf79353a0aa66c96354724980288861467257bd9`. PR #113 (retrieval collection ownership and safer replacement), #114 (strict aggregate CI and full dependency audit), #115-117 (bounded session, semantic, and episodic queues), #118 (D-117 host-path shutdown), #119 (bounded tool-output serialization), #120 (audit documentation reconciliation), and #121 (batched semantic reindex) are merged.
+- PR-head CI passed for #113 (`43632476855`), #114 (`43632866040`), #115 (`43754058474`), #116 (`43754660989`), #117 (`43755063045`), #118 (`43755514677`), and #119 (`43756237948`). PR #121 is merged; its full CI run `43757877742` and post-merge main run `43757888191` are still running. The semantic reindex architecture benchmark passed in `43757666162`.
 - The full file-by-file and cross-folder audit remains incomplete. D-110/D-117/D-118/D-119 remain binding.
