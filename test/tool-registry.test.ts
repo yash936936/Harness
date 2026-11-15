@@ -170,6 +170,25 @@ describe('bundle-tool-registry', () => {
     expect(big).toMatch(/truncated: 90 more/)
   })
 
+  it('stops serializing object output when the character budget is exhausted', async () => {
+    const ctx = await boot({ maxOutputChars: 10 })
+    let laterPropertyRead = false
+    const payload: Record<string, unknown> = { a: 'x'.repeat(100) }
+    Object.defineProperty(payload, 'later', {
+      enumerable: true,
+      get() {
+        laterPropertyRead = true
+        throw new Error('serializer should stop before this getter')
+      },
+    })
+    ctx.tools.register(tool({ name: 'bounded', execute: () => payload }))
+    const result = await ctx.tools.call('bounded', { text: '' }, S)
+    expect(result).toMatchObject({ ok: true })
+    expect(result.content).toContain('[output truncated]')
+    expect(result.content.length).toBeLessThan(10 + '\n[output truncated]'.length + 1)
+    expect(laterPropertyRead).toBe(false)
+  })
+
   it('logs tool.call BEFORE execution and tool.result after; the logged result equals what was returned', async () => {
     const ctx = await boot()
     let before: string[] = []
