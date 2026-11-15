@@ -11,6 +11,7 @@ import { MemorySemantic, type SemanticFact } from '../src/bundles/memory/index.j
 const SAMPLES = 3
 const FACTS = 2_000
 const EMBEDDING_BATCH_SIZE = 64
+const VECTOR_UPSERT_BATCH_SIZE = 64
 
 function percentile(values: number[], p: number): number {
   const sorted = [...values].sort((a, b) => a - b)
@@ -46,6 +47,7 @@ async function runSample(root: string, sample: number) {
   const ctx = new Context()
   const fibers: Array<{ dispose(): Promise<unknown> | unknown }> = []
   const batchSizes: number[] = []
+  const vectorUpsertBatchSizes: number[] = []
   const inner = new HashingEmbeddingProvider({ dimensions: 64 })
   let peakRss = process.memoryUsage().rss
   const rssBefore = peakRss
@@ -64,7 +66,22 @@ async function runSample(root: string, sample: number) {
       },
     })
     fibers.push(await ctx.plugin(LanceVectorStore, { path: dbDir }))
-    fibers.push(await ctx.plugin(MemorySemantic, { path: dataDir }))
+    fibers.push(await ctx.plugin(MemorySemantic, { path: dataDir, reindexBatchSize: VECTOR_UPSERT_BATCH_SIZE }))
+
+    const vectorStore = ctx.vectorstore as any
+    const originalOpen = vectorStore.open.bind(vectorStore)
+    vectorStore.open = async (...args: any[]) => {
+      const opened = await originalOpen(...args)
+      if (opened.ok) {
+        const collection = opened.collection as any
+        const originalUpsert = collection.upsert.bind(collection)
+        collection.upsert = async (rows: any[]) => {
+          vectorUpsertBatchSizes.push(rows.length)
+          return originalUpsert(rows)
+        }
+      }
+      return opened
+    }
 
     await import('@lancedb/lancedb')
     observe()
@@ -90,7 +107,8 @@ async function runSample(root: string, sample: number) {
       factsPerSecond: Number((result.indexed / (elapsedMs / 1000)).toFixed(1)),
       embeddingRequests: batchSizes.length,
       embeddingBatchSizes: batchSizes,
-      vectorUpserts: 1,
+      vectorUpserts: vectorUpsertBatchSizes.length,
+      vectorUpsertBatchSizes,
       rssBeforeBytes: rssBefore,
       peakRssBytes: peakRss,
       peakRssDeltaBytes: Math.max(0, peakRss - rssBefore),
@@ -107,7 +125,7 @@ try {
   const samples = []
   for (let sample = 0; sample < SAMPLES; sample++) samples.push(await runSample(root, sample))
   const report = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     generatedAt: new Date().toISOString(),
     environment: {
       node: process.version,
@@ -118,11 +136,12 @@ try {
     workload: {
       facts: FACTS,
       embeddingBatchSize: EMBEDDING_BATCH_SIZE,
+      vectorUpsertBatchSize: VECTOR_UPSERT_BATCH_SIZE,
       samples: SAMPLES,
       provider: 'deterministic local hashing embeddings (not a semantic-quality benchmark)',
       timing: 'MemorySemantic.reindex({ reset: true }); fixture generation and LanceDB module loading are outside the timed interval',
       memory: 'process RSS sampled every 5 ms during setup and reindex; process-wide, includes setup, and can miss short-lived peaks',
-      batching: 'Embeddings batches provider calls, but MemorySemantic builds all text inputs and vectors and submits all vector records in one collection upsert',
+      batching: 'MemorySemantic embeds and upserts one bounded batch at a time. The semantic fact source is still loaded as one JSON array; reindex is not yet paged or resumable.',
     },
     results: {
       elapsedMs: stats(samples.map((s) => s.elapsedMs)),
@@ -135,7 +154,7 @@ try {
       indexedVectors: samples.map((s) => s.vectors),
       samples,
     },
-    interpretation: 'This is a baseline of the current all-at-once semantic reindex path. Provider calls are batched, but the complete fact text list, returned vectors, and vector record list remain materialized before one upsert. It does not measure a resumable or bounded-memory reindex implementation.',
+    interpretation: 'This measures bounded embedding and vector-upsert batches. The complete semantic fact array is still loaded in memory, and reindex restarts from the beginning after interruption; this is not paged or resumable reindexing.',
   }
   const output = JSON.stringify(report, null, 2)
   console.log(output)
