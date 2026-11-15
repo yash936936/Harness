@@ -6,7 +6,7 @@
 - PR #118 disabled host-generated-code execution, host-backed retrieval smoke, and arbitrary host command execution under D-117. `AGENTS.md` now directs repository checks to GitHub Actions and does not direct agents to use the disabled host runner.
 - PR #119 added incremental bounded serialization for plain object/array tool results, with character, node, and depth limits. It avoids invoking arbitrary custom serializers for unsupported objects.
 - PR-head CI passed for #113 (`43632476855`), #114 (`43632866040`), #115 (`43754058474`), #116 (`43754660989`), #117 (`43755063045`), #118 (`43755514677`), and #119 (`43756237948`). Post-merge main CI also passed through #119 (`43756562349`).
-- Vercel adapter output capture now uses the SDK async logs iterator with bounded per-stream UTF-8 buffers. It still drains after reaching the cap; cancel-at-cap and live SDK internal-buffer behavior remain unverified. No live Vercel execution is claimed.
+- Vercel adapter output capture uses the SDK async logs iterator with bounded per-stream UTF-8 buffers and sends SIGTERM through `Command.kill()` when either stream exceeds its cap. It drains until the iterator settles; live SDK internal buffering and remote kill behavior remain unverified. No live Vercel execution is claimed.
 - Remaining architecture work: SQLite shared transactional state; task-scoped workspace lifecycle/transfer/result synchronization; indexed episodic duplicate lookup and full-history scan reduction; durable-history paging and searchable-memory quotas; bounded indexing for large files; semantic reindex paging/checkpoints; cross-process reservations; and the incomplete file-by-file audit.
 - D-110/D-117/D-118/D-119 remain binding. `COMMAND_TOOL` remains disabled.
 
