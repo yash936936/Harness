@@ -198,9 +198,9 @@ For inputs above the 100,000-byte cap, each returned stream contains 100,038 byt
 
 The fake client yields 64 KiB chunks through the same async log iterator used by the adapter; it does not materialize either complete output stream. RSS is sampled every 5 ms while chunks are yielded. RSS is process-wide and can still miss transient allocation peaks; sequential samples share one process. Three-sample maxima are not stable tail estimates. These numbers characterize adapter-side bounded capture, not the real Vercel SDK's internal buffers or remote execution.
 
-The Vercel adapter now consumes the SDK detached-command `Command.logs()` async iterator and applies independent byte caps while chunks arrive. The fake-client baseline verifies that adapter-side retained buffers stay within the configured limit. When a stream reaches its cap, the adapter currently discards later chunks but continues draining the iterator until command completion or timeout; it does not yet cancel the remote command at the cap. The fake client also does not establish how the real SDK buffers internally. Live SDK buffer behavior, endless-output termination, and cancel-at-cap remain separate acceptance requirements.
+The Vercel adapter now consumes the SDK detached-command `Command.logs()` async iterator and applies independent byte caps while chunks arrive. The fake-client baseline verifies that adapter-side retained buffers stay within the configured limit. When a stream first exceeds its cap, the adapter sends SIGTERM through the SDK command `kill()` method, then continues draining the iterator until command completion or timeout. Fake-client tests verify that kill is requested once when either stream reaches the cap, but do not establish whether the real SDK terminates the remote process tree or how it buffers internally. Live SDK buffer behavior and remote kill acceptance remain separate requirements.
 
-No numeric estimate is substituted for live SDK-internal buffering or cancel-at-cap behavior.
+No numeric estimate is substituted for live SDK-internal buffering or remote command termination behavior.
 
 | Area | Baseline workload | Required measurements |
 |---|---|---|
@@ -212,7 +212,7 @@ No numeric estimate is substituted for live SDK-internal buffering or cancel-at-
 
 
 
-The current-code baseline runner is `npm run bench:architecture` (also executed by the `architecture performance baseline` CI job). It records Node/platform/CPU metadata, fixture sizes, p50/p95 timings, file-size-based read-volume estimates, and observed RSS. It measures session-log append at 0/50k/100k events, episodic duplicate-check/selective-query at 100k episodes, independent-process reservations, deterministic indexing, and batched semantic reindex. Adapter-side bounded streaming measurements are recorded above; live SDK-internal buffering and cancel-at-cap remain unmeasured.
+The current-code baseline runner is `npm run bench:architecture` (also executed by the `architecture performance baseline` CI job). It records Node/platform/CPU metadata, fixture sizes, p50/p95 timings, file-size-based read-volume estimates, and observed RSS. It measures session-log append at 0/50k/100k events, episodic duplicate-check/selective-query at 100k episodes, independent-process reservations, deterministic indexing, and batched semantic reindex. Adapter-side bounded streaming and fake-client kill-at-cap behavior are covered above; live SDK-internal buffering and remote kill behavior remain unmeasured.
 
 ## Approved deployment and operating policy
 
