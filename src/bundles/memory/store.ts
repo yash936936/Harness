@@ -2,7 +2,7 @@ import { mkdir } from 'node:fs/promises'
 import { appendTextFileNoFollow, assertNoSymlinkParents, readTextLinesNoFollow, truncateFileNoFollow } from '../../util/secure-file.js'
 import { withFileLock } from '../../util/filelock.js'
 import { join } from 'node:path'
-import type { Episode, EpisodeStore } from './types.js'
+import { MemoryError, type Episode, type EpisodeStore } from './types.js'
 
 export class MemoryEpisodeStore implements EpisodeStore {
   private items = new Map<string, Episode>()
@@ -36,8 +36,13 @@ export class MemoryEpisodeStore implements EpisodeStore {
 /** One JSONL file, `<dir>/episodic.jsonl`. Append-only, like the session log. */
 export class JsonlEpisodeStore implements EpisodeStore {
   private queue: Promise<unknown> = Promise.resolve()
+  private pendingWrites = 0
 
-  constructor(private dir: string) {}
+  constructor(private dir: string, private maxPendingWrites = 1024) {
+    if (!Number.isSafeInteger(this.maxPendingWrites) || this.maxPendingWrites < 1) {
+      throw new MemoryError('memory: maxPendingEpisodeWrites must be a positive safe integer')
+    }
+  }
 
   private get file() {
     return join(this.dir, 'episodic.jsonl')
@@ -45,6 +50,10 @@ export class JsonlEpisodeStore implements EpisodeStore {
 
   async add(e: Episode): Promise<boolean> {
     const episode = structuredClone(e)
+    if (this.pendingWrites >= this.maxPendingWrites) {
+      throw new MemoryError(`memory: episodic write queue is full (${this.pendingWrites}/${this.maxPendingWrites})`)
+    }
+    this.pendingWrites++
     const job = this.queue.then(async () => {
       await assertNoSymlinkParents(this.file)
       await mkdir(this.dir, { recursive: true })
@@ -56,6 +65,10 @@ export class JsonlEpisodeStore implements EpisodeStore {
       })
     })
     this.queue = job.catch(() => {})
+    void job.then(
+      () => { this.pendingWrites-- },
+      () => { this.pendingWrites-- },
+    )
     return job
   }
 
