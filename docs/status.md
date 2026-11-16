@@ -1,3 +1,12 @@
+## 2026-11-16 Vercel output-cap cancellation merged (PR #126)
+
+- PR #126 merged as `4fff23a5a1c3bf6444eeb5fbe898ecd57e843d06` on top of main `54a6619e728a2c84adb950c86ba5be7ba1cae888`.
+- PR-head CI run #846 passed all 10 jobs, including Ubuntu/Windows Node 20.19.0/22.12.0 verification, docs/component drift, secrets/dependencies, license inventory, architecture baseline, and `ci-pass`. Post-merge main CI run #847 is pending.
+- Vercel now requests one SIGTERM through `Command.kill()` when either stdout or stderr exceeds its independent output cap, then drains until the SDK iterator settles. Fake-client tests verify the request, not live remote termination or SDK-internal buffering.
+- Live Vercel S4 acceptance remains open. `COMMAND_TOOL` remains disabled. Stale draft PR #123 was closed as superseded by #126.
+
+---
+
 ## 2026-11-16 Vercel output-cap cancellation rebased (PR #126)
 
 - Main baseline: `54a6619e728a2c84adb950c86ba5be7ba1cae888`; post-merge CI run #840 passed all 10 jobs, including all four Ubuntu/Windows Node 20.19.0/22.12.0 verification jobs and `ci-pass`.
