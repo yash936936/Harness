@@ -1,6 +1,6 @@
 # Architecture contracts and migration safety
 
-Status: Phase 1 contract baseline plus the first Phase 2 implementation slice. Backend-neutral contracts live in `src/architecture/contracts.ts`. PR #128 adds a file-backed SQLite transaction and migration foundation in `src/util/sqlite.ts` using the sql.js WebAssembly build and the existing cross-process file lock. It is limited to small coordination metadata because each write reloads and exports the full database. Budget, rate-limit, and lease stores are not integrated yet; existing runtime behavior remains unchanged.
+Status: Phase 1 contract baseline plus two Phase 2 implementation slices. Backend-neutral contracts live in `src/architecture/contracts.ts`. PR #128 merged a file-backed SQLite transaction/migration foundation in `src/util/sqlite.ts` using sql.js WebAssembly and the existing cross-process file lock. PR #129 adds `SQLiteBudgetReservationStore` in `src/bundles/app-core/budgets.ts`. The store checks committed usage plus active reservations, pins hard limits per subject, persists bounded idempotency decisions, and settles actual usage. It is not yet wired into `BudgetGate`/`LLMService`; rate-limit and lease stores remain unimplemented. Each write reloads and exports the full database, so this layer is for bounded coordination metadata.
 
 ## Scope and constraints
 
@@ -70,7 +70,7 @@ Status: Phase 1 contract baseline plus the first Phase 2 implementation slice. B
 |---|---|---|---|
 | 1 | Add backend-neutral contracts | Type-only additions; no runtime wiring | Typecheck and contract review |
 | 2 | Add SQLite schema ledger and transaction layer | PR #128 adds the file-backed transaction/migration foundation; existing JSON/file stores remain authoritative until domain stores are integrated | Migration, checksum drift, rollback, symlink, and independent-process transaction tests |
-| 3 | Move budget reservations | One authoritative store per rollout; explicit cutover | Independent-process oversubscription tests |
+| 3 | Move budget reservations | PR #129 adds a standalone SQLite store; integrate it with `Budgets`/`BudgetGate`/`LLMService` before cutover | Independent-process oversubscription, settlement, expiry, and compatibility tests |
 | 4 | Move rate limits and leases | Preserve public limiter/provider facades through adapters | Race, expiry, fencing and crash-recovery tests |
 | 5 | Optimize durable history and episodic memory | Read old formats; build indexes as rebuildable sidecars | 100k-event append/query and torn-tail tests |
 | 6 | Bound searchable memory and reindex | Durable source retained; versioned projection generations | Paging, quota, interruption and resume tests |
