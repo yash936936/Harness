@@ -115,7 +115,7 @@ describe('LLMService enforces the budget before the call', () => {
       sharedBudget: { databasePath: join(tempDir(), 'state.sqlite'), projectId: 'shared-project' },
     })
     await expect(ctx.llm.complete({ messages: [{ role: 'user', content: 'hello' }], maxTokens: 100 } as any))
-      .rejects.toMatchObject({ kind: 'budget' })
+      .rejects.toMatchObject({ kind: 'config' })
     expect(provider.calls).toHaveLength(0)
   })
 
