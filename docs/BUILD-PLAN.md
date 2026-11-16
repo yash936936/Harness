@@ -1,10 +1,10 @@
 # Build plan
 
-Updated 2026-11-14. This file is the short execution checklist. The full sequence and exit criteria are in [ROADMAP.md](ROADMAP.md); current evidence and blockers are in [STATE.md](STATE.md). Older runbooks and dated reports have been removed from this active plan and remain in their historical evidence files.
+Updated 2026-11-16, main `46e12e6343a76e34a910de447a82a8415644bae8`. This file is the short execution checklist. The full sequence and exit criteria are in [ROADMAP.md](ROADMAP.md); current evidence and blockers are in [STATE.md](STATE.md). Older runbooks and dated reports have been removed from this active plan and remain in their historical evidence files.
 
 ## Current work queue
 
-- [x] **B0: Fix CI dependency audit.** The dependency-audit remediation is merged. Current main CI run #835 (`43758536354`) passed all 10 jobs, including secrets/dependencies and license inventory. This records CI status only, not live-provider acceptance.
+- [x] **B0: Fix CI dependency audit.** The dependency-audit remediation is merged. Current main CI run #838 (`43868684870`) passed all 10 jobs, including secrets/dependencies and license inventory. This records CI status only, not live-provider acceptance.
 - [ ] **B1: Workspace snapshot.** Define and implement deterministic project transfer. Exclude credentials/secrets, reject symlink/path traversal, bound size/count, and preserve only required Git metadata.
 - [ ] **B2: Result synchronization.** Collect a bounded change manifest; validate paths and hashes; detect local conflicts; apply changes only through the governed write path.
 - [ ] **B3: Lifecycle audit.** Add redacted events for consent, provider, lease, command, approval, timeout/cancel, result, and cleanup. Cleanup failure must fail the task.
