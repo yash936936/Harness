@@ -109,6 +109,16 @@ describe('LLMService enforces the budget before the call', () => {
     await expect(ctx.llm.complete(req({ maxTokens: 50 }))).rejects.toMatchObject({ kind: 'budget' })
   })
 
+  it('fails closed when a shared session limit has no session identity', async () => {
+    const { ctx, provider } = await boot({
+      budgets: { requests: { session: { hard: 1 } } },
+      sharedBudget: { databasePath: join(tempDir(), 'state.sqlite'), projectId: 'shared-project' },
+    })
+    await expect(ctx.llm.complete({ messages: [{ role: 'user', content: 'hello' }], maxTokens: 100 } as any))
+      .rejects.toMatchObject({ kind: 'budget' })
+    expect(provider.calls).toHaveLength(0)
+  })
+
   it('two LLMService instances share session reservations through SQLite', async () => {
     let started!: () => void
     let finish!: () => void
