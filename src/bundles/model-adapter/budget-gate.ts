@@ -210,15 +210,7 @@ export class BudgetGate {
     req: Pick<CompletionRequest, 'messages' | 'system' | 'tools' | 'maxTokens'>,
     sessionId?: string,
   ): Promise<CallReservation> {
-    let local: CallReservation
-    try {
-      local = this.reserveLocal(req)
-    } catch (error) {
-      if (error instanceof BudgetExceededError && this.sharedStore && this.sharedConfig) {
-        throw new BudgetExceededError(error.metric, error.scope, await this.statusAsync(sessionId))
-      }
-      throw error
-    }
+    const local = this.reserveLocal(req)
     if (!this.sharedStore || !this.sharedConfig) return local
     const hasSessionHardLimit = this.budgets.hardLimit('requests', 'session') !== undefined ||
       this.budgets.hardLimit('tokens', 'session') !== undefined
