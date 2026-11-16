@@ -433,10 +433,13 @@ export class SQLiteBudgetReservationStore implements BudgetReservationStore {
 
   private validateRequest(input: BudgetReservationRequest): { nowMs: number; expiresAt: string; requestHash: string } {
     if (!input || typeof input !== 'object') throw new TypeError('budget reservations: request must be an object')
-    for (const [name, value] of [['projectId', input.projectId], ['subjectId', input.subjectId], ['idempotencyKey', input.idempotencyKey]] as const) {
-      if (typeof value !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/.test(value)) {
+    for (const [name, value] of [['projectId', input.projectId], ['subjectId', input.subjectId]] as const) {
+      if (typeof value !== 'string' || !value.trim() || value.length > 256) {
         throw new TypeError(`budget reservations: ${name} must be a non-empty string of at most 256 characters`)
       }
+    }
+    if (typeof input.idempotencyKey !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/.test(input.idempotencyKey)) {
+      throw new TypeError('budget reservations: idempotencyKey must be a safe opaque identifier of at most 256 characters')
     }
     if (!['requests', 'tokens', 'bytes', 'operations'].includes(input.metric)) {
       throw new TypeError('budget reservations: unsupported metric')
@@ -566,7 +569,7 @@ export class SQLiteBudgetReservationStore implements BudgetReservationStore {
 
   async settle(input: BudgetSettlement): Promise<BudgetReservation> {
     if (!input || typeof input.reservationId !== 'string' || !input.reservationId.trim() ||
-        typeof input.idempotencyKey !== 'string' || !input.idempotencyKey.trim() || input.idempotencyKey.length > 256 ||
+        typeof input.idempotencyKey !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/.test(input.idempotencyKey) ||
         !Number.isFinite(input.actualAmount) || input.actualAmount < 0) {
       throw new TypeError('budget reservations: settlement requires a reservation id, idempotency key, and finite non-negative actualAmount')
     }
