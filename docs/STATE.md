@@ -97,8 +97,8 @@ These constraints must be enforced in the Phase 2 design and tests. Changing the
 
 | AUD-023 | Bounded Vercel log capture is implemented. Add cancel-at-cap behavior and live SDK buffer acceptance. |
 | AUD-039 | Add task-scoped workspace lifecycle, capabilities, leases, transfer, and result synchronization. |
-| AUD-048 | Fixed in open PR #101: session-log files, locks, and listing reject symlinked parent directories; merged as `67fd166` after the expanded head passed CI run #768. |
-| AUD-049 | Fixed in PR #101, merged as `67fd166`: compaction ledger no-follow reads, parent validation, and unique exclusive temp-file replacement; CI run #768 passed. |
+| AUD-048 | Fixed in main via PR #101: session-log files, locks, and listing reject symlinked parent directories; expanded head passed CI run #768. |
+| AUD-049 | Fixed in main via PR #101: compaction ledger no-follow reads, parent validation, and unique exclusive temp-file replacement; CI run #768 passed. |
 | AUD-050 | Fixed in PR #102, merged as `082e83629ea20ead62e001cf27357bd4952fd6a5`; CI run #777 passed all OS/Node jobs and `ci-pass`. |
 | AUD-051 | Fixed in PR #103, merged as `0bb27968955b218c5ea188f35b3d0939623a32cb`; CI run #780 passed all OS/Node jobs and `ci-pass`. Semantic vector writes now verify the current fact version under the shared lock; delayed removals cannot delete replacements. |
 | Audit remainder | Complete the file-by-file audit and verify each checklist status against code and tests. |
