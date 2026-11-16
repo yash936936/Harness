@@ -1,10 +1,11 @@
 import { Context, Service } from 'cordis'
+import { isAbsolute } from 'node:path'
 import '../session-log/index.js'
 import '../egress/index.js'
 import { EgressError } from '../egress/index.js'
 import { OllamaProvider, type OllamaConfig } from './providers/ollama.js'
 import { OpenAICompatibleProvider, type OpenAICompatibleConfig } from './providers/openai-compatible.js'
-import { Budgets, BudgetExceededError, type BudgetsConfig } from '../app-core/budgets.js'
+import { Budgets, BudgetExceededError, BudgetReservationStoreError, SQLiteBudgetReservationStore, type BudgetsConfig } from '../app-core/budgets.js'
 import { BudgetGate, type CallReservation } from './budget-gate.js'
 import { RateLimiter, type RateLimiterConfig } from './rate-limiter.js'
 import { LLMError, type CompletionRequest, type CompletionResponse, type EgressInfo, type LLMProvider } from './types.js'
@@ -23,6 +24,19 @@ export interface ModelAdapterConfig {
    * reported usage afterwards. Omit for no limits.
    */
   budgets?: BudgetsConfig
+  /**
+   * Shared transactional budget reservations. The coding profile supplies a
+   * per-project database by default when hard limits are configured. Direct
+   * LLMService users may opt in explicitly.
+   */
+  sharedBudget?: {
+    databasePath: string
+    projectId: string
+    /** Expected maximum provider-call duration. Default 30 minutes. */
+    reservationTtlMs?: number
+    /** Retention bound for abandoned reservations and idempotency records. Default 24 hours. */
+    maxReservationTtlMs?: number
+  }
   /** Output tokens reserved for a call that sets no `maxTokens`. Default 1024. */
   reserveOutputTokens?: number
   /**
@@ -75,7 +89,18 @@ export class LLMService extends Service {
     super(ctx, 'llm')
     this.defaultName = config.default
     this.egressConsent = config.egress?.consent === true
-    if (config.budgets) this.gate = new BudgetGate(new Budgets(config.budgets), config.reserveOutputTokens)
+    if (config.sharedBudget) {
+      const { databasePath, projectId, reservationTtlMs = 30 * 60 * 1000, maxReservationTtlMs = 24 * 60 * 60 * 1000 } = config.sharedBudget
+      if (!isAbsolute(databasePath) || !projectId.trim()) throw new LLMError('config', 'sharedBudget requires an absolute databasePath and non-empty projectId')
+      if (config.budgets?.statePath) throw new LLMError('config', 'sharedBudget cannot be combined with the legacy budgets.statePath; migrate daily usage before enabling shared reservations')
+      if (!Number.isSafeInteger(reservationTtlMs) || reservationTtlMs < 1_000 || reservationTtlMs > maxReservationTtlMs) {
+        throw new LLMError('config', 'sharedBudget reservationTtlMs must be at least 1000 ms and no greater than maxReservationTtlMs')
+      }
+      const store = new SQLiteBudgetReservationStore(databasePath, { maxReservationTtlMs })
+      this.gate = new BudgetGate(new Budgets(config.budgets), config.reserveOutputTokens, store, { projectId, reservationTtlMs })
+    } else if (config.budgets) {
+      this.gate = new BudgetGate(new Budgets(config.budgets), config.reserveOutputTokens)
+    }
     if (config.rateLimit) this.limiter = new RateLimiter(config.rateLimit)
     if (config.ollama) {
       const provider = new OllamaProvider(config.ollama)
@@ -182,20 +207,27 @@ export class LLMService extends Service {
     let reservation: CallReservation | undefined
     if (this.gate) {
       try {
-        reservation = this.gate.reserve(redacted)
+        reservation = await this.gate.reserveAsync(redacted, sessionId)
       } catch (e) {
-        if (!(e instanceof BudgetExceededError)) throw e
-        await log.append(sessionId, 'budget.blocked', { provider: name, metric: e.metric, scope: e.scope, status: e.status }, actor)
-        throw new LLMError('budget', e.message, name)
+        if (e instanceof BudgetExceededError) {
+          await log.append(sessionId, 'budget.blocked', { provider: name, metric: e.metric, scope: e.scope, status: e.status }, actor)
+          throw new LLMError('budget', e.message, name)
+        }
+        if (config.sharedBudget) {
+          await log.append(sessionId, 'budget.blocked', { provider: name, reason: 'shared_reservation_unavailable' }, actor)
+          throw new LLMError('budget', 'shared budget reservation failed; refusing to dispatch the model request', name)
+        }
+        if (e instanceof BudgetReservationStoreError) throw new LLMError('budget', e.message, name)
+        throw e
       }
     }
     const book = async (usage: { inputTokens: number; outputTokens: number } | undefined, failed: boolean, dispatched = true) => {
       if (!reservation) return
       if (!dispatched) {
-        reservation.release()
+        await reservation.releaseAsync()
         return
       }
-      const spent = failed ? reservation.fail() : reservation.settle(usage)
+      const spent = failed ? await reservation.failAsync() : await reservation.settleAsync(usage)
       const soft = spent.flatMap((r) => r.newlySoftBreached)
       if (soft.length) await log.append(sessionId, 'budget.warning', { provider: name, softBreached: soft }, actor).catch(() => {})
     }
@@ -211,6 +243,7 @@ export class LLMService extends Service {
     }
 
     let dispatchStarted = false
+    let providerReturned = false
     const dispatch = () => {
       // The limiter has checked cancellation while waiting. Once it consumes a quota slot,
       // invoke the provider even if the signal just fired; the provider receives the signal.
@@ -220,8 +253,14 @@ export class LLMService extends Service {
     }
     try {
       const res = await (this.limiter ? this.limiter.run(dispatch, signal) : dispatch())
+      providerReturned = true
       const out: CompletionResponse = { provider: name, ...res }
-      await book(out.usage, false)
+      try {
+        await book(out.usage, false)
+      } catch {
+        await log.append(sessionId, 'budget.accounting_error', { provider: name, reason: 'shared_settlement_failed' }, actor).catch(() => {})
+        throw new LLMError('budget', 'provider returned a response but shared budget settlement failed; the reservation may remain held until expiry', name)
+      }
       await log.append(
         sessionId,
         'model.response',
@@ -231,7 +270,7 @@ export class LLMService extends Service {
       return out
     } catch (e: any) {
       const err = e instanceof LLMError ? e : new LLMError('unknown', `${name}: ${e?.message ?? String(e)}`, name)
-      await book(undefined, true, dispatchStarted) // only charge a failed request after provider dispatch began
+      if (!providerReturned) await book(undefined, true, dispatchStarted).catch(() => {}) // only charge a failed request after provider dispatch began
       await log.append(sessionId, 'model.error', { provider: name, kind: err.kind, status: err.status, message: err.message }, actor)
       throw err
     }
