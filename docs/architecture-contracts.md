@@ -1,6 +1,6 @@
 # Architecture contracts and migration safety
 
-Status: Phase 1 contract baseline plus two Phase 2 implementation slices. Backend-neutral contracts live in `src/architecture/contracts.ts`. PR #128 merged a file-backed SQLite transaction/migration foundation in `src/util/sqlite.ts` using sql.js WebAssembly and the existing cross-process file lock. PR #129 adds `SQLiteBudgetReservationStore` in `src/bundles/app-core/budgets.ts`; PR #130 wires it into `BudgetGate`/`LLMService` for configured session/day hard limits. The coding profile uses `.harness/state.sqlite` per project when hard limits are configured. Rate-limit and lease stores remain unimplemented. Each write reloads and exports the full database, so this layer is for bounded coordination metadata.
+Status: Phase 1 contract baseline plus three Phase 2 implementation slices. Backend-neutral contracts live in `src/architecture/contracts.ts`. PR #128 merged a file-backed SQLite transaction/migration foundation in `src/util/sqlite.ts` using sql.js WebAssembly and the existing cross-process file lock. PR #129 adds `SQLiteBudgetReservationStore` in `src/bundles/app-core/budgets.ts`; PR #130 wires it into `BudgetGate`/`LLMService` for configured session/day hard limits. The coding profile uses `.harness/state.sqlite` per project when hard limits are configured. Rate-limit and lease stores remain unimplemented. Each write reloads and exports the full database, so this layer is for bounded coordination metadata.
 
 ## Scope and constraints
 
