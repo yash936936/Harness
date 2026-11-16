@@ -1,6 +1,6 @@
 # Full codebase audit checklist
 
-Baseline: `main` at `4fff23a5a1c3bf6444eeb5fbe898ecd57e843d06` (2026-11-16). Main CI run #838 (`43868684870`) passed all 10 jobs.
+Baseline: `main` at `0e2e38d5ea9e5b40d74422abccda4d9173c00b33` (2026-11-16). Post-merge main CI run #862 (`43876511421`) passed all 10 jobs.
 Audit continuation branch: `docs/audit-findings-050-051-closeout-2026-11`.
 
 This is a staged, evidence-based audit. Review each file, then each folder, then cross-folder flows. The follow-up fix pass updates selected findings but does not claim the full file-by-file audit is complete. Do not remove code solely because it appears old or duplicated; first verify imports, runtime registration, scripts, tests, docs, and history. Do not weaken D-110/D-117/D-118 security boundaries.
