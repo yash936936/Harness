@@ -106,8 +106,8 @@ export class CallReservation {
         actualAmount: usageAmount(hold.metric, hold.reservation.reservedAmount, usage),
         idempotencyKey: hold.settlementKey,
       })))
-      failure = results.find((result) => result.status === 'rejected')
-      if (failure && failure.status === 'rejected') failure = failure.reason
+      const rejected = results.find((result) => result.status === 'rejected')
+      if (rejected?.status === 'rejected') failure = rejected.reason
     }
     const spent = this.settleLocal(usage)
     if (failure !== undefined) throw failure
