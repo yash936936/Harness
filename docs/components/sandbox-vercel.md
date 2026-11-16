@@ -24,9 +24,10 @@ A host integration must construct and register `VercelSandboxProvider` with `ctx
 
 - Workspace snapshot/upload/download, secret and sensitive-file exclusion, symlink/path defenses, transfer limits, conflict-safe result application, and lifecycle audit are incomplete.
 - Profile/CLI registration is intentionally absent. Keep `COMMAND_TOOL` disabled until those controls and tests pass.
-- Fake-client tests prove adapter behavior against the fake only.
+- Main currently drains the SDK log iterator after reaching the output cap; it does not call `Command.kill()`. Draft PR #123 proposes SIGTERM at the cap but is unmerged and has no verified CI result for its corrected head.
+- Fake-client tests prove adapter behavior against the fake only. Live SDK internal buffering and remote process termination remain unverified.
 - Live smoke is an empty-sandbox `true` command, not project acceptance.
-- The development dependency tree previously resolved `undici@7.29.0` through `just-bash -> guarded-fetch`; the lockfile and package override now pin that nested dependency to patched `undici@7.30.2`. Re-run `npm audit` and the full CI matrix to verify the remediation.
+- Root package overrides pin `@vercel/cli-config`'s nested Zod to 4.6.7 and `guarded-fetch`'s nested undici to 7.30.2. Current dependency-audit status is established by the main CI run, not the historical audit-branch report.
 - S4 is open, cloud-only, and not passed. See [STATE.md](../STATE.md).
 
 <!-- BEGIN GENERATED: do not edit between markers -->
