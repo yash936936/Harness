@@ -210,7 +210,15 @@ export class BudgetGate {
     req: Pick<CompletionRequest, 'messages' | 'system' | 'tools' | 'maxTokens'>,
     sessionId?: string,
   ): Promise<CallReservation> {
-    const local = this.reserveLocal(req)
+    let local: CallReservation
+    try {
+      local = this.reserveLocal(req)
+    } catch (error) {
+      if (error instanceof BudgetExceededError && this.sharedStore && this.sharedConfig) {
+        throw new BudgetExceededError(error.metric, error.scope, await this.statusAsync(sessionId))
+      }
+      throw error
+    }
     if (!this.sharedStore || !this.sharedConfig) return local
 
     const callId = randomUUID()
