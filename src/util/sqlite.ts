@@ -83,9 +83,11 @@ const LEDGER_SQL = `CREATE TABLE IF NOT EXISTS schema_migrations (
  * sql.js is SQLite compiled to WebAssembly. Each write reloads the database
  * while holding the repository's cross-process local-filesystem lock, runs a
  * SQLite transaction, exports to a unique temporary file, and atomically
- * replaces the database. Read-only operations load one complete snapshot without
- * taking the write lock. This serializes writers across processes and avoids
- * native SQLite binaries across the supported Windows/Linux matrix.
+ * replaces the database. Readers use the same lock whenever the database file
+ * exists so Windows can safely replace it without an open reader handle. A
+ * read of a not-yet-created database returns an empty snapshot without creating
+ * directories. This serializes file access across processes and avoids native
+ * SQLite binaries across the supported Windows/Linux matrix.
  *
  * This is intended for bounded coordination metadata, not large event or
  * vector stores: every write reloads and exports the complete database.
@@ -178,15 +180,29 @@ export class SQLiteDatabase implements MigrationCoordinator {
 
   /** Execute a read-only callback against one consistent database snapshot. */
   async read<T>(fn: (db: SQLiteConnection) => T | Promise<T>): Promise<T> {
-    // Atomic replacement means readers observe either the old or new complete
-    // database. Avoid creating directories or acquiring a write lock for plans
-    // and other read-only inspection.
-    const db = await this.load()
+    // A missing database is a consistent empty snapshot. Avoid creating its
+    // parent directory for read-only planning. Once the file exists, readers
+    // must share the writer lock: Windows refuses to rename over a file while
+    // another process still has an open read handle.
     try {
-      return await fn(db)
-    } finally {
-      db.close()
+      await lstat(this.path)
+    } catch (error) {
+      if (!isMissing(error)) throw error
+      const empty = await this.load()
+      try {
+        return await fn(empty)
+      } finally {
+        empty.close()
+      }
     }
+    return this.withLock(async () => {
+      const db = await this.load()
+      try {
+        return await fn(db)
+      } finally {
+        db.close()
+      }
+    })
   }
 
   /**
