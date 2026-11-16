@@ -366,6 +366,15 @@ const BUDGET_RESERVATION_MIGRATIONS: readonly SQLiteMigration[] = [{
       created_at TEXT NOT NULL,
       PRIMARY KEY (project_id, idempotency_key)
     );
+    CREATE TABLE budget_settlements (
+      project_id TEXT NOT NULL,
+      idempotency_key TEXT NOT NULL,
+      request_hash TEXT NOT NULL,
+      reservation_id TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (project_id, idempotency_key)
+    );
   `,
 }]
 
@@ -501,6 +510,7 @@ export class SQLiteBudgetReservationStore implements BudgetReservationStore {
     const cutoff = new Date(Date.parse(now) - this.maxReservationTtlMs).toISOString()
     db.run("DELETE FROM budget_reservations WHERE expires_at <= ? AND state IN ('expired', 'released', 'settled')", [cutoff])
     db.run('DELETE FROM budget_idempotency WHERE expires_at <= ?', [cutoff])
+    db.run('DELETE FROM budget_settlements WHERE expires_at <= ?', [cutoff])
   }
 
   async reserve(input: BudgetReservationRequest): Promise<ReservationDecision> {
@@ -581,6 +591,22 @@ export class SQLiteBudgetReservationStore implements BudgetReservationStore {
         [input.reservationId],
       )[0]
       if (!row) throw new BudgetReservationStoreError(`budget reservations: reservation ${input.reservationId} does not exist`)
+      const projectId = String(row['project_id'])
+      const requestHash = createHash('sha256').update(JSON.stringify({
+        reservationId: input.reservationId,
+        actualAmount: input.actualAmount,
+      }), 'utf8').digest('hex')
+      const existingSettlement = this.query(
+        db,
+        'SELECT request_hash FROM budget_settlements WHERE project_id = ? AND idempotency_key = ?',
+        [projectId, input.idempotencyKey],
+      )[0]
+      if (existingSettlement) {
+        if (String(existingSettlement['request_hash']) !== requestHash) {
+          throw new BudgetReservationStoreError('budget reservations: settlement idempotency key was reused with a different command')
+        }
+        return this.reservation(db, input.reservationId)
+      }
       const state = String(row['state'])
       if (state === 'settled') {
         if (row['settlement_key'] === input.idempotencyKey && Number(row['settlement_amount']) === input.actualAmount) {
@@ -606,6 +632,10 @@ export class SQLiteBudgetReservationStore implements BudgetReservationStore {
       db.run(
         "UPDATE budget_reservations SET state = 'settled', actual_amount = ?, settlement_key = ?, settlement_amount = ?, updated_at = ? WHERE reservation_id = ?",
         [input.actualAmount, input.idempotencyKey, input.actualAmount, now, input.reservationId],
+      )
+      db.run(
+        'INSERT INTO budget_settlements (project_id, idempotency_key, request_hash, reservation_id, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+        [projectId, input.idempotencyKey, requestHash, input.reservationId, String(row['expires_at']), now],
       )
       return this.reservation(db, input.reservationId)
     })
