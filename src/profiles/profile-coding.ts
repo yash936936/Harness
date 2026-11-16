@@ -1,5 +1,5 @@
 import { Context } from 'cordis'
-import { isAbsolute } from 'node:path'
+import { isAbsolute, join } from 'node:path'
 import { SessionLog, type SessionLogConfig } from '../bundles/session-log/index.js'
 import { EgressPolicy, type EgressConfig } from '../bundles/egress/index.js'
 import { LLMService, type ModelAdapterConfig } from '../bundles/model-adapter/index.js'
@@ -39,6 +39,13 @@ export const DEFAULT_CODING_BUDGETS: BudgetsConfig = {
   requests: { session: { soft: 400, hard: 600 } },
   tokens: { session: { soft: 1_500_000, hard: 2_500_000 } },
 }
+
+function hasHardBudgetLimits(config: BudgetsConfig): boolean {
+  return (['requests', 'tokens'] as const).some((metric) =>
+    Object.values(config[metric] ?? {}).some((limit) => limit?.hard !== undefined),
+  )
+}
+
 
 export const MIN_CONFIDENCE_THRESHOLD = 0.5
 
@@ -154,7 +161,13 @@ export async function bootProfileCoding(config: ProfileCodingConfig): Promise<Co
   try {
     await ctx.plugin(SessionLog, config.sessionLog)
     await ctx.plugin(EgressPolicy, { ...config.egress, projectId: config.projectId })
-    await ctx.plugin(LLMService, { ...config.modelAdapter, budgets: config.modelAdapter?.budgets ?? DEFAULT_CODING_BUDGETS })
+    const budgets = config.modelAdapter?.budgets ?? DEFAULT_CODING_BUDGETS
+    const sharedBudget = config.modelAdapter?.sharedBudget ?? (
+      hasHardBudgetLimits(budgets) && !budgets.statePath
+        ? { databasePath: join(root, '.harness', 'state.sqlite'), projectId: config.projectId }
+        : undefined
+    )
+    await ctx.plugin(LLMService, { ...config.modelAdapter, budgets, ...(sharedBudget ? { sharedBudget } : {}) })
     await ctx.plugin(ToolRegistry, config.toolRegistry)
     await ctx.plugin(Subprocess, config.subprocess)
     await ctx.plugin(Sandbox)
