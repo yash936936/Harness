@@ -1,6 +1,6 @@
 # Roadmap: Harness audit closeout and scalable architecture
 
-Updated 2026-11-16, main `5ebd1156c31c02b62e79f779becbb4ef7dd05dab`. PR #126 merged Vercel output-cap SIGTERM handling; PR #128 merged the SQLite transaction/migration foundation and post-merge main CI #852 passed all 10 jobs. PR #129 adds the SQLite budget reservation store and is awaiting CI. This is the active implementation roadmap. Phase 0 is complete on the merged audit PR. Phase 1 contract artifacts are drafted and all four D-119 policy choices are approved and recorded. Numeric baselines now cover session logs, episodic memory, reservations (legacy negative control), retrieval indexing, semantic reindex, and fake-provider streaming. Shared SQLite runtime, task workspaces, live Vercel acceptance, and bounded total-memory/query paths remain open. Current project state and binding constraints are in [STATE.md](STATE.md); architecture decisions are in [decisions.md](decisions.md); detailed findings are tracked in [CODEBASE-AUDIT-CHECKLIST.md](CODEBASE-AUDIT-CHECKLIST.md).
+Updated 2026-11-16, main `0e2e38d5ea9e5b40d74422abccda4d9173c00b33`. PR #128 merged the SQLite transaction/migration foundation and PR #129 merged the cross-process budget reservation store. PR #130 integrates shared session/day reservations into the model-call path and is awaiting CI. This is the active implementation roadmap. Phase 0 is complete on the merged audit PR. Phase 1 contract artifacts are drafted and all four D-119 policy choices are approved and recorded. Numeric baselines now cover session logs, episodic memory, reservations (legacy negative control), retrieval indexing, semantic reindex, and fake-provider streaming. Shared SQLite runtime, task workspaces, live Vercel acceptance, and bounded total-memory/query paths remain open. Current project state and binding constraints are in [STATE.md](STATE.md); architecture decisions are in [decisions.md](decisions.md); detailed findings are tracked in [CODEBASE-AUDIT-CHECKLIST.md](CODEBASE-AUDIT-CHECKLIST.md).
 
 ## Target outcome
 
@@ -20,7 +20,7 @@ Complete the current security and reliability audit, then migrate Harness toward
 | Priority | Findings | Required work |
 |---|---|---|
 | P1 | AUD-007, AUD-008 | Tail cursors reduce same-process session-log scans and episodic writes are bounded. Remove remaining full-history scans, add indexed episode identity lookup, and add paged queries with rebuild/recovery. |
-| P1 | AUD-015, AUD-044 | PR #129 adds a standalone SQLite budget reservation store. Integrate it with `BudgetGate`/`LLMService`, then move rate-limit windows and concurrency permits to shared transactions. |
+| P1 | AUD-015, AUD-044 | PR #130 integrates SQLite budget reservations into `BudgetGate`/`LLMService`; migrate rate-limit windows and concurrency permits to shared transactions. |
 | P1 | AUD-039 | Add task-scoped workspace sessions, capability checks, lease ownership, safe transfer, result synchronization, and verified cleanup. |
 
 | P2 | AUD-014, AUD-025 | Queue/cache bounds are implemented. Add bounded searchable-memory quotas, paging, batched vector upserts, and resumable semantic reindexing without deleting durable history automatically. |
@@ -68,13 +68,14 @@ Withdrawn findings AUD-009, AUD-022, and AUD-027 must remain withdrawn unless ne
 
 ### Phase 2: SQLite shared-state foundation
 
-**Status: database foundation merged; standalone budget reservation store in PR #129; runtime integration remains open.**
+**Status: database foundation and reservation store merged; model-call integration in PR #130; rate-limit and lease stores remain open.**
 
 - PR #128 merged a file-backed SQLite transaction and migration coordinator using sql.js WebAssembly plus the existing cross-process file lock. It verifies checksums, rejects stale plans, rolls back callback failures, and atomically replaces the database file. Each write reloads/exports the full database, so this layer is for bounded coordination metadata, not large durable-history or vector datasets.
-- PR #129 adds `SQLiteBudgetReservationStore`: atomic committed-plus-reserved checks, hard-limit consistency per subject, idempotent accepted/rejected decisions, one-time settlement of actual usage, release, and bounded reservation/idempotency cleanup. It is not yet connected to `Budgets`, `BudgetGate`, or `LLMService`.
+- PR #129 adds `SQLiteBudgetReservationStore`: atomic committed-plus-reserved checks, hard-limit consistency per subject, idempotent accepted/rejected decisions, one-time settlement of actual usage, release, and bounded reservation/idempotency cleanup.
+- PR #130 wires the store into `BudgetGate`/`LLMService` for configured session/day hard limits. The coding profile defaults to `.harness/state.sqlite` per project when hard limits are configured. Synchronous budget status remains process-local; use `statusAsync(sessionId)` for refreshed shared usage.
 - Add SQLite provider and versioned migrations.
 - Add transaction helpers, bounded busy handling, constraints, and recovery.
-- Integrate the standalone budget store with `Budgets`, `BudgetGate`, and `LLMService` first; then migrate rate-limit windows/concurrency permits and workspace lease metadata.
+- Shared budget reservations are integrated for session/day hard limits. Next migrate rate-limit windows/concurrency permits and workspace lease metadata.
 - Ensure one authoritative write path at each migration stage; do not perform uncoordinated dual writes.
 - Keep the provider interface independent of SQLite so a server database can be added if deployment topology changes.
 
