@@ -596,6 +596,9 @@ export class SQLiteBudgetReservationStore implements BudgetReservationStore {
         [String(row['project_id']), String(row['subject_id']), String(row['metric'])],
       )[0]
       if (!usage) throw new BudgetReservationStoreError('budget reservations: committed usage aggregate is missing')
+      if (!Number.isFinite(Number(usage['committed_amount']) + input.actualAmount)) {
+        throw new BudgetReservationStoreError('budget reservations: committed usage would exceed the finite numeric range')
+      }
       db.run(
         'UPDATE budget_usage SET committed_amount = committed_amount + ? WHERE project_id = ? AND subject_id = ? AND metric = ?',
         [input.actualAmount, String(row['project_id']), String(row['subject_id']), String(row['metric'])],
