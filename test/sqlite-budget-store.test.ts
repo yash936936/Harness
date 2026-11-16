@@ -82,6 +82,23 @@ describe('SQLite budget reservation store', () => {
       .resolves.toEqual({ accepted: false, reason: 'limit-exceeded' })
   })
 
+  it('does not allow a settlement idempotency key to be reused for another reservation', async () => {
+    const store = new SQLiteBudgetReservationStore(join(temp(), 'state.sqlite'))
+    const first = await store.reserve(request({ idempotencyKey: 'request:settle-a', hardLimit: 2 }))
+    const second = await store.reserve(request({ idempotencyKey: 'request:settle-b', hardLimit: 2 }))
+    if (!first.accepted || !second.accepted) throw new Error('test reservations were unexpectedly rejected')
+    await store.settle({
+      reservationId: first.reservation.reservationId,
+      actualAmount: 1,
+      idempotencyKey: 'settlement:shared',
+    })
+    await expect(store.settle({
+      reservationId: second.reservation.reservationId,
+      actualAmount: 1,
+      idempotencyKey: 'settlement:shared',
+    })).rejects.toThrow(/settlement idempotency key was reused/)
+  })
+
   it('releases a live reservation idempotently and allows the capacity to be reserved again', async () => {
     const store = new SQLiteBudgetReservationStore(join(temp(), 'state.sqlite'))
     const result = await store.reserve(request({ hardLimit: 1 }))
