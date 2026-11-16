@@ -17,6 +17,12 @@ export { MockProvider } from './providers/mock.js'
 export { RateLimiter, type RateLimiterConfig } from './rate-limiter.js'
 export { BudgetGate, CallReservation, estimateRequestTokens, DEFAULT_OUTPUT_TOKEN_RESERVE } from './budget-gate.js'
 
+function hasSharedHardBudgetLimits(config: BudgetsConfig | undefined): boolean {
+  return (['requests', 'tokens'] as const).some((metric) =>
+    (['session', 'day'] as const).some((scope) => config?.[metric]?.[scope]?.hard !== undefined),
+  )
+}
+
 export interface ModelAdapterConfig {
   /**
    * Request and token budgets enforced for EVERY model call through `ctx.llm` (ARCH-03): capacity is reserved before the
@@ -92,6 +98,9 @@ export class LLMService extends Service {
     this.egressConsent = config.egress?.consent === true
     this.sharedBudgetConfigured = config.sharedBudget !== undefined
     if (config.sharedBudget) {
+      if (!hasSharedHardBudgetLimits(config.budgets)) {
+        throw new LLMError('config', 'sharedBudget requires at least one session/day hard budget limit')
+      }
       const { databasePath, projectId, reservationTtlMs = 30 * 60 * 1000, maxReservationTtlMs = 24 * 60 * 60 * 1000 } = config.sharedBudget
       if (typeof databasePath !== 'string' || !isAbsolute(databasePath) || typeof projectId !== 'string' || !projectId.trim()) {
         throw new LLMError('config', 'sharedBudget requires an absolute databasePath and non-empty projectId')
