@@ -220,6 +220,12 @@ export class BudgetGate {
       throw error
     }
     if (!this.sharedStore || !this.sharedConfig) return local
+    const hasSessionHardLimit = this.budgets.hardLimit('requests', 'session') !== undefined ||
+      this.budgets.hardLimit('tokens', 'session') !== undefined
+    if (hasSessionHardLimit && (typeof sessionId !== 'string' || !sessionId.trim())) {
+      local.release()
+      throw new BudgetReservationStoreError('budget gate: sessionId is required for shared session hard limits')
+    }
 
     const callId = randomUUID()
     const expiresAt = new Date(this.budgets.currentTimestamp() + this.reservationTtlMs).toISOString()
