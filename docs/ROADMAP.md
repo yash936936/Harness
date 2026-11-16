@@ -1,6 +1,6 @@
 # Roadmap: Harness audit closeout and scalable architecture
 
-Updated 2026-11-16, main `46e12e6343a76e34a910de447a82a8415644bae8`. PR #124 is merged; main CI run #838 (`43868684870`) passed all 10 jobs. This is the active implementation roadmap. Phase 0 is complete on the merged audit PR. Phase 1 contract artifacts are drafted and all four D-119 policy choices are approved and recorded. Numeric baselines now cover session logs, episodic memory, reservations (legacy negative control), retrieval indexing, semantic reindex, and fake-provider streaming. Shared SQLite runtime, task workspaces, live Vercel acceptance, and bounded total-memory/query paths remain open. Current project state and binding constraints are in [STATE.md](STATE.md); architecture decisions are in [decisions.md](decisions.md); detailed findings are tracked in [CODEBASE-AUDIT-CHECKLIST.md](CODEBASE-AUDIT-CHECKLIST.md).
+Updated 2026-11-16, main `4fff23a5a1c3bf6444eeb5fbe898ecd57e843d06`. PR #126 merged Vercel output-cap SIGTERM handling; PR CI run #846 passed all 10 jobs and post-merge main CI #847 is pending. This is the active implementation roadmap. Phase 0 is complete on the merged audit PR. Phase 1 contract artifacts are drafted and all four D-119 policy choices are approved and recorded. Numeric baselines now cover session logs, episodic memory, reservations (legacy negative control), retrieval indexing, semantic reindex, and fake-provider streaming. Shared SQLite runtime, task workspaces, live Vercel acceptance, and bounded total-memory/query paths remain open. Current project state and binding constraints are in [STATE.md](STATE.md); architecture decisions are in [decisions.md](decisions.md); detailed findings are tracked in [CODEBASE-AUDIT-CHECKLIST.md](CODEBASE-AUDIT-CHECKLIST.md).
 
 ## Target outcome
 
@@ -25,7 +25,7 @@ Complete the current security and reliability audit, then migrate Harness toward
 
 | P2 | AUD-014, AUD-025 | Queue/cache bounds are implemented. Add bounded searchable-memory quotas, paging, batched vector upserts, and resumable semantic reindexing without deleting durable history automatically. |
 | P2 | AUD-016 | Collection ownership and safer replacement are implemented in PR #113. Bound prepared chunks/vectors for large files; measure vector search and decide whether/when ANN is justified. |
-| P2 | AUD-023 | Vercel async log capture and bounded per-stream buffers are implemented on main. Replacement PR #126 is based on current main and proposes SIGTERM at the cap; its CI must pass before merge, followed by live SDK internal-buffer and remote-termination acceptance. Stale draft PR #123 should not be merged. |
+| P2 | AUD-023 | Vercel async log capture and bounded per-stream buffers are implemented on main. PR #126 merged SIGTERM at the cap and passed its full PR CI matrix. Live SDK internal-buffer and remote-termination acceptance remain open. Stale draft PR #123 was closed as superseded. |
 | P2 | Audit remainder | Finish the incomplete file-by-file audit, verify each status against code and tests, and correct stale or unsupported register claims. |
 
 AUD-021 is fixed in main: late sandbox creation is awaited, deletion is awaited, and cleanup failures are surfaced. Keep AUD-039 open for the separate workspace-session and transfer redesign. AUD-048 and AUD-049 are fixed in main through PR #101, merged as `67fd1666fec0ae55ea4473459c36bce78fc5b611`; the expanded head passed CI run #768. AUD-050 is fixed in PR #102 (CI run #777); AUD-051 is fixed in PR #103 (CI run #780). PRs #113-124 are merged: retrieval ownership/replacement, stricter CI gates and full dependency audit, bounded session/semantic/episodic queues, D-117 host-path shutdown, bounded tool-output serialization, batched semantic reindex, follow-up documentation synchronization in #122, and Markdown consolidation in #124. Main CI run #838 (`43868684870`) passed all 10 jobs. This does not establish live sandbox/model acceptance. The remaining file-by-file audit is still incomplete.
@@ -100,7 +100,7 @@ Withdrawn findings AUD-009, AUD-022, and AUD-027 must remain withdrawn unless ne
 
 ### Phase 5: Streaming output enforcement
 
-**Status: partial.** Main consumes `Command.logs()` and retains bounded stdout/stderr buffers; it still drains after the cap. PR #126 proposes SIGTERM at the cap. Tool-result JSON serialization is also bounded by PR #119.
+**Status: partial.** Main consumes `Command.logs()`, retains bounded stdout/stderr buffers, and sends SIGTERM when either stream exceeds its cap. Tool-result JSON serialization is also bounded by PR #119. Live SDK buffering and remote termination remain unverified.
 
 - Count output bytes as chunks arrive.
 - Bound buffered stdout/stderr independently where required by the public contract.
