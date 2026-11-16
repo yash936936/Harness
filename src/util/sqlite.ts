@@ -80,11 +80,12 @@ const LEDGER_SQL = `CREATE TABLE IF NOT EXISTS schema_migrations (
 /**
  * File-backed SQLite for small shared coordination state.
  *
- * sql.js is SQLite compiled to WebAssembly. Each operation reloads the database
+ * sql.js is SQLite compiled to WebAssembly. Each write reloads the database
  * while holding the repository's cross-process local-filesystem lock, runs a
  * SQLite transaction, exports to a unique temporary file, and atomically
- * replaces the database. This deliberately serializes writers across processes
- * and avoids native SQLite binaries across the supported Windows/Linux matrix.
+ * replaces the database. Read-only operations load one complete snapshot without
+ * taking the write lock. This serializes writers across processes and avoids
+ * native SQLite binaries across the supported Windows/Linux matrix.
  *
  * This is intended for bounded coordination metadata, not large event or
  * vector stores: every write reloads and exports the complete database.
