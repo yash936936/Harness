@@ -68,13 +68,16 @@ Withdrawn findings AUD-009, AUD-022, and AUD-027 must remain withdrawn unless ne
 
 ### Phase 2: SQLite shared-state foundation
 
+**Status: initial database foundation in PR #128; domain-store integration remains open.**
+
+- PR #128 adds a file-backed SQLite transaction and migration coordinator using sql.js WebAssembly plus the existing cross-process file lock. It verifies checksums, rejects stale plans, rolls back callback failures, and atomically replaces the database file. Each write reloads/exports the full database, so this layer is for bounded coordination metadata, not large durable-history or vector datasets.
 - Add SQLite provider and versioned migrations.
 - Add transaction helpers, bounded busy handling, constraints, and recovery.
 - Migrate budget reservations first, then rate-limit and concurrency reservations, then workspace lease metadata.
 - Ensure one authoritative write path at each migration stage; do not perform uncoordinated dual writes.
 - Keep the provider interface independent of SQLite so a server database can be added if deployment topology changes.
 
-**Exit:** independent-process tests prove budgets and rate limits cannot be oversubscribed; migration and recovery tests pass.
+**Exit:** independent-process tests prove budgets and rate limits cannot be oversubscribed; migration and recovery tests pass. PR #128's foundation tests do not yet prove budget/rate-limit correctness.
 
 ### Phase 3: Durable history and bounded memory
 
