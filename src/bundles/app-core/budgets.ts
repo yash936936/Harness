@@ -1,7 +1,9 @@
 import { mkdirSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
 import { assertNoSymlinkParentsSync, readTextFileSyncNoFollow } from '../../util/secure-file.js'
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { dirname } from 'node:path'
+import { SQLiteDatabase, type SQLiteConnection, type SQLiteMigration, type SQLiteValue } from '../../util/sqlite.js'
+import type { BudgetReservation, BudgetReservationRequest, BudgetReservationStore, BudgetSettlement, ReservationDecision } from '../../architecture/contracts.js'
 
 export type BudgetScope = 'task' | 'session' | 'day'
 export type BudgetMetric = 'requests' | 'tokens'
@@ -318,5 +320,341 @@ export class Budgets {
 
   resetSession(): void {
     this.session = { requests: 0, tokens: 0 }
+  }
+}
+
+
+/* ---------------------------------------------------------------- shared SQLite reservations */
+
+const BUDGET_RESERVATION_MIGRATIONS: readonly SQLiteMigration[] = [{
+  version: 1,
+  id: 'budget-reservations',
+  sql: `
+    CREATE TABLE budget_usage (
+      project_id TEXT NOT NULL,
+      subject_id TEXT NOT NULL,
+      metric TEXT NOT NULL CHECK (metric IN ('requests', 'tokens', 'bytes', 'operations')),
+      committed_amount REAL NOT NULL CHECK (committed_amount >= 0),
+      hard_limit REAL NOT NULL CHECK (hard_limit >= 0),
+      PRIMARY KEY (project_id, subject_id, metric)
+    );
+    CREATE TABLE budget_reservations (
+      reservation_id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      subject_id TEXT NOT NULL,
+      metric TEXT NOT NULL CHECK (metric IN ('requests', 'tokens', 'bytes', 'operations')),
+      reserved_amount REAL NOT NULL CHECK (reserved_amount >= 0),
+      state TEXT NOT NULL CHECK (state IN ('reserved', 'settled', 'released', 'expired')),
+      expires_at TEXT NOT NULL,
+      actual_amount REAL,
+      settlement_key TEXT,
+      settlement_amount REAL,
+      release_reason TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX budget_reservations_subject_state
+      ON budget_reservations (project_id, subject_id, metric, state, expires_at);
+    CREATE TABLE budget_idempotency (
+      project_id TEXT NOT NULL,
+      idempotency_key TEXT NOT NULL,
+      request_hash TEXT NOT NULL,
+      accepted INTEGER NOT NULL CHECK (accepted IN (0, 1)),
+      reservation_id TEXT,
+      reason TEXT,
+      expires_at TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (project_id, idempotency_key)
+    );
+    CREATE TABLE budget_settlements (
+      project_id TEXT NOT NULL,
+      idempotency_key TEXT NOT NULL,
+      request_hash TEXT NOT NULL,
+      reservation_id TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (project_id, idempotency_key)
+    );
+  `,
+}]
+
+export interface SQLiteBudgetReservationStoreOptions {
+  /** Injectable clock for tests. */
+  now?: () => number
+  /** Bounds live reservations and the idempotency replay window. Default 24 hours. */
+  maxReservationTtlMs?: number
+}
+
+/** Errors are fail-closed: callers must not dispatch when reservation state is uncertain. */
+export class BudgetReservationStoreError extends Error {
+  override name = 'BudgetReservationStoreError'
+}
+
+/**
+ * Cross-process budget reservations backed by the shared SQLite database.
+ *
+ * Settled usage is folded into one aggregate per (project, subject, metric).
+ * Active reservations and idempotency records are retained only through a
+ * bounded expiry/grace window, keeping this database suitable for coordination
+ * metadata rather than an unbounded event history.
+ */
+export class SQLiteBudgetReservationStore implements BudgetReservationStore {
+  private readonly database: SQLiteDatabase
+  private readonly now: () => number
+  private readonly maxReservationTtlMs: number
+  private readyPromise?: Promise<void>
+
+  constructor(path: string, options: SQLiteBudgetReservationStoreOptions = {}) {
+    this.database = new SQLiteDatabase(path, BUDGET_RESERVATION_MIGRATIONS)
+    this.now = options.now ?? Date.now
+    this.maxReservationTtlMs = options.maxReservationTtlMs ?? 24 * 60 * 60 * 1000
+    if (!Number.isSafeInteger(this.maxReservationTtlMs) || this.maxReservationTtlMs < 1_000 || this.maxReservationTtlMs > 7 * 24 * 60 * 60 * 1000) {
+      throw new RangeError('budget reservations: maxReservationTtlMs must be from 1000 ms to 7 days')
+    }
+  }
+
+  private async ready(): Promise<void> {
+    if (!this.readyPromise) this.readyPromise = this.initialize()
+    await this.readyPromise
+  }
+
+  private async initialize(): Promise<void> {
+    const plan = await this.database.plan()
+    if (plan.pending.length) {
+      try {
+        await this.database.apply(plan)
+      } catch (error) {
+        // Another Harness process may have applied the same migration after our
+        // read-only plan. Re-plan once; never ignore a checksum or schema error.
+        const current = await this.database.plan()
+        if (current.pending.length) await this.database.apply(current)
+        else if (current.currentVersion < current.targetVersion) throw error
+      }
+    }
+    await this.database.verify()
+  }
+
+  private timestamp(): string {
+    const value = this.now()
+    if (!Number.isFinite(value)) throw new RangeError('budget reservations: clock must return a finite timestamp')
+    return new Date(value).toISOString()
+  }
+
+  private validateRequest(input: BudgetReservationRequest): { nowMs: number; expiresAt: string; requestHash: string } {
+    if (!input || typeof input !== 'object') throw new TypeError('budget reservations: request must be an object')
+    for (const [name, value] of [['projectId', input.projectId], ['subjectId', input.subjectId]] as const) {
+      if (typeof value !== 'string' || !value.trim() || value.length > 256) {
+        throw new TypeError(`budget reservations: ${name} must be a non-empty string of at most 256 characters`)
+      }
+    }
+    if (typeof input.idempotencyKey !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/.test(input.idempotencyKey)) {
+      throw new TypeError('budget reservations: idempotencyKey must be a safe opaque identifier of at most 256 characters')
+    }
+    if (!['requests', 'tokens', 'bytes', 'operations'].includes(input.metric)) {
+      throw new TypeError('budget reservations: unsupported metric')
+    }
+    if (!Number.isFinite(input.amount) || input.amount < 0 || !Number.isFinite(input.hardLimit) || input.hardLimit < 0) {
+      throw new RangeError('budget reservations: amount and hardLimit must be finite non-negative numbers')
+    }
+    const nowMs = this.now()
+    if (!Number.isFinite(nowMs)) throw new RangeError('budget reservations: clock must return a finite timestamp')
+    const expiryMs = Date.parse(input.expiresAt)
+    if (!Number.isFinite(expiryMs) || expiryMs <= nowMs || expiryMs - nowMs > this.maxReservationTtlMs) {
+      throw new RangeError(`budget reservations: expiresAt must be in the future and within ${this.maxReservationTtlMs} ms`)
+    }
+    const expiresAt = new Date(expiryMs).toISOString()
+    const payload = JSON.stringify({
+      projectId: input.projectId,
+      subjectId: input.subjectId,
+      metric: input.metric,
+      amount: input.amount,
+      hardLimit: input.hardLimit,
+      expiresAt,
+    })
+    return { nowMs, expiresAt, requestHash: createHash('sha256').update(payload, 'utf8').digest('hex') }
+  }
+
+  private query(db: SQLiteConnection, sql: string, values: readonly SQLiteValue[] = []): Record<string, unknown>[] {
+    const statement = db.prepare(sql)
+    try {
+      if (values.length) statement.bind(values)
+      const result: Record<string, unknown>[] = []
+      while (statement.step()) result.push(statement.getAsObject())
+      return result
+    } finally {
+      statement.free()
+    }
+  }
+
+  private reservation(db: SQLiteConnection, id: string): BudgetReservation {
+    const row = this.query(db, 'SELECT reservation_id, project_id, subject_id, metric, reserved_amount, state, expires_at FROM budget_reservations WHERE reservation_id = ?', [id])[0]
+    if (!row) throw new BudgetReservationStoreError(`budget reservations: reservation ${id} does not exist`)
+    return {
+      reservationId: String(row['reservation_id']),
+      projectId: String(row['project_id']),
+      subjectId: String(row['subject_id']),
+      metric: String(row['metric']) as BudgetReservation['metric'],
+      reservedAmount: Number(row['reserved_amount']),
+      state: String(row['state']) as BudgetReservation['state'],
+      expiresAt: String(row['expires_at']),
+    }
+  }
+
+  private cleanup(db: SQLiteConnection, now: string): void {
+    db.run(
+      "UPDATE budget_reservations SET state = 'expired', updated_at = ? WHERE state = 'reserved' AND expires_at <= ?",
+      [now, now],
+    )
+    // Keep expired/released/settled reservation records for one additional
+    // maximum-TTL window so a late settlement can still account actual usage.
+    const cutoff = new Date(Date.parse(now) - this.maxReservationTtlMs).toISOString()
+    db.run("DELETE FROM budget_reservations WHERE expires_at <= ? AND state IN ('expired', 'released', 'settled')", [cutoff])
+    db.run('DELETE FROM budget_idempotency WHERE expires_at <= ?', [cutoff])
+    db.run('DELETE FROM budget_settlements WHERE expires_at <= ?', [cutoff])
+  }
+
+  async reserve(input: BudgetReservationRequest): Promise<ReservationDecision> {
+    const validated = this.validateRequest(input)
+    await this.ready()
+    return this.database.transaction((db) => {
+      const now = new Date(validated.nowMs).toISOString()
+      this.cleanup(db, now)
+      const existing = this.query(
+        db,
+        'SELECT request_hash, accepted, reservation_id, reason FROM budget_idempotency WHERE project_id = ? AND idempotency_key = ?',
+        [input.projectId, input.idempotencyKey],
+      )[0]
+      if (existing) {
+        if (String(existing['request_hash']) !== validated.requestHash) {
+          return { accepted: false, reason: 'idempotency-conflict' }
+        }
+        if (Number(existing['accepted']) === 0) {
+          return { accepted: false, reason: String(existing['reason']) as 'limit-exceeded' }
+        }
+        return { accepted: true, reservation: this.reservation(db, String(existing['reservation_id'])) }
+      }
+
+      let usage = this.query(
+        db,
+        'SELECT committed_amount, hard_limit FROM budget_usage WHERE project_id = ? AND subject_id = ? AND metric = ?',
+        [input.projectId, input.subjectId, input.metric],
+      )[0]
+      if (!usage) {
+        db.run(
+          'INSERT INTO budget_usage (project_id, subject_id, metric, committed_amount, hard_limit) VALUES (?, ?, ?, 0, ?)',
+          [input.projectId, input.subjectId, input.metric, input.hardLimit],
+        )
+        usage = { committed_amount: 0, hard_limit: input.hardLimit }
+      } else if (Number(usage['hard_limit']) !== input.hardLimit) {
+        throw new BudgetReservationStoreError('budget reservations: hard limit changed for an existing project/subject/metric; use a new subject id or perform an explicit migration')
+      }
+      const held = this.query(
+        db,
+        "SELECT COALESCE(SUM(reserved_amount), 0) AS amount FROM budget_reservations WHERE project_id = ? AND subject_id = ? AND metric = ? AND state = 'reserved' AND expires_at > ?",
+        [input.projectId, input.subjectId, input.metric, now],
+      )[0]
+      const committed = usage ? Number(usage['committed_amount']) : 0
+      const reserved = held ? Number(held['amount']) : 0
+      const expiresAt = validated.expiresAt
+      if (committed + reserved + input.amount > input.hardLimit) {
+        db.run(
+          'INSERT INTO budget_idempotency (project_id, idempotency_key, request_hash, accepted, reservation_id, reason, expires_at, created_at) VALUES (?, ?, ?, 0, NULL, ?, ?, ?)',
+          [input.projectId, input.idempotencyKey, validated.requestHash, 'limit-exceeded', expiresAt, now],
+        )
+        return { accepted: false, reason: 'limit-exceeded' }
+      }
+
+      const reservationId = randomUUID()
+      db.run(
+        "INSERT INTO budget_reservations (reservation_id, project_id, subject_id, metric, reserved_amount, state, expires_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'reserved', ?, ?, ?)",
+        [reservationId, input.projectId, input.subjectId, input.metric, input.amount, validated.expiresAt, now, now],
+      )
+      db.run(
+        'INSERT INTO budget_idempotency (project_id, idempotency_key, request_hash, accepted, reservation_id, reason, expires_at, created_at) VALUES (?, ?, ?, 1, ?, NULL, ?, ?)',
+        [input.projectId, input.idempotencyKey, validated.requestHash, reservationId, expiresAt, now],
+      )
+      return { accepted: true, reservation: this.reservation(db, reservationId) }
+    })
+  }
+
+  async settle(input: BudgetSettlement): Promise<BudgetReservation> {
+    if (!input || typeof input.reservationId !== 'string' || !input.reservationId.trim() ||
+        typeof input.idempotencyKey !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/.test(input.idempotencyKey) ||
+        !Number.isFinite(input.actualAmount) || input.actualAmount < 0) {
+      throw new TypeError('budget reservations: settlement requires a reservation id, idempotency key, and finite non-negative actualAmount')
+    }
+    await this.ready()
+    return this.database.transaction((db) => {
+      const row = this.query(
+        db,
+        'SELECT project_id, subject_id, metric, state, settlement_key, settlement_amount, expires_at FROM budget_reservations WHERE reservation_id = ?',
+        [input.reservationId],
+      )[0]
+      if (!row) throw new BudgetReservationStoreError(`budget reservations: reservation ${input.reservationId} does not exist`)
+      const projectId = String(row['project_id'])
+      const requestHash = createHash('sha256').update(JSON.stringify({
+        reservationId: input.reservationId,
+        actualAmount: input.actualAmount,
+      }), 'utf8').digest('hex')
+      const existingSettlement = this.query(
+        db,
+        'SELECT request_hash FROM budget_settlements WHERE project_id = ? AND idempotency_key = ?',
+        [projectId, input.idempotencyKey],
+      )[0]
+      if (existingSettlement) {
+        if (String(existingSettlement['request_hash']) !== requestHash) {
+          throw new BudgetReservationStoreError('budget reservations: settlement idempotency key was reused with a different command')
+        }
+        return this.reservation(db, input.reservationId)
+      }
+      const state = String(row['state'])
+      if (state === 'settled') {
+        if (row['settlement_key'] === input.idempotencyKey && Number(row['settlement_amount']) === input.actualAmount) {
+          return this.reservation(db, input.reservationId)
+        }
+        throw new BudgetReservationStoreError('budget reservations: reservation was already settled with a different command')
+      }
+      if (state === 'released') throw new BudgetReservationStoreError('budget reservations: a released reservation cannot be settled')
+      const now = this.timestamp()
+      const usage = this.query(
+        db,
+        'SELECT committed_amount FROM budget_usage WHERE project_id = ? AND subject_id = ? AND metric = ?',
+        [String(row['project_id']), String(row['subject_id']), String(row['metric'])],
+      )[0]
+      if (!usage) throw new BudgetReservationStoreError('budget reservations: committed usage aggregate is missing')
+      if (!Number.isFinite(Number(usage['committed_amount']) + input.actualAmount)) {
+        throw new BudgetReservationStoreError('budget reservations: committed usage would exceed the finite numeric range')
+      }
+      db.run(
+        'UPDATE budget_usage SET committed_amount = committed_amount + ? WHERE project_id = ? AND subject_id = ? AND metric = ?',
+        [input.actualAmount, String(row['project_id']), String(row['subject_id']), String(row['metric'])],
+      )
+      db.run(
+        "UPDATE budget_reservations SET state = 'settled', actual_amount = ?, settlement_key = ?, settlement_amount = ?, updated_at = ? WHERE reservation_id = ?",
+        [input.actualAmount, input.idempotencyKey, input.actualAmount, now, input.reservationId],
+      )
+      db.run(
+        'INSERT INTO budget_settlements (project_id, idempotency_key, request_hash, reservation_id, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+        [projectId, input.idempotencyKey, requestHash, input.reservationId, String(row['expires_at']), now],
+      )
+      return this.reservation(db, input.reservationId)
+    })
+  }
+
+  async release(reservationId: string, reason: string): Promise<BudgetReservation> {
+    if (typeof reservationId !== 'string' || !reservationId.trim() || typeof reason !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$/.test(reason)) {
+      throw new TypeError('budget reservations: release requires a reservation id and a short reason code (letters, digits, dot, underscore, colon, or hyphen)')
+    }
+    await this.ready()
+    return this.database.transaction((db) => {
+      const current = this.reservation(db, reservationId)
+      if (current.state !== 'reserved') return current
+      const now = this.timestamp()
+      db.run(
+        "UPDATE budget_reservations SET state = 'released', release_reason = ?, updated_at = ? WHERE reservation_id = ? AND state = 'reserved'",
+        [reason, now, reservationId],
+      )
+      return this.reservation(db, reservationId)
+    })
   }
 }
