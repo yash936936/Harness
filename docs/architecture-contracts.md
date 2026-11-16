@@ -69,7 +69,7 @@ Status: Phase 1 contract baseline plus two Phase 2 implementation slices. Backen
 | Step | Change | Compatibility strategy | Exit evidence |
 |---|---|---|---|
 | 1 | Add backend-neutral contracts | Type-only additions; no runtime wiring | Typecheck and contract review |
-| 2 | Add SQLite schema ledger and transaction layer | PR #128 adds the file-backed transaction/migration foundation; existing JSON/file stores remain authoritative until domain stores are integrated | Migration, checksum drift, rollback, symlink, and independent-process transaction tests |
+| 2 | Add SQLite schema ledger and transaction layer | PR #128 merged the file-backed transaction/migration foundation; existing JSON/file stores remain authoritative until domain stores are integrated | Migration, checksum drift, rollback, symlink, and independent-process transaction tests |
 | 3 | Move budget reservations | PR #129 adds a standalone SQLite store; integrate it with `Budgets`/`BudgetGate`/`LLMService` before cutover | Independent-process oversubscription, settlement, expiry, and compatibility tests |
 | 4 | Move rate limits and leases | Preserve public limiter/provider facades through adapters | Race, expiry, fencing and crash-recovery tests |
 | 5 | Optimize durable history and episodic memory | Read old formats; build indexes as rebuildable sidecars | 100k-event append/query and torn-tail tests |
