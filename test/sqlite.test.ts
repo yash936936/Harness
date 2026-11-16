@@ -33,7 +33,7 @@ function runWorker(path: string, count: number): Promise<void> {
       stdio: ['ignore', 'ignore', 'pipe'],
     })
     let stderr = ''
-    child.stderr.on('data', (chunk) => { stderr += chunk })
+    child.stderr?.on('data', (chunk) => { stderr += chunk })
     child.once('error', reject)
     child.once('exit', (code) => {
       if (code === 0) resolve()
