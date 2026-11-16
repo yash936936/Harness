@@ -73,7 +73,7 @@ Withdrawn findings AUD-009, AUD-022, and AUD-027 must remain withdrawn unless ne
 - PR #128 merged a file-backed SQLite transaction and migration coordinator using sql.js WebAssembly plus the existing cross-process file lock. It verifies checksums, rejects stale plans, rolls back callback failures, and atomically replaces the database file. Each write reloads/exports the full database, so this layer is for bounded coordination metadata, not large durable-history or vector datasets.
 - PR #129 adds `SQLiteBudgetReservationStore`: atomic committed-plus-reserved checks, hard-limit consistency per subject, idempotent accepted/rejected decisions, one-time settlement of actual usage, release, and bounded reservation/idempotency cleanup.
 - PR #130 wires the store into `BudgetGate`/`LLMService` for configured session/day hard limits. The coding profile defaults to `.harness/state.sqlite` per project when hard limits are configured. Synchronous budget status remains process-local; use `statusAsync(sessionId)` for refreshed shared usage.
-- Add SQLite provider and versioned migrations.
+- SQLite transaction/migration foundation and versioned migration ledger are merged via PR #128.
 - Add transaction helpers, bounded busy handling, constraints, and recovery.
 - Shared budget reservations are integrated for session/day hard limits. Next migrate rate-limit windows/concurrency permits and workspace lease metadata.
 - Ensure one authoritative write path at each migration stage; do not perform uncoordinated dual writes.
