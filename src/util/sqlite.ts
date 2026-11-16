@@ -177,14 +177,15 @@ export class SQLiteDatabase implements MigrationCoordinator {
 
   /** Execute a read-only callback against one consistent database snapshot. */
   async read<T>(fn: (db: SQLiteConnection) => T | Promise<T>): Promise<T> {
-    return this.withLock(async () => {
-      const db = await this.load()
-      try {
-        return await fn(db)
-      } finally {
-        db.close()
-      }
-    })
+    // Atomic replacement means readers observe either the old or new complete
+    // database. Avoid creating directories or acquiring a write lock for plans
+    // and other read-only inspection.
+    const db = await this.load()
+    try {
+      return await fn(db)
+    } finally {
+      db.close()
+    }
   }
 
   /**
