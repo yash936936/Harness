@@ -1,3 +1,12 @@
+## 2026-11-16 Markdown consolidation and current main status (baseline 46e12e63)
+
+- PR #124 merged as `46e12e6343a76e34a910de447a82a8415644bae8`. It synchronized `STATE.md`, `status.md`, `ROADMAP.md`, `BUILD-PLAN.md`, and the audit checklist; removed superseded `docs/AUDIT-CLOSEOUT.md`; and corrected manifest/recurring-audit references.
+- PR #124 CI run #837 (`43868270766`) passed all 10 jobs. Post-merge main CI run #838 (`43868684870`) also passed all 10 jobs, including Ubuntu/Windows Node 20.19.0/22.12.0, documentation drift, dependency/security checks, license inventory, architecture baseline, and `ci-pass`. The acceptance-gates job explicitly does not run live acceptance.
+- Main has 72 Markdown files after the first cleanup. This follow-up removes two additional redundant summaries: the obsolete root Vercel patch-status file and the duplicate owner-decision summary. Their current content is covered by the Vercel component guide, `STATE.md`, `ROADMAP.md`, and append-only `decisions.md`.
+- Main source `src/bundles/sandbox-vercel/index.ts` does not expose `Command.kill()` and continues draining logs after the output cap. Draft PR #123 proposes SIGTERM at the cap but is unmerged, based on an older main SHA, and has no verified CI result for its corrected head. Live SDK buffer and remote termination behavior remain unverified.
+
+---
+
 ## 2026-11-16 current main status (baseline 083b8cc4)
 
 - Current main: `083b8cc4be503dade5acd32fcb5b8eda48cc2a24`. Main CI run #835 (`43758536354`) completed successfully with 10/10 jobs. CI acceptance-gates status does not constitute live Vercel/model acceptance.
