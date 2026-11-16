@@ -280,7 +280,7 @@ export class BudgetGate {
       for (const target of targets) {
         const hard = this.budgets.hardLimit(metric, target.scope)
         const soft = status[metric][target.scope].soft
-        if (hard === undefined && soft === undefined) continue
+        if (hard === undefined) continue
         const usage = await this.sharedStore.usage(this.sharedConfig.projectId, target.subjectId, metric)
         const used = usage.committed + usage.reserved
         status[metric][target.scope] = {
