@@ -1,3 +1,12 @@
+## 2026-11-16 Vercel output-cap cancellation rebased (PR #126)
+
+- Main baseline: `54a6619e728a2c84adb950c86ba5be7ba1cae888`; post-merge CI run #840 passed all 10 jobs, including all four Ubuntu/Windows Node 20.19.0/22.12.0 verification jobs and `ci-pass`.
+- Replacement PR #126 is based on this main commit. It adds a single SIGTERM request through the Vercel SDK command `kill()` when either output stream exceeds its configured cap, fake-client regression coverage, and the benchmark fake method.
+- PR #126 CI is pending. Main behavior is unchanged until merge. Fake-client tests do not prove live SDK buffering or remote process-tree termination; S4 remains open and `COMMAND_TOOL` remains disabled.
+- Stale draft PR #123 is superseded by #126 and should not be merged.
+
+---
+
 ## 2026-11-16 Markdown consolidation and current main status (baseline 46e12e63)
 
 - PR #124 merged as `46e12e6343a76e34a910de447a82a8415644bae8`. It synchronized `STATE.md`, `status.md`, `ROADMAP.md`, `BUILD-PLAN.md`, and the audit checklist; removed superseded `docs/AUDIT-CLOSEOUT.md`; and corrected manifest/recurring-audit references.

@@ -11,7 +11,11 @@ function fake(over: { deleteFails?: boolean; createFails?: boolean; runFails?: E
     async runCommand(options) {
       calls.push(['run', options])
       if (over.runFails) throw over.runFails
-      return { async *logs() { yield { stream: 'stdout' as const, data: 'out' }; yield { stream: 'stderr' as const, data: 'err' } }, async wait() { return { exitCode: 7 } } }
+      return {
+        async *logs() { yield { stream: 'stdout' as const, data: 'out' }; yield { stream: 'stderr' as const, data: 'err' } },
+        async wait() { return { exitCode: 7 } },
+        async kill(signal) { calls.push(['kill', signal]) },
+      }
     },
     async delete() {
       calls.push(['delete'])
@@ -161,12 +165,18 @@ describe('Vercel Sandbox provider (D-118)', () => {
   })
 
   it('bounds stdout and stderr independently', async () => {
+    const killed: Array<string | number | undefined> = []
+    let finishCommand!: (value: { exitCode: number | null }) => void
     const client: VercelSandboxClient = {
       async create() {
         return {
           name: 'sbx-output',
           async runCommand() {
-            return { async *logs() { yield { stream: 'stdout' as const, data: 'abcdef' }; yield { stream: 'stderr' as const, data: 'uvwxyz' } }, async wait() { return { exitCode: 0 } } }
+            return {
+              async *logs() { yield { stream: 'stdout' as const, data: 'abcdef' }; yield { stream: 'stderr' as const, data: 'uvwxyz' } },
+              async wait() { return new Promise<{ exitCode: number | null }>((resolve) => { finishCommand = resolve }) },
+              async kill(signal) { killed.push(signal); finishCommand({ exitCode: 143 }) },
+            }
           },
           async delete() {},
         }
@@ -177,9 +187,13 @@ describe('Vercel Sandbox provider (D-118)', () => {
     const result = await ctx.sandbox.run({ command: ['true'] })
     expect(result.stdout).toBe('abc\n[output truncated by Vercel provider]')
     expect(result.stderr).toBe('uvw\n[output truncated by Vercel provider]')
+    expect(result.exitCode).toBe(143)
+    expect(killed).toEqual(['SIGTERM'])
   })
 
   it('streams output into bounded captures and preserves UTF-8 code points', async () => {
+    const killed: Array<string | number | undefined> = []
+    let finishCommand!: (value: { exitCode: number | null }) => void
     const client: VercelSandboxClient = {
       async create() {
         return {
@@ -190,7 +204,8 @@ describe('Vercel Sandbox provider (D-118)', () => {
                 yield { stream: 'stdout' as const, data: 'ab😀cdef' }
                 yield { stream: 'stderr' as const, data: 'uvwxyz' }
               },
-              async wait() { return { exitCode: 0 } },
+              async wait() { return new Promise<{ exitCode: number | null }>((resolve) => { finishCommand = resolve }) },
+              async kill(signal) { killed.push(signal); finishCommand({ exitCode: 143 }) },
             }
           },
           async delete() {},
@@ -202,6 +217,8 @@ describe('Vercel Sandbox provider (D-118)', () => {
     const result = await ctx.sandbox.run({ command: ['emit'] })
     expect(result.stdout).toBe('ab' + String.fromCharCode(10) + '[output truncated by Vercel provider]')
     expect(result.stderr).toBe('uvwxy' + String.fromCharCode(10) + '[output truncated by Vercel provider]')
+    expect(result.exitCode).toBe(143)
+    expect(killed).toEqual(['SIGTERM'])
   })
   it('deletes the remote sandbox when a command is cancelled', async () => {
     let started!: () => void
