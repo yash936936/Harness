@@ -203,6 +203,21 @@ export class Budgets {
     }
   }
 
+  /** Configured hard ceiling for one scope, if any. */
+  hardLimit(metric: BudgetMetric, scope: BudgetScope): number | undefined {
+    return this.limitFor(metric, scope)?.hard
+  }
+
+  /** Stable UTC day bucket used by shared reservations. */
+  currentDay(): string {
+    return todayUTC(this.now())
+  }
+
+  /** Injectable clock value used to derive reservation expiries consistently. */
+  currentTimestamp(): number {
+    return this.now()
+  }
+
   private limitFor(metric: BudgetMetric, scope: BudgetScope): BudgetLimit | undefined {
     return this.config[metric]?.[scope]
   }
