@@ -97,7 +97,8 @@ This is a staged, evidence-based audit. Review each file, then each folder, then
 - [ ] `src/bundles/vectorstore-lancedb`
 - [ ] `src/cli`
 - [ ] `src/profiles`
-- [ ] `src/util`- [ ] `scripts` (including historical/held utilities)
+- [ ] `src/util`
+- [ ] `scripts` (including historical/held utilities)
 - [ ] `app/desktop/bench`
 - [ ] `test` and `test/fixtures`
 - [ ] Cross-folder integration and data-flow review
