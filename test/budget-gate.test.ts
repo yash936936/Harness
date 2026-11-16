@@ -132,12 +132,14 @@ describe('LLMService enforces the budget before the call', () => {
 
     const firstCall = first.ctx.llm.complete(req({ sessionId: 'shared-session' }))
     await providerStarted
-    const blocked = await second.ctx.llm.complete(req({ sessionId: 'shared-session' })).catch((error) => error)
-    expect(blocked).toBeInstanceOf(LLMError)
-    expect(blocked.kind).toBe('budget')
-    expect(secondProvider.calls).toHaveLength(0)
-
-    finish()
+    try {
+      const blocked = await second.ctx.llm.complete(req({ sessionId: 'shared-session' })).catch((error) => error)
+      expect(blocked).toBeInstanceOf(LLMError)
+      expect(blocked.kind).toBe('budget')
+      expect(secondProvider.calls).toHaveLength(0)
+    } finally {
+      finish()
+    }
     await firstCall
     const status = await second.ctx.llm.budget!.statusAsync('shared-session')
     expect(status.requests.session.used).toBe(1)
@@ -314,11 +316,14 @@ describe('profile-coding meters every run by default', () => {
 
     const firstCall = first.llm.complete(req({ sessionId: 'profile-shared-session' }))
     await providerStarted
-    const blocked = await second.llm.complete(req({ sessionId: 'profile-shared-session' })).catch((error) => error)
-    expect(blocked).toBeInstanceOf(LLMError)
-    expect(blocked.kind).toBe('budget')
-    expect(secondProvider.calls).toHaveLength(0)
-    finish()
+    try {
+      const blocked = await second.llm.complete(req({ sessionId: 'profile-shared-session' })).catch((error) => error)
+      expect(blocked).toBeInstanceOf(LLMError)
+      expect(blocked.kind).toBe('budget')
+      expect(secondProvider.calls).toHaveLength(0)
+    } finally {
+      finish()
+    }
     await firstCall
   })
 })
