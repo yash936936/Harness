@@ -91,12 +91,19 @@ export class LLMService extends Service {
     this.egressConsent = config.egress?.consent === true
     if (config.sharedBudget) {
       const { databasePath, projectId, reservationTtlMs = 30 * 60 * 1000, maxReservationTtlMs = 24 * 60 * 60 * 1000 } = config.sharedBudget
-      if (!isAbsolute(databasePath) || !projectId.trim()) throw new LLMError('config', 'sharedBudget requires an absolute databasePath and non-empty projectId')
+      if (typeof databasePath !== 'string' || !isAbsolute(databasePath) || typeof projectId !== 'string' || !projectId.trim()) {
+        throw new LLMError('config', 'sharedBudget requires an absolute databasePath and non-empty projectId')
+      }
       if (config.budgets?.statePath) throw new LLMError('config', 'sharedBudget cannot be combined with the legacy budgets.statePath; migrate daily usage before enabling shared reservations')
       if (!Number.isSafeInteger(reservationTtlMs) || reservationTtlMs < 1_000 || reservationTtlMs > maxReservationTtlMs) {
         throw new LLMError('config', 'sharedBudget reservationTtlMs must be at least 1000 ms and no greater than maxReservationTtlMs')
       }
-      const store = new SQLiteBudgetReservationStore(databasePath, { maxReservationTtlMs })
+      let store: SQLiteBudgetReservationStore
+      try {
+        store = new SQLiteBudgetReservationStore(databasePath, { maxReservationTtlMs })
+      } catch (error) {
+        throw new LLMError('config', `sharedBudget configuration is invalid: ${error instanceof Error ? error.message : String(error)}`)
+      }
       this.gate = new BudgetGate(new Budgets(config.budgets), config.reserveOutputTokens, store, { projectId, reservationTtlMs })
     } else if (config.budgets) {
       this.gate = new BudgetGate(new Budgets(config.budgets), config.reserveOutputTokens)
