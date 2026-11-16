@@ -42,7 +42,7 @@ export const DEFAULT_CODING_BUDGETS: BudgetsConfig = {
 
 function hasHardBudgetLimits(config: BudgetsConfig): boolean {
   return (['requests', 'tokens'] as const).some((metric) =>
-    Object.values(config[metric] ?? {}).some((limit) => limit?.hard !== undefined),
+    (['session', 'day'] as const).some((scope) => config[metric]?.[scope]?.hard !== undefined),
   )
 }
 
