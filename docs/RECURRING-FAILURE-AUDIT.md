@@ -8,7 +8,7 @@
 
 Date: 2026-11-08  
 Repository: `yash936936/Harness`  
-Scope: evidence available in this Harness project context, the current repository, `docs/debug.md`, `docs/decisions.md`, `docs/BUILD-PLAN.md`, `docs/AUDIT-CLOSEOUT.md`, and Phase 5.1 evidence. This is not a claim that every historical chat was independently retrievable in full.
+Scope: historical evidence available in the Harness project context, `docs/debug.md`, `docs/decisions.md`, `docs/BUILD-PLAN.md`, and Phase 5.1 evidence. This is not a claim that every historical chat was independently retrievable in full.
 
 ## Findings and disposition
 

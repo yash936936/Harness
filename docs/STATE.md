@@ -1,11 +1,12 @@
 # Current project state
 
-Updated 2026-11-16, main `cf79353a0aa66c96354724980288861467257bd9`. This file records the current implementation state and binding project constraints. The active implementation order is in [ROADMAP.md](ROADMAP.md), architecture choices are in [decisions.md](decisions.md), and detailed audit findings are in [CODEBASE-AUDIT-CHECKLIST.md](CODEBASE-AUDIT-CHECKLIST.md).
+Updated 2026-11-16, main `083b8cc4be503dade5acd32fcb5b8eda48cc2a24`. Main CI run #835 (`43758536354`) passed all 10 jobs. This file records the current implementation state and binding project constraints. The active implementation order is in [ROADMAP.md](ROADMAP.md), architecture choices are in [decisions.md](decisions.md), and detailed audit findings are in [CODEBASE-AUDIT-CHECKLIST.md](CODEBASE-AUDIT-CHECKLIST.md).
 
 ## 2026-11-16 current main status
 
-- Current main baseline: `cf79353a0aa66c96354724980288861467257bd9`. The latest post-merge CI run #43757888191 is running; the semantic reindex architecture benchmark passed in run #43757666162. Previous post-merge CI run #43756562349 passed all jobs.
-- PRs #113-121 are merged. PR #120 reconciles audit/state documentation. PR #121 adds 64-fact semantic embedding and vector-upsert batches. Earlier PRs add retrieval collection ownership and safer replacement, strict aggregate CI and full dependency auditing, bounded session/semantic/episodic queues, fail-closed D-117 smoke paths, and bounded tool-output serialization.
+- Current main baseline: `083b8cc4be503dade5acd32fcb5b8eda48cc2a24`. Main CI run #835 (`43758536354`) completed successfully with 10/10 jobs. The acceptance-gates job is a workflow status, not live-provider acceptance.
+- PRs #113-122 are merged. PR #120 reconciles audit/state documentation; PR #121 adds 64-fact semantic embedding/vector-upsert batches; PR #122 synchronizes audit state after #121. Earlier PRs add retrieval collection ownership and safer replacement, strict aggregate CI and full dependency auditing, bounded session/semantic/episodic queues, fail-closed D-117 smoke paths, and bounded tool-output serialization.
+- Draft PR #123 proposes terminating Vercel commands with SIGTERM at the output cap. Its current head is `6c7d5273de628c3a1f9247d5ecbe044a83d4ca47`; the earlier CI failure was traced to a missing `kill()` method in a benchmark fake and a correction was pushed. No CI result for the corrected head was verified during this documentation review. Main still drains after the cap until #123 is merged and verified.
 - Session-log append queues are bounded at 1024 outstanding operations per session; completed queue entries are released and the sequence cache is capped at 256. A validated tail cursor avoids full scans for same-process JSONL appends, but cursor invalidation after restart or external-process writes can still trigger a full scan.
 - Semantic operations are bounded at 256 outstanding operations per service. Persistent episodic writes are bounded at 1024 outstanding operations per store. These limits do not replace D-119's shared SQLite backend, indexed episode identity, durable-history paging, or retention policy.
 - Tool output for plain objects/arrays is serialized incrementally with a character cap plus 10,000-node and 32-level limits. Vercel stdout/stderr capture uses the SDK async logs iterator and bounded per-stream UTF-8 buffers. The Vercel adapter still drains after the output cap; cancel-at-cap and live SDK peak-buffer acceptance remain open.
@@ -96,8 +97,8 @@ These constraints must be enforced in the Phase 2 design and tests. Changing the
 
 | AUD-023 | Bounded Vercel log capture is implemented. Add cancel-at-cap behavior and live SDK buffer acceptance. |
 | AUD-039 | Add task-scoped workspace lifecycle, capabilities, leases, transfer, and result synchronization. |
-| AUD-048 | Fixed in open PR #101: session-log files, locks, and listing reject symlinked parent directories; merged as `67fd166` after the expanded head passed CI run #768. |
-| AUD-049 | Fixed in PR #101, merged as `67fd166`: compaction ledger no-follow reads, parent validation, and unique exclusive temp-file replacement; CI run #768 passed. |
+| AUD-048 | Fixed in main via PR #101: session-log files, locks, and listing reject symlinked parent directories; expanded head passed CI run #768. |
+| AUD-049 | Fixed in main via PR #101: compaction ledger no-follow reads, parent validation, and unique exclusive temp-file replacement; CI run #768 passed. |
 | AUD-050 | Fixed in PR #102, merged as `082e83629ea20ead62e001cf27357bd4952fd6a5`; CI run #777 passed all OS/Node jobs and `ci-pass`. |
 | AUD-051 | Fixed in PR #103, merged as `0bb27968955b218c5ea188f35b3d0939623a32cb`; CI run #780 passed all OS/Node jobs and `ci-pass`. Semantic vector writes now verify the current fact version under the shared lock; delayed removals cannot delete replacements. |
 | Audit remainder | Complete the file-by-file audit and verify each checklist status against code and tests. |
