@@ -23,6 +23,8 @@ A caller installs `AppCore` as `ctx.appCore` or imports its helper exports direc
 - Doctor is a read-only status report, not proof of successful sandbox or live-model acceptance.
 - The default file credential fallback is not equivalent to an OS keychain.
 - Model bindings are reported only when a model-store source is supplied.
+- `SQLiteBudgetReservationStore` is available as an explicit cross-process reservation backend. It is not selected automatically and is not yet wired into `Budgets` or the model-call `BudgetGate`.
+- The SQLite reservation store requires one stable hard limit per project/subject/metric and bounded expiry. It aggregates settled usage and retains idempotency decisions only through the configured expiry/grace window.
 - See D-025 and the current prototype status in `docs/status.md`.
 
 ---
