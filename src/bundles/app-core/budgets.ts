@@ -542,7 +542,7 @@ export class SQLiteBudgetReservationStore implements BudgetReservationStore {
       )[0]
       const committed = usage ? Number(usage['committed_amount']) : 0
       const reserved = held ? Number(held['amount']) : 0
-      const expiresAt = new Date(Date.parse(validated.expiresAt) + this.maxReservationTtlMs).toISOString()
+      const expiresAt = validated.expiresAt
       if (committed + reserved + input.amount > input.hardLimit) {
         db.run(
           'INSERT INTO budget_idempotency (project_id, idempotency_key, request_hash, accepted, reservation_id, reason, expires_at, created_at) VALUES (?, ?, ?, 0, NULL, ?, ?, ?)',
@@ -607,7 +607,7 @@ export class SQLiteBudgetReservationStore implements BudgetReservationStore {
 
   async release(reservationId: string, reason: string): Promise<BudgetReservation> {
     if (typeof reservationId !== 'string' || !reservationId.trim() || typeof reason !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$/.test(reason)) {
-      throw new TypeError('budget reservations: release requires a reservation id and a reason of at most 256 characters')
+      throw new TypeError('budget reservations: release requires a reservation id and a short reason code (letters, digits, dot, underscore, colon, or hyphen)')
     }
     await this.ready()
     return this.database.transaction((db) => {
