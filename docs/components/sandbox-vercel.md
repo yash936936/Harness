@@ -24,7 +24,7 @@ A host integration must construct and register `VercelSandboxProvider` with `ctx
 
 - Workspace snapshot/upload/download, secret and sensitive-file exclusion, symlink/path defenses, transfer limits, conflict-safe result application, and lifecycle audit are incomplete.
 - Profile/CLI registration is intentionally absent. Keep `COMMAND_TOOL` disabled until those controls and tests pass.
-- Main currently drains the SDK log iterator after reaching the output cap; it does not call `Command.kill()`. Draft PR #123 proposes SIGTERM at the cap but is unmerged and has no verified CI result for its corrected head.
+- Main currently drains the SDK log iterator after reaching the output cap; it does not call `Command.kill()`. Replacement PR #126, based on current main, proposes SIGTERM at the cap and is awaiting CI. Stale draft PR #123 should not be merged.
 - Fake-client tests prove adapter behavior against the fake only. Live SDK internal buffering and remote process termination remain unverified.
 - Live smoke is an empty-sandbox `true` command, not project acceptance.
 - Root package overrides pin `@vercel/cli-config`'s nested Zod to 4.6.7 and `guarded-fetch`'s nested undici to 7.30.2. Current dependency-audit status is established by the main CI run, not the historical audit-branch report.
