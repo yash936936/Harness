@@ -1,3 +1,13 @@
+## 2026-11-16 SQLite budget reservation store started (PR #129)
+
+- Main baseline: `5ebd1156c31c02b62e79f779becbb4ef7dd05dab`. PR #128's SQLite transaction/migration foundation merged; post-merge main CI run #852 passed all 10 jobs.
+- PR #129 adds `SQLiteBudgetReservationStore` implementing the shared budget reservation contract: committed usage plus active reservation checks, hard-limit consistency, accepted/rejected idempotency, one-time actual-usage settlement, release, expiry, and bounded cleanup.
+- Its independent-process test starts six workers against a hard limit of one and expects exactly one reservation to succeed. PR #129 CI is pending.
+- This store is not yet integrated into `Budgets`, `BudgetGate`, or `LLMService`. Existing runtime budget enforcement remains process-local. Shared rate-limit windows, concurrency permits, and workspace leases remain open.
+- No local commands were run; GitHub Actions is the test environment under D-117.
+
+---
+
 ## 2026-11-16 SQLite shared-state foundation started (PR #128)
 
 - Main baseline: `09ebc945ae27713f8c531bf99c243c484f6281d9`. PR #126's post-merge main CI run #847 passed all 10 jobs; PR #127 documentation reconciliation passed its full 10-job matrix and was merged.
