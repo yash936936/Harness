@@ -335,6 +335,7 @@ const BUDGET_RESERVATION_MIGRATIONS: readonly SQLiteMigration[] = [{
       subject_id TEXT NOT NULL,
       metric TEXT NOT NULL CHECK (metric IN ('requests', 'tokens', 'bytes', 'operations')),
       committed_amount REAL NOT NULL CHECK (committed_amount >= 0),
+      hard_limit REAL NOT NULL CHECK (hard_limit >= 0),
       PRIMARY KEY (project_id, subject_id, metric)
     );
     CREATE TABLE budget_reservations (
@@ -433,7 +434,7 @@ export class SQLiteBudgetReservationStore implements BudgetReservationStore {
   private validateRequest(input: BudgetReservationRequest): { nowMs: number; expiresAt: string; requestHash: string } {
     if (!input || typeof input !== 'object') throw new TypeError('budget reservations: request must be an object')
     for (const [name, value] of [['projectId', input.projectId], ['subjectId', input.subjectId], ['idempotencyKey', input.idempotencyKey]] as const) {
-      if (typeof value !== 'string' || !value.trim() || value.length > 256) {
+      if (typeof value !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/.test(value)) {
         throw new TypeError(`budget reservations: ${name} must be a non-empty string of at most 256 characters`)
       }
     }
@@ -520,11 +521,20 @@ export class SQLiteBudgetReservationStore implements BudgetReservationStore {
         return { accepted: true, reservation: this.reservation(db, String(existing['reservation_id'])) }
       }
 
-      const usage = this.query(
+      let usage = this.query(
         db,
-        'SELECT committed_amount FROM budget_usage WHERE project_id = ? AND subject_id = ? AND metric = ?',
+        'SELECT committed_amount, hard_limit FROM budget_usage WHERE project_id = ? AND subject_id = ? AND metric = ?',
         [input.projectId, input.subjectId, input.metric],
       )[0]
+      if (!usage) {
+        db.run(
+          'INSERT INTO budget_usage (project_id, subject_id, metric, committed_amount, hard_limit) VALUES (?, ?, ?, 0, ?)',
+          [input.projectId, input.subjectId, input.metric, input.hardLimit],
+        )
+        usage = { committed_amount: 0, hard_limit: input.hardLimit }
+      } else if (Number(usage['hard_limit']) !== input.hardLimit) {
+        throw new BudgetReservationStoreError('budget reservations: hard limit changed for an existing project/subject/metric; use a new subject id or perform an explicit migration')
+      }
       const held = this.query(
         db,
         "SELECT COALESCE(SUM(reserved_amount), 0) AS amount FROM budget_reservations WHERE project_id = ? AND subject_id = ? AND metric = ? AND state = 'reserved' AND expires_at > ?",
@@ -577,12 +587,15 @@ export class SQLiteBudgetReservationStore implements BudgetReservationStore {
       }
       if (state === 'released') throw new BudgetReservationStoreError('budget reservations: a released reservation cannot be settled')
       const now = this.timestamp()
+      const usage = this.query(
+        db,
+        'SELECT committed_amount FROM budget_usage WHERE project_id = ? AND subject_id = ? AND metric = ?',
+        [String(row['project_id']), String(row['subject_id']), String(row['metric'])],
+      )[0]
+      if (!usage) throw new BudgetReservationStoreError('budget reservations: committed usage aggregate is missing')
       db.run(
-        `INSERT INTO budget_usage (project_id, subject_id, metric, committed_amount)
-         VALUES (?, ?, ?, ?)
-         ON CONFLICT (project_id, subject_id, metric)
-         DO UPDATE SET committed_amount = committed_amount + excluded.committed_amount`,
-        [String(row['project_id']), String(row['subject_id']), String(row['metric']), input.actualAmount],
+        'UPDATE budget_usage SET committed_amount = committed_amount + ? WHERE project_id = ? AND subject_id = ? AND metric = ?',
+        [input.actualAmount, String(row['project_id']), String(row['subject_id']), String(row['metric'])],
       )
       db.run(
         "UPDATE budget_reservations SET state = 'settled', actual_amount = ?, settlement_key = ?, settlement_amount = ?, updated_at = ? WHERE reservation_id = ?",
@@ -593,7 +606,7 @@ export class SQLiteBudgetReservationStore implements BudgetReservationStore {
   }
 
   async release(reservationId: string, reason: string): Promise<BudgetReservation> {
-    if (typeof reservationId !== 'string' || !reservationId.trim() || typeof reason !== 'string' || reason.length > 256) {
+    if (typeof reservationId !== 'string' || !reservationId.trim() || typeof reason !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$/.test(reason)) {
       throw new TypeError('budget reservations: release requires a reservation id and a reason of at most 256 characters')
     }
     await this.ready()
