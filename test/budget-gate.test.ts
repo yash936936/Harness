@@ -284,4 +284,41 @@ describe('profile-coding meters every run by default', () => {
   it('accepts the eval option (it was missing from the allowed keys)', async () => {
     await expect(bootProfileCoding({ ...base, eval: { threshold: 0.8 } })).resolves.toBeTruthy()
   })
+
+  it('automatically shares the project SQLite budget database across coding-profile instances', async () => {
+    const root = tempDir()
+    const config = {
+      projectId: 'shared-profile',
+      projectRoot: root,
+      sessionLog: { memory: true },
+      modelAdapter: {
+        budgets: { requests: { session: { hard: 1 } }, tokens: { session: { hard: 10_000 } } },
+      },
+    } as any
+    const first = await bootProfileCoding(config)
+    const second = await bootProfileCoding(config)
+    let started!: () => void
+    let finish!: () => void
+    const providerStarted = new Promise<void>((resolve) => { started = resolve })
+    const providerGate = new Promise<void>((resolve) => { finish = resolve })
+    const firstProvider = new MockProvider(() => ({ text: 'first', usage: { inputTokens: 10, outputTokens: 5 } }))
+    const originalComplete = firstProvider.complete.bind(firstProvider)
+    firstProvider.complete = async (request) => {
+      started()
+      await providerGate
+      return originalComplete(request)
+    }
+    const secondProvider = new MockProvider(() => ({ text: 'second' }))
+    first.llm.register('shared', firstProvider, { default: true })
+    second.llm.register('shared', secondProvider, { default: true })
+
+    const firstCall = first.llm.complete(req({ sessionId: 'profile-shared-session' }))
+    await providerStarted
+    const blocked = await second.llm.complete(req({ sessionId: 'profile-shared-session' })).catch((error) => error)
+    expect(blocked).toBeInstanceOf(LLMError)
+    expect(blocked.kind).toBe('budget')
+    expect(secondProvider.calls).toHaveLength(0)
+    finish()
+    await firstCall
+  })
 })
