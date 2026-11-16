@@ -82,6 +82,7 @@ export class LLMService extends Service {
   private providerEgress = new Map<string, EgressInfo>()
   private defaultName?: string
   private readonly egressConsent: boolean
+  private readonly sharedBudgetConfigured: boolean
   private gate?: BudgetGate
   private readonly limiter?: RateLimiter
 
@@ -89,6 +90,7 @@ export class LLMService extends Service {
     super(ctx, 'llm')
     this.defaultName = config.default
     this.egressConsent = config.egress?.consent === true
+    this.sharedBudgetConfigured = config.sharedBudget !== undefined
     if (config.sharedBudget) {
       const { databasePath, projectId, reservationTtlMs = 30 * 60 * 1000, maxReservationTtlMs = 24 * 60 * 60 * 1000 } = config.sharedBudget
       if (typeof databasePath !== 'string' || !isAbsolute(databasePath) || typeof projectId !== 'string' || !projectId.trim()) {
@@ -220,7 +222,7 @@ export class LLMService extends Service {
           await log.append(sessionId, 'budget.blocked', { provider: name, metric: e.metric, scope: e.scope, status: e.status }, actor)
           throw new LLMError('budget', e.message, name)
         }
-        if (config.sharedBudget) {
+        if (this.sharedBudgetConfigured) {
           await log.append(sessionId, 'budget.blocked', { provider: name, reason: 'shared_reservation_unavailable' }, actor)
           throw new LLMError('budget', 'shared budget reservation failed; refusing to dispatch the model request', name)
         }
