@@ -89,6 +89,7 @@ export class LLMService extends Service {
   private defaultName?: string
   private readonly egressConsent: boolean
   private readonly sharedBudgetConfigured: boolean
+  private readonly sharedSessionBudgetRequiresId: boolean
   private gate?: BudgetGate
   private readonly limiter?: RateLimiter
 
@@ -97,6 +98,9 @@ export class LLMService extends Service {
     this.defaultName = config.default
     this.egressConsent = config.egress?.consent === true
     this.sharedBudgetConfigured = config.sharedBudget !== undefined
+    this.sharedSessionBudgetRequiresId = config.sharedBudget !== undefined && (
+      config.budgets?.requests?.session?.hard !== undefined || config.budgets?.tokens?.session?.hard !== undefined
+    )
     if (config.sharedBudget) {
       if (!hasSharedHardBudgetLimits(config.budgets)) {
         throw new LLMError('config', 'sharedBudget requires at least one session/day hard budget limit')
@@ -176,6 +180,9 @@ export class LLMService extends Service {
     // Snapshot at entry so an async consent check cannot make the logged prompt
     // differ from the request eventually sent to the provider.
     const request = structuredClone(req)
+    if (this.sharedSessionBudgetRequiresId && (typeof request.sessionId !== 'string' || !request.sessionId.trim())) {
+      throw new LLMError('config', 'sessionId is required when shared session hard limits are configured', request.provider ?? this.defaultName ?? '(none)')
+    }
     if (request.maxTokens !== undefined && (!Number.isSafeInteger(request.maxTokens) || request.maxTokens <= 0)) {
       throw new LLMError('config', 'model request: maxTokens must be a positive safe integer', request.provider ?? this.defaultName ?? '(none)')
     }
