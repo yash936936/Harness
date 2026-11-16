@@ -1,3 +1,12 @@
+## 2026-11-16 SQLite shared-state foundation started (PR #128)
+
+- Main baseline: `09ebc945ae27713f8c531bf99c243c484f6281d9`. PR #126's post-merge main CI run #847 passed all 10 jobs; PR #127 documentation reconciliation passed its full 10-job matrix and was merged.
+- PR #128 adds `SQLiteDatabase` using sql.js WebAssembly, the existing cross-process file lock, atomic file replacement, and ordered/checksummed migrations. Tests cover read-only planning, migration application, stale plans, checksum drift, rollback, symlink refusal, and independent-process updates.
+- This foundation reloads and exports the full database on each write, so it is intended only for bounded coordination metadata. Budget reservations, rate-limit windows/permits, and leases are not yet integrated. Phase 2 is not complete and the old process-local budget behavior remains.
+- No local commands were run; PR CI is the test environment under D-117.
+
+---
+
 ## 2026-11-16 Vercel output-cap cancellation merged (PR #126)
 
 - PR #126 merged as `4fff23a5a1c3bf6444eeb5fbe898ecd57e843d06` on top of main `54a6619e728a2c84adb950c86ba5be7ba1cae888`.
