@@ -50,11 +50,12 @@ function runWorker(path: string, key: string, expiresAt: string): Promise<unknow
 describe('SQLite budget reservation store', () => {
   it('returns the original decision for an identical idempotency key and rejects a changed payload', async () => {
     const store = new SQLiteBudgetReservationStore(join(temp(), 'state.sqlite'))
-    const first = await store.reserve(request())
-    const replay = await store.reserve(request())
+    const input = request()
+    const first = await store.reserve(input)
+    const replay = await store.reserve(input)
     expect(first.accepted).toBe(true)
     expect(replay).toEqual(first)
-    const conflict = await store.reserve(request({ amount: 2 }))
+    const conflict = await store.reserve({ ...input, amount: 2 })
     expect(conflict).toEqual({ accepted: false, reason: 'idempotency-conflict' })
   })
 
