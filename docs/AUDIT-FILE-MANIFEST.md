@@ -25,7 +25,7 @@ This manifest lists every tracked file in the Git tree at the merge snapshot, in
 
 - DBG-072 records the module-by-module review of the TypeScript source files and high-risk paths covered by PR #15. The changed implementation and regression-test patches in PR #15 were inspected during this follow-up.
 - Tests and scripts were inventoried and the changed test/script patches were reviewed. CI validates the configured commands, not real Docker, Crabbox, live model providers, human labels, or Tauri runtime behavior.
-- Historical phase/design docs are retained as history; current acceptance truth is in docs/AUDIT-CLOSEOUT.md, docs/status.md, and docs/BUILD-PLAN.md.
+- Historical phase/design docs are retained as history; current acceptance truth is in docs/STATE.md, docs/status.md, docs/ROADMAP.md, and docs/BUILD-PLAN.md.
 - Binary icons are not decoded or visually inspected here. Third-party dependency source code is not vendored; lockfiles and package manifests are reviewed for dependency metadata, with production notice closure still open.
 - The manifest establishes complete tracked-path inventory. It does not claim that every binary payload, every third-party dependency implementation, or every hardware-specific execution path has been dynamically tested.
 
