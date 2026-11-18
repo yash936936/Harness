@@ -192,6 +192,7 @@ export class SQLiteDatabase implements MigrationCoordinator {
       // not re-open the path here: another process may create and atomically
       // replace the database immediately after the lstat, making a second
       // path-based open spuriously look like a symlink/TOCTOU attack.
+      await assertNoSymlinkParents(this.path)
       const engine = await this.engine()
       const empty = new engine.Database()
       try {
