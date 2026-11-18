@@ -1,3 +1,13 @@
+## 2026-11-16 shared budget enforcement integrated (PR #130)
+
+- Main baseline: `0e2e38d5ea9e5b40d74422abccda4d9173c00b33`. PR #129 merged the SQLite budget reservation store after its initial Windows CI failure exposed concurrent read handles blocking atomic replacement. The fix makes existing-file readers share the cross-process lock; the full matrix passed on the corrected head.
+- PR #130 wires shared SQLite reservations into `BudgetGate` and `LLMService`. The coding profile automatically uses `.harness/state.sqlite` per project when hard limits are configured. Shared session/day hard limits reserve before dispatch, settle actual usage, release unused capacity, and fail closed when the store is unavailable.
+- Added two-service and two-profile tests that share one database and prove a second call cannot pass a session hard limit while the first call is in flight. Shared usage is available through `statusAsync(sessionId)`; synchronous status remains process-local.
+- The legacy `budgets.statePath` cannot be combined with shared reservations yet. Rate-limit windows/concurrency permits and workspace leases are still not migrated. PR #130 CI is pending.
+- No local commands were run; GitHub Actions is the test environment under D-117.
+
+---
+
 ## 2026-11-16 SQLite budget reservation store started (PR #129)
 
 - Main baseline: `5ebd1156c31c02b62e79f779becbb4ef7dd05dab`. PR #128's SQLite transaction/migration foundation merged; post-merge main CI run #852 passed all 10 jobs.

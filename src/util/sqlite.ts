@@ -188,7 +188,13 @@ export class SQLiteDatabase implements MigrationCoordinator {
       await lstat(this.path)
     } catch (error) {
       if (!isMissing(error)) throw error
-      const empty = await this.load()
+      // The ENOENT observation is this read's linearization point. Do
+      // not re-open the path here: another process may create and atomically
+      // replace the database immediately after the lstat, making a second
+      // path-based open spuriously look like a symlink/TOCTOU attack.
+      await assertNoSymlinkParents(this.path)
+      const engine = await this.engine()
+      const empty = new engine.Database()
       try {
         return await fn(empty)
       } finally {

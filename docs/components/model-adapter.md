@@ -16,13 +16,17 @@ Profiles install the model-adapter service as `ctx.llm`. Providers such as Ollam
 - Provider request timeouts and retry metadata are carried through structured errors.
 - Remote providers require the egress dependency and per-project consent.
 - API credentials remain in provider-private configuration and are not included in model-visible messages or session events.
-- Budget and rate-limit helpers are separate modules used to bound provider usage.
+- Budget and rate-limit helpers bound provider usage before dispatch. The coding profile enables a per-project SQLite reservation database when session/day hard budget limits are configured.
+- Shared reservations cover session and UTC-day scopes with hard limits. They settle actual provider usage, release unused capacity, and fail closed if the shared database cannot be reached.
+- Direct `LLMService` users can set `sharedBudget: { databasePath, projectId }`. `budgets.statePath` cannot be combined with shared reservations; legacy daily-state migration remains separate.
+- Use `ctx.llm.budget.statusAsync(sessionId)` for refreshed cross-process session/day usage. The synchronous `status()` view is process-local.
 
 ## Known limits
 
 - Provider compatibility does not guarantee identical model behavior or tool-call formats.
 - Retryability is a transport/provider signal, not proof that retrying a task is safe.
 - Live-provider acceptance is separate from unit tests and CI.
+- Rate-limit windows and concurrency permits remain process-local; shared SQLite currently covers budget reservations only.
 - See D-022 and the current S7 status in `docs/status.md`.
 
 ---

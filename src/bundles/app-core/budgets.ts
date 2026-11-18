@@ -203,6 +203,21 @@ export class Budgets {
     }
   }
 
+  /** Configured hard ceiling for one scope, if any. */
+  hardLimit(metric: BudgetMetric, scope: BudgetScope): number | undefined {
+    return this.limitFor(metric, scope)?.hard
+  }
+
+  /** Stable UTC day bucket used by shared reservations. */
+  currentDay(): string {
+    return todayUTC(this.now())
+  }
+
+  /** Injectable clock value used to derive reservation expiries consistently. */
+  currentTimestamp(): number {
+    return this.now()
+  }
+
   private limitFor(metric: BudgetMetric, scope: BudgetScope): BudgetLimit | undefined {
     return this.config[metric]?.[scope]
   }
@@ -511,6 +526,33 @@ export class SQLiteBudgetReservationStore implements BudgetReservationStore {
     db.run("DELETE FROM budget_reservations WHERE expires_at <= ? AND state IN ('expired', 'released', 'settled')", [cutoff])
     db.run('DELETE FROM budget_idempotency WHERE expires_at <= ?', [cutoff])
     db.run('DELETE FROM budget_settlements WHERE expires_at <= ?', [cutoff])
+  }
+
+  /** Shared committed and currently-held usage for one project subject. */
+  async usage(projectId: string, subjectId: string, metric: BudgetReservationRequest['metric']): Promise<{ committed: number; reserved: number; hardLimit?: number }> {
+    if (typeof projectId !== 'string' || !projectId.trim() || typeof subjectId !== 'string' || !subjectId.trim()) {
+      throw new TypeError('budget reservations: usage requires project and subject identifiers')
+    }
+    if (!['requests', 'tokens', 'bytes', 'operations'].includes(metric)) throw new TypeError('budget reservations: unsupported usage metric')
+    await this.ready()
+    const now = this.timestamp()
+    return this.database.read((db) => {
+      const usage = this.query(
+        db,
+        'SELECT committed_amount, hard_limit FROM budget_usage WHERE project_id = ? AND subject_id = ? AND metric = ?',
+        [projectId, subjectId, metric],
+      )[0]
+      const held = this.query(
+        db,
+        "SELECT COALESCE(SUM(reserved_amount), 0) AS amount FROM budget_reservations WHERE project_id = ? AND subject_id = ? AND metric = ? AND state = 'reserved' AND expires_at > ?",
+        [projectId, subjectId, metric, now],
+      )[0]
+      return {
+        committed: usage ? Number(usage['committed_amount']) : 0,
+        reserved: held ? Number(held['amount']) : 0,
+        ...(usage ? { hardLimit: Number(usage['hard_limit']) } : {}),
+      }
+    })
   }
 
   async reserve(input: BudgetReservationRequest): Promise<ReservationDecision> {

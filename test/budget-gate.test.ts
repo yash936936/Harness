@@ -1,6 +1,9 @@
 /** ARCH-03: budgets and rate limits are enforced at the model-call boundary, for every caller. */
 import { Context } from 'cordis'
-import { describe, expect, it } from 'vitest'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, describe, expect, it } from 'vitest'
 import { SessionLog } from '../src/bundles/session-log/index.js'
 import { EgressPolicy } from '../src/bundles/egress/index.js'
 import { AgentLoop } from '../src/bundles/agent-loop/index.js'
@@ -19,6 +22,16 @@ async function boot(cfg: ModelAdapterConfig, provider = new MockProvider(() => (
 }
 const req = (extra: object = {}) => ({ sessionId: 's', messages: [{ role: 'user' as const, content: 'hello' }], maxTokens: 100, ...extra })
 const types = async (ctx: Context) => (await ctx.log.read('s')).map((e) => e.type)
+
+const tempDirs: string[] = []
+function tempDir(): string {
+  const path = mkdtempSync(join(tmpdir(), 'harness-shared-budget-'))
+  tempDirs.push(path)
+  return path
+}
+afterEach(() => {
+  for (const path of tempDirs.splice(0)) rmSync(path, { recursive: true, force: true })
+})
 
 describe('Budgets.reserve / release / record', () => {
   const b = () => new Budgets({ requests: { session: { hard: 100 } } })
@@ -94,6 +107,65 @@ describe('LLMService enforces the budget before the call', () => {
     await ctx.llm.complete(req({ maxTokens: 50 }))
     expect(ctx.llm.budget!.status().tokens.session.used).toBe(1800)
     await expect(ctx.llm.complete(req({ maxTokens: 50 }))).rejects.toMatchObject({ kind: 'budget' })
+  })
+
+  it('rejects combining shared reservations with legacy daily state files', async () => {
+    await expect(boot({
+      budgets: {
+        statePath: join(tempDir(), 'legacy-budget.json'),
+        requests: { session: { hard: 1 } },
+      },
+      sharedBudget: { databasePath: join(tempDir(), 'state.sqlite'), projectId: 'shared-project' },
+    })).rejects.toMatchObject({ kind: 'config' })
+  })
+
+  it('fails closed when a shared session limit has no session identity', async () => {
+    const { ctx, provider } = await boot({
+      budgets: { requests: { session: { hard: 1 } } },
+      sharedBudget: { databasePath: join(tempDir(), 'state.sqlite'), projectId: 'shared-project' },
+    })
+    await expect(ctx.llm.complete({ messages: [{ role: 'user', content: 'hello' }], maxTokens: 100 } as any))
+      .rejects.toMatchObject({ kind: 'config' })
+    expect(provider.calls).toHaveLength(0)
+  })
+
+  it('two LLMService instances share session reservations through SQLite', async () => {
+    let started!: () => void
+    let finish!: () => void
+    const providerStarted = new Promise<void>((resolve) => { started = resolve })
+    const providerGate = new Promise<void>((resolve) => { finish = resolve })
+    const firstProvider = new MockProvider(() => ({ text: 'first', usage: { inputTokens: 10, outputTokens: 5 } }))
+    const originalComplete = firstProvider.complete.bind(firstProvider)
+    firstProvider.complete = async (request) => {
+      started()
+      await providerGate
+      return originalComplete(request)
+    }
+    const secondProvider = new MockProvider(() => ({ text: 'second' }))
+    const sharedBudget = { databasePath: join(tempDir(), 'state.sqlite'), projectId: 'shared-project' }
+    const config: ModelAdapterConfig = {
+      budgets: { requests: { session: { hard: 1 } }, tokens: { session: { hard: 10_000 } } },
+      sharedBudget,
+    }
+    const first = await boot(config, firstProvider)
+    const second = await boot(config, secondProvider)
+
+    const firstCall = first.ctx.llm.complete(req({ sessionId: 'shared-session' }))
+    await providerStarted
+    try {
+      const blocked = await second.ctx.llm.complete(req({ sessionId: 'shared-session' })).catch((error) => error)
+      expect(blocked).toBeInstanceOf(LLMError)
+      expect(blocked.kind).toBe('budget')
+      expect(secondProvider.calls).toHaveLength(0)
+    } finally {
+      finish()
+    }
+    await firstCall
+    const status = await second.ctx.llm.budget!.statusAsync('shared-session')
+    expect(status.requests.session.used).toBe(1)
+    expect(status.tokens.session.used).toBe(15)
+    await expect(second.ctx.llm.complete(req({ sessionId: 'shared-session' }))).rejects.toMatchObject({ kind: 'budget' })
+    expect(secondProvider.calls).toHaveLength(0)
   })
 
   it('CONCURRENT calls cannot jointly exceed a request limit: exactly the allowed number go through', async () => {
@@ -233,5 +305,45 @@ describe('profile-coding meters every run by default', () => {
   })
   it('accepts the eval option (it was missing from the allowed keys)', async () => {
     await expect(bootProfileCoding({ ...base, eval: { threshold: 0.8 } })).resolves.toBeTruthy()
+  })
+
+  it('automatically shares the project SQLite budget database across coding-profile instances', async () => {
+    const root = tempDir()
+    const config = {
+      projectId: 'shared-profile',
+      projectRoot: root,
+      sessionLog: { memory: true },
+      modelAdapter: {
+        budgets: { requests: { session: { hard: 1 } }, tokens: { session: { hard: 10_000 } } },
+      },
+    } as any
+    const first = await bootProfileCoding(config)
+    const second = await bootProfileCoding(config)
+    let started!: () => void
+    let finish!: () => void
+    const providerStarted = new Promise<void>((resolve) => { started = resolve })
+    const providerGate = new Promise<void>((resolve) => { finish = resolve })
+    const firstProvider = new MockProvider(() => ({ text: 'first', usage: { inputTokens: 10, outputTokens: 5 } }))
+    const originalComplete = firstProvider.complete.bind(firstProvider)
+    firstProvider.complete = async (request) => {
+      started()
+      await providerGate
+      return originalComplete(request)
+    }
+    const secondProvider = new MockProvider(() => ({ text: 'second' }))
+    first.llm.register('shared', firstProvider, { default: true })
+    second.llm.register('shared', secondProvider, { default: true })
+
+    const firstCall = first.llm.complete(req({ sessionId: 'profile-shared-session' }))
+    await providerStarted
+    try {
+      const blocked = await second.llm.complete(req({ sessionId: 'profile-shared-session' })).catch((error) => error)
+      expect(blocked).toBeInstanceOf(LLMError)
+      expect(blocked.kind).toBe('budget')
+      expect(secondProvider.calls).toHaveLength(0)
+    } finally {
+      finish()
+    }
+    await firstCall
   })
 })
