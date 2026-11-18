@@ -127,8 +127,8 @@ export class CallReservation {
       const results = await Promise.allSettled(this.shared.holds.map((hold) =>
         this.shared!.store.release(hold.reservation.reservationId, 'provider.not_dispatched'),
       ))
-      const rejected = results.find((result) => result.status === 'rejected')
-      if (rejected?.status === 'rejected') failure = rejected.reason
+      const rejected = results.find((result): result is PromiseRejectedResult => result.status === 'rejected')
+      if (rejected) failure = rejected.reason
     }
     this.releaseLocal()
     if (failure !== undefined) throw failure
@@ -156,8 +156,8 @@ export class CallReservation {
           })
         : this.shared!.store.release(hold.reservation.reservationId, 'provider.failed'),
       ))
-      const rejected = results.find((result) => result.status === 'rejected')
-      if (rejected?.status === 'rejected') failure = rejected.reason
+      const rejected = results.find((result): result is PromiseRejectedResult => result.status === 'rejected')
+      if (rejected) failure = rejected.reason
     }
     const spent = this.failLocal()
     if (failure !== undefined) throw failure
