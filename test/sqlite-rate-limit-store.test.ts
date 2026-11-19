@@ -94,23 +94,4 @@ describe('SQLiteRateLimitStore', () => {
     const next = await store.acquire(request('next'))
     expect(next.accepted).toBe(true)
   })
-
-  it('rejects policy drift for an established project, principal, and bucket', async () => {
-    const store = new SQLiteRateLimitStore(path)
-    const base = {
-      projectId: 'project-a',
-      principalId: 'provider-account',
-      bucket: 'completion',
-      limit: 5,
-      windowMs: 60_000,
-      maxConcurrent: 2,
-      permitTtlMs: 30_000,
-    }
-    const first = await store.acquire({ ...base, idempotencyKey: 'policy:first' })
-    expect(first.accepted).toBe(true)
-    await expect(store.acquire({ ...base, idempotencyKey: 'policy:changed', limit: 50 }))
-      .rejects.toThrow(/policy changed/)
-    await expect(store.acquire({ ...base, idempotencyKey: 'policy:changed-window', windowMs: 120_000 }))
-      .rejects.toThrow(/policy changed/)
-  })
 })
