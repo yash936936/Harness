@@ -79,4 +79,10 @@ describe('SQLiteLeaseStore', () => {
     expect(await store.acquire(request)).toEqual(first)
     expect(await store.acquire({ ...request, ownerId: 'worker-b' })).toEqual({ acquired: false, reason: 'idempotency-conflict' })
   })
+
+  it('coordinates resource ownership across independent processes', async () => {
+    const results = await Promise.all(Array.from({ length: 6 }, (_, index) => runWorker(path, `process:${index}`)))
+    expect(results.filter((result) => (result as { acquired?: boolean }).acquired === true)).toHaveLength(1)
+    expect(results.filter((result) => (result as { acquired?: boolean }).acquired === false)).toHaveLength(5)
+  }, 60_000)
 })
