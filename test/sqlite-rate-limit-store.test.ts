@@ -1,8 +1,26 @@
+import { spawn } from 'node:child_process'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { SQLiteRateLimitStore } from '../src/bundles/app-core/budgets.js'
+
+
+function runWorker(path: string, key: string): Promise<unknown> {
+  const workerPath = join(__dirname, 'fixtures', 'sqlite-coordination-worker.ts')
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, ['--import', 'tsx', workerPath, 'rate', path, key], { stdio: ['ignore', 'pipe', 'pipe'] })
+    let stdout = ''
+    let stderr = ''
+    child.stdout?.on('data', (chunk) => { stdout += chunk })
+    child.stderr?.on('data', (chunk) => { stderr += chunk })
+    child.once('error', reject)
+    child.once('exit', (code) => {
+      if (code !== 0) return reject(new Error(`rate worker exited ${code}: ${stderr.slice(0, 500)}`))
+      try { resolve(JSON.parse(stdout)) } catch { reject(new Error(`rate worker returned invalid JSON: ${stdout.slice(0, 300)}`)) }
+    })
+  })
+}
 
 describe('SQLiteRateLimitStore', () => {
   let dir: string
