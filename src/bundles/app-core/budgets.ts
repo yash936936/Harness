@@ -3,7 +3,7 @@ import { assertNoSymlinkParentsSync, readTextFileSyncNoFollow } from '../../util
 import { createHash, randomUUID } from 'node:crypto'
 import { dirname } from 'node:path'
 import { SQLiteDatabase, type SQLiteConnection, type SQLiteMigration, type SQLiteValue } from '../../util/sqlite.js'
-import type { BudgetReservation, BudgetReservationRequest, BudgetReservationStore, BudgetSettlement, ReservationDecision } from '../../architecture/contracts.js'
+import type { BudgetReservation, BudgetReservationRequest, BudgetReservationStore, BudgetSettlement, ReservationDecision, RateLimitRequest, RateLimitPermit, RateLimitDecision, RateLimitStore } from '../../architecture/contracts.js'
 
 export type BudgetScope = 'task' | 'session' | 'day'
 export type BudgetMetric = 'requests' | 'tokens'
@@ -391,7 +391,180 @@ const BUDGET_RESERVATION_MIGRATIONS: readonly SQLiteMigration[] = [{
       PRIMARY KEY (project_id, idempotency_key)
     );
   `,
+}, {
+  version: 2,
+  id: 'shared-rate-limits',
+  sql: `
+    CREATE TABLE rate_limit_events (
+      event_id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      principal_id TEXT NOT NULL,
+      bucket TEXT NOT NULL,
+      occurred_at INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL
+    );
+    CREATE INDEX rate_limit_events_window
+      ON rate_limit_events (project_id, principal_id, bucket, occurred_at);
+    CREATE TABLE rate_limit_permits (
+      permit_id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      principal_id TEXT NOT NULL,
+      bucket TEXT NOT NULL,
+      fencing_token INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL
+    );
+    CREATE INDEX rate_limit_permits_active
+      ON rate_limit_permits (project_id, principal_id, bucket, expires_at);
+    CREATE TABLE rate_limit_fences (
+      project_id TEXT NOT NULL,
+      principal_id TEXT NOT NULL,
+      bucket TEXT NOT NULL,
+      next_token INTEGER NOT NULL,
+      PRIMARY KEY (project_id, principal_id, bucket)
+    );
+    CREATE TABLE rate_limit_idempotency (
+      project_id TEXT NOT NULL,
+      idempotency_key TEXT NOT NULL,
+      request_hash TEXT NOT NULL,
+      accepted INTEGER NOT NULL CHECK (accepted IN (0, 1)),
+      permit_id TEXT,
+      reason TEXT,
+      retry_at INTEGER,
+      expires_at INTEGER NOT NULL,
+      PRIMARY KEY (project_id, idempotency_key)
+    );
+  `,
 }]
+
+export interface SQLiteRateLimitStoreOptions {
+  now?: () => number
+  maxPermitTtlMs?: number
+}
+
+/** Cross-process sliding-window accounting and concurrency permits in one SQLite transaction. */
+export class SQLiteRateLimitStore implements RateLimitStore {
+  private readonly database: SQLiteDatabase
+  private readonly now: () => number
+  private readonly maxPermitTtlMs: number
+  private readyPromise?: Promise<void>
+
+  constructor(path: string, options: SQLiteRateLimitStoreOptions = {}) {
+    this.database = new SQLiteDatabase(path, BUDGET_RESERVATION_MIGRATIONS)
+    this.now = options.now ?? Date.now
+    this.maxPermitTtlMs = options.maxPermitTtlMs ?? 10 * 60 * 1000
+    if (!Number.isSafeInteger(this.maxPermitTtlMs) || this.maxPermitTtlMs < 1_000 || this.maxPermitTtlMs > 24 * 60 * 60 * 1000) {
+      throw new RangeError('rate limits: maxPermitTtlMs must be from 1000 ms to 24 hours')
+    }
+  }
+
+  private async ready(): Promise<void> {
+    if (!this.readyPromise) this.readyPromise = (async () => {
+      const plan = await this.database.plan()
+      if (plan.pending.length) {
+        try { await this.database.apply(plan) }
+        catch (error) {
+          const current = await this.database.plan()
+          if (current.pending.length) await this.database.apply(current)
+          else if (current.currentVersion < current.targetVersion) throw error
+        }
+      }
+      await this.database.verify()
+    })()
+    await this.readyPromise
+  }
+
+  private query(db: SQLiteConnection, sql: string, values: readonly SQLiteValue[] = []): Record<string, unknown>[] {
+    const statement = db.prepare(sql)
+    try {
+      if (values.length) statement.bind(values)
+      const result: Record<string, unknown>[] = []
+      while (statement.step()) result.push(statement.getAsObject())
+      return result
+    } finally { statement.free() }
+  }
+
+  private permit(db: SQLiteConnection, id: string): RateLimitPermit {
+    const row = this.query(db, 'SELECT permit_id, project_id, principal_id, bucket, fencing_token, expires_at FROM rate_limit_permits WHERE permit_id = ?', [id])[0]
+    if (!row) throw new Error(`rate limits: permit ${id} no longer exists`)
+    return {
+      permitId: String(row['permit_id']),
+      projectId: String(row['project_id']),
+      principalId: String(row['principal_id']),
+      bucket: String(row['bucket']),
+      fencingToken: Number(row['fencing_token']),
+      expiresAt: new Date(Number(row['expires_at'])).toISOString(),
+    }
+  }
+
+  async acquire(input: RateLimitRequest): Promise<RateLimitDecision> {
+    if (!input || typeof input !== 'object') throw new TypeError('rate limits: request must be an object')
+    for (const [name, value] of [['projectId', input.projectId], ['principalId', input.principalId], ['bucket', input.bucket], ['idempotencyKey', input.idempotencyKey]] as const) {
+      if (typeof value !== 'string' || !value.trim() || value.length > 256 || (name === 'idempotencyKey' && !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/.test(value))) {
+        throw new TypeError(`rate limits: ${name} must be a valid non-empty identifier of at most 256 characters`)
+      }
+    }
+    for (const [name, value] of [['limit', input.limit], ['windowMs', input.windowMs], ['maxConcurrent', input.maxConcurrent], ['permitTtlMs', input.permitTtlMs]] as const) {
+      if (!Number.isSafeInteger(value) || value < 1) throw new RangeError(`rate limits: ${name} must be a positive safe integer`)
+    }
+    if (input.permitTtlMs > this.maxPermitTtlMs) throw new RangeError('rate limits: permitTtlMs exceeds configured maximum')
+    const now = this.now()
+    if (!Number.isSafeInteger(now) || now < 0) throw new RangeError('rate limits: clock must return a non-negative safe integer')
+    const expiresAt = now + input.permitTtlMs
+    if (!Number.isSafeInteger(expiresAt)) throw new RangeError('rate limits: permit expiry exceeds safe timestamp range')
+    const requestHash = createHash('sha256').update(JSON.stringify({
+      projectId: input.projectId, principalId: input.principalId, bucket: input.bucket,
+      limit: input.limit, windowMs: input.windowMs, maxConcurrent: input.maxConcurrent, permitTtlMs: input.permitTtlMs,
+    }), 'utf8').digest('hex')
+    await this.ready()
+    return this.database.transaction((db) => {
+      db.run('DELETE FROM rate_limit_events WHERE expires_at <= ?', [now])
+      db.run('DELETE FROM rate_limit_permits WHERE expires_at <= ?', [now])
+      db.run('DELETE FROM rate_limit_idempotency WHERE expires_at <= ?', [now])
+      const prior = this.query(db, 'SELECT request_hash, accepted, permit_id, reason, retry_at FROM rate_limit_idempotency WHERE project_id = ? AND idempotency_key = ?', [input.projectId, input.idempotencyKey])[0]
+      if (prior) {
+        if (String(prior['request_hash']) !== requestHash) return { accepted: false, reason: 'idempotency-conflict' }
+        if (Number(prior['accepted']) === 0) return {
+          accepted: false,
+          reason: String(prior['reason']) as 'rate-limited' | 'concurrency-limit',
+          ...(prior['retry_at'] === null ? {} : { retryAt: new Date(Number(prior['retry_at'])).toISOString() }),
+        }
+        return { accepted: true, permit: this.permit(db, String(prior['permit_id'])) }
+      }
+      const windowStart = now - input.windowMs
+      const events = this.query(db, 'SELECT COUNT(*) AS count, MIN(expires_at) AS retry_at FROM rate_limit_events WHERE project_id = ? AND principal_id = ? AND bucket = ? AND occurred_at > ?', [input.projectId, input.principalId, input.bucket, windowStart])[0]
+      const active = this.query(db, 'SELECT COUNT(*) AS count, MIN(expires_at) AS retry_at FROM rate_limit_permits WHERE project_id = ? AND principal_id = ? AND bucket = ? AND expires_at > ?', [input.projectId, input.principalId, input.bucket, now])[0]
+      const eventCount = Number(events?.['count'] ?? 0)
+      const activeCount = Number(active?.['count'] ?? 0)
+      let reason: 'rate-limited' | 'concurrency-limit' | undefined
+      let retryAt: number | undefined
+      if (eventCount >= input.limit) {
+        reason = 'rate-limited'
+        retryAt = Number(events?.['retry_at'])
+      } else if (activeCount >= input.maxConcurrent) {
+        reason = 'concurrency-limit'
+        retryAt = Number(active?.['retry_at'])
+      }
+      if (reason) {
+        db.run('INSERT INTO rate_limit_idempotency (project_id, idempotency_key, request_hash, accepted, permit_id, reason, retry_at, expires_at) VALUES (?, ?, ?, 0, NULL, ?, ?, ?)', [input.projectId, input.idempotencyKey, requestHash, reason, retryAt ?? null, expiresAt])
+        return { accepted: false, reason, ...(retryAt ? { retryAt: new Date(retryAt).toISOString() } : {}) }
+      }
+      const fence = this.query(db, 'SELECT next_token FROM rate_limit_fences WHERE project_id = ? AND principal_id = ? AND bucket = ?', [input.projectId, input.principalId, input.bucket])[0]
+      const fencingToken = Number(fence?.['next_token'] ?? 1)
+      db.run('INSERT INTO rate_limit_fences (project_id, principal_id, bucket, next_token) VALUES (?, ?, ?, ?) ON CONFLICT(project_id, principal_id, bucket) DO UPDATE SET next_token = excluded.next_token', [input.projectId, input.principalId, input.bucket, fencingToken + 1])
+      const permitId = randomUUID()
+      db.run('INSERT INTO rate_limit_permits (permit_id, project_id, principal_id, bucket, fencing_token, expires_at) VALUES (?, ?, ?, ?, ?, ?)', [permitId, input.projectId, input.principalId, input.bucket, fencingToken, expiresAt])
+      db.run('INSERT INTO rate_limit_events (event_id, project_id, principal_id, bucket, occurred_at, expires_at) VALUES (?, ?, ?, ?, ?, ?)', [randomUUID(), input.projectId, input.principalId, input.bucket, now, now + input.windowMs])
+      db.run('INSERT INTO rate_limit_idempotency (project_id, idempotency_key, request_hash, accepted, permit_id, reason, retry_at, expires_at) VALUES (?, ?, ?, 1, ?, NULL, NULL, ?)', [input.projectId, input.idempotencyKey, requestHash, permitId, expiresAt])
+      return { accepted: true, permit: this.permit(db, permitId) }
+    })
+  }
+
+  async release(permitId: string): Promise<void> {
+    if (typeof permitId !== 'string' || !permitId.trim()) throw new TypeError('rate limits: permitId must be non-empty')
+    await this.ready()
+    await this.database.transaction((db) => { db.run('DELETE FROM rate_limit_permits WHERE permit_id = ?', [permitId]) })
+  }
+}
 
 export interface SQLiteBudgetReservationStoreOptions {
   /** Injectable clock for tests. */
