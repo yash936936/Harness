@@ -556,7 +556,7 @@ export class SQLiteRateLimitStore implements RateLimitStore {
       }
       const windowStart = now - input.windowMs
       const events = this.query(db, 'SELECT COUNT(*) AS count, MIN(expires_at) AS retry_at FROM rate_limit_events WHERE project_id = ? AND principal_id = ? AND bucket = ? AND occurred_at > ?', [input.projectId, input.principalId, input.bucket, windowStart])[0]
-      const active = this.query(db, 'SELECT COUNT(*) AS count, MIN(expires_at) AS retry_at FROM rate_limit_permits WHERE project_id = ? AND principal_id = ? AND bucket = ? AND state = 'active' AND expires_at > ?', [input.projectId, input.principalId, input.bucket, now])[0]
+      const active = this.query(db, "SELECT COUNT(*) AS count, MIN(expires_at) AS retry_at FROM rate_limit_permits WHERE project_id = ? AND principal_id = ? AND bucket = ? AND state = 'active' AND expires_at > ?", [input.projectId, input.principalId, input.bucket, now])[0]
       const eventCount = Number(events?.['count'] ?? 0)
       const activeCount = Number(active?.['count'] ?? 0)
       let reason: 'rate-limited' | 'concurrency-limit' | undefined
@@ -576,7 +576,7 @@ export class SQLiteRateLimitStore implements RateLimitStore {
       const fencingToken = Number(fence?.['next_token'] ?? 1)
       db.run('INSERT INTO rate_limit_fences (project_id, principal_id, bucket, next_token) VALUES (?, ?, ?, ?) ON CONFLICT(project_id, principal_id, bucket) DO UPDATE SET next_token = excluded.next_token', [input.projectId, input.principalId, input.bucket, fencingToken + 1])
       const permitId = randomUUID()
-      db.run('INSERT INTO rate_limit_permits (permit_id, project_id, principal_id, bucket, fencing_token, expires_at, state) VALUES (?, ?, ?, ?, ?, ?, 'active')', [permitId, input.projectId, input.principalId, input.bucket, fencingToken, expiresAt])
+      db.run("INSERT INTO rate_limit_permits (permit_id, project_id, principal_id, bucket, fencing_token, expires_at, state) VALUES (?, ?, ?, ?, ?, ?, 'active')", [permitId, input.projectId, input.principalId, input.bucket, fencingToken, expiresAt])
       db.run('INSERT INTO rate_limit_events (event_id, project_id, principal_id, bucket, occurred_at, expires_at) VALUES (?, ?, ?, ?, ?, ?)', [randomUUID(), input.projectId, input.principalId, input.bucket, now, now + input.windowMs])
       db.run('INSERT INTO rate_limit_idempotency (project_id, idempotency_key, request_hash, accepted, permit_id, reason, retry_at, expires_at) VALUES (?, ?, ?, 1, ?, NULL, NULL, ?)', [input.projectId, input.idempotencyKey, requestHash, permitId, expiresAt])
       return { accepted: true, permit: this.permit(db, permitId) }
