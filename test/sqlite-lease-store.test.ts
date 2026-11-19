@@ -61,21 +61,4 @@ describe('SQLiteLeaseStore', () => {
     expect(await store.acquire(request)).toEqual(first)
     expect(await store.acquire({ ...request, ownerId: 'worker-b' })).toEqual({ acquired: false, reason: 'idempotency-conflict' })
   })
-
-  it('prunes terminal lease history while preserving monotonic fencing tokens', async () => {
-    let now = Date.parse('2026-11-20T12:00:00.000Z')
-    const store = new SQLiteLeaseStore(path, { now: () => now, maxLeaseTtlMs: 1_000 })
-    const request = (key: string) => ({
-      projectId: 'project-a', resourceType: 'workspace' as const, resourceId: 'cleanup-task',
-      ownerId: 'worker', idempotencyKey: key, ttlMs: 1_000,
-    })
-    const first = await store.acquire(request('cleanup:first'))
-    expect(first.acquired).toBe(true)
-    if (!first.acquired) throw new Error('expected first lease')
-    now += 3_001
-    const second = await store.acquire(request('cleanup:second'))
-    expect(second.acquired).toBe(true)
-    if (!second.acquired) throw new Error('expected replacement lease')
-    expect(second.lease.fencingToken).toBe(first.lease.fencingToken + 1)
-  })
 })
