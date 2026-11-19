@@ -112,4 +112,10 @@ describe('SQLiteRateLimitStore', () => {
     const next = await store.acquire(request('next'))
     expect(next.accepted).toBe(true)
   })
+
+  it('coordinates rate limits across independent processes', async () => {
+    const results = await Promise.all(Array.from({ length: 6 }, (_, index) => runWorker(path, `process:${index}`)))
+    expect(results.filter((result) => (result as { accepted?: boolean }).accepted === true)).toHaveLength(1)
+    expect(results.filter((result) => (result as { accepted?: boolean }).accepted === false)).toHaveLength(5)
+  }, 60_000)
 })
