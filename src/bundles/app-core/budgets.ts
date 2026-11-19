@@ -3,7 +3,7 @@ import { assertNoSymlinkParentsSync, readTextFileSyncNoFollow } from '../../util
 import { createHash, randomUUID } from 'node:crypto'
 import { dirname } from 'node:path'
 import { SQLiteDatabase, type SQLiteConnection, type SQLiteMigration, type SQLiteValue } from '../../util/sqlite.js'
-import type { BudgetReservation, BudgetReservationRequest, BudgetReservationStore, BudgetSettlement, ReservationDecision, RateLimitRequest, RateLimitPermit, RateLimitDecision, RateLimitStore } from '../../architecture/contracts.js'
+import type { BudgetReservation, BudgetReservationRequest, BudgetReservationStore, BudgetSettlement, ReservationDecision, RateLimitRequest, RateLimitPermit, RateLimitDecision, RateLimitStore, LeaseRequest, Lease, LeaseDecision, LeaseStore } from '../../architecture/contracts.js'
 
 export type BudgetScope = 'task' | 'session' | 'day'
 export type BudgetMetric = 'requests' | 'tokens'
@@ -431,6 +431,28 @@ const BUDGET_RESERVATION_MIGRATIONS: readonly SQLiteMigration[] = [{
       reason TEXT,
       retry_at INTEGER,
       expires_at INTEGER NOT NULL,
+      PRIMARY KEY (project_id, idempotency_key)
+    );
+  `,
+}, {
+  version: 3,
+  id: 'fenced-resource-leases',
+  sql: `
+    CREATE TABLE resource_leases (
+      lease_id TEXT PRIMARY KEY, project_id TEXT NOT NULL,
+      resource_type TEXT NOT NULL CHECK (resource_type IN ('workspace', 'job', 'index')),
+      resource_id TEXT NOT NULL, owner_id TEXT NOT NULL, fencing_token INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL, state TEXT NOT NULL CHECK (state IN ('active', 'released', 'expired')),
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX resource_leases_current ON resource_leases (project_id, resource_type, resource_id, state, expires_at);
+    CREATE TABLE resource_lease_fences (
+      project_id TEXT NOT NULL, resource_type TEXT NOT NULL, resource_id TEXT NOT NULL, next_token INTEGER NOT NULL,
+      PRIMARY KEY (project_id, resource_type, resource_id)
+    );
+    CREATE TABLE resource_lease_idempotency (
+      project_id TEXT NOT NULL, idempotency_key TEXT NOT NULL, request_hash TEXT NOT NULL,
+      lease_id TEXT, reason TEXT, expires_at INTEGER NOT NULL,
       PRIMARY KEY (project_id, idempotency_key)
     );
   `,
@@ -871,5 +893,125 @@ export class SQLiteBudgetReservationStore implements BudgetReservationStore {
       )
       return this.reservation(db, reservationId)
     })
+  }
+}
+
+
+export interface SQLiteLeaseStoreOptions { now?: () => number; maxLeaseTtlMs?: number }
+
+/** SQLite-backed resource leases with monotonically increasing fencing tokens. */
+export class SQLiteLeaseStore implements LeaseStore {
+  private readonly database: SQLiteDatabase
+  private readonly now: () => number
+  private readonly maxLeaseTtlMs: number
+  private readyPromise?: Promise<void>
+
+  constructor(path: string, options: SQLiteLeaseStoreOptions = {}) {
+    this.database = new SQLiteDatabase(path, BUDGET_RESERVATION_MIGRATIONS)
+    this.now = options.now ?? Date.now
+    this.maxLeaseTtlMs = options.maxLeaseTtlMs ?? 24 * 60 * 60 * 1000
+    if (!Number.isSafeInteger(this.maxLeaseTtlMs) || this.maxLeaseTtlMs < 1_000 || this.maxLeaseTtlMs > 7 * 24 * 60 * 60 * 1000) throw new RangeError('leases: maxLeaseTtlMs must be from 1000 ms to 7 days')
+  }
+
+  private async ready(): Promise<void> {
+    if (!this.readyPromise) this.readyPromise = (async () => {
+      const plan = await this.database.plan()
+      if (plan.pending.length) {
+        try { await this.database.apply(plan) }
+        catch (error) {
+          const current = await this.database.plan()
+          if (current.pending.length) await this.database.apply(current)
+          else if (current.currentVersion < current.targetVersion) throw error
+        }
+      }
+      await this.database.verify()
+    })()
+    await this.readyPromise
+  }
+
+  private query(db: SQLiteConnection, sql: string, values: readonly SQLiteValue[] = []): Record<string, unknown>[] {
+    const statement = db.prepare(sql)
+    try {
+      if (values.length) statement.bind(values)
+      const result: Record<string, unknown>[] = []
+      while (statement.step()) result.push(statement.getAsObject())
+      return result
+    } finally { statement.free() }
+  }
+
+  private lease(db: SQLiteConnection, id: string): Lease {
+    const row = this.query(db, 'SELECT lease_id, project_id, resource_type, resource_id, owner_id, fencing_token, expires_at FROM resource_leases WHERE lease_id = ?', [id])[0]
+    if (!row) throw new Error(`leases: lease ${id} does not exist`)
+    return {
+      leaseId: String(row['lease_id']), projectId: String(row['project_id']),
+      resourceType: String(row['resource_type']) as Lease['resourceType'], resourceId: String(row['resource_id']),
+      ownerId: String(row['owner_id']), fencingToken: Number(row['fencing_token']),
+      expiresAt: new Date(Number(row['expires_at'])).toISOString(),
+    }
+  }
+
+  async acquire(input: LeaseRequest): Promise<LeaseDecision> {
+    if (!input || typeof input !== 'object') throw new TypeError('leases: request must be an object')
+    for (const [name, value] of [['projectId', input.projectId], ['resourceId', input.resourceId], ['ownerId', input.ownerId], ['idempotencyKey', input.idempotencyKey]] as const) {
+      if (typeof value !== 'string' || !value.trim() || value.length > 256 || (name === 'idempotencyKey' && !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/.test(value))) throw new TypeError(`leases: invalid ${name}`)
+    }
+    if (!['workspace', 'job', 'index'].includes(input.resourceType)) throw new TypeError('leases: unsupported resource type')
+    if (!Number.isSafeInteger(input.ttlMs) || input.ttlMs < 1 || input.ttlMs > this.maxLeaseTtlMs) throw new RangeError('leases: ttlMs exceeds configured bounds')
+    const now = this.now()
+    if (!Number.isSafeInteger(now) || now < 0 || !Number.isSafeInteger(now + input.ttlMs)) throw new RangeError('leases: invalid clock or expiry')
+    const expiry = now + input.ttlMs
+    const hash = createHash('sha256').update(JSON.stringify({ projectId: input.projectId, resourceType: input.resourceType, resourceId: input.resourceId, ownerId: input.ownerId, ttlMs: input.ttlMs }), 'utf8').digest('hex')
+    await this.ready()
+    return this.database.transaction((db) => {
+      db.run("UPDATE resource_leases SET state = 'expired' WHERE state = 'active' AND expires_at <= ?", [now])
+      db.run('DELETE FROM resource_lease_idempotency WHERE expires_at <= ?', [now])
+      const prior = this.query(db, 'SELECT request_hash, lease_id FROM resource_lease_idempotency WHERE project_id = ? AND idempotency_key = ?', [input.projectId, input.idempotencyKey])[0]
+      if (prior) {
+        if (String(prior['request_hash']) !== hash) return { acquired: false, reason: 'idempotency-conflict' }
+        if (prior['lease_id'] === null) return { acquired: false, reason: 'owned' }
+        return { acquired: true, lease: this.lease(db, String(prior['lease_id'])) }
+      }
+      const current = this.query(db, "SELECT lease_id FROM resource_leases WHERE project_id = ? AND resource_type = ? AND resource_id = ? AND state = 'active' AND expires_at > ?", [input.projectId, input.resourceType, input.resourceId, now])[0]
+      if (current) {
+        db.run('INSERT INTO resource_lease_idempotency (project_id, idempotency_key, request_hash, lease_id, reason, expires_at) VALUES (?, ?, ?, NULL, ?, ?)', [input.projectId, input.idempotencyKey, hash, 'owned', expiry])
+        return { acquired: false, reason: 'owned' }
+      }
+      const row = this.query(db, 'SELECT next_token FROM resource_lease_fences WHERE project_id = ? AND resource_type = ? AND resource_id = ?', [input.projectId, input.resourceType, input.resourceId])[0]
+      const token = Number(row?.['next_token'] ?? 1)
+      db.run('INSERT INTO resource_lease_fences (project_id, resource_type, resource_id, next_token) VALUES (?, ?, ?, ?) ON CONFLICT(project_id, resource_type, resource_id) DO UPDATE SET next_token = excluded.next_token', [input.projectId, input.resourceType, input.resourceId, token + 1])
+      const id = randomUUID()
+      db.run("INSERT INTO resource_leases (lease_id, project_id, resource_type, resource_id, owner_id, fencing_token, expires_at, state, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?)", [id, input.projectId, input.resourceType, input.resourceId, input.ownerId, token, expiry, now])
+      db.run('INSERT INTO resource_lease_idempotency (project_id, idempotency_key, request_hash, lease_id, reason, expires_at) VALUES (?, ?, ?, ?, NULL, ?)', [input.projectId, input.idempotencyKey, hash, id, expiry])
+      return { acquired: true, lease: this.lease(db, id) }
+    })
+  }
+
+  async renew(leaseId: string, ownerId: string, fencingToken: number, ttlMs: number): Promise<Lease> {
+    if (!leaseId.trim() || !ownerId.trim() || !Number.isSafeInteger(fencingToken) || fencingToken < 1 || !Number.isSafeInteger(ttlMs) || ttlMs < 1 || ttlMs > this.maxLeaseTtlMs) throw new TypeError('leases: invalid renewal arguments')
+    const now = this.now()
+    if (!Number.isSafeInteger(now) || !Number.isSafeInteger(now + ttlMs)) throw new RangeError('leases: invalid clock or expiry')
+    await this.ready()
+    return this.database.transaction((db) => {
+      const current = this.query(db, "SELECT lease_id FROM resource_leases WHERE lease_id = ? AND owner_id = ? AND fencing_token = ? AND state = 'active' AND expires_at > ?", [leaseId, ownerId, fencingToken, now])[0]
+      if (!current) throw new Error('leases: stale or expired owner cannot renew')
+      db.run('UPDATE resource_leases SET expires_at = ? WHERE lease_id = ?', [now + ttlMs, leaseId])
+      return this.lease(db, leaseId)
+    })
+  }
+
+  async release(leaseId: string, ownerId: string, fencingToken: number): Promise<void> {
+    if (!leaseId.trim() || !ownerId.trim() || !Number.isSafeInteger(fencingToken) || fencingToken < 1) throw new TypeError('leases: invalid release arguments')
+    const now = this.now()
+    await this.ready()
+    await this.database.transaction((db) => {
+      db.run("UPDATE resource_leases SET state = 'released' WHERE lease_id = ? AND owner_id = ? AND fencing_token = ? AND state = 'active' AND expires_at > ?", [leaseId, ownerId, fencingToken, now])
+    })
+  }
+
+  async isCurrent(leaseId: string, ownerId: string, fencingToken: number): Promise<boolean> {
+    if (!leaseId.trim() || !ownerId.trim() || !Number.isSafeInteger(fencingToken) || fencingToken < 1) return false
+    const now = this.now()
+    await this.ready()
+    return this.database.read((db) => this.query(db, "SELECT lease_id FROM resource_leases WHERE lease_id = ? AND owner_id = ? AND fencing_token = ? AND state = 'active' AND expires_at > ?", [leaseId, ownerId, fencingToken, now]).length > 0)
   }
 }
