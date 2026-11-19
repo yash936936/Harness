@@ -5,7 +5,7 @@ import '../egress/index.js'
 import { EgressError } from '../egress/index.js'
 import { OllamaProvider, type OllamaConfig } from './providers/ollama.js'
 import { OpenAICompatibleProvider, type OpenAICompatibleConfig } from './providers/openai-compatible.js'
-import { Budgets, BudgetExceededError, BudgetReservationStoreError, SQLiteBudgetReservationStore, type BudgetsConfig } from '../app-core/budgets.js'
+import { Budgets, BudgetExceededError, BudgetReservationStoreError, SQLiteBudgetReservationStore, SQLiteRateLimitStore, type BudgetsConfig } from '../app-core/budgets.js'
 import { BudgetGate, type CallReservation } from './budget-gate.js'
 import { RateLimiter, type RateLimiterConfig } from './rate-limiter.js'
 import { LLMError, type CompletionRequest, type CompletionResponse, type EgressInfo, type LLMProvider } from './types.js'
@@ -42,6 +42,18 @@ export interface ModelAdapterConfig {
     reservationTtlMs?: number
     /** Retention bound for abandoned reservations and idempotency records. Default 24 hours. */
     maxReservationTtlMs?: number
+  }
+  /**
+   * Cross-process provider request windows and concurrency permits. Uses the
+   * same per-project SQLite database as sharedBudget when both are configured.
+   */
+  sharedRateLimit?: {
+    databasePath: string
+    projectId: string
+    principalId: string
+    bucket?: string
+    /** Maximum lifetime of a permit. Default 10 minutes. */
+    permitTtlMs?: number
   }
   /** Output tokens reserved for a call that sets no `maxTokens`. Default 1024. */
   reserveOutputTokens?: number
@@ -123,7 +135,33 @@ export class LLMService extends Service {
     } else if (config.budgets) {
       this.gate = new BudgetGate(new Budgets(config.budgets), config.reserveOutputTokens)
     }
-    if (config.rateLimit) this.limiter = new RateLimiter(config.rateLimit)
+    if (config.sharedRateLimit) {
+      const shared = config.sharedRateLimit
+      if (!config.rateLimit) throw new LLMError('config', 'sharedRateLimit requires rateLimit configuration', config.default ?? '(configuration)')
+      if (typeof shared.databasePath !== 'string' || !isAbsolute(shared.databasePath) ||
+          typeof shared.projectId !== 'string' || !shared.projectId.trim() ||
+          typeof shared.principalId !== 'string' || !shared.principalId.trim()) {
+        throw new LLMError('config', 'sharedRateLimit requires an absolute databasePath and non-empty projectId/principalId', config.default ?? '(configuration)')
+      }
+      if (config.sharedBudget && (config.sharedBudget.databasePath !== shared.databasePath || config.sharedBudget.projectId !== shared.projectId)) {
+        throw new LLMError('config', 'sharedBudget and sharedRateLimit must use the same per-project databasePath and projectId', config.default ?? '(configuration)')
+      }
+      const permitTtlMs = shared.permitTtlMs ?? 10 * 60 * 1000
+      if (!Number.isSafeInteger(permitTtlMs) || permitTtlMs < 1_000 || permitTtlMs > 10 * 60 * 1000) {
+        throw new LLMError('config', 'sharedRateLimit permitTtlMs must be from 1000 ms to 10 minutes', config.default ?? '(configuration)')
+      }
+      const store = new SQLiteRateLimitStore(shared.databasePath, { maxPermitTtlMs: permitTtlMs })
+      this.limiter = new RateLimiter({
+        ...config.rateLimit,
+        shared: {
+          store,
+          projectId: shared.projectId,
+          principalId: shared.principalId,
+          bucket: shared.bucket,
+          permitTtlMs,
+        },
+      })
+    } else if (config.rateLimit) this.limiter = new RateLimiter(config.rateLimit)
     if (config.ollama) {
       const provider = new OllamaProvider(config.ollama)
       this.providers.set('ollama', provider)
