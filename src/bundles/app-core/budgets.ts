@@ -411,7 +411,8 @@ const BUDGET_RESERVATION_MIGRATIONS: readonly SQLiteMigration[] = [{
       principal_id TEXT NOT NULL,
       bucket TEXT NOT NULL,
       fencing_token INTEGER NOT NULL,
-      expires_at INTEGER NOT NULL
+      expires_at INTEGER NOT NULL,
+      state TEXT NOT NULL CHECK (state IN ('active', 'released', 'expired'))
     );
     CREATE INDEX rate_limit_permits_active
       ON rate_limit_permits (project_id, principal_id, bucket, expires_at);
@@ -540,6 +541,7 @@ export class SQLiteRateLimitStore implements RateLimitStore {
     await this.ready()
     return this.database.transaction((db) => {
       db.run('DELETE FROM rate_limit_events WHERE expires_at <= ?', [now])
+      db.run("UPDATE rate_limit_permits SET state = 'expired' WHERE state = 'active' AND expires_at <= ?", [now])
       db.run('DELETE FROM rate_limit_permits WHERE expires_at <= ?', [now])
       db.run('DELETE FROM rate_limit_idempotency WHERE expires_at <= ?', [now])
       const prior = this.query(db, 'SELECT request_hash, accepted, permit_id, reason, retry_at FROM rate_limit_idempotency WHERE project_id = ? AND idempotency_key = ?', [input.projectId, input.idempotencyKey])[0]
@@ -554,7 +556,7 @@ export class SQLiteRateLimitStore implements RateLimitStore {
       }
       const windowStart = now - input.windowMs
       const events = this.query(db, 'SELECT COUNT(*) AS count, MIN(expires_at) AS retry_at FROM rate_limit_events WHERE project_id = ? AND principal_id = ? AND bucket = ? AND occurred_at > ?', [input.projectId, input.principalId, input.bucket, windowStart])[0]
-      const active = this.query(db, 'SELECT COUNT(*) AS count, MIN(expires_at) AS retry_at FROM rate_limit_permits WHERE project_id = ? AND principal_id = ? AND bucket = ? AND expires_at > ?', [input.projectId, input.principalId, input.bucket, now])[0]
+      const active = this.query(db, 'SELECT COUNT(*) AS count, MIN(expires_at) AS retry_at FROM rate_limit_permits WHERE project_id = ? AND principal_id = ? AND bucket = ? AND state = 'active' AND expires_at > ?', [input.projectId, input.principalId, input.bucket, now])[0]
       const eventCount = Number(events?.['count'] ?? 0)
       const activeCount = Number(active?.['count'] ?? 0)
       let reason: 'rate-limited' | 'concurrency-limit' | undefined
@@ -574,7 +576,7 @@ export class SQLiteRateLimitStore implements RateLimitStore {
       const fencingToken = Number(fence?.['next_token'] ?? 1)
       db.run('INSERT INTO rate_limit_fences (project_id, principal_id, bucket, next_token) VALUES (?, ?, ?, ?) ON CONFLICT(project_id, principal_id, bucket) DO UPDATE SET next_token = excluded.next_token', [input.projectId, input.principalId, input.bucket, fencingToken + 1])
       const permitId = randomUUID()
-      db.run('INSERT INTO rate_limit_permits (permit_id, project_id, principal_id, bucket, fencing_token, expires_at) VALUES (?, ?, ?, ?, ?, ?)', [permitId, input.projectId, input.principalId, input.bucket, fencingToken, expiresAt])
+      db.run('INSERT INTO rate_limit_permits (permit_id, project_id, principal_id, bucket, fencing_token, expires_at, state) VALUES (?, ?, ?, ?, ?, ?, 'active')', [permitId, input.projectId, input.principalId, input.bucket, fencingToken, expiresAt])
       db.run('INSERT INTO rate_limit_events (event_id, project_id, principal_id, bucket, occurred_at, expires_at) VALUES (?, ?, ?, ?, ?, ?)', [randomUUID(), input.projectId, input.principalId, input.bucket, now, now + input.windowMs])
       db.run('INSERT INTO rate_limit_idempotency (project_id, idempotency_key, request_hash, accepted, permit_id, reason, retry_at, expires_at) VALUES (?, ?, ?, 1, ?, NULL, NULL, ?)', [input.projectId, input.idempotencyKey, requestHash, permitId, expiresAt])
       return { accepted: true, permit: this.permit(db, permitId) }
@@ -584,7 +586,7 @@ export class SQLiteRateLimitStore implements RateLimitStore {
   async release(permitId: string): Promise<void> {
     if (typeof permitId !== 'string' || !permitId.trim()) throw new TypeError('rate limits: permitId must be non-empty')
     await this.ready()
-    await this.database.transaction((db) => { db.run('DELETE FROM rate_limit_permits WHERE permit_id = ?', [permitId]) })
+    await this.database.transaction((db) => { db.run("UPDATE rate_limit_permits SET state = 'released' WHERE permit_id = ? AND state = 'active'", [permitId]) })
   }
 }
 
