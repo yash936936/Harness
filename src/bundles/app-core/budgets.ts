@@ -3,7 +3,7 @@ import { assertNoSymlinkParentsSync, readTextFileSyncNoFollow } from '../../util
 import { createHash, randomUUID } from 'node:crypto'
 import { dirname } from 'node:path'
 import { SQLiteDatabase, type SQLiteConnection, type SQLiteMigration, type SQLiteValue } from '../../util/sqlite.js'
-import type { BudgetReservation, BudgetReservationRequest, BudgetReservationStore, BudgetSettlement, ReservationDecision } from '../../architecture/contracts.js'
+import type { BudgetReservation, BudgetReservationRequest, BudgetReservationStore, BudgetSettlement, ReservationDecision, RateLimitRequest, RateLimitPermit, RateLimitDecision, RateLimitStore, LeaseRequest, Lease, LeaseDecision, LeaseStore } from '../../architecture/contracts.js'
 
 export type BudgetScope = 'task' | 'session' | 'day'
 export type BudgetMetric = 'requests' | 'tokens'
@@ -391,7 +391,204 @@ const BUDGET_RESERVATION_MIGRATIONS: readonly SQLiteMigration[] = [{
       PRIMARY KEY (project_id, idempotency_key)
     );
   `,
+}, {
+  version: 2,
+  id: 'shared-rate-limits',
+  sql: `
+    CREATE TABLE rate_limit_events (
+      event_id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      principal_id TEXT NOT NULL,
+      bucket TEXT NOT NULL,
+      occurred_at INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL
+    );
+    CREATE INDEX rate_limit_events_window
+      ON rate_limit_events (project_id, principal_id, bucket, occurred_at);
+    CREATE TABLE rate_limit_permits (
+      permit_id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      principal_id TEXT NOT NULL,
+      bucket TEXT NOT NULL,
+      fencing_token INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL,
+      state TEXT NOT NULL CHECK (state IN ('active', 'released', 'expired'))
+    );
+    CREATE INDEX rate_limit_permits_active
+      ON rate_limit_permits (project_id, principal_id, bucket, expires_at);
+    CREATE TABLE rate_limit_fences (
+      project_id TEXT NOT NULL,
+      principal_id TEXT NOT NULL,
+      bucket TEXT NOT NULL,
+      next_token INTEGER NOT NULL,
+      PRIMARY KEY (project_id, principal_id, bucket)
+    );
+    CREATE TABLE rate_limit_idempotency (
+      project_id TEXT NOT NULL,
+      idempotency_key TEXT NOT NULL,
+      request_hash TEXT NOT NULL,
+      accepted INTEGER NOT NULL CHECK (accepted IN (0, 1)),
+      permit_id TEXT,
+      reason TEXT,
+      retry_at INTEGER,
+      expires_at INTEGER NOT NULL,
+      PRIMARY KEY (project_id, idempotency_key)
+    );
+  `,
+}, {
+  version: 3,
+  id: 'fenced-resource-leases',
+  sql: `
+    CREATE TABLE resource_leases (
+      lease_id TEXT PRIMARY KEY, project_id TEXT NOT NULL,
+      resource_type TEXT NOT NULL CHECK (resource_type IN ('workspace', 'job', 'index')),
+      resource_id TEXT NOT NULL, owner_id TEXT NOT NULL, fencing_token INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL, state TEXT NOT NULL CHECK (state IN ('active', 'released', 'expired')),
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX resource_leases_current ON resource_leases (project_id, resource_type, resource_id, state, expires_at);
+    CREATE TABLE resource_lease_fences (
+      project_id TEXT NOT NULL, resource_type TEXT NOT NULL, resource_id TEXT NOT NULL, next_token INTEGER NOT NULL,
+      PRIMARY KEY (project_id, resource_type, resource_id)
+    );
+    CREATE TABLE resource_lease_idempotency (
+      project_id TEXT NOT NULL, idempotency_key TEXT NOT NULL, request_hash TEXT NOT NULL,
+      lease_id TEXT, reason TEXT, expires_at INTEGER NOT NULL,
+      PRIMARY KEY (project_id, idempotency_key)
+    );
+  `,
 }]
+
+export interface SQLiteRateLimitStoreOptions {
+  now?: () => number
+  maxPermitTtlMs?: number
+}
+
+/** Cross-process sliding-window accounting and concurrency permits in one SQLite transaction. */
+export class SQLiteRateLimitStore implements RateLimitStore {
+  private readonly database: SQLiteDatabase
+  private readonly now: () => number
+  private readonly maxPermitTtlMs: number
+  private readyPromise?: Promise<void>
+
+  constructor(path: string, options: SQLiteRateLimitStoreOptions = {}) {
+    this.database = new SQLiteDatabase(path, BUDGET_RESERVATION_MIGRATIONS)
+    this.now = options.now ?? Date.now
+    this.maxPermitTtlMs = options.maxPermitTtlMs ?? 10 * 60 * 1000
+    if (!Number.isSafeInteger(this.maxPermitTtlMs) || this.maxPermitTtlMs < 1_000 || this.maxPermitTtlMs > 24 * 60 * 60 * 1000) {
+      throw new RangeError('rate limits: maxPermitTtlMs must be from 1000 ms to 24 hours')
+    }
+  }
+
+  private async ready(): Promise<void> {
+    if (!this.readyPromise) this.readyPromise = (async () => {
+      const plan = await this.database.plan()
+      if (plan.pending.length) {
+        try { await this.database.apply(plan) }
+        catch (error) {
+          const current = await this.database.plan()
+          if (current.pending.length) await this.database.apply(current)
+          else if (current.currentVersion < current.targetVersion) throw error
+        }
+      }
+      await this.database.verify()
+    })()
+    await this.readyPromise
+  }
+
+  private query(db: SQLiteConnection, sql: string, values: readonly SQLiteValue[] = []): Record<string, unknown>[] {
+    const statement = db.prepare(sql)
+    try {
+      if (values.length) statement.bind(values)
+      const result: Record<string, unknown>[] = []
+      while (statement.step()) result.push(statement.getAsObject())
+      return result
+    } finally { statement.free() }
+  }
+
+  private permit(db: SQLiteConnection, id: string): RateLimitPermit {
+    const row = this.query(db, 'SELECT permit_id, project_id, principal_id, bucket, fencing_token, expires_at FROM rate_limit_permits WHERE permit_id = ?', [id])[0]
+    if (!row) throw new Error(`rate limits: permit ${id} no longer exists`)
+    return {
+      permitId: String(row['permit_id']),
+      projectId: String(row['project_id']),
+      principalId: String(row['principal_id']),
+      bucket: String(row['bucket']),
+      fencingToken: Number(row['fencing_token']),
+      expiresAt: new Date(Number(row['expires_at'])).toISOString(),
+    }
+  }
+
+  async acquire(input: RateLimitRequest): Promise<RateLimitDecision> {
+    if (!input || typeof input !== 'object') throw new TypeError('rate limits: request must be an object')
+    for (const [name, value] of [['projectId', input.projectId], ['principalId', input.principalId], ['bucket', input.bucket], ['idempotencyKey', input.idempotencyKey]] as const) {
+      if (typeof value !== 'string' || !value.trim() || value.length > 256 || (name === 'idempotencyKey' && !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/.test(value))) {
+        throw new TypeError(`rate limits: ${name} must be a valid non-empty identifier of at most 256 characters`)
+      }
+    }
+    for (const [name, value] of [['limit', input.limit], ['windowMs', input.windowMs], ['maxConcurrent', input.maxConcurrent], ['permitTtlMs', input.permitTtlMs]] as const) {
+      if (!Number.isSafeInteger(value) || value < 1) throw new RangeError(`rate limits: ${name} must be a positive safe integer`)
+    }
+    if (input.permitTtlMs > this.maxPermitTtlMs) throw new RangeError('rate limits: permitTtlMs exceeds configured maximum')
+    const now = this.now()
+    if (!Number.isSafeInteger(now) || now < 0) throw new RangeError('rate limits: clock must return a non-negative safe integer')
+    const expiresAt = now + input.permitTtlMs
+    if (!Number.isSafeInteger(expiresAt)) throw new RangeError('rate limits: permit expiry exceeds safe timestamp range')
+    const requestHash = createHash('sha256').update(JSON.stringify({
+      projectId: input.projectId, principalId: input.principalId, bucket: input.bucket,
+      limit: input.limit, windowMs: input.windowMs, maxConcurrent: input.maxConcurrent, permitTtlMs: input.permitTtlMs,
+    }), 'utf8').digest('hex')
+    await this.ready()
+    return this.database.transaction((db) => {
+      db.run('DELETE FROM rate_limit_events WHERE expires_at <= ?', [now])
+      db.run("UPDATE rate_limit_permits SET state = 'expired' WHERE state = 'active' AND expires_at <= ?", [now])
+      db.run('DELETE FROM rate_limit_permits WHERE expires_at <= ?', [now])
+      db.run('DELETE FROM rate_limit_idempotency WHERE expires_at <= ?', [now])
+      const prior = this.query(db, 'SELECT request_hash, accepted, permit_id, reason, retry_at FROM rate_limit_idempotency WHERE project_id = ? AND idempotency_key = ?', [input.projectId, input.idempotencyKey])[0]
+      if (prior) {
+        if (String(prior['request_hash']) !== requestHash) return { accepted: false, reason: 'idempotency-conflict' }
+        if (Number(prior['accepted']) === 0) return {
+          accepted: false,
+          reason: String(prior['reason']) as 'rate-limited' | 'concurrency-limit',
+          ...(prior['retry_at'] === null ? {} : { retryAt: new Date(Number(prior['retry_at'])).toISOString() }),
+        }
+        return { accepted: true, permit: this.permit(db, String(prior['permit_id'])) }
+      }
+      const windowStart = now - input.windowMs
+      const events = this.query(db, 'SELECT COUNT(*) AS count, MIN(expires_at) AS retry_at FROM rate_limit_events WHERE project_id = ? AND principal_id = ? AND bucket = ? AND occurred_at > ?', [input.projectId, input.principalId, input.bucket, windowStart])[0]
+      const active = this.query(db, "SELECT COUNT(*) AS count, MIN(expires_at) AS retry_at FROM rate_limit_permits WHERE project_id = ? AND principal_id = ? AND bucket = ? AND state = 'active' AND expires_at > ?", [input.projectId, input.principalId, input.bucket, now])[0]
+      const eventCount = Number(events?.['count'] ?? 0)
+      const activeCount = Number(active?.['count'] ?? 0)
+      let reason: 'rate-limited' | 'concurrency-limit' | undefined
+      let retryAt: number | undefined
+      if (eventCount >= input.limit) {
+        reason = 'rate-limited'
+        retryAt = Number(events?.['retry_at'])
+      } else if (activeCount >= input.maxConcurrent) {
+        reason = 'concurrency-limit'
+        retryAt = Number(active?.['retry_at'])
+      }
+      if (reason) {
+        db.run('INSERT INTO rate_limit_idempotency (project_id, idempotency_key, request_hash, accepted, permit_id, reason, retry_at, expires_at) VALUES (?, ?, ?, 0, NULL, ?, ?, ?)', [input.projectId, input.idempotencyKey, requestHash, reason, retryAt ?? null, expiresAt])
+        return { accepted: false, reason, ...(retryAt ? { retryAt: new Date(retryAt).toISOString() } : {}) }
+      }
+      const fence = this.query(db, 'SELECT next_token FROM rate_limit_fences WHERE project_id = ? AND principal_id = ? AND bucket = ?', [input.projectId, input.principalId, input.bucket])[0]
+      const fencingToken = Number(fence?.['next_token'] ?? 1)
+      db.run('INSERT INTO rate_limit_fences (project_id, principal_id, bucket, next_token) VALUES (?, ?, ?, ?) ON CONFLICT(project_id, principal_id, bucket) DO UPDATE SET next_token = excluded.next_token', [input.projectId, input.principalId, input.bucket, fencingToken + 1])
+      const permitId = randomUUID()
+      db.run("INSERT INTO rate_limit_permits (permit_id, project_id, principal_id, bucket, fencing_token, expires_at, state) VALUES (?, ?, ?, ?, ?, ?, 'active')", [permitId, input.projectId, input.principalId, input.bucket, fencingToken, expiresAt])
+      db.run('INSERT INTO rate_limit_events (event_id, project_id, principal_id, bucket, occurred_at, expires_at) VALUES (?, ?, ?, ?, ?, ?)', [randomUUID(), input.projectId, input.principalId, input.bucket, now, now + input.windowMs])
+      db.run('INSERT INTO rate_limit_idempotency (project_id, idempotency_key, request_hash, accepted, permit_id, reason, retry_at, expires_at) VALUES (?, ?, ?, 1, ?, NULL, NULL, ?)', [input.projectId, input.idempotencyKey, requestHash, permitId, expiresAt])
+      return { accepted: true, permit: this.permit(db, permitId) }
+    })
+  }
+
+  async release(permitId: string): Promise<void> {
+    if (typeof permitId !== 'string' || !permitId.trim()) throw new TypeError('rate limits: permitId must be non-empty')
+    await this.ready()
+    await this.database.transaction((db) => { db.run("UPDATE rate_limit_permits SET state = 'released' WHERE permit_id = ? AND state = 'active'", [permitId]) })
+  }
+}
 
 export interface SQLiteBudgetReservationStoreOptions {
   /** Injectable clock for tests. */
@@ -698,5 +895,125 @@ export class SQLiteBudgetReservationStore implements BudgetReservationStore {
       )
       return this.reservation(db, reservationId)
     })
+  }
+}
+
+
+export interface SQLiteLeaseStoreOptions { now?: () => number; maxLeaseTtlMs?: number }
+
+/** SQLite-backed resource leases with monotonically increasing fencing tokens. */
+export class SQLiteLeaseStore implements LeaseStore {
+  private readonly database: SQLiteDatabase
+  private readonly now: () => number
+  private readonly maxLeaseTtlMs: number
+  private readyPromise?: Promise<void>
+
+  constructor(path: string, options: SQLiteLeaseStoreOptions = {}) {
+    this.database = new SQLiteDatabase(path, BUDGET_RESERVATION_MIGRATIONS)
+    this.now = options.now ?? Date.now
+    this.maxLeaseTtlMs = options.maxLeaseTtlMs ?? 24 * 60 * 60 * 1000
+    if (!Number.isSafeInteger(this.maxLeaseTtlMs) || this.maxLeaseTtlMs < 1_000 || this.maxLeaseTtlMs > 7 * 24 * 60 * 60 * 1000) throw new RangeError('leases: maxLeaseTtlMs must be from 1000 ms to 7 days')
+  }
+
+  private async ready(): Promise<void> {
+    if (!this.readyPromise) this.readyPromise = (async () => {
+      const plan = await this.database.plan()
+      if (plan.pending.length) {
+        try { await this.database.apply(plan) }
+        catch (error) {
+          const current = await this.database.plan()
+          if (current.pending.length) await this.database.apply(current)
+          else if (current.currentVersion < current.targetVersion) throw error
+        }
+      }
+      await this.database.verify()
+    })()
+    await this.readyPromise
+  }
+
+  private query(db: SQLiteConnection, sql: string, values: readonly SQLiteValue[] = []): Record<string, unknown>[] {
+    const statement = db.prepare(sql)
+    try {
+      if (values.length) statement.bind(values)
+      const result: Record<string, unknown>[] = []
+      while (statement.step()) result.push(statement.getAsObject())
+      return result
+    } finally { statement.free() }
+  }
+
+  private lease(db: SQLiteConnection, id: string): Lease {
+    const row = this.query(db, 'SELECT lease_id, project_id, resource_type, resource_id, owner_id, fencing_token, expires_at FROM resource_leases WHERE lease_id = ?', [id])[0]
+    if (!row) throw new Error(`leases: lease ${id} does not exist`)
+    return {
+      leaseId: String(row['lease_id']), projectId: String(row['project_id']),
+      resourceType: String(row['resource_type']) as Lease['resourceType'], resourceId: String(row['resource_id']),
+      ownerId: String(row['owner_id']), fencingToken: Number(row['fencing_token']),
+      expiresAt: new Date(Number(row['expires_at'])).toISOString(),
+    }
+  }
+
+  async acquire(input: LeaseRequest): Promise<LeaseDecision> {
+    if (!input || typeof input !== 'object') throw new TypeError('leases: request must be an object')
+    for (const [name, value] of [['projectId', input.projectId], ['resourceId', input.resourceId], ['ownerId', input.ownerId], ['idempotencyKey', input.idempotencyKey]] as const) {
+      if (typeof value !== 'string' || !value.trim() || value.length > 256 || (name === 'idempotencyKey' && !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/.test(value))) throw new TypeError(`leases: invalid ${name}`)
+    }
+    if (!['workspace', 'job', 'index'].includes(input.resourceType)) throw new TypeError('leases: unsupported resource type')
+    if (!Number.isSafeInteger(input.ttlMs) || input.ttlMs < 1 || input.ttlMs > this.maxLeaseTtlMs) throw new RangeError('leases: ttlMs exceeds configured bounds')
+    const now = this.now()
+    if (!Number.isSafeInteger(now) || now < 0 || !Number.isSafeInteger(now + input.ttlMs)) throw new RangeError('leases: invalid clock or expiry')
+    const expiry = now + input.ttlMs
+    const hash = createHash('sha256').update(JSON.stringify({ projectId: input.projectId, resourceType: input.resourceType, resourceId: input.resourceId, ownerId: input.ownerId, ttlMs: input.ttlMs }), 'utf8').digest('hex')
+    await this.ready()
+    return this.database.transaction((db) => {
+      db.run("UPDATE resource_leases SET state = 'expired' WHERE state = 'active' AND expires_at <= ?", [now])
+      db.run('DELETE FROM resource_lease_idempotency WHERE expires_at <= ?', [now])
+      const prior = this.query(db, 'SELECT request_hash, lease_id FROM resource_lease_idempotency WHERE project_id = ? AND idempotency_key = ?', [input.projectId, input.idempotencyKey])[0]
+      if (prior) {
+        if (String(prior['request_hash']) !== hash) return { acquired: false, reason: 'idempotency-conflict' }
+        if (prior['lease_id'] === null) return { acquired: false, reason: 'owned' }
+        return { acquired: true, lease: this.lease(db, String(prior['lease_id'])) }
+      }
+      const current = this.query(db, "SELECT lease_id FROM resource_leases WHERE project_id = ? AND resource_type = ? AND resource_id = ? AND state = 'active' AND expires_at > ?", [input.projectId, input.resourceType, input.resourceId, now])[0]
+      if (current) {
+        db.run('INSERT INTO resource_lease_idempotency (project_id, idempotency_key, request_hash, lease_id, reason, expires_at) VALUES (?, ?, ?, NULL, ?, ?)', [input.projectId, input.idempotencyKey, hash, 'owned', expiry])
+        return { acquired: false, reason: 'owned' }
+      }
+      const row = this.query(db, 'SELECT next_token FROM resource_lease_fences WHERE project_id = ? AND resource_type = ? AND resource_id = ?', [input.projectId, input.resourceType, input.resourceId])[0]
+      const token = Number(row?.['next_token'] ?? 1)
+      db.run('INSERT INTO resource_lease_fences (project_id, resource_type, resource_id, next_token) VALUES (?, ?, ?, ?) ON CONFLICT(project_id, resource_type, resource_id) DO UPDATE SET next_token = excluded.next_token', [input.projectId, input.resourceType, input.resourceId, token + 1])
+      const id = randomUUID()
+      db.run("INSERT INTO resource_leases (lease_id, project_id, resource_type, resource_id, owner_id, fencing_token, expires_at, state, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?)", [id, input.projectId, input.resourceType, input.resourceId, input.ownerId, token, expiry, now])
+      db.run('INSERT INTO resource_lease_idempotency (project_id, idempotency_key, request_hash, lease_id, reason, expires_at) VALUES (?, ?, ?, ?, NULL, ?)', [input.projectId, input.idempotencyKey, hash, id, expiry])
+      return { acquired: true, lease: this.lease(db, id) }
+    })
+  }
+
+  async renew(leaseId: string, ownerId: string, fencingToken: number, ttlMs: number): Promise<Lease> {
+    if (!leaseId.trim() || !ownerId.trim() || !Number.isSafeInteger(fencingToken) || fencingToken < 1 || !Number.isSafeInteger(ttlMs) || ttlMs < 1 || ttlMs > this.maxLeaseTtlMs) throw new TypeError('leases: invalid renewal arguments')
+    const now = this.now()
+    if (!Number.isSafeInteger(now) || !Number.isSafeInteger(now + ttlMs)) throw new RangeError('leases: invalid clock or expiry')
+    await this.ready()
+    return this.database.transaction((db) => {
+      const current = this.query(db, "SELECT lease_id FROM resource_leases WHERE lease_id = ? AND owner_id = ? AND fencing_token = ? AND state = 'active' AND expires_at > ?", [leaseId, ownerId, fencingToken, now])[0]
+      if (!current) throw new Error('leases: stale or expired owner cannot renew')
+      db.run('UPDATE resource_leases SET expires_at = ? WHERE lease_id = ?', [now + ttlMs, leaseId])
+      return this.lease(db, leaseId)
+    })
+  }
+
+  async release(leaseId: string, ownerId: string, fencingToken: number): Promise<void> {
+    if (!leaseId.trim() || !ownerId.trim() || !Number.isSafeInteger(fencingToken) || fencingToken < 1) throw new TypeError('leases: invalid release arguments')
+    const now = this.now()
+    await this.ready()
+    await this.database.transaction((db) => {
+      db.run("UPDATE resource_leases SET state = 'released' WHERE lease_id = ? AND owner_id = ? AND fencing_token = ? AND state = 'active' AND expires_at > ?", [leaseId, ownerId, fencingToken, now])
+    })
+  }
+
+  async isCurrent(leaseId: string, ownerId: string, fencingToken: number): Promise<boolean> {
+    if (!leaseId.trim() || !ownerId.trim() || !Number.isSafeInteger(fencingToken) || fencingToken < 1) return false
+    const now = this.now()
+    await this.ready()
+    return this.database.read((db) => this.query(db, "SELECT lease_id FROM resource_leases WHERE lease_id = ? AND owner_id = ? AND fencing_token = ? AND state = 'active' AND expires_at > ?", [leaseId, ownerId, fencingToken, now]).length > 0)
   }
 }

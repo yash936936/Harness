@@ -1,8 +1,9 @@
 import { mkdir, rename, unlink, writeFile } from 'node:fs/promises'
 import { assertNoSymlinkParents, readTextFileNoFollow, readTextFileSyncNoFollow } from '../../util/secure-file.js'
-import { randomBytes } from 'node:crypto'
+import { randomBytes, randomUUID } from 'node:crypto'
 import { dirname } from 'node:path'
 import { withFileLock } from '../../util/filelock.js'
+import type { RateLimitStore } from '../../architecture/contracts.js'
 import { LLMError } from './types.js'
 
 export interface RateLimiterConfig {
@@ -16,6 +17,14 @@ export interface RateLimiterConfig {
   maxPending?: number
   /** Persist the daily counter here so a restart does not reset it. Omit for in-memory only. */
   statePath?: string
+  /** Optional cross-process transactional rate-limit and concurrency store. */
+  shared?: {
+    store: RateLimitStore
+    projectId: string
+    principalId: string
+    bucket?: string
+    permitTtlMs?: number
+  }
   /** Provider name used in error messages. */
   provider?: string
   /** Injectable for tests. */
@@ -68,6 +77,7 @@ export class RateLimiter {
   private readonly maxConcurrent: number
   private readonly maxPending: number
   private readonly statePath?: string
+  private readonly shared?: NonNullable<RateLimiterConfig['shared']>
   private readonly provider: string
   private readonly now: () => number
   private readonly sleep: (ms: number, signal?: AbortSignal) => Promise<void>
@@ -82,6 +92,15 @@ export class RateLimiter {
     this.maxConcurrent = config.maxConcurrent ?? 1
     this.maxPending = config.maxPending ?? 64
     if (config.statePath !== undefined) this.statePath = config.statePath
+    if (config.shared !== undefined) {
+      if (!config.shared.store || typeof config.shared.projectId !== 'string' || !config.shared.projectId.trim() ||
+          typeof config.shared.principalId !== 'string' || !config.shared.principalId.trim() ||
+          (config.shared.bucket !== undefined && (!config.shared.bucket.trim() || config.shared.bucket.length > 256)) ||
+          (config.shared.permitTtlMs !== undefined && (!Number.isSafeInteger(config.shared.permitTtlMs) || config.shared.permitTtlMs < 1_000 || config.shared.permitTtlMs > 10 * 60 * 1000))) {
+        throw new LLMError('config', 'rate limiter: shared store requires valid project/principal identifiers and a permit TTL up to 10 minutes', this.provider)
+      }
+      this.shared = config.shared
+    }
     this.provider = config.provider ?? 'provider'
     this.now = config.now ?? Date.now
     this.sleep = config.sleep ?? defaultSleep
@@ -103,12 +122,18 @@ export class RateLimiter {
   async run<T>(fn: () => Promise<T>, signal?: AbortSignal): Promise<T> {
     this.checkDaily()
     await this.takeSlot(signal)
+    let permitId: string | undefined
     try {
       this.checkDaily()
-      await this.waitForWindow(signal)
+      if (this.shared) permitId = await this.acquireSharedPermit(signal)
+      else await this.waitForWindow(signal)
       await this.bumpDaily()
       return await fn()
     } finally {
+      if (permitId && this.shared) await this.shared.store.release(permitId).catch(() => {
+        // The permit has a bounded TTL. A failed release must not turn a
+        // successful provider response into a retryable model-call failure.
+      })
       this.releaseSlot()
     }
   }
@@ -159,6 +184,30 @@ export class RateLimiter {
     const next = this.waiters.shift()
     if (next) next()
     else this.inFlight--
+  }
+
+  private async acquireSharedPermit(signal?: AbortSignal): Promise<string> {
+    const shared = this.shared!
+    for (;;) {
+      signal?.throwIfAborted()
+      const decision = await shared.store.acquire({
+        projectId: shared.projectId,
+        principalId: shared.principalId,
+        bucket: shared.bucket ?? 'model-request',
+        idempotencyKey: randomUUID(),
+        limit: this.perMinute,
+        windowMs: MINUTE,
+        maxConcurrent: this.maxConcurrent,
+        permitTtlMs: shared.permitTtlMs ?? 10 * 60 * 1000,
+      })
+      if (decision.accepted) return decision.permit.permitId
+      if (decision.reason === 'idempotency-conflict') {
+        throw new LLMError('config', `${this.provider}: shared rate-limit idempotency conflict`, this.provider)
+      }
+      const retryAt = decision.retryAt ? Date.parse(decision.retryAt) : NaN
+      const delay = Number.isFinite(retryAt) ? Math.max(1, Math.min(1_000, retryAt - this.now())) : 100
+      await this.sleep(delay, signal)
+    }
   }
 
   private async waitForWindow(signal?: AbortSignal) {

@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { LLMError, RateLimiter } from '../src/bundles/model-adapter/index.js'
+import { SQLiteRateLimitStore } from '../src/bundles/app-core/budgets.js'
 
 /** Fake clock: sleeping advances time instantly, so window tests run in milliseconds. */
 function clock(start = Date.UTC(2026, 8, 22, 12, 0, 0)) {
@@ -239,5 +240,47 @@ describe('rate limiter: concurrency and abort', () => {
     const p = rl.run(async () => 2, ac.signal)
     setTimeout(() => ac.abort(new Error('stop')), 10)
     await expect(p).rejects.toThrow('stop')
+  })
+})
+
+
+describe('rate limiter: shared SQLite coordination', () => {
+  it('coordinates concurrency across independent limiter instances and releases permits', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'rl-shared-store-'))
+    try {
+      const path = join(dir, 'state.sqlite')
+      const makeLimiter = () => new RateLimiter({
+        perMinute: 20,
+        maxConcurrent: 1,
+        sleep: async () => new Promise((resolve) => setTimeout(resolve, 2)),
+        shared: {
+          store: new SQLiteRateLimitStore(path),
+          projectId: 'project-a',
+          principalId: 'provider-account',
+          bucket: 'completion',
+          permitTtlMs: 60_000,
+        },
+      })
+      const firstLimiter = makeLimiter()
+      const secondLimiter = makeLimiter()
+      let releaseFirst!: () => void
+      let firstStarted!: () => void
+      const firstBegan = new Promise<void>((resolve) => { firstStarted = resolve })
+      const first = firstLimiter.run(() => new Promise<void>((resolve) => {
+        releaseFirst = resolve
+        firstStarted()
+      }))
+      await firstBegan
+      let secondCalled = false
+      const second = secondLimiter.run(async () => { secondCalled = true })
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      expect(secondCalled).toBe(false)
+      releaseFirst()
+      await first
+      await expect(second).resolves.toBeUndefined()
+      expect(secondCalled).toBe(true)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })
