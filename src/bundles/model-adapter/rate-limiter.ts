@@ -92,6 +92,7 @@ export class RateLimiter {
     this.maxConcurrent = config.maxConcurrent ?? 1
     this.maxPending = config.maxPending ?? 64
     if (config.statePath !== undefined) this.statePath = config.statePath
+    this.provider = config.provider ?? 'provider'
     if (config.shared !== undefined) {
       if (!config.shared.store || typeof config.shared.projectId !== 'string' || !config.shared.projectId.trim() ||
           typeof config.shared.principalId !== 'string' || !config.shared.principalId.trim() ||
@@ -101,7 +102,6 @@ export class RateLimiter {
       }
       this.shared = config.shared
     }
-    this.provider = config.provider ?? 'provider'
     this.now = config.now ?? Date.now
     this.sleep = config.sleep ?? defaultSleep
     if (!Number.isSafeInteger(this.perMinute) || this.perMinute < 1) throw new LLMError('config', 'rate limiter: perMinute must be a positive safe integer', this.provider)
