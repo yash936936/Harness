@@ -29,6 +29,7 @@ export interface WorkspaceRuntimeOptions {
   readonly maxSessionTtlMs?: number
   readonly maxCommandTimeoutMs?: number
   readonly maxOutputBytes?: number
+  readonly maxCapabilityTtlMs?: number
 }
 
 export interface IssueWorkspaceCapabilityInput {
