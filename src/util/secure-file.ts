@@ -98,6 +98,25 @@ export async function* readTextLinesNoFollow(path: string): AsyncGenerator<{ lin
   }
 }
 
+/** Read a byte range from a verified regular file without following a symlink. */
+export async function readTextRangeNoFollow(path: string, offset: number, length: number): Promise<string> {
+  if (!Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(length) || length < 0) {
+    throw new RangeError('state file range must use non-negative safe integers')
+  }
+  const handle = await openExisting(path)
+  try {
+    const buffer = Buffer.alloc(length)
+    let total = 0
+    while (total < length) {
+      const { bytesRead } = await handle.read(buffer, total, length - total, offset + total)
+      if (bytesRead === 0) break
+      total += bytesRead
+    }
+    if (total !== length) throw new Error(`state file changed while reading range: ${path}`)
+    return buffer.toString('utf8')
+  } finally { await handle.close() }
+}
+
 export async function readBufferFileNoFollow(path: string): Promise<Buffer> {
   const handle = await openExisting(path)
   try { return await handle.readFile() }
