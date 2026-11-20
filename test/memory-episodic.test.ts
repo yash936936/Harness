@@ -78,6 +78,56 @@ describe('memory: JSONL tail recovery', () => {
     expect(await store.findById('missing')).toBeUndefined()
   })
 
+  it('uses the persistent identity index across store instances and resolves IDs by byte offset', async () => {
+    const dir = await tmp()
+    const makeEpisode = (id: string) => ({
+      id, sessionId: 'indexed', agentId: 'main', ts: '2026-11-07T00:00:00.000Z',
+      task: id, approach: 'none', result: 'ok', outcome: 'done' as const,
+      lesson: null, fromSeq: 1, toSeq: 1, steps: 1, toolCalls: 0,
+    })
+    const first = new JsonlEpisodeStore(dir)
+    await first.add(makeEpisode('one'))
+    await first.add(makeEpisode('two'))
+    const second = new JsonlEpisodeStore(dir)
+    await expect(second.add(makeEpisode('one'))).resolves.toBe(false)
+    await expect(second.findById('two')).resolves.toMatchObject({ id: 'two', task: 'two' })
+    expect(await readFile(join(dir, 'episodic.index.meta.json'), 'utf8')).toContain('"version":1')
+  })
+
+  it('rebuilds a missing or corrupt episodic identity index from the authoritative log', async () => {
+    const dir = await tmp()
+    const makeEpisode = (id: string) => ({
+      id, sessionId: 'indexed', agentId: 'main', ts: '2026-11-07T00:00:00.000Z',
+      task: id, approach: 'none', result: 'ok', outcome: 'done' as const,
+      lesson: null, fromSeq: 1, toSeq: 1, steps: 1, toolCalls: 0,
+    })
+    const store = new JsonlEpisodeStore(dir)
+    await store.add(makeEpisode('one'))
+    await rm(join(dir, 'episodic.index.jsonl'), { force: true })
+    const afterMissing = new JsonlEpisodeStore(dir)
+    await expect(afterMissing.add(makeEpisode('one'))).resolves.toBe(false)
+    await writeFile(join(dir, 'episodic.index.jsonl'), '{broken\\n', 'utf8')
+    const afterCorrupt = new JsonlEpisodeStore(dir)
+    await expect(afterCorrupt.findById('one')).resolves.toMatchObject({ id: 'one' })
+    await expect(afterCorrupt.add(makeEpisode('two'))).resolves.toBe(true)
+    expect((await afterCorrupt.all()).map((episode) => episode.id)).toEqual(['one', 'two'])
+  })
+
+  it('rebuilds the episodic identity index after an external source-log append', async () => {
+    const dir = await tmp()
+    const makeEpisode = (id: string) => ({
+      id, sessionId: 'indexed', agentId: 'main', ts: '2026-11-07T00:00:00.000Z',
+      task: id, approach: 'none', result: 'ok', outcome: 'done' as const,
+      lesson: null, fromSeq: 1, toSeq: 1, steps: 1, toolCalls: 0,
+    })
+    const store = new JsonlEpisodeStore(dir)
+    await store.add(makeEpisode('one'))
+    await appendFile(join(dir, 'episodic.jsonl'), JSON.stringify(makeEpisode('external')) + '\\n', 'utf8')
+    const nextProcess = new JsonlEpisodeStore(dir)
+    await expect(nextProcess.add(makeEpisode('external'))).resolves.toBe(false)
+    await expect(nextProcess.findById('external')).resolves.toMatchObject({ id: 'external' })
+  })
+
   it('bounds concurrent persistent episode writes and releases capacity after completion', async () => {
     const dir = await tmp()
     const store = new JsonlEpisodeStore(dir, 1)
