@@ -230,7 +230,7 @@ export interface WorkspaceCapability {
   readonly sessionId: SessionId
   readonly workspaceId: ResourceId
   readonly operations: readonly WorkspaceOperation[]
-  /** Canonical workspace-relative prefixes; empty means no path access. */
+  /** Canonical workspace-relative prefixes. An empty array grants no path access; an empty-string prefix grants the workspace root. */
   readonly pathPrefixes: readonly string[]
   readonly expiresAt: string
 }
