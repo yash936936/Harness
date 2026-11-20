@@ -235,7 +235,7 @@ export class WorkspaceRuntime {
       })
     } catch (error) {
       let confirmed = false
-      try { confirmed = (await this.provider.close(workspaceId, 'workspace creation failed')).confirmed } catch { /* keep lease until expiry */ }
+      try { confirmed = (await this.provider.close({ workspaceId, reason: 'workspace creation failed', ownerId: this.ownerId, leaseId: lease.leaseId, fencingToken: lease.fencingToken })).confirmed } catch { /* keep lease until expiry */ }
       try {
         await this.sessions.transitionSession({
           workspaceId,
@@ -382,7 +382,7 @@ export class WorkspaceRuntime {
     await this.sessions.revokeWorkspaceCapabilities(workspaceId, reason)
     let result: { readonly confirmed: boolean; readonly detail?: string }
     try {
-      result = await this.provider.close(workspaceId, reason)
+      result = await this.provider.close({ workspaceId, reason, ownerId: this.ownerId, leaseId: lease.leaseId, fencingToken: lease.fencingToken })
     } catch (error) {
       try {
         await this.sessions.transitionSession({
