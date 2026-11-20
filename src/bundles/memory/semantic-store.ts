@@ -105,6 +105,8 @@ export class SemanticFactStore {
     const previous = index.byId.get(entry.id)
     if (previous?.textKey && index.byText.get(previous.textKey) === entry.id) index.byText.delete(previous.textKey)
     if (entry.deleted) {
+      const position = index.positions.get(entry.id)
+      if (position !== undefined) index.orderedIds[position] = ''
       index.byId.delete(entry.id)
       index.positions.delete(entry.id)
       this.compactOrder(index)
@@ -273,6 +275,8 @@ export class SemanticFactStore {
       const previous = this.memoryFacts.get(id)
       if (!previous) return undefined
       this.memoryFacts.delete(id)
+      const position = this.memoryPositions.get(id)
+      if (position !== undefined) this.memoryOrder[position] = ''
       this.memoryPositions.delete(id)
       if (this.memoryOrder.length > this.memoryFacts.size * 2 + 1024) {
         const live = this.memoryOrder.filter((key) => this.memoryFacts.has(key))
