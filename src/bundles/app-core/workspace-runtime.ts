@@ -61,8 +61,8 @@ function sameStrings(left: readonly string[], right: readonly string[]): boolean
 
 function validateCommand(command: WorkspaceCommand, maxTimeoutMs: number, maxOutputBytes: number): void {
   required('command', command.command, 512)
-  if (command.command.includes('\\0')) throw new TypeError('workspace runtime: command contains a NUL byte')
-  if (!Array.isArray(command.args) || command.args.length > 256 || command.args.some((arg) => typeof arg !== 'string' || arg.length > 8_192 || arg.includes('\\0'))) {
+  if (command.command.includes('\0')) throw new TypeError('workspace runtime: command contains a NUL byte')
+  if (!Array.isArray(command.args) || command.args.length > 256 || command.args.some((arg) => typeof arg !== 'string' || arg.length > 8_192 || arg.includes('\0'))) {
     throw new TypeError('workspace runtime: invalid command arguments')
   }
   if (!Number.isSafeInteger(command.timeoutMs) || command.timeoutMs < 1 || command.timeoutMs > maxTimeoutMs) {
@@ -263,7 +263,7 @@ export class WorkspaceRuntime {
         !Array.isArray(input.pathPrefixes) || input.pathPrefixes.length > 128) {
       throw new TypeError('workspace runtime: invalid capability scope')
     }
-    const validPath = (path: string) => path === '' || (path.length <= 1_024 && !path.includes('\\0') && !path.includes('\\\\') &&
+    const validPath = (path: string) => path === '' || (path.length <= 1_024 && !path.includes('\0') && !path.includes('\\') &&
       !path.startsWith('/') && !/^[A-Za-z]:/.test(path) && !path.split('/').some((part) => !part || part === '.' || part === '..'))
     if (input.pathPrefixes.some((prefix) => typeof prefix !== 'string' || !validPath(prefix)) || new Set(input.pathPrefixes).size !== input.pathPrefixes.length) {
       throw new TypeError('workspace runtime: path prefixes must be canonical and unique')
