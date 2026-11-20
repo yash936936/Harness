@@ -60,7 +60,8 @@ function sameStrings(left: readonly string[], right: readonly string[]): boolean
 
 function validateCommand(command: WorkspaceCommand, maxTimeoutMs: number, maxOutputBytes: number): void {
   required('command', command.command, 512)
-  if (!Array.isArray(command.args) || command.args.length > 256 || command.args.some((arg) => typeof arg !== 'string' || arg.length > 8_192)) {
+  if (command.command.includes('\\0')) throw new TypeError('workspace runtime: command contains a NUL byte')
+  if (!Array.isArray(command.args) || command.args.length > 256 || command.args.some((arg) => typeof arg !== 'string' || arg.length > 8_192 || arg.includes('\\0'))) {
     throw new TypeError('workspace runtime: invalid command arguments')
   }
   if (!Number.isSafeInteger(command.timeoutMs) || command.timeoutMs < 1 || command.timeoutMs > maxTimeoutMs) {
@@ -99,6 +100,7 @@ export class WorkspaceRuntime {
   private readonly maxSessionTtlMs: number
   private readonly maxCommandTimeoutMs: number
   private readonly maxOutputBytes: number
+  private readonly maxCapabilityTtlMs: number
 
   constructor(options: WorkspaceRuntimeOptions) {
     this.projectId = required('projectId', options.projectId)
@@ -106,10 +108,12 @@ export class WorkspaceRuntime {
     this.leases = options.leases
     this.sessions = options.sessions
     this.provider = options.provider
+    required('provider name', this.provider.name, 128)
     this.now = options.now ?? Date.now
     this.maxSessionTtlMs = options.maxSessionTtlMs ?? 24 * 60 * 60 * 1_000
     this.maxCommandTimeoutMs = options.maxCommandTimeoutMs ?? 60_000
     this.maxOutputBytes = options.maxOutputBytes ?? 1_000_000
+    this.maxCapabilityTtlMs = options.maxCapabilityTtlMs ?? 60 * 60 * 1_000
     if (!Number.isSafeInteger(this.maxSessionTtlMs) || this.maxSessionTtlMs < 1_000 || this.maxSessionTtlMs > 7 * 24 * 60 * 60 * 1_000) {
       throw new RangeError('workspace runtime: maxSessionTtlMs must be from 1000 ms to 7 days')
     }
@@ -118,6 +122,9 @@ export class WorkspaceRuntime {
     }
     if (!Number.isSafeInteger(this.maxOutputBytes) || this.maxOutputBytes < 1 || this.maxOutputBytes > 64 * 1024 * 1024) {
       throw new RangeError('workspace runtime: maxOutputBytes must be from 1 byte to 64 MiB')
+    }
+    if (!Number.isSafeInteger(this.maxCapabilityTtlMs) || this.maxCapabilityTtlMs < 1_000 || this.maxCapabilityTtlMs > this.maxSessionTtlMs) {
+      throw new RangeError('workspace runtime: maxCapabilityTtlMs must be from 1000 ms to the session TTL limit')
     }
   }
 
@@ -166,7 +173,7 @@ export class WorkspaceRuntime {
       resourceType: 'workspace',
       resourceId: workspaceId,
       ownerId: this.ownerId,
-      idempotencyKey: `workspace:${idempotencyKey}`,
+      idempotencyKey: `workspace:${createHash('sha256').update(idempotencyKey, 'utf8').digest('hex')}`,
       ttlMs: input.ttlMs,
     })
     if (!decision.acquired) throw new Error(`workspace runtime: workspace lease unavailable (${decision.reason})`)
@@ -248,9 +255,17 @@ export class WorkspaceRuntime {
     const session = await this.sessions.getSession(workspaceId)
     if (!session || session.state !== 'ready') throw new Error('workspace runtime: session is not ready')
     const lease = await this.assertCurrentLease(session)
-    if (!Number.isSafeInteger(input.ttlMs) || input.ttlMs < 1) throw new RangeError('workspace runtime: invalid capability TTL')
-    if (!Array.isArray(input.operations) || input.operations.length === 0 || !Array.isArray(input.pathPrefixes) || input.pathPrefixes.length > 128) {
+    if (!Number.isSafeInteger(input.ttlMs) || input.ttlMs < 1_000 || input.ttlMs > this.maxCapabilityTtlMs) throw new RangeError('workspace runtime: capability TTL exceeds configured bounds')
+    const allowedOperations = new Set<WorkspaceOperation>(['list', 'read', 'write', 'execute', 'collect'])
+    if (!Array.isArray(input.operations) || input.operations.length === 0 || input.operations.length > allowedOperations.size ||
+        input.operations.some((operation) => !allowedOperations.has(operation)) || new Set(input.operations).size !== input.operations.length ||
+        !Array.isArray(input.pathPrefixes) || input.pathPrefixes.length > 128) {
       throw new TypeError('workspace runtime: invalid capability scope')
+    }
+    const validPath = (path: string) => path === '' || (path.length <= 1_024 && !path.includes('\\0') && !path.includes('\\\\') &&
+      !path.startsWith('/') && !/^[A-Za-z]:/.test(path) && !path.split('/').some((part) => !part || part === '.' || part === '..'))
+    if (input.pathPrefixes.some((prefix) => typeof prefix !== 'string' || !validPath(prefix)) || new Set(input.pathPrefixes).size !== input.pathPrefixes.length) {
+      throw new TypeError('workspace runtime: path prefixes must be canonical and unique')
     }
     const now = this.currentTime()
     const sessionExpiry = isoTimestamp('session expiry', session.expiresAt)
@@ -270,7 +285,8 @@ export class WorkspaceRuntime {
         capability.taskId !== session.taskId || capability.sessionId !== session.sessionId ||
         capability.fencingToken !== lease.fencingToken ||
         !sameStrings(capability.operations, input.operations) || !sameStrings(capability.pathPrefixes, input.pathPrefixes) ||
-        capabilityExpiry <= now || capabilityExpiry > now + input.ttlMs || capabilityExpiry > sessionExpiry) {
+        capabilityExpiry <= now || capabilityExpiry > now + input.ttlMs || capabilityExpiry > sessionExpiry ||
+        !await this.leases.isCurrent(lease.leaseId, this.ownerId, lease.fencingToken)) {
       try { await this.provider.revoke(capability.capabilityId, 'provider returned an invalid capability scope') } catch { /* local grant was never stored */ }
       throw new Error('workspace runtime: provider returned a capability outside the requested scope')
     }
@@ -287,7 +303,9 @@ export class WorkspaceRuntime {
     const session = await this.sessions.getSession(required('workspaceId', workspaceId))
     if (!session || session.state !== 'ready') throw new Error('workspace runtime: session is not ready')
     const lease = await this.assertCurrentLease(session)
-    if (capability.fencingToken !== lease.fencingToken) throw new Error('workspace runtime: stale capability fencing token')
+    if (capability.fencingToken !== lease.fencingToken || capability.workspaceId !== workspaceId || capability.projectId !== this.projectId ||
+        capability.taskId !== session.taskId || capability.sessionId !== session.sessionId || !capability.operations.includes('execute') ||
+        isoTimestamp('capability expiry', capability.expiresAt) <= this.currentTime()) throw new Error('workspace runtime: stale or mis-scoped capability')
     validateCommand(command, this.maxCommandTimeoutMs, this.maxOutputBytes)
     const allowed = await this.sessions.authorizeCapability({
       token: capability.token,
@@ -365,14 +383,16 @@ export class WorkspaceRuntime {
     try {
       result = await this.provider.close(workspaceId, reason)
     } catch (error) {
-      await this.sessions.transitionSession({
-        workspaceId,
-        ownerId: this.ownerId,
-        leaseId: lease.leaseId,
-        fencingToken: lease.fencingToken,
-        expectedState: 'closing',
-        nextState: 'unknown',
-      })
+      try {
+        await this.sessions.transitionSession({
+          workspaceId,
+          ownerId: this.ownerId,
+          leaseId: lease.leaseId,
+          fencingToken: lease.fencingToken,
+          expectedState: 'closing',
+          nextState: 'unknown',
+        })
+      } catch { /* retain the current state if the lease/fence changed */ }
       throw error
     }
     await this.sessions.transitionSession({
