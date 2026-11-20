@@ -19,7 +19,7 @@ export class MemoryEpisodeStore implements EpisodeStore {
       const entries = await this.ensureIndex()
       const descending = query.order === 'desc'
       const needle = query.task?.toLowerCase()
-      const compare = (a: EpisodeIndexEntry, b: EpisodeIndexEntry) =>
+      const compare = (a: Pick<EpisodeIndexEntry, 'ts' | 'sessionId' | 'fromSeq' | 'id'>, b: EpisodePageCursor) =>
         a.ts.localeCompare(b.ts) || a.sessionId.localeCompare(b.sessionId) || a.fromSeq - b.fromSeq || a.id.localeCompare(b.id)
       const cursorKey: EpisodePageCursor | undefined = cursor
       const selected = [...entries.values()].filter((entry) =>
@@ -43,6 +43,24 @@ export class MemoryEpisodeStore implements EpisodeStore {
       }
       return { items, hasMore: page.length > limit }
     })
+  }
+
+  async queryPage(query: Omit<EpisodeQuery, 'limit'>, cursor: EpisodePageCursor | undefined, limit: number): Promise<{ items: Episode[]; hasMore: boolean }> {
+    const descending = query.order === 'desc'
+    const needle = query.task?.toLowerCase()
+    const compare = (a: Episode, b: EpisodePageCursor | Episode) =>
+      a.ts.localeCompare(b.ts) || a.sessionId.localeCompare(b.sessionId) || a.fromSeq - b.fromSeq || a.id.localeCompare(b.id)
+    const selected = [...this.items.values()].filter((episode) =>
+      (query.sessionId === undefined || episode.sessionId === query.sessionId) &&
+      (query.agentId === undefined || episode.agentId === query.agentId) &&
+      (query.outcome === undefined || episode.outcome === query.outcome) &&
+      (needle === undefined || episode.task.toLowerCase().includes(needle)) &&
+      (query.from === undefined || episode.ts >= query.from) &&
+      (query.to === undefined || episode.ts < query.to) &&
+      (!cursor || (descending ? compare(episode, cursor) < 0 : compare(episode, cursor) > 0)),
+    )
+    selected.sort((a, b) => descending ? -compare(a, b) : compare(a, b))
+    return { items: selected.slice(0, limit).map((episode) => structuredClone(episode)), hasMore: selected.length > limit }
   }
 
   async *iterate(): AsyncGenerator<Episode> {
@@ -201,7 +219,7 @@ export class JsonlEpisodeStore implements EpisodeStore {
               !Number.isSafeInteger(entry.length) || entry.length < 0 || entry.offset + entry.length > sourceBytes ||
               typeof entry.ts !== 'string' || typeof entry.sessionId !== 'string' || typeof entry.agentId !== 'string' ||
               !Number.isSafeInteger(entry.fromSeq) || typeof entry.task !== 'string' ||
-              !['success', 'error', 'partial'].includes(entry.outcome)) throw new Error('invalid identity index entry')
+              !['done', 'max_steps', 'error'].includes(entry.outcome)) throw new Error('invalid identity index entry')
           entries.set(entry.id, entry)
         }
         this.indexCache = { sourceBytes, indexBytes, entries }
