@@ -97,6 +97,16 @@ export class SessionLog extends Service {
     return this.store.read(sessionId)
   }
 
+  /** Read an inclusive sequence range without loading the entire session. */
+  async readRange(sessionId: string, fromSeq: number, toSeq: number): Promise<SessionEvent[]> {
+    assertValidSessionId(sessionId)
+    if (!Number.isSafeInteger(fromSeq) || !Number.isSafeInteger(toSeq) || fromSeq < 1 || toSeq < fromSeq) {
+      throw new Error(`session log ${sessionId}: invalid sequence range ${fromSeq}..${toSeq}`)
+    }
+    if (this.store.readRange) return this.store.readRange(sessionId, fromSeq, toSeq)
+    return (await this.store.read(sessionId)).filter((event) => event.seq >= fromSeq && event.seq <= toSeq)
+  }
+
   /** Async-iterate events in order (replay). */
   async *replay(sessionId: string, fromSeq = 1): AsyncGenerator<SessionEvent> {
     for (const e of await this.read(sessionId)) if (e.seq >= fromSeq) yield e
