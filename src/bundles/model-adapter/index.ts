@@ -19,7 +19,7 @@ export { BudgetGate, CallReservation, estimateRequestTokens, DEFAULT_OUTPUT_TOKE
 
 function hasSharedHardBudgetLimits(config: BudgetsConfig | undefined): boolean {
   return (['requests', 'tokens'] as const).some((metric) =>
-    (['session', 'day'] as const).some((scope) => config?.[metric]?.[scope]?.hard !== undefined),
+    (['task', 'session', 'day'] as const).some((scope) => config?.[metric]?.[scope]?.hard !== undefined),
   )
 }
 
@@ -102,6 +102,7 @@ export class LLMService extends Service {
   private readonly egressConsent: boolean
   private readonly sharedBudgetConfigured: boolean
   private readonly sharedSessionBudgetRequiresId: boolean
+  private readonly sharedTaskBudgetRequiresId: boolean
   private gate?: BudgetGate
   private readonly limiter?: RateLimiter
 
@@ -110,6 +111,9 @@ export class LLMService extends Service {
     this.defaultName = config.default
     this.egressConsent = config.egress?.consent === true
     this.sharedBudgetConfigured = config.sharedBudget !== undefined
+    this.sharedTaskBudgetRequiresId = config.sharedBudget !== undefined && (
+      config.budgets?.requests?.task?.hard !== undefined || config.budgets?.tokens?.task?.hard !== undefined
+    )
     this.sharedSessionBudgetRequiresId = config.sharedBudget !== undefined && (
       config.budgets?.requests?.session?.hard !== undefined || config.budgets?.tokens?.session?.hard !== undefined
     )
@@ -218,6 +222,9 @@ export class LLMService extends Service {
     // Snapshot at entry so an async consent check cannot make the logged prompt
     // differ from the request eventually sent to the provider.
     const request = structuredClone(req)
+    if (this.sharedTaskBudgetRequiresId && (typeof request.taskId !== 'string' || !request.taskId.trim())) {
+      throw new LLMError('config', 'taskId is required when shared task hard limits are configured', request.provider ?? this.defaultName ?? '(none)')
+    }
     if (this.sharedSessionBudgetRequiresId && (typeof request.sessionId !== 'string' || !request.sessionId.trim())) {
       throw new LLMError('config', 'sessionId is required when shared session hard limits are configured', request.provider ?? this.defaultName ?? '(none)')
     }
@@ -234,7 +241,7 @@ export class LLMService extends Service {
       throw new LLMError('config', `unknown provider "${name}" (registered: ${this.list().join(', ') || 'none'})`, name)
     }
 
-    const { sessionId, provider: _p, actor, ...rest } = request
+    const { sessionId, taskId, provider: _p, actor, ...rest } = request
     const log = this.ctx.log
     const egress = this.providerEgress.get(name)
     if (!egress) throw new LLMError('config', `provider "${name}" has no validated egress metadata`, name)
@@ -270,7 +277,7 @@ export class LLMService extends Service {
     let reservation: CallReservation | undefined
     if (this.gate) {
       try {
-        reservation = await this.gate.reserveAsync(redacted, sessionId)
+        reservation = await this.gate.reserveAsync(redacted, sessionId, taskId)
       } catch (e) {
         if (e instanceof BudgetExceededError) {
           await log.append(sessionId, 'budget.blocked', { provider: name, metric: e.metric, scope: e.scope, status: e.status }, actor)
