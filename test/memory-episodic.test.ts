@@ -402,6 +402,19 @@ describe('memory: episodic tier (3.1)', () => {
     expect((await readFile(join(dir, 'episodic.jsonl'), 'utf8')).trim().split('\n')).toHaveLength(1)
   })
 
+  it('rejects a complete malformed final episode instead of silently under-reporting history', async () => {
+    const dir = await tmp()
+    const store = new JsonlEpisodeStore(dir)
+    await store.add({
+      id: 'good', sessionId: 's', agentId: 'main', ts: '2026-11-07T00:00:00.000Z',
+      task: 'good', approach: 'none', result: 'ok', outcome: 'done',
+      lesson: null, fromSeq: 1, toSeq: 1, steps: 1, toolCalls: 0,
+    })
+    await appendFile(join(dir, 'episodic.jsonl'), '{"id":"bad"}\n', 'utf8')
+    await expect(store.all()).rejects.toThrow(/corrupt episodic.jsonl at line 2/)
+    await expect(store.count()).rejects.toThrow(/corrupt episodic.jsonl at line 2/)
+  })
+
   it('a torn last line is tolerated; corruption in the middle is not', async () => {
     const dir = await tmp()
     const ctx1 = await boot([{ text: 'a' }], { path: dir })

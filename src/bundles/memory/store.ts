@@ -321,25 +321,33 @@ export class JsonlEpisodeStore implements EpisodeStore {
   }
 
   async *iterate(): AsyncGenerator<Episode> {
-    let candidate: { line: string; lineNumber: number } | undefined
+    let candidate: { line: string; lineNumber: number; newline: boolean } | undefined
     let physicalLine = 0
+    const parse = (item: { line: string; lineNumber: number }): Episode => {
+      const episode: unknown = JSON.parse(item.line)
+      if (!isIndexableEpisode(episode)) throw new Error('invalid indexed episode fields')
+      return episode
+    }
     try {
       for await (const item of readTextLinesNoFollow(this.file)) {
         physicalLine++
         if (!item.line.trim()) continue
         if (candidate) {
-          try { yield JSON.parse(candidate.line) as Episode }
+          try { yield parse(candidate) }
           catch { throw new Error(`memory: corrupt episodic.jsonl at line ${candidate.lineNumber}`) }
         }
-        candidate = { line: item.line, lineNumber: physicalLine }
+        candidate = { line: item.line, lineNumber: physicalLine, newline: item.newline }
       }
     } catch (error: any) {
       if (error?.code === 'ENOENT') return
       throw error
     }
     if (candidate) {
-      try { yield JSON.parse(candidate.line) as Episode }
-      catch { /* An interrupted final write is ignored; the next add() repairs it. */ }
+      try { yield parse(candidate) }
+      catch {
+        if (candidate.newline) throw new Error(`memory: corrupt episodic.jsonl at line ${candidate.lineNumber}`)
+        // Only an unterminated final record can be treated as an interrupted write.
+      }
     }
   }
 
