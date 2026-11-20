@@ -38,7 +38,7 @@ Composes the episodic and hot memory tiers behind `ctx.memory`. It records one l
 - The persistent compaction ledger rejects symlinked parent/final paths and uses exclusive, unique temporary files for atomic replacement.
 - Semantic fact mutations and vector-index writes share a serialized lock. A delayed embedding cannot overwrite a newer same-ID fact, and a removal cannot delete a replacement's vector.
 - The semantic operation queue limit is per process and per service instance; it does not coordinate capacity across processes.
-- The semantic `list()` API still materializes every fact for compatibility. Persistent reindex reads bounded pages and stores a source-version/model-fingerprint checkpoint in `semantic.reindex.checkpoint.json`; vector upserts are idempotent, so a crash before checkpoint advancement safely repeats the last batch. A source change invalidates the checkpoint and returns a retryable error. Public semantic pagination and explicit searchable-fact quotas remain open.
+- The semantic `list()` API still materializes every fact for compatibility. Persistent reindex reads bounded pages and stores a source-version/model-fingerprint checkpoint in `semantic.reindex.checkpoint.json`; vector upserts are idempotent, so a crash before checkpoint advancement safely repeats the last batch. A source change invalidates the checkpoint and returns a retryable error. Public semantic pagination remains open. The active semantic index is held in a bounded ID/text map under the configurable fact quota; append-only event history is retained indefinitely by default.
 
 ---
 **Next:** Return to [`context.md`](../../context.md).
