@@ -43,7 +43,7 @@ export class EpisodicMemory {
     if (!Number.isInteger(input.fromSeq) || !Number.isInteger(input.toSeq) || input.fromSeq < 1 || input.toSeq < input.fromSeq) {
       throw new MemoryError(`memory: invalid seq range ${input.fromSeq}..${input.toSeq}`)
     }
-    const events = (await this.ctx.log.read(input.sessionId)).filter((e) => e.seq >= input.fromSeq && e.seq <= input.toSeq)
+    const events = await this.ctx.log.readRange(input.sessionId, input.fromSeq, input.toSeq)
     if (events.length === 0) throw new MemoryError(`memory: session ${input.sessionId} has no events in ${input.fromSeq}..${input.toSeq}`)
     const { approach, toolCalls } = summariseApproach(events)
     let episode: Episode = {
@@ -138,7 +138,7 @@ export class EpisodicMemory {
 
   /** True when the log still holds the events this entry points at. */
   async verifyLink(e: Episode): Promise<boolean> {
-    const events = await this.ctx.log.read(e.sessionId)
+    const events = await this.ctx.log.readRange(e.sessionId, e.fromSeq, e.toSeq)
     return events.some((x) => x.seq === e.fromSeq) && events.some((x) => x.seq === e.toSeq)
   }
 }
