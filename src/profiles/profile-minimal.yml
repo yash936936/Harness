@@ -8,8 +8,8 @@
 # to `bootProfileMinimal()` as a plain TS object; keep the two in sync by
 # hand until/unless a later phase adopts the real loader.
 #
-# No orchestrator, no sub-agents, no memory beyond the session log (1.1-1.5
-# only) - a single agent, a single task, full audit trail. 1B.1 (egress
+# No orchestrator, no sub-agents, no memory beyond the session log - a single agent, a single task, full audit trail.
+# Host subprocess execution is not exposed by this profile under D-117. 1B.1 (egress
 # controls) is also live here: it boots unconditionally and cannot be
 # turned off in this or any other profile (D-029).
 
@@ -44,12 +44,6 @@ modelAdapter:
 
 toolRegistry:
   maxOutputChars: 50000
-
-subprocess:
-  # cwd: .
-  envAllowlist: []
-  timeoutMs: 0
-  maxOutputBytes: 1000000
 
 agentLoop:
   maxSteps: 10
