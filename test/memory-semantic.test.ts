@@ -213,7 +213,9 @@ describe('semantic tier configuration and persisted data validation', () => {
     const restarted = await boot(opts)
     await restarted.ctx.memorySemantic.add({ id: 'after-recovery', text: 'after recovery fact', why: WHY })
     expect((await restarted.ctx.memorySemantic.list()).map((fact) => fact.id).sort()).toEqual(['after-recovery', 'committed'])
-    expect(await readFile(eventPath, 'utf8')).not.toContain('{"op":"put","fact":')
+    const recoveredEvents = (await readFile(eventPath, 'utf8')).trimEnd().split('\\n')
+    expect(recoveredEvents).toHaveLength(2)
+    expect(recoveredEvents.map((line) => JSON.parse(line).fact.id)).toEqual(['committed', 'after-recovery'])
   })
 
   it('serializes duplicate semantic writes across independent service instances', async () => {
