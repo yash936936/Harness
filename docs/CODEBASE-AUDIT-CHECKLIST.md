@@ -2,8 +2,8 @@
 
 ## 2026-11-21 D-117 router executable path update
 
-- The coding profile no longer accepts `router.needle` or `subprocess` configuration, constructs the local `CommandBackend`, or registers the host `Subprocess` service. Startup fails closed if either configuration key is supplied. This removes the direct host-process service from the coding-profile context.
-- Regression coverage: `test/router.test.ts` verifies a configured host executable is rejected; `test/profile-coding.test.ts` verifies the host `Subprocess` service is absent and its configuration is rejected.
+- Neither `profile-coding` nor `profile-minimal` registers the host `Subprocess` service. Both reject attempts to configure host subprocess execution; `profile-coding` also rejects `router.needle` and no longer constructs the local `CommandBackend`. This removes direct host-process service exposure from both built-in profiles.
+- Regression coverage: `test/router.test.ts` verifies a configured host executable is rejected; `test/profile-coding.test.ts` and `test/profile-minimal.test.ts` verify the host `Subprocess` service is absent and its configuration is rejected.
 - The generic `CommandBackend` implementation remains exported for explicit non-profile consumers and still uses Node `spawn`. This change closes the default coding-profile path only; it does not close the repository-wide host-execution audit. Trace any direct construction by downstream applications and all other subprocess consumers before declaring D-117 complete.
 - The cloud-only Vercel workspace path remains unavailable until Phase 4 transfer, result synchronization, lifecycle, and policy integration pass.
 
