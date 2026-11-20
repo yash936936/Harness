@@ -410,7 +410,7 @@ describe('memory: episodic tier (3.1)', () => {
       task: 'good', approach: 'none', result: 'ok', outcome: 'done',
       lesson: null, fromSeq: 1, toSeq: 1, steps: 1, toolCalls: 0,
     })
-    await appendFile(join(dir, 'episodic.jsonl'), '{"id":"bad"}\\n', 'utf8')
+    await appendFile(join(dir, 'episodic.jsonl'), '{"id":"bad"}\n', 'utf8')
     await expect(store.all()).rejects.toThrow(/corrupt episodic.jsonl at line 2/)
     await expect(store.count()).rejects.toThrow(/corrupt episodic.jsonl at line 2/)
   })
