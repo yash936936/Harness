@@ -2,7 +2,7 @@
 
 ## 2026-11-21 unified completion loop: current status
 
-Main baseline: `5c6179d6c1bb60c71ecc603afbfb41aba23715d3` (PR #161 merged). Post-merge main CI run #44834019205 is pending; PR-head CI runs #44832567598 and #44833502733 passed all mandatory jobs.
+Main baseline: `1da89a79167fe455a1c3aa3d9ddc99237cffcad6` (PR #163 merged). Post-merge main CI run #44835737345 is in progress; PR-head CI #44835272986 passed all mandatory jobs.
 
 **Completed and verified**
 - PR #156: semantic insertion-order/tombstone fix; post-merge CI #44827470725 passed.
