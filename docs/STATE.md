@@ -12,7 +12,25 @@
 - Live Vercel/provider acceptance and Phase 4 task-scoped workspace lifecycle/transfer are separate gates. CI's informational acceptance-gates job does not execute them.
 - D-110/D-117/D-118/D-119 remain binding. Durable history is retained indefinitely by default; do not automatically delete it to meet searchable-memory quotas.
 
-## 2026-11-21 SQLite Phase 2 continuation
+## 2026-11-21 unified completion-loop status
+
+- Main commit: `2a2a60315a1e6db8b448c9c7d48a460c5bfb75b5`, merged from PR #156.
+- PR #156 is merged. Its semantic insertion-order tombstone fix passed CI run #44826849470, all 10 jobs, including Ubuntu/Windows Node 20.19.0 and 22.12.0, typecheck, lint, tests, docs, security/dependencies, licenses, and architecture benchmarks.
+- Post-merge main CI run #44827470725 was still in progress at the last status check. Docs, license inventory, security/dependency audit, Ubuntu Node 22.12, and architecture baseline had passed; the remaining platform test jobs were still running. Do not claim post-merge CI is complete until the run concludes.
+- Phase 2 shared SQLite coordination is implemented through PR #140. The audit records the Windows Node 20 regression, legacy budget import, explicit task identity/shared task reservations, and LLMService shared-store integration as resolved; PR #140 CI run #918 passed the required matrix.
+- Phase 3 implementation includes bounded session-log tail reads, indexed episodic identity and pages, append-only semantic events, rebuildable semantic indexes, bounded searchable-fact quotas, cursor invalidation, and paged checkpointed reindex. Phase 3 remains open for semantic page performance evidence, large/deletion-heavy/concurrent workload tests, recovery checks, and audit closeout.
+- CI run #44826849470 produced refreshed measurements for session-log/episodic paths, retrieval indexing, and 2,000-fact semantic reindex. Exact values and measurement caveats are in [architecture-contracts.md](architecture-contracts.md).
+- A new `bench:semantic-page` script is being added for a 100k-event source with 25k deletions and one reinsertion. Results remain pending until CI runs it.
+- Phase 4 workspace interfaces and SQLite fenced lease storage exist. Task-scoped workspace sessions, capability enforcement, secure snapshot/transfer, conflict-safe result synchronization, and workspace recovery runtime are not implemented.
+- D-110/D-117/D-118 remain binding. The coding profile must not expose `run_command`; no host fallback, Docker/WSL/Crabbox, or implicit sandbox provider selection is allowed.
+- Adapter-side Vercel output limits and fake-client tests exist. Live SDK buffering, remote termination, and end-to-end provider acceptance remain unverified and require explicit authorization and credentials.
+- The CI workflow requires every mandatory verification job through `ci-pass`. The separate `acceptance gates NOT run by CI` job is informational and does not count as provider acceptance.
+- The current Git tree contains 424 tracked files. The complete file-by-file and cross-folder audit is not finished. The 2026-11-07 file manifest is a historical inventory, not current review evidence.
+- D-119 remains binding: one SQLite DB per project, supported local filesystems only, durable history retained indefinitely by default, and workspace resume only after lease expiry, explicit ownership acquisition, and provider-validated recovery.
+
+## Historical SQLite Phase 2 snapshot (superseded by the unified status above)
+
+
 
 - Current main baseline: `75574f337707460340bd2877c4a9b5a26ddaaef0`. PR #134 (independent-process SQLite rate-limit and lease tests) and PR #135 (stable rate-limit policies and bounded lease history) are merged.
 - PR #135 head CI run #899 passed all mandatory jobs, including Ubuntu and Windows on Node 20.19.0 and 22.12.0. Its Vercel deployment check failed separately and is not GitHub Actions CI.
