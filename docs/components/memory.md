@@ -23,7 +23,7 @@ Composes the episodic and hot memory tiers behind `ctx.memory`. It records one l
 - `injectHot` defaults to true. The hot tier is added as a system section at order 10.
 - `compaction.everyTurns`, when set, must be a positive safe integer. Compaction errors are recorded in `lastCompaction` and do not fail the user's turn.
 - Episodic writes are idempotent by `sessionId:fromSeq`; records are linked to their source log sequence range and registered secrets are redacted before storage and return.
-- Persistent episodic storage keeps `episodic.jsonl` authoritative and maintains a rebuildable `episodic.index.jsonl` identity sidecar plus a size manifest. Duplicate detection and `findById` use the sidecar during normal operation; missing, malformed, or size-stale index data is rebuilt under the episode file lock. The index can be deleted safely because it is a projection, not source data. The sidecar also stores query metadata; warm paginated reads select matching index entries and read only page-sized source ranges. A missing, corrupt, or stale index still requires one full source-log rebuild.
+- Persistent episodic storage keeps `episodic.jsonl` authoritative and maintains a rebuildable `episodic.index.jsonl` identity sidecar plus a size manifest. Duplicate detection and `findById` use the sidecar during normal operation; missing, malformed, or size-stale index data is rebuilt under the episode file lock. The index can be deleted safely because it is a projection, not source data. The sidecar also stores query metadata; warm paginated reads select matching index entries and read only page-sized source ranges. Selection retains at most `limit + 1` metadata entries (one look-ahead item), rather than materializing every match. A missing, corrupt, or stale index still requires one full source-log rebuild.
 - Scoped actors with no live memory grant fail closed. Their episode queries are forced to their own actor ID.
 - `MemoryAccess.grant` accepts only `subagent:<id>` actors with a 1-64 character `[A-Za-z0-9_-]` identifier. Malformed actor names cannot be granted memory visibility.
 
@@ -31,7 +31,7 @@ Composes the episodic and hot memory tiers behind `ctx.memory`. It records one l
 
 - Episodic memory is a record of turns, not evidence that a real model learns from it.
 - The persistent episode write queue limit is per process and per store instance. It does not coordinate queue capacity across processes.
-- Rebuilding a stale episodic identity index requires one full pass over the authoritative JSONL log and an in-memory ID map. Cursor pagination uses the persistent metadata index for warm reads. It scans the in-memory metadata map but reads only the selected page records from the authoritative log; the cold index rebuild is the only full-history source scan.
+- Rebuilding a stale episodic identity index requires one full pass over the authoritative JSONL log and an in-memory ID map. Cursor pagination uses the persistent metadata index for warm reads. It scans the in-memory metadata map while retaining at most `limit + 1` candidate entries, then reads only the selected page records from the authoritative log; the cold index rebuild is the only full-history source scan.
 - The semantic tier is optional and depends on embeddings plus a vector store. Its presence does not prove live retrieval quality.
 - The token estimate defaults to `ceil(chars / 3)`; there is no tokenizer in this project.
 - Compaction uses deterministic templates and configured thresholds, not a model-generated summary.
