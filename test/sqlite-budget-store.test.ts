@@ -137,6 +137,32 @@ describe('SQLite budget reservation store', () => {
     expect(second.accepted).toBe(true)
   })
 
+  it('imports legacy day usage once and rejects changed source contents', async () => {
+    const store = new SQLiteBudgetReservationStore(join(temp(), 'state.sqlite'))
+    const sourceHash = 'a'.repeat(64)
+    const input = {
+      projectId: 'project-test', day: '2026-11-20', requests: 7, tokens: 123,
+      requestHardLimit: 10, tokenHardLimit: 1000, sourceHash,
+    }
+    await expect(store.importLegacyDayUsage(input)).resolves.toEqual({ imported: true })
+    await expect(store.importLegacyDayUsage(input)).resolves.toEqual({ imported: false })
+    await expect(store.usage('project-test', 'day:2026-11-20', 'requests'))
+      .resolves.toMatchObject({ committed: 7, reserved: 0, hardLimit: 10 })
+    await expect(store.usage('project-test', 'day:2026-11-20', 'tokens'))
+      .resolves.toMatchObject({ committed: 123, reserved: 0, hardLimit: 1000 })
+    await expect(store.importLegacyDayUsage({ ...input, sourceHash: 'b'.repeat(64) }))
+      .rejects.toThrow(/already imported from different source/)
+  })
+
+  it('refuses legacy import when shared day usage already exists', async () => {
+    const store = new SQLiteBudgetReservationStore(join(temp(), 'state.sqlite'))
+    await store.reserve(request({ subjectId: 'day:2026-11-20', hardLimit: 10 }))
+    await expect(store.importLegacyDayUsage({
+      projectId: 'project-test', day: '2026-11-20', requests: 7, tokens: 123,
+      requestHardLimit: 10, tokenHardLimit: 1000, sourceHash: 'c'.repeat(64),
+    })).rejects.toThrow(/shared usage already exists/)
+  })
+
   it('prevents independent processes from oversubscribing one shared hard limit', async () => {
     const path = join(temp(), 'state.sqlite')
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString()

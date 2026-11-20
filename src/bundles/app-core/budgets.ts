@@ -472,7 +472,74 @@ const BUDGET_RESERVATION_MIGRATIONS: readonly SQLiteMigration[] = [{
       PRIMARY KEY (project_id, principal_id, bucket)
     );
   `,
+}, {
+  version: 5,
+  id: 'legacy-budget-imports',
+  sql: `
+    CREATE TABLE budget_legacy_imports (
+      project_id TEXT NOT NULL,
+      day TEXT NOT NULL,
+      source_hash TEXT NOT NULL,
+      imported_at TEXT NOT NULL,
+      PRIMARY KEY (project_id, day)
+    );
+  `,
 }]
+
+/**
+ * Explicitly migrate the current legacy Budgets.statePath snapshot into a
+ * project's SQLite day bucket. The source file is never deleted or rewritten.
+ * A stale prior-day file is already rolled over and imports as a no-op.
+ */
+export async function migrateLegacyBudgetStateToSQLite(input: {
+  statePath: string
+  databasePath: string
+  projectId: string
+  requestHardLimit?: number
+  tokenHardLimit?: number
+  now?: () => number
+}): Promise<{ imported: boolean; day: string }> {
+  if (typeof input.statePath !== 'string' || !input.statePath.trim() ||
+      typeof input.databasePath !== 'string' || !input.databasePath.trim() ||
+      typeof input.projectId !== 'string' || !input.projectId.trim()) {
+    throw new TypeError('budget migration: statePath, databasePath, and projectId are required')
+  }
+  const now = input.now ?? Date.now
+  const day = todayUTC(now())
+  let raw: string
+  try {
+    raw = readTextFileSyncNoFollow(input.statePath)
+  } catch (error: any) {
+    if (error?.code === 'ENOENT') return { imported: false, day }
+    throw new BudgetStateError(input.statePath, `unreadable: ${error?.code ?? error?.message ?? error}`)
+  }
+  let parsed: any
+  try { parsed = JSON.parse(raw) } catch {
+    throw new BudgetStateError(input.statePath, 'not valid JSON')
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) ||
+      !validDayKey(parsed.day) || !validCount(parsed.requests) || !validCount(parsed.tokens)) {
+    throw new BudgetStateError(input.statePath, 'unexpected contents: day must be a real YYYY-MM-DD calendar date and requests/tokens must be non-negative numbers')
+  }
+  if (parsed.day > day) throw new BudgetStateError(input.statePath, 'saved day is ahead of the system date')
+  if (parsed.day < day) return { imported: false, day }
+  const requestHardLimit = input.requestHardLimit ?? Number.MAX_SAFE_INTEGER
+  const tokenHardLimit = input.tokenHardLimit ?? Number.MAX_SAFE_INTEGER
+  if (!validCount(requestHardLimit) || !validCount(tokenHardLimit)) {
+    throw new RangeError('budget migration: hard limits must be finite non-negative numbers')
+  }
+  const store = new SQLiteBudgetReservationStore(input.databasePath, { now })
+  const result = await store.importLegacyDayUsage({
+    projectId: input.projectId,
+    day,
+    requests: parsed.requests,
+    tokens: parsed.tokens,
+    requestHardLimit,
+    tokenHardLimit,
+    sourceHash: createHash('sha256').update(raw, 'utf8').digest('hex'),
+  })
+  return { imported: result.imported, day }
+}
 
 export interface SQLiteRateLimitStoreOptions {
   now?: () => number
@@ -745,6 +812,73 @@ export class SQLiteBudgetReservationStore implements BudgetReservationStore {
     db.run("DELETE FROM budget_reservations WHERE expires_at <= ? AND state IN ('expired', 'released', 'settled')", [cutoff])
     db.run('DELETE FROM budget_idempotency WHERE expires_at <= ?', [cutoff])
     db.run('DELETE FROM budget_settlements WHERE expires_at <= ?', [cutoff])
+  }
+
+  /**
+   * Import one legacy JSON day snapshot exactly once. Existing usage or active
+   * reservations are a conflict, never silently added to legacy counters.
+   */
+  async importLegacyDayUsage(input: {
+    projectId: string
+    day: string
+    requests: number
+    tokens: number
+    requestHardLimit: number
+    tokenHardLimit: number
+    sourceHash: string
+  }): Promise<{ imported: boolean }> {
+    if (typeof input.projectId !== 'string' || !input.projectId.trim() || input.projectId.length > 256) {
+      throw new TypeError('budget reservations: legacy import requires a valid projectId')
+    }
+    if (!validDayKey(input.day) || !validCount(input.requests) || !validCount(input.tokens) ||
+        !validCount(input.requestHardLimit) || !validCount(input.tokenHardLimit) ||
+        !/^[a-f0-9]{64}$/.test(input.sourceHash)) {
+      throw new TypeError('budget reservations: legacy import payload is invalid')
+    }
+    await this.ready()
+    const now = this.timestamp()
+    return this.database.transaction((db) => {
+      const existingImport = this.query(db,
+        'SELECT source_hash FROM budget_legacy_imports WHERE project_id = ? AND day = ?',
+        [input.projectId, input.day],
+      )[0]
+      if (existingImport) {
+        if (String(existingImport['source_hash']) !== input.sourceHash) {
+          throw new BudgetReservationStoreError('budget reservations: legacy day was already imported from different source contents')
+        }
+        return { imported: false }
+      }
+      const values = [
+        { metric: 'requests', amount: input.requests, hardLimit: input.requestHardLimit },
+        { metric: 'tokens', amount: input.tokens, hardLimit: input.tokenHardLimit },
+      ] as const
+      for (const value of values) {
+        const subjectId = `day:${input.day}`
+        const current = this.query(db,
+          'SELECT committed_amount, hard_limit FROM budget_usage WHERE project_id = ? AND subject_id = ? AND metric = ?',
+          [input.projectId, subjectId, value.metric],
+        )[0]
+        const active = this.query(db,
+          "SELECT COUNT(*) AS count FROM budget_reservations WHERE project_id = ? AND subject_id = ? AND metric = ? AND state = 'reserved' AND expires_at > ?",
+          [input.projectId, subjectId, value.metric, now],
+        )[0]
+        if ((current && Number(current['committed_amount']) !== 0) || Number(active?.['count'] ?? 0) > 0) {
+          throw new BudgetReservationStoreError(`budget reservations: cannot import legacy ${value.metric}; shared usage already exists for ${subjectId}`)
+        }
+        if (current && Number(current['hard_limit']) !== value.hardLimit) {
+          throw new BudgetReservationStoreError(`budget reservations: legacy ${value.metric} hard limit conflicts with existing shared policy`)
+        }
+        db.run(
+          'INSERT INTO budget_usage (project_id, subject_id, metric, committed_amount, hard_limit) VALUES (?, ?, ?, ?, ?) ON CONFLICT(project_id, subject_id, metric) DO UPDATE SET committed_amount = excluded.committed_amount',
+          [input.projectId, subjectId, value.metric, value.amount, value.hardLimit],
+        )
+      }
+      db.run(
+        'INSERT INTO budget_legacy_imports (project_id, day, source_hash, imported_at) VALUES (?, ?, ?, ?)',
+        [input.projectId, input.day, input.sourceHash, now],
+      )
+      return { imported: true }
+    })
   }
 
   /** Shared committed and currently-held usage for one project subject. */
