@@ -8,7 +8,7 @@ Current main before this audit loop: `2a2a60315a1e6db8b448c9c7d48a460c5bfb75b5` 
 - Phase 2 follow-ups AUD-056 through AUD-059 are closed by PR #140. Run #918 passed the Ubuntu/Windows Node 20/22 matrix. Legacy budget import, explicit task identity, shared task reservations, and LLMService shared-SQLite integration tests are present.
 - Phase 3 PRs #141, #142, #148, and #150 are merged. PR #150's merge-commit CI run #44822435655 passed mandatory checks. PR #151 reconciled roadmap/state and its CI run #44822718826 passed. PR #156 adds cursor-indexed semantic pages.
 - CI run #44826849470 refreshed 100k episodic, 1,740-chunk indexing, and 2,000-fact semantic reindex measurements. Current numbers and caveats are recorded in `docs/architecture-contracts.md`.
-- A new 100k-event semantic page benchmark is being added; its measurements are pending. Do not close the semantic performance audit before the benchmark and stress tests pass.
+- The 100k-event semantic page benchmark ran in architecture job #44828389243 with 25k deletions and one reinsertion. Warm 50-row page p50/p95 was 19.953/25.641 ms (cursor 49,999), 18.225/25.586 ms (89,999), and 17.867/20.190 ms (99,899); cold index build was 4,310.982/4,404.561 ms p50/p95. Concurrent writers, crash recovery, and cross-process cache invalidation remain untested. Do not close the semantic performance audit before those stress tests pass.
 - The main tree at the PR #156 merge contained 424 tracked files. The earlier 108-file source scan was only a triage pass. The full file-by-file and cross-folder audit remains incomplete, and folder-ledger checkboxes remain open until call paths, tests, configuration, and docs are traced.
 
 ### D-110 / D-117 host-execution trace (in progress)
