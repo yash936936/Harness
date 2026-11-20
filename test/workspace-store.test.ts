@@ -116,6 +116,56 @@ describe('SQLiteWorkspaceStore', () => {
     expect(await authorize()).toBe(false)
   })
 
+  it('rotates the fencing token and revokes prior capabilities when a validated session is adopted', async () => {
+    const { store } = await fixture()
+    await store.createSession(session())
+    await store.transitionSession({
+      workspaceId: 'workspace-1', ownerId: 'owner-1', leaseId: 'lease-1', fencingToken: 1,
+      expectedState: 'creating', nextState: 'ready',
+    })
+    const oldCapability = {
+      token: 'old-workspace-capability-token-123',
+      capabilityId: 'old-capability',
+      projectId: 'project-1',
+      taskId: 'task-1',
+      sessionId: 'session-1',
+      workspaceId: 'workspace-1',
+      operations: ['read'] as const,
+      pathPrefixes: ['src'],
+      expiresAt: new Date(NOW + 30_000).toISOString(),
+    }
+    await store.recordCapability(oldCapability)
+    const authorizeOld = () => store.authorizeCapability({
+      token: oldCapability.token, projectId: 'project-1', taskId: 'task-1', sessionId: 'session-1',
+      workspaceId: 'workspace-1', operation: 'read', path: 'src/index.ts', now: NOW,
+    })
+    expect(await authorizeOld()).toBe(true)
+
+    const adopted = await store.adoptSession({
+      workspaceId: 'workspace-1',
+      expectedOwnerId: 'owner-1',
+      expectedLeaseId: 'lease-1',
+      expectedFencingToken: 1,
+      ownerId: 'owner-2',
+      leaseId: 'lease-2',
+      fencingToken: 2,
+      expiresAt: new Date(NOW + 120_000).toISOString(),
+    })
+    expect(adopted).toMatchObject({ state: 'ready', leaseId: 'lease-2', fencingToken: 2 })
+    expect(await authorizeOld()).toBe(false)
+
+    await expect(store.adoptSession({
+      workspaceId: 'workspace-1',
+      expectedOwnerId: 'owner-1',
+      expectedLeaseId: 'lease-1',
+      expectedFencingToken: 1,
+      ownerId: 'owner-3',
+      leaseId: 'lease-3',
+      fencingToken: 3,
+      expiresAt: new Date(NOW + 180_000).toISOString(),
+    })).rejects.toThrow(/stale session cannot be adopted/)
+  })
+
   it('serializes identical session creation across independent store instances', async () => {
     const { path } = await fixture()
     const left = new SQLiteWorkspaceStore(path, { now: () => NOW })
