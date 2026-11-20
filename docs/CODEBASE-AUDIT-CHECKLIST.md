@@ -1,5 +1,13 @@
 # Full codebase audit checklist
 
+## 2026-11-21 D-117 router executable path update
+
+- Neither `profile-coding` nor `profile-minimal` registers the host `Subprocess` service. Both reject attempts to configure host subprocess execution; `profile-coding` also rejects `router.needle` and host-backed `retrieval.grep`, `retrieval.rank`, and `retrieval.tools`. It no longer constructs `CommandBackend`, `RetrievalGrep`, or `RetrievalRank`. Tree-sitter parsing remains available without launching a host process.
+- Regression coverage: `test/router.test.ts` verifies a configured host executable is rejected; `test/profile-coding.test.ts` and `test/profile-minimal.test.ts` verify the host `Subprocess` service is absent and its configuration is rejected.
+- The generic `CommandBackend`, `Subprocess`, and retrieval bundles remain exported for explicit non-profile consumers and still contain host-process execution paths. Crabbox imports `Subprocess` but remains held under D-110 and is not registered by either built-in profile. These changes close the built-in profile paths only; they do not close the repository-wide host-execution audit. Trace direct construction by downstream applications and all other subprocess consumers before declaring D-117 complete.
+- The cloud-only Vercel workspace path remains unavailable until Phase 4 transfer, result synchronization, lifecycle, and policy integration pass.
+
+
 ## 2026-11-21 audit continuation baseline
 
 Current main before this audit loop: `2a2a60315a1e6db8b448c9c7d48a460c5bfb75b5` (PR #156 merged).
@@ -15,13 +23,13 @@ Current main before this audit loop: `2a2a60315a1e6db8b448c9c7d48a460c5bfb75b5` 
 
 Verified current paths:
 - `src/cli/code.ts` hard-filters `run_command`, `search_code`, and `list_files` from the coding CLI tool offer and records that command execution is disabled under D-110.
-- `src/profiles/profile-coding.ts` rejects any `sandbox` configuration, registers `LocalTools` with `enableCommand: false`, and registers `RetrievalTools` with `enabled: false`.
-- `src/bundles/tools-local/command.ts` delegates only to `Sandbox.run()`; it does not spawn a host process. The hardened Git configuration probe also uses the sandbox seam.
+- `src/profiles/profile-coding.ts` rejects any `sandbox` configuration, registers `LocalTools` with `enableCommand: false`, and no longer loads `Subprocess`, `RetrievalGrep`, `RetrievalRank`, or `RetrievalTools` under D-117.
+- `src/bundles/tools-local/command.ts` delegates only to `Sandbox.run()`; it does not spawn a host process. The hardened Git configuration probe also uses the sandbox seam. Built-in profiles do not expose `ctx.subprocess`.
 - `src/bundles/sandbox/index.ts` requires explicit provider selection unless an explicit default is registered, and checks project consent plus host allowlisting for remote providers.
 - `src/bundles/sandbox-crabbox/index.ts` still contains a provider implementation backed by host `Subprocess`, but the coding profile rejects sandbox-provider configuration and D-110 permanently holds Crabbox. Its presence in the source tree is not proof of runtime reachability.
 
 Open trace items:
-- `src/bundles/router/backends.ts` contains an optional `CommandBackend` that spawns a configured host executable for the Needle routing backend. It is separate from `run_command` and receives router task/candidate text, not a project command request. Verify the trust boundary, allowed configuration source, and whether this local inference process is compatible with D-117 before closing the host-execution audit.
+- `src/bundles/router/backends.ts` still exports an optional `CommandBackend` that spawns a configured host executable. It is no longer configurable through `profile-coding`; review any direct construction by downstream applications before closing the host-execution audit.
 - Trace every other `Subprocess` consumer, CLI entry point, smoke/evidence script, and desktop entry point. The checks above are a focused path trace, not a completed repository-wide audit.
 - Keep the D-110 Crabbox hold and D-117 no-host-fallback rules unchanged. Do not run local commands or probe Docker/WSL/Crabbox during this audit.
 

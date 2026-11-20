@@ -241,15 +241,12 @@ describe('ownership verdict (4.5 success criterion 2)', () => {
 })
 
 describe('startup and wiring (4.5 criterion 3 and 1)', () => {
-  it('Needle files deleted: profile-coding boots normally and routing still works through rules', async () => {
+  it('rejects a host-executable Needle backend in profile-coding under D-117', async () => {
     const root = tmp(); mkdirSync(join(root, 'src'))
-    const ctx = await bootProfileCoding({
+    await expect(bootProfileCoding({
       projectId: 'p', projectRoot: root, sessionLog: { memory: true },
-      router: { needle: { command: process.execPath, args: [FAKE, 'last'], requiredFiles: [join(root, 'models', 'needle2.cact')] }, owned: ['agent', 'playbook', 'tool'] },
-    })
-    const d = await ctx.router.decide('agent', { task: 'Find where the retry backoff is configured, search the docs', candidates: SUITE.agent.candidates })
-    expect(d.skipped[0]).toMatchObject({ source: 'needle' })
-    expect(['rules', 'worker', 'none']).toContain(d.source) // no real worker model here: the chain ends gracefully, never throws
+      router: { needle: { command: process.execPath, args: [FAKE, 'last'] }, owned: ['agent', 'playbook', 'tool'] },
+    } as any)).rejects.toThrow('router.needle is disabled under D-117')
   })
   it('no router config: ctx.router exists, owns nothing', async () => {
     const root = tmp(); mkdirSync(join(root, 'src'))

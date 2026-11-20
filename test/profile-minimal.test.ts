@@ -5,11 +5,11 @@ import { bootProfileMinimal } from '../src/profiles/profile-minimal.js'
 describe('profile-minimal: end-to-end wiring (1.6)', () => {
   it('boots from one config call with no manual wiring, and completes a single-agent task', async () => {
     const ctx = await bootProfileMinimal({ projectId: 'test', sessionLog: { memory: true } })
-    // ctx.log / ctx.llm / ctx.tools / ctx.subprocess / ctx.agentLoop all live off one boot call.
+    // ctx.log / ctx.llm / ctx.tools / ctx.agentLoop all live off one boot call.
     expect(ctx.log).toBeTruthy()
     expect(ctx.llm).toBeTruthy()
     expect(ctx.tools).toBeTruthy()
-    expect(ctx.subprocess).toBeTruthy()
+    expect((ctx as any).subprocess).toBeUndefined()
     expect(ctx.agentLoop).toBeTruthy()
 
     ctx.llm.register('mock', new MockProvider([{ text: 'hello from profile-minimal', toolCalls: [] }]), { default: true })
@@ -63,11 +63,9 @@ describe('profile-minimal: end-to-end wiring (1.6)', () => {
     expect(events2).toEqual([])
   })
 
-  it('subprocess is live under profile-minimal (available for a future tool wrapper, 1.4)', async () => {
-    const ctx = await bootProfileMinimal({ projectId: 'test', sessionLog: { memory: true }, subprocess: { envAllowlist: [] } })
-    const res = await ctx.subprocess.run(process.execPath, ['-e', 'process.stdout.write("ok")'])
-    expect(res.exitCode).toBe(0)
-    expect(res.stdout).toBe('ok')
+  it('rejects attempts to enable host subprocess execution under D-117', async () => {
+    await expect(bootProfileMinimal({ projectId: 'test', subprocess: {} } as any))
+      .rejects.toThrow(/host subprocess execution is disabled under D-117/)
   })
 
   it('rejects an unregistered tool name before any model call, same as agent-loop alone (1.3+1.5 wired correctly)', async () => {
@@ -84,7 +82,7 @@ describe('ARCH-04: profile-minimal verifies its services', () => {
   it('lists what is missing from a bare context', async () => {
     const { missingMinimalServices } = await import('../src/profiles/profile-minimal.js')
     const { Context } = await import('cordis')
-    expect(missingMinimalServices(new Context())).toEqual(['log', 'egress', 'llm', 'tools', 'subprocess', 'agentLoop'])
+    expect(missingMinimalServices(new Context())).toEqual(['log', 'egress', 'llm', 'tools', 'agentLoop'])
   })
   it('a healthy boot has none missing', async () => {
     const { missingMinimalServices } = await import('../src/profiles/profile-minimal.js')

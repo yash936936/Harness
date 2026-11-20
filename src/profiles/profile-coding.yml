@@ -5,7 +5,7 @@
 # and unknown options are refused at boot, and boot fails unless `verifyGates` proves they enforce.
 
 projectId: my-project            # required
-projectRoot: /absolute/path      # required, absolute: files, commands, retrieval and the gate are all confined to it
+projectRoot: /absolute/path      # required, absolute: file tools, retrieval and the gate are confined to it
 
 sessionLog:
   memory: true                   # or path: ./.harness/sessions

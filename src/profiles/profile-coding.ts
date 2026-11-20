@@ -5,22 +5,17 @@ import { EgressPolicy, type EgressConfig } from '../bundles/egress/index.js'
 import { LLMService, type ModelAdapterConfig } from '../bundles/model-adapter/index.js'
 import type { BudgetsConfig } from '../bundles/app-core/budgets.js'
 import { ToolRegistry, type ToolRegistryConfig } from '../bundles/tool-registry/index.js'
-import { Subprocess, type SubprocessConfig } from '../bundles/subprocess/index.js'
 import { AgentLoop, type AgentLoopConfig } from '../bundles/agent-loop/index.js'
 import { SubagentScope } from '../bundles/subagent-scope/index.js'
 import { PolicyGates, type PolicyConfig } from '../bundles/policy-gates/index.js'
 import { InputGuard, type InputGuardConfig } from '../bundles/input-guard/index.js'
 import { Memory, MemorySemantic, type MemoryConfig, type SemanticConfig } from '../bundles/memory/index.js'
-import { RetrievalGrep, type RetrievalGrepConfig } from '../bundles/retrieval-grep/index.js'
 import { RetrievalTreesitter, type RetrievalTreesitterConfig } from '../bundles/retrieval-treesitter/index.js'
-import { RetrievalRank, type RetrievalRankConfig } from '../bundles/retrieval-rank/index.js'
-import { RetrievalTools, type RetrievalToolsConfig } from '../bundles/retrieval-tools/index.js'
 import { Embeddings, type EmbeddingsConfig } from '../bundles/embeddings/index.js'
 import { LanceVectorStore, type VectorStoreConfig } from '../bundles/vectorstore-lancedb/index.js'
 import { Skills, type SkillsConfig } from '../bundles/skills/index.js'
 import { Orchestrator, type OrchestratorConfig } from '../bundles/orchestrator/index.js'
-import { CommandBackend, Router, WorkerBackend, type CommandBackendConfig, type DecisionClass } from '../bundles/router/index.js'
-import { NEEDLE_PIN } from '../bundles/model-store/index.js'
+import { Router, WorkerBackend, type DecisionClass } from '../bundles/router/index.js'
 import { Sandbox } from '../bundles/sandbox/index.js'
 import { LocalTools, commandRisk, type LocalToolsConfig } from '../bundles/tools-local/index.js'
 
@@ -52,13 +47,12 @@ export const MIN_CONFIDENCE_THRESHOLD = 0.5
 export interface ProfileCodingConfig {
   /** Required (D-029): consent is per project. */
   projectId: string
-  /** Required, absolute. The one folder the file tools, the commands, the retrieval and the policy gate are all confined to. */
+  /** Required, absolute. The one folder the file tools, retrieval and policy gate are confined to. */
   projectRoot: string
   sessionLog?: SessionLogConfig
   egress?: Omit<EgressConfig, 'projectId'>
   modelAdapter?: ModelAdapterConfig
   toolRegistry?: ToolRegistryConfig
-  subprocess?: SubprocessConfig
   agentLoop?: AgentLoopConfig
   /**
    * Approver, threshold, timeout, extra signals and deny rules. There is NO switch to turn the gate off: this profile has no `enabled`
@@ -73,22 +67,19 @@ export interface ProfileCodingConfig {
   /** Skills are never auto-discovered (D-0xx): without `dirs` the skills bundle is not loaded. */
   skills?: SkillsConfig
   /**
-   * The router (4.5). Absent = `ctx.router` exists and owns nothing: every decision goes to the worker (then rules). A class goes in
-   * `owned` only after it beat the worker on the frozen suite (`scripts/eval-router.ts`). Needle files missing = skipped silently.
-   * NOTE (ARCH-02): the harness's own flows consult the router at ONE point, the `tool` class on the first model call of a run. `agent` and
-   * `playbook` have no such point yet (sub-agents are planner-assigned scoped realms; skills are loaded by the model through a tool), so owning
-   * them only affects callers that call `ctx.router.decide` directly. `shadowTool: true` records Needle's tool pick next to the worker's.
-   * `needle.expectedSha256` defaults to the pinned Needle digest.
+   * The router (4.5). Absent = `ctx.router` exists and owns nothing: every decision goes to the cloud model worker (then rules).
+   * A class goes in `owned` only after it beat the worker on the frozen suite (`scripts/eval-router.ts`).
+   * D-117 prohibits host-executable router backends in this profile; `router.needle` is rejected at startup.
+   * NOTE (ARCH-02): the harness's own flows consult the router at ONE point, the `tool` class on the first model call of a run.
+   * `agent` and `playbook` have no such point yet, so owning them only affects direct `ctx.router.decide` callers.
+   * `shadowTool: true` records the worker/rules decision without changing it.
    */
-  router?: { needle?: CommandBackendConfig; owned?: DecisionClass[]; backendTimeoutMs?: number; shadowTool?: boolean }
+  router?: { owned?: DecisionClass[]; backendTimeoutMs?: number; shadowTool?: boolean }
   retrieval?: {
-    grep?: Omit<RetrievalGrepConfig, 'root'>
     treesitter?: RetrievalTreesitterConfig
     /** Give BOTH to add vector search; with neither, ranking is BM25 only. */
     embeddings?: EmbeddingsConfig
     vectorStore?: VectorStoreConfig
-    rank?: Omit<RetrievalRankConfig, 'root'>
-    tools?: RetrievalToolsConfig
   }
   orchestrator?: OrchestratorConfig
   /**
@@ -100,7 +91,7 @@ export interface ProfileCodingConfig {
   eval?: EvalConfig
 }
 
-const ALLOWED_KEYS = new Set(['projectId', 'projectRoot', 'sessionLog', 'egress', 'modelAdapter', 'toolRegistry', 'subprocess', 'agentLoop', 'policy', 'inputGuard', 'localTools', 'memory', 'skills', 'retrieval', 'orchestrator', 'router', 'eval', 'semanticMemory'])
+const ALLOWED_KEYS = new Set(['projectId', 'projectRoot', 'sessionLog', 'egress', 'modelAdapter', 'toolRegistry', 'agentLoop', 'policy', 'inputGuard', 'localTools', 'memory', 'skills', 'retrieval', 'orchestrator', 'router', 'eval', 'semanticMemory'])
 const GATE_WORDS = /(polic|gate|guardrail|approval|confidence|deny)/i
 
 /** Refuse, at boot and by name, anything that tries to switch the gates off or weaken them below the floor. */
@@ -109,6 +100,16 @@ function validate(config: unknown): asserts config is ProfileCodingConfig {
   const c = config as Record<string, unknown>
   if ('sandbox' in c) {
     throw new ProfileError('profile-coding: sandbox provider integration is unavailable. Crabbox is permanently held by D-110; CubeSandbox is out of scope by D-118; Vercel workspace transfer, result sync, lifecycle audit, and policy integration are not complete. Do not enable COMMAND_TOOL.')
+  }
+  const retrievalConfig = c['retrieval']
+  if (retrievalConfig && typeof retrievalConfig === 'object') {
+    for (const key of ['grep', 'rank', 'tools']) {
+      if (key in retrievalConfig) throw new ProfileError(`profile-coding: retrieval.${key} is disabled under D-117 because it can search project files through host subprocess execution`)
+    }
+  }
+  const routerConfig = c['router']
+  if (routerConfig && typeof routerConfig === 'object' && 'needle' in routerConfig) {
+    throw new ProfileError('profile-coding: router.needle is disabled under D-117 because it launches a host executable. Use the configured cloud model backend or rules fallback.')
   }
   for (const key of Object.keys(c)) {
     if (ALLOWED_KEYS.has(key)) continue
@@ -132,8 +133,8 @@ function validate(config: unknown): asserts config is ProfileCodingConfig {
 
 /** Services this profile must end up with. A plugin whose dependency is absent is never started and does not throw, so boot checks for them by name. */
 export const CODING_REQUIRED_SERVICES = [
-  'log', 'egress', 'llm', 'tools', 'subprocess', 'sandbox', 'router', 'agentLoop', 'memory', 'subagents', 'policy', 'inputGuard',
-  'retrievalGrep', 'retrievalParse', 'retrievalRank', 'retrievalTools', 'localTools', 'orchestrator', 'eval',
+  'log', 'egress', 'llm', 'tools', 'sandbox', 'router', 'agentLoop', 'memory', 'subagents', 'policy', 'inputGuard',
+  'retrievalParse', 'localTools', 'orchestrator', 'eval',
 ] as const
 
 /**
@@ -169,11 +170,9 @@ export async function bootProfileCoding(config: ProfileCodingConfig): Promise<Co
     )
     await ctx.plugin(LLMService, { ...config.modelAdapter, budgets, ...(sharedBudget ? { sharedBudget } : {}) })
     await ctx.plugin(ToolRegistry, config.toolRegistry)
-    await ctx.plugin(Subprocess, config.subprocess)
     await ctx.plugin(Sandbox)
     await ctx.plugin(Router, {
       worker: new WorkerBackend({ complete: (r, signal) => ctx.llm.complete(r as any, signal) }),
-      needle: config.router?.needle ? new CommandBackend({ expectedSha256: NEEDLE_PIN.sha256, ...config.router.needle }) : undefined,
       owned: config.router?.owned,
       ...(config.router?.shadowTool ? { shadowTool: true } : {}),
       onDecision: async (sid, d) => { await ctx.log.append(sid, 'router.decision', { class: d.class, choice: d.choice, source: d.source, requestSaved: d.requestSaved, latencyMs: d.latencyMs, skipped: d.skipped }, 'router') },
@@ -187,7 +186,6 @@ export async function bootProfileCoding(config: ProfileCodingConfig): Promise<Co
 
     const r = config.retrieval ?? {}
     await ctx.plugin(InputGuard, config.inputGuard)
-    await ctx.plugin(RetrievalGrep, { ...r.grep, root })
     await ctx.plugin(RetrievalTreesitter, r.treesitter)
     if (r.embeddings && r.vectorStore) {
       await ctx.plugin(Embeddings, r.embeddings)
@@ -210,8 +208,6 @@ export async function bootProfileCoding(config: ProfileCodingConfig): Promise<Co
         },
       })
     }
-    await ctx.plugin(RetrievalRank, { ...r.rank, root })
-    await ctx.plugin(RetrievalTools, { ...r.tools, enabled: false })
     await ctx.plugin(LocalTools, { ...config.localTools, root, enableCommand: false })
     if (config.skills) await ctx.plugin(Skills, config.skills)
     await ctx.plugin(Orchestrator, config.orchestrator)
