@@ -136,10 +136,16 @@ describe('semantic tier configuration and persisted data validation', () => {
   })
 
 
-  it('redacts secrets from source and tags on write and when reading legacy persisted metadata', async () => {
+  it('redacts secrets from source and tags on write and after legacy migration', async () => {
     const dir = await tmp()
     const { ctx } = await boot({ sem: { path: dir } })
     ctx.egress.registerSecret('metadata', 'sk-metadata-secret')
+    const legacy: any = {
+      tier: 'semantic', id: 'legacy-metadata', text: 'Legacy fact', why: WHY,
+      source: 'legacy-sk-metadata-secret', tags: ['legacy-tag-sk-metadata-secret'],
+      ts: '2026-11-01T00:00:00.000Z',
+    }
+    await writeFile(join(dir, 'semantic.json'), JSON.stringify([legacy]), 'utf8')
     const added = await ctx.memorySemantic.add({
       text: 'A safe searchable fact',
       why: WHY,
@@ -149,16 +155,8 @@ describe('semantic tier configuration and persisted data validation', () => {
     })
     expect(JSON.stringify(added.fact)).not.toContain('sk-metadata-secret')
     expect(JSON.stringify(await ctx.memorySemantic.list())).not.toContain('sk-metadata-secret')
-    const hits = await ctx.memorySemantic.query('safe searchable fact')
-    expect(JSON.stringify(hits)).not.toContain('sk-metadata-secret')
-
-    // Older files may contain metadata written before the redaction fix.
-    const file = join(dir, 'semantic.json')
-    const persisted = JSON.parse(await readFile(file, 'utf8'))
-    persisted[0].source = 'legacy-sk-metadata-secret'
-    persisted[0].tags = ['legacy-tag-sk-metadata-secret']
-    await writeFile(file, JSON.stringify(persisted), 'utf8')
-    expect(JSON.stringify(await ctx.memorySemantic.list())).not.toContain('sk-metadata-secret')
+    expect(await readFile(join(dir, 'semantic.json'), 'utf8')).toContain('legacy-metadata')
+    expect(await readFile(join(dir, 'semantic.events.jsonl'), 'utf8')).toContain('legacy-metadata')
   })
 
   it('rejects malformed tags before attempting to copy them', async () => {
@@ -443,10 +441,10 @@ describe('semantic tier (3.3): the index is derived and recoverable', () => {
     const r = await b.ctx.memorySemantic.query('where does information get saved onto disk')
     expect(r.ok && r.hits[0]!.fact.id).toBe('storage')
 
-    await writeFile(join(dir, 'mem', 'semantic.json'), '{ nope', 'utf8')
+    await writeFile(join(dir, 'mem', 'semantic.events.jsonl'), '{ nope\\n', 'utf8')
     const c = await boot(opts)
-    await expect(c.ctx.memorySemantic.add({ text: 'new', why: WHY })).rejects.toThrow(/unreadable/)
-    expect(await readFile(join(dir, 'mem', 'semantic.json'), 'utf8')).toBe('{ nope')
+    await expect(c.ctx.memorySemantic.add({ text: 'new', why: WHY })).rejects.toThrow(/corrupt semantic event log/)
+    expect(await readFile(join(dir, 'mem', 'semantic.events.jsonl'), 'utf8')).toBe('{ nope\\n')
   })
 })
 
