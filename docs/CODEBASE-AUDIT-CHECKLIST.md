@@ -2,12 +2,12 @@
 
 ## 2026-11-21 latest main and verified closeout
 
-- Current main: `1da89a79167fe455a1c3aa3d9ddc99237cffcad6`, PR #163 merged. PR-head CI #44835272986 passed all mandatory jobs; post-merge main CI #44835737345 is running.
+- Current main: `d0c2639a834841e70002a3e32f1b5068ac15d2ef`, PR #165 merged. PR-head CI #44836850401 passed all mandatory jobs; post-merge main CI #44837164572 is running.
 - PR #158 merged cross-process semantic acceptance: four writers, 200 facts, 50 deletions from another process, stale cursor rejection, 150 live facts after sidecar rebuild, and delete/reinsert ordering. PR-head CI #44831362470 and post-merge main CI #44831864535 passed.
 - PR #161 merged the source-append/index-update crash-window test: a fresh service rebuilds the sidecar after an event append that did not reach the index/manifest. PR-head CI #44833502733 passed. This does not cover interruption during the source append itself.
 - PR #157 published semantic page benchmark evidence. Cold index rebuild p50/p95 4,310.982/4,404.561 ms; warm 50-row page p50/p95 19.953/25.641 ms (49,999), 18.225/25.586 ms (89,999), and 17.867/20.190 ms (99,899); sampled RSS delta 25,427,968/26,869,760 bytes. Measurement caveats are in `docs/architecture-contracts.md`.
 - PR #159 removes host `Subprocess` from both built-in profiles and disables host-backed retrieval/router configuration in `profile-coding`. Generic subprocess and retrieval bundles remain exported, so this is not the complete repository-wide D-110/D-117 audit.
-- Phase 4 now has a durable SQLite session/capability metadata store (PR #163), including fenced transitions/adoption and hashed, scoped, revocable grants. It is not integrated into a runtime or provider. The transfer contract still lacks bounded byte transport and governed apply. Provider lifecycle, provider-side enforcement, conflict-safe apply, recovery, and live Vercel acceptance remain open.
+- Phase 4 now has a durable SQLite session/capability store (PR #163) and a backend-neutral lease/session runtime (PR #165). The runtime has no production Vercel provider, provider-validated recovery, provider-side OS enforcement, byte transfer, snapshot manifests, conflict-safe apply, or crash recovery. Live Vercel acceptance remains open.
 - The complete file-by-file/cross-folder audit remains incomplete; the 108-file scan and 424-file historical count below are triage evidence only.
 
 
