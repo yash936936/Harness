@@ -83,6 +83,7 @@ export class Orchestrator extends Service {
       attempts++
       const res = await this.ctx.agentLoop.run({
         sessionId: opts.sessionId,
+        ...(opts.taskId !== undefined ? { taskId: opts.taskId } : {}),
         actor: ACTOR,
         prompt,
         tools: [],

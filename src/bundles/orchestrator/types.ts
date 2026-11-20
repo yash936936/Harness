@@ -29,6 +29,8 @@ export interface PlannerLimits {
 
 export interface PlanOptions {
   sessionId: string
+  /** Explicit logical identity for shared task-scope budget accounting of the planning calls. */
+  taskId?: string
   task: string
   /** Tools the planner may assign to subtasks. Default: every registered tool. Must all be registered. */
   tools?: string[]
@@ -64,6 +66,8 @@ export type SubtaskStatus = 'completed' | 'failed' | 'blocked' | 'not-run'
 
 export interface ExecuteOptions {
   sessionId: string
+  /** Stable parent task identity; each subtask receives `${taskId}:${subtaskId}`. */
+  taskId?: string
   /**
    * The ceiling on tools any subtask may be granted. Required and explicit: a plan is model output, so what it asks for is
    * never what it gets by itself. Every tool a subtask lists must be inside this list (checked for the WHOLE plan before
