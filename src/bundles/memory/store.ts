@@ -72,8 +72,23 @@ export class JsonlEpisodeStore implements EpisodeStore {
       await mkdir(this.dir, { recursive: true })
       await assertNoSymlinkParents(this.file)
       return withFileLock(`${this.file}.lock`, async () => {
-        const entries = await this.ensureIndex()
-        if (entries.has(episode.id)) return false
+        let entries = await this.ensureIndex()
+        const existing = entries.get(episode.id)
+        if (existing) {
+          try {
+            const stored = JSON.parse(await readTextRangeNoFollow(this.file, existing.offset, existing.length)) as Episode
+            if (stored.id === episode.id) return false
+          } catch {
+            // A sidecar entry that does not resolve to its claimed source record is stale.
+          }
+          this.indexCache = undefined
+          entries = await this.rebuildIndex()
+          const rebuilt = entries.get(episode.id)
+          if (rebuilt) {
+            const stored = JSON.parse(await readTextRangeNoFollow(this.file, rebuilt.offset, rebuilt.length)) as Episode
+            if (stored.id === episode.id) return false
+          }
+        }
         const sourceBytes = await this.fileSize(this.file)
         const line = JSON.stringify(episode) + '\n'
         await appendTextFileNoFollow(this.file, line)
@@ -235,13 +250,18 @@ export class JsonlEpisodeStore implements EpisodeStore {
       const entry = (await this.ensureIndex()).get(id)
       if (!entry) return undefined
       try {
-        return JSON.parse(await readTextRangeNoFollow(this.file, entry.offset, entry.length)) as Episode
+        const episode = JSON.parse(await readTextRangeNoFollow(this.file, entry.offset, entry.length)) as Episode
+        if (episode.id !== id) throw new Error('memory: episodic identity index entry does not match its source record')
+        return episode
       } catch (error: any) {
         // A stale or damaged index is never authoritative.
         this.indexCache = undefined
         const rebuilt = await this.rebuildIndex()
         const current = rebuilt.get(id)
-        return current ? JSON.parse(await readTextRangeNoFollow(this.file, current.offset, current.length)) as Episode : undefined
+        if (!current) return undefined
+        const episode = JSON.parse(await readTextRangeNoFollow(this.file, current.offset, current.length)) as Episode
+        if (episode.id !== id) throw new Error('memory: rebuilt episodic identity index does not match its source record')
+        return episode
       }
     })
   }
