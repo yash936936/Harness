@@ -5,7 +5,6 @@ import { EgressPolicy, type EgressConfig } from '../bundles/egress/index.js'
 import { LLMService, type ModelAdapterConfig } from '../bundles/model-adapter/index.js'
 import type { BudgetsConfig } from '../bundles/app-core/budgets.js'
 import { ToolRegistry, type ToolRegistryConfig } from '../bundles/tool-registry/index.js'
-import { Subprocess, type SubprocessConfig } from '../bundles/subprocess/index.js'
 import { AgentLoop, type AgentLoopConfig } from '../bundles/agent-loop/index.js'
 import { SubagentScope } from '../bundles/subagent-scope/index.js'
 import { PolicyGates, type PolicyConfig } from '../bundles/policy-gates/index.js'
@@ -51,13 +50,12 @@ export const MIN_CONFIDENCE_THRESHOLD = 0.5
 export interface ProfileCodingConfig {
   /** Required (D-029): consent is per project. */
   projectId: string
-  /** Required, absolute. The one folder the file tools, the commands, the retrieval and the policy gate are all confined to. */
+  /** Required, absolute. The one folder the file tools, retrieval and policy gate are confined to. */
   projectRoot: string
   sessionLog?: SessionLogConfig
   egress?: Omit<EgressConfig, 'projectId'>
   modelAdapter?: ModelAdapterConfig
   toolRegistry?: ToolRegistryConfig
-  subprocess?: SubprocessConfig
   agentLoop?: AgentLoopConfig
   /**
    * Approver, threshold, timeout, extra signals and deny rules. There is NO switch to turn the gate off: this profile has no `enabled`
@@ -99,7 +97,7 @@ export interface ProfileCodingConfig {
   eval?: EvalConfig
 }
 
-const ALLOWED_KEYS = new Set(['projectId', 'projectRoot', 'sessionLog', 'egress', 'modelAdapter', 'toolRegistry', 'subprocess', 'agentLoop', 'policy', 'inputGuard', 'localTools', 'memory', 'skills', 'retrieval', 'orchestrator', 'router', 'eval', 'semanticMemory'])
+const ALLOWED_KEYS = new Set(['projectId', 'projectRoot', 'sessionLog', 'egress', 'modelAdapter', 'toolRegistry', 'agentLoop', 'policy', 'inputGuard', 'localTools', 'memory', 'skills', 'retrieval', 'orchestrator', 'router', 'eval', 'semanticMemory'])
 const GATE_WORDS = /(polic|gate|guardrail|approval|confidence|deny)/i
 
 /** Refuse, at boot and by name, anything that tries to switch the gates off or weaken them below the floor. */
@@ -135,7 +133,7 @@ function validate(config: unknown): asserts config is ProfileCodingConfig {
 
 /** Services this profile must end up with. A plugin whose dependency is absent is never started and does not throw, so boot checks for them by name. */
 export const CODING_REQUIRED_SERVICES = [
-  'log', 'egress', 'llm', 'tools', 'subprocess', 'sandbox', 'router', 'agentLoop', 'memory', 'subagents', 'policy', 'inputGuard',
+  'log', 'egress', 'llm', 'tools', 'sandbox', 'router', 'agentLoop', 'memory', 'subagents', 'policy', 'inputGuard',
   'retrievalGrep', 'retrievalParse', 'retrievalRank', 'retrievalTools', 'localTools', 'orchestrator', 'eval',
 ] as const
 
@@ -172,7 +170,6 @@ export async function bootProfileCoding(config: ProfileCodingConfig): Promise<Co
     )
     await ctx.plugin(LLMService, { ...config.modelAdapter, budgets, ...(sharedBudget ? { sharedBudget } : {}) })
     await ctx.plugin(ToolRegistry, config.toolRegistry)
-    await ctx.plugin(Subprocess, config.subprocess)
     await ctx.plugin(Sandbox)
     await ctx.plugin(Router, {
       worker: new WorkerBackend({ complete: (r, signal) => ctx.llm.complete(r as any, signal) }),
