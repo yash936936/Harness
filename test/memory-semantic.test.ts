@@ -456,7 +456,7 @@ describe('semantic tier (3.3): the index is derived and recoverable', () => {
 
     const afterMissing = await boot(opts)
     expect((await afterMissing.ctx.memorySemantic.list()).map((fact) => fact.id).sort()).toEqual(['retry', 'secrets', 'storage'])
-    await writeFile(indexPath, '{broken\\n', 'utf8')
+    await writeFile(indexPath, '{broken\n', 'utf8')
 
     const afterCorrupt = await boot(opts)
     expect((await afterCorrupt.ctx.memorySemantic.list()).map((fact) => fact.id).sort()).toEqual(['retry', 'secrets', 'storage'])
