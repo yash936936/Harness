@@ -309,8 +309,12 @@ export class SemanticFactStore {
     if (!Number.isSafeInteger(limit) || limit < 1) throw new MemoryError('memory: semantic page limit must be a positive safe integer')
     if (!this.dir) {
       if (expectedSourceBytes !== undefined && expectedSourceBytes !== this.memoryRevision) throw new MemoryError('memory: semantic page cursor is stale because the source changed')
-      const cursorPosition = afterId === undefined ? -1 : this.memoryPositions.get(afterId)
-      if (afterId !== undefined && cursorPosition === undefined) throw new MemoryError('memory: semantic page cursor is stale')
+      let cursorPosition = -1
+      if (afterId !== undefined) {
+        const position = this.memoryPositions.get(afterId)
+        if (position === undefined) throw new MemoryError('memory: semantic page cursor is stale')
+        cursorPosition = position
+      }
       const items: SemanticFact[] = []
       for (let position = cursorPosition + 1; position < this.memoryOrder.length && items.length < limit; position++) {
         const fact = this.memoryFacts.get(this.memoryOrder[position]!)
@@ -320,8 +324,12 @@ export class SemanticFactStore {
     }
     const index = await this.ensureIndex()
     if (expectedSourceBytes !== undefined && expectedSourceBytes !== index.sourceBytes) throw new MemoryError('memory: semantic page cursor is stale because the source changed')
-    const cursorPosition = afterId === undefined ? -1 : index.positions.get(afterId)
-    if (afterId !== undefined && cursorPosition === undefined) throw new MemoryError('memory: semantic page cursor is stale')
+    let cursorPosition = -1
+    if (afterId !== undefined) {
+      const position = index.positions.get(afterId)
+      if (position === undefined) throw new MemoryError('memory: semantic page cursor is stale')
+      cursorPosition = position
+    }
     const items: SemanticFact[] = []
     for (let position = cursorPosition + 1; position < index.orderedIds.length && items.length < limit; position++) {
       const id = index.orderedIds[position]!
