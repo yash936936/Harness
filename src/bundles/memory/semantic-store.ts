@@ -272,7 +272,7 @@ export class SemanticFactStore {
   }
 
   async page(afterId: string | undefined, limit: number): Promise<{ items: SemanticFact[]; sourceBytes: number }> {
-    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 1000) throw new MemoryError('memory: semantic page limit must be from 1 to 1000')
+    if (!Number.isSafeInteger(limit) || limit < 1) throw new MemoryError('memory: semantic page limit must be a positive safe integer')
     if (!this.dir) {
       const values = [...this.memoryFacts.values()]
       const start = afterId === undefined ? 0 : values.findIndex((fact) => fact.id === afterId) + 1
