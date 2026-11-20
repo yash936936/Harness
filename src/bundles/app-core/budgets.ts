@@ -457,6 +457,20 @@ const BUDGET_RESERVATION_MIGRATIONS: readonly SQLiteMigration[] = [{
       PRIMARY KEY (project_id, idempotency_key)
     );
   `,
+}, {
+  version: 4,
+  id: 'stable-rate-limit-policies',
+  sql: `
+    CREATE TABLE rate_limit_policies (
+      project_id TEXT NOT NULL,
+      principal_id TEXT NOT NULL,
+      bucket TEXT NOT NULL,
+      limit_count INTEGER NOT NULL CHECK (limit_count > 0),
+      window_ms INTEGER NOT NULL CHECK (window_ms > 0),
+      max_concurrent INTEGER NOT NULL CHECK (max_concurrent > 0),
+      PRIMARY KEY (project_id, principal_id, bucket)
+    );
+  `,
 }]
 
 export interface SQLiteRateLimitStoreOptions {
@@ -553,6 +567,13 @@ export class SQLiteRateLimitStore implements RateLimitStore {
           ...(prior['retry_at'] === null ? {} : { retryAt: new Date(Number(prior['retry_at'])).toISOString() }),
         }
         return { accepted: true, permit: this.permit(db, String(prior['permit_id'])) }
+      }
+      const policy = this.query(db, 'SELECT limit_count, window_ms, max_concurrent FROM rate_limit_policies WHERE project_id = ? AND principal_id = ? AND bucket = ?', [input.projectId, input.principalId, input.bucket])[0]
+      if (policy && (Number(policy['limit_count']) !== input.limit || Number(policy['window_ms']) !== input.windowMs || Number(policy['max_concurrent']) !== input.maxConcurrent)) {
+        throw new Error('rate limits: policy changed for an existing project/principal/bucket; use a new bucket or perform an explicit migration')
+      }
+      if (!policy) {
+        db.run('INSERT INTO rate_limit_policies (project_id, principal_id, bucket, limit_count, window_ms, max_concurrent) VALUES (?, ?, ?, ?, ?, ?)', [input.projectId, input.principalId, input.bucket, input.limit, input.windowMs, input.maxConcurrent])
       }
       const windowStart = now - input.windowMs
       const events = this.query(db, 'SELECT COUNT(*) AS count, MIN(expires_at) AS retry_at FROM rate_limit_events WHERE project_id = ? AND principal_id = ? AND bucket = ? AND occurred_at > ?', [input.projectId, input.principalId, input.bucket, windowStart])[0]
@@ -967,6 +988,10 @@ export class SQLiteLeaseStore implements LeaseStore {
     return this.database.transaction((db) => {
       db.run("UPDATE resource_leases SET state = 'expired' WHERE state = 'active' AND expires_at <= ?", [now])
       db.run('DELETE FROM resource_lease_idempotency WHERE expires_at <= ?', [now])
+      // Keep only a bounded grace window of terminal lease rows. Fencing
+      // counters are deliberately retained so ownership tokens never reset.
+      const leaseHistoryCutoff = now - this.maxLeaseTtlMs
+      db.run("DELETE FROM resource_leases WHERE state IN ('released', 'expired') AND expires_at <= ?", [leaseHistoryCutoff])
       const prior = this.query(db, 'SELECT request_hash, lease_id FROM resource_lease_idempotency WHERE project_id = ? AND idempotency_key = ?', [input.projectId, input.idempotencyKey])[0]
       if (prior) {
         if (String(prior['request_hash']) !== hash) return { acquired: false, reason: 'idempotency-conflict' }
