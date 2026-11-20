@@ -4,7 +4,7 @@
 
 ## Purpose
 
-Composes Cordis service stacks. `profile-minimal` provides session logging, model access, tools, and the agent loop. `profile-coding` adds project file tools, retrieval, memory, skills, policy gates, input guard, orchestration, and evaluation. The coding profile deliberately does not register the host `Subprocess` service under D-117.
+Composes Cordis service stacks. `profile-minimal` provides session logging, model access, tools, and the agent loop. `profile-coding` adds project file tools, syntax parsing, semantic memory, skills, policy gates, input guard, orchestration, and evaluation. The coding profile deliberately does not register the host `Subprocess` service under D-117.
 
 ## Route
 
@@ -21,7 +21,7 @@ Callers use `bootProfileMinimal(config)` or `bootProfileCoding(config)`. The gov
 
 ## Known limits
 
-- The coding profile does not currently register the Vercel provider or enable `COMMAND_TOOL`.
+- The coding profile does not currently register the Vercel provider, enable `COMMAND_TOOL`, or load host-backed project search.
 - D-117 allows commands only in an explicitly selected remote cloud sandbox. D-118 selects Vercel, but workspace transfer, result sync, audit, and live acceptance are incomplete.
 - D-110 permanently holds Docker/WSL/Crabbox S0 and prohibits host fallback.
 - A profile self-test and fake provider test are not live cloud acceptance.
