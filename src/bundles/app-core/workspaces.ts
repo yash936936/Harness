@@ -75,6 +75,7 @@ function toSession(row: Record<string, unknown>): WorkspaceSession {
     taskId: String(row['task_id']),
     sessionId: String(row['session_id']),
     provider: String(row['provider']),
+    ownerId: String(row['owner_id']),
     state: String(row['state']) as WorkspaceSession['state'],
     leaseId: String(row['lease_id']),
     fencingToken: Number(row['fencing_token']),
