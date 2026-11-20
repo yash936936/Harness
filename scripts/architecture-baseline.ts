@@ -109,6 +109,7 @@ try {
     const duplicateTimings: number[] = []
     const lookupTimings: number[] = []
     const queryTimings: number[] = []
+    const pageTimings: number[] = []
     let fixtureBytes = 0
     let identityIndexBytes = 0
     let identityManifestBytes = 0
@@ -143,6 +144,10 @@ try {
       const hits = await memory.query({ task: 'selective-target', limit: 20 })
       queryTimings.push(performance.now() - started)
       if (hits.length !== 20) throw new Error(`selective query correctness failed: expected 20, got ${hits.length}`)
+      started = performance.now()
+      const page = await memory.page({}, { limit: 50 })
+      pageTimings.push(performance.now() - started)
+      if (page.items.length !== 50 || !page.nextCursor) throw new Error('indexed episodic page correctness failed')
       observeRss()
     }
     results.episodicIdentityIndexBuildAt100k = { ...stats(identityBuildTimings), fixtureBytes, identityIndexBytes, identityManifestBytes, sourceLogScannedOnceToBuild: true }
@@ -153,6 +158,13 @@ try {
       estimatedFullFileReadBytesPerWarmCheck: 0,
     }
     results.episodicFindByIdAt100k = { ...stats(lookupTimings), fixtureBytes, identityIndexBytes, estimatedFullFileReadBytesPerWarmLookup: 0 }
+    results.episodicIndexedPageAt100k = {
+      ...stats(pageTimings),
+      fixtureBytes,
+      identityIndexBytes,
+      pageSize: 50,
+      estimatedFullFileReadBytesPerWarmPage: 0,
+    }
     results.episodicSelectiveQueryAt100k = {
       ...stats(queryTimings),
       fixtureBytes,

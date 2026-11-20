@@ -18,5 +18,5 @@ if (mode === 'nolock') {
 }
 for (let i = 0; i < Number(count); i++) {
   await hot.add({ text: `rule ${tag}-${i}`, id: `${tag}-${i}` })
-  await eps.add({ id: `ep-${tag}-${i}`, ts: new Date().toISOString(), task: 't', approach: 'a', result: 'r', lesson: 'l' } as any)
+  await eps.add({ id: `ep-${tag}-${i}`, sessionId: `session-${tag}-${i}`, agentId: 'main', ts: new Date().toISOString(), task: 't', approach: 'a', result: 'r', outcome: 'done', lesson: 'l', fromSeq: 1, toSeq: 1, steps: 1, toolCalls: 0 })
 }

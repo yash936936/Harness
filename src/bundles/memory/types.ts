@@ -61,6 +61,13 @@ export interface EpisodePage {
   nextCursor?: string
 }
 
+export interface EpisodePageCursor {
+  ts: string
+  sessionId: string
+  fromSeq: number
+  id: string
+}
+
 /** Storage backend. Append-only: there is no update or delete. */
 export interface EpisodeStore {
   /** Returns false (and writes nothing) when an entry with this id already exists. */
@@ -70,6 +77,8 @@ export interface EpisodeStore {
   iterate?(): AsyncIterable<Episode>
   /** Optional lookup used after an idempotent add. */
   findById?(id: string): Promise<Episode | undefined>
+  /** Optional indexed page query; implementations should avoid scanning source history on warm reads. */
+  queryPage?(query: Omit<EpisodeQuery, 'limit'>, cursor: EpisodePageCursor | undefined, limit: number): Promise<{ items: Episode[]; hasMore: boolean }>
   /** Optional count that does not materialise all records. */
   count?(): Promise<number>
 }

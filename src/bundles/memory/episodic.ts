@@ -1,7 +1,7 @@
 // Records and queries per-turn episodic memory linked to session-log events.
 import type { Context } from 'cordis'
 import type { SessionEvent } from '../session-log/index.js'
-import { MemoryError, type Episode, type EpisodePage, type EpisodeQuery, type EpisodeStore, type RecordTurnInput } from './types.js'
+import { MemoryError, type Episode, type EpisodePage, type EpisodePageCursor, type EpisodeQuery, type EpisodeStore, type RecordTurnInput } from './types.js'
 
 function clip(s: string, max: number): string {
   return s.length <= max ? s : s.slice(0, Math.max(0, max - 1)) + '…'
@@ -147,7 +147,7 @@ export class EpisodicMemory {
       throw new MemoryError('memory: episode page limit must be an integer from 1 to 500')
     }
     const descending = q.order === 'desc'
-    type Key = { ts: string; sessionId: string; fromSeq: number; id: string }
+    type Key = EpisodePageCursor
     const keyOf = (e: Episode): Key => ({ ts: e.ts, sessionId: e.sessionId, fromSeq: e.fromSeq, id: e.id })
     const compare = (a: Key, b: Key) =>
       a.ts.localeCompare(b.ts) || a.sessionId.localeCompare(b.sessionId) || a.fromSeq - b.fromSeq || a.id.localeCompare(b.id)
@@ -162,6 +162,15 @@ export class EpisodicMemory {
         throw new MemoryError('memory: invalid episode page cursor')
       }
     }
+    if (this.store.queryPage) {
+      const result = await this.store.queryPage(q, cursor, limit)
+      const last = result.items[result.items.length - 1]
+      return {
+        items: result.items,
+        ...(result.hasMore && last ? { nextCursor: Buffer.from(JSON.stringify(keyOf(last))).toString('base64url') } : {}),
+      }
+    }
+
     const needle = q.task?.toLowerCase()
     const selected: Episode[] = []
     for await (const episode of this.iterate()) {
