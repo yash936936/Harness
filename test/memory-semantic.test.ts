@@ -446,6 +446,24 @@ describe('semantic tier (3.3): the index is derived and recoverable', () => {
     await expect(c.ctx.memorySemantic.add({ text: 'new', why: WHY })).rejects.toThrow(/corrupt semantic event log/)
     expect(await readFile(join(dir, 'mem', 'semantic.events.jsonl'), 'utf8')).toBe('{ nope\n')
   })
+  it('rebuilds the semantic ID and text index after missing or corrupt sidecar data', async () => {
+    const dir = await tmp()
+    const opts = { dbPath: join(dir, 'db'), sem: { path: join(dir, 'mem') } }
+    const first = await boot(opts)
+    await seed(first.ctx)
+    const indexPath = join(dir, 'mem', 'semantic.index.jsonl')
+    await rm(indexPath, { force: true })
+
+    const afterMissing = await boot(opts)
+    expect((await afterMissing.ctx.memorySemantic.list()).map((fact) => fact.id).sort()).toEqual(['retry', 'secrets', 'storage'])
+    await writeFile(indexPath, '{broken\\n', 'utf8')
+
+    const afterCorrupt = await boot(opts)
+    expect((await afterCorrupt.ctx.memorySemantic.list()).map((fact) => fact.id).sort()).toEqual(['retry', 'secrets', 'storage'])
+    const duplicate = await afterCorrupt.ctx.memorySemantic.add({ text: STORAGE.toUpperCase(), why: WHY, id: 'duplicate-after-rebuild' })
+    expect(duplicate.created).toBe(false)
+    expect(duplicate.fact.id).toBe('storage')
+  })
 })
 
 
