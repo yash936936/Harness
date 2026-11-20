@@ -1,5 +1,19 @@
 # Roadmap: Harness audit closeout and scalable architecture
 
+## 2026-11-21 Phase 2 execution update
+
+Main baseline: `75574f337707460340bd2877c4a9b5a26ddaaef0`. PRs #134 and #135 are merged. PR #135 CI run #899 passed the mandatory matrix. PR #134 run #896 has one unresolved failure: Windows Node 20 `npm test`; the other three OS/runtime combinations passed. Cross-process acceptance therefore remains open.
+
+**Next execution order:**
+1. Reproduce and fix the Windows Node 20 independent-process test failure, then require a fresh full CI matrix.
+2. Design and implement an explicit, idempotent migration from legacy `Budgets.statePath` JSON day counters into the SQLite shared budget store. Preserve same-day requests/tokens, define stale-day rollover, and fail closed on ambiguous/imported state. Never silently sum old and new counters.
+3. Propagate an explicit task identity into `BudgetGate` and add transactional shared task-scope reservations. Do not infer task identity from session or process IDs.
+4. Add LLMService integration tests for shared budget/rate-limit setup, rejection, settlement, release, retries, and DB-path/project isolation.
+5. Run migration compatibility, restart, cross-process, and crash/recovery acceptance. Keep Phase 2 open until all required gates pass.
+
+Phase 3 memory/retrieval scaling and Phase 4 task-scoped workspace sessions remain separate phases. Live Vercel acceptance remains owner-run and is not implied by CI.
+
+
 Updated 2026-11-20, main `71499dea7af36995a8e7e636a88d196c8e89002f`. PRs #128-130 are merged. PR #130 integrates shared session/day hard reservations into the model-call path and its PR-head CI run #881 passed. The next Phase 2 slice is shared rate-limit windows and concurrency permits. This is the active implementation roadmap. Phase 0 is complete on the merged audit PR. Phase 1 contract artifacts are drafted and all four D-119 policy choices are approved and recorded. Numeric baselines now cover session logs, episodic memory, reservations (legacy negative control), retrieval indexing, semantic reindex, and fake-provider streaming. Shared SQLite runtime, task workspaces, live Vercel acceptance, and bounded total-memory/query paths remain open. Current project state and binding constraints are in [STATE.md](STATE.md); architecture decisions are in [decisions.md](decisions.md); detailed findings are tracked in [CODEBASE-AUDIT-CHECKLIST.md](CODEBASE-AUDIT-CHECKLIST.md).
 
 ## Target outcome
