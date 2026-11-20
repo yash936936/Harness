@@ -1,5 +1,5 @@
 import { Context } from 'cordis'
-import { mkdtemp, rm, writeFile, readFile } from 'node:fs/promises'
+import { mkdtemp, rm, writeFile, readFile, appendFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -216,6 +216,32 @@ describe('semantic tier configuration and persisted data validation', () => {
     const recoveredEvents = (await readFile(eventPath, 'utf8')).trimEnd().split('\n')
     expect(recoveredEvents).toHaveLength(2)
     expect(recoveredEvents.map((line) => JSON.parse(line).fact.id)).toEqual(['committed', 'after-recovery'])
+  })
+
+  it('rebuilds the disposable index when a process stops after appending the durable event', async () => {
+    const dir = await tmp()
+    const opts = { sem: { path: dir }, dbPath: join(dir, 'db') }
+    const first = await boot(opts)
+    await first.ctx.memorySemantic.add({ id: 'before-crash', text: 'committed before crash', why: WHY })
+
+    const eventPath = join(dir, 'semantic.events.jsonl')
+    const indexPath = join(dir, 'semantic.index.jsonl')
+    const fact = {
+      tier: 'semantic',
+      id: 'after-source-append',
+      text: 'durable event written before index update',
+      why: WHY,
+      ts: '2026-11-21T00:00:00.000Z',
+    }
+    // Model the crash window after the authoritative JSONL append but before
+    // the derived sidecar index and manifest are updated.
+    await appendFile(eventPath, `${JSON.stringify({ op: 'put', fact })}\n`, 'utf8')
+    expect(await readFile(indexPath, 'utf8')).not.toContain('after-source-append')
+
+    const restarted = await boot(opts)
+    const facts = await restarted.ctx.memorySemantic.list()
+    expect(facts.map((item) => item.id).sort()).toEqual(['after-source-append', 'before-crash'])
+    expect(await readFile(indexPath, 'utf8')).toContain('after-source-append')
   })
 
   it('serializes duplicate semantic writes across independent service instances', async () => {
