@@ -1,6 +1,6 @@
 # Architecture contracts and migration safety
 
-Status: Phase 2 shared SQLite coordination is implemented through PR #140, including budget reservations, rate-limit windows/concurrency permits, fenced leases, legacy budget migration, explicit task identity/task reservations, and LLMService integration. Phase 3 memory/retrieval implementation is merged, with current benchmark evidence recorded below; semantic keyset-page benchmarking and full audit closeout remain open. Phase 4 has backend-neutral workspace contracts and the SQLite lease primitive, but no task-scoped workspace session or transfer runtime. The SQLite implementation uses sql.js WebAssembly and an existing cross-process file lock; each write reloads/exports the database, so it is intended for bounded coordination metadata, not large durable-history or vector datasets.
+Status: Phase 2 shared SQLite coordination is implemented through PR #140. Phase 3 performance evidence, including the 100k semantic-page benchmark, is recorded below; PR #158 adds passing independent-process semantic writer/deletion, cursor invalidation, and sidecar-rebuild tests. Phase 3 remains open for crash-during-write/restart recovery, further cross-process session-log/cache evidence, large-file memory bounds, and full audit closeout. Phase 4 has backend-neutral workspace contracts and the SQLite lease primitive, but no task-scoped workspace session or transfer runtime. The current `WorkspaceTransferProvider` contract describes manifest metadata and change metadata only; it does not yet define bounded byte streaming, file-content transport, or an atomic governed apply protocol. Those contracts must be completed before implementing secure transfer. The SQLite implementation uses sql.js WebAssembly and an existing cross-process file lock; each write reloads/exports the database, so it is intended for bounded coordination metadata, not large durable-history or vector datasets.
 
 ## Scope and constraints
 
@@ -260,6 +260,7 @@ The warm session append path reads no existing source bytes when its validated t
 
 ### Semantic keyset page benchmark: CI run #44828389243
 
+
 Ubuntu x64, Node v22.12.0, 4 CPUs. Three index-build samples and fifteen warm-page timings per cursor. The fixture writes 100,000 facts, deletes 25,000, then reinserts one deleted ID. The final live count is 75,001. The source log is 20,475,235 bytes and the rebuilt sidecar index is 11,593,405 bytes.
 
 | Measurement | p50 | p95 |
@@ -272,7 +273,13 @@ Ubuntu x64, Node v22.12.0, 4 CPUs. Three index-build samples and fifteen warm-pa
 
 Warm-page percentiles use 15 timings per cursor. Index-build and RSS percentiles use three samples, so p95 is the maximum observed sample, not a stable tail estimate. RSS is process-wide, sampled every 5 ms, and can miss short-lived peaks. Fixture creation is outside the timed interval. The benchmark also verifies that a deleted-and-reinserted fact moves to the end of insertion order.
 
-These results show that warm cursor page latency is similar at early, middle, and late positions for this workload. They do not establish constant-memory identity indexing: the semantic ID/text projection is still loaded in memory. They also do not measure concurrent writers, cross-process cache invalidation, or crash recovery; those remain separate stress-test requirements.
+These results show that warm cursor page latency is similar at early, middle, and late positions for this workload. They do not establish constant-memory identity indexing: the semantic ID/text projection is still loaded in memory. Crash-during-append recovery, process-restart recovery, cross-process session-log recovery, and large-file memory bounds remain separate requirements.
+
+### Cross-process semantic-store acceptance: PR #158
+
+PR #158 adds an independent-process test using four Node workers. Each worker writes 50 unique facts and acquires the store lock per operation. A separate worker deletes 50 facts. The test verifies 200 initial facts, invalidation of a cursor created before the external-process deletion, 150 remaining facts, rebuild of the missing sidecar index and manifest, and reinsertion of a deleted ID at the end of the ordered projection. The test passed in PR-head CI run #44831362470 on Ubuntu and Windows with Node 20.19 and 22.12; post-merge main CI run #44831864535 also passed.
+
+This test establishes cross-process semantic write/delete and cursor invalidation only. It does not test crash-during-append or restart recovery.
 
 ## Approved deployment and operating policy
 
