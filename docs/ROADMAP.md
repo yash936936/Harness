@@ -71,7 +71,7 @@ Current main baseline before this loop: `2a2a60315a1e6db8b448c9c7d48a460c5bfb75b
 ### Completion gates
 
 - Phase 2: implemented; retain passing cross-process and migration evidence.
-- Phase 3: open until semantic-page benchmark, scale/recovery tests, and audit evidence pass.
+- Phase 3: open until concurrent/deletion-heavy scale tests, recovery and cross-process cursor-invalidation evidence, and audit evidence pass. The semantic-page benchmark is recorded.
 - Phase 4: open; contracts and lease primitive do not equal a workspace runtime.
 - Phase 5: adapter-side bounded capture implemented; live SDK and remote termination acceptance open.
 - Phase 6: open until the full audit and cross-subsystem acceptance pass.
