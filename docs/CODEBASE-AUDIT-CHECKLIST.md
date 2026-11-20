@@ -2,13 +2,18 @@
 
 ## 2026-11-21 audit continuation baseline
 
-Current main: `75574f337707460340bd2877c4a9b5a26ddaaef0`. PR #134 added independent-process rate-limit and lease tests but its CI run #896 failed on Windows Node 20 during `npm test`; Ubuntu Node 20/22 and Windows Node 22 passed. PR #135 added stable rate-limit policy enforcement and bounded terminal lease history; CI run #899 passed all mandatory jobs. The Windows Node 20 failure remains open and must be fixed before cross-process acceptance is marked complete.
+Current main: `b23a62cdcbdad52a2b6b739180a37c2cea43905a`.
 
-New follow-up audit items:
-- [ ] AUD-052: isolate and fix the Windows Node 20 independent-process SQLite test failure (PR #134, run #896).
-- [ ] AUD-053: implement a lossless, idempotent migration path for legacy `Budgets.statePath` JSON day counters into shared SQLite state.
-- [ ] AUD-054: add explicit task identity and cross-process task-scope budget reservations; do not infer task scope from session identity.
-- [ ] AUD-055: add end-to-end LLMService shared SQLite integration coverage for rejection, settlement, release, retry, and project/database isolation.
+- Phase 2 follow-ups AUD-056 through AUD-059 are closed by PR #140. The Windows Node 20 process-test regression was corrected and mandatory CI run #918 passed the Ubuntu/Windows Node 20/22 matrix. Legacy budget import, explicit task identity, shared task reservations, and LLMService shared-SQLite integration tests are present.
+- Phase 3 PRs #141, #142, #148, and #150 are merged. PR #150's merge-commit CI run #44822435655 passed all mandatory jobs, including all four OS/runtime combinations, architecture baseline, docs, security/dependencies, and license inventory. PR #151 reconciled roadmap/state and its CI run #44822718826 passed.
+- A source inventory pass fetched all 108 TypeScript files under `src/` and checked for TODO/FIXME/HACK markers, unsafe casts, and empty catches. This is a triage pass, not a completed semantic audit. Several parser/error-boundary casts remain candidates for review.
+- The full file-by-file and cross-folder audit remains incomplete. Folder-ledger checkboxes below remain open until each folder's call paths, tests, configuration, and docs have been traced.
+
+Resolved follow-up findings:
+- [x] AUD-056: Windows Node 20 independent-process SQLite test failure; fixed before CI run #918.
+- [x] AUD-057: lossless, idempotent migration of legacy `Budgets.statePath` JSON counters; migration tests cover exact import, one-time behavior, stale-day rollover, malformed/future state, and missing files.
+- [x] AUD-058: explicit task identity and cross-process task-scope budget reservations; task identity is required and propagated through AgentLoop/LLMService.
+- [x] AUD-059: LLMService shared SQLite integration coverage for reservation, settlement/release, task/session limits, concurrency, and shared rate limits.
 
 
 Baseline: `main` at `0e2e38d5ea9e5b40d74422abccda4d9173c00b33` (2026-11-16). Post-merge main CI run #862 (`43876511421`) passed all 10 jobs.
