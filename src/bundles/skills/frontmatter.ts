@@ -18,6 +18,10 @@ export interface ParsedSkillMd {
 }
 export type ParseResult = ({ ok: true } & ParsedSkillMd) | { ok: false; error: string }
 
+function setOwn<T>(target: Record<string, T>, key: string, value: T): void {
+  Object.defineProperty(target, key, { value, enumerable: true, configurable: true, writable: true })
+}
+
 const FORBIDDEN_START = /^[[{&*!%@`|>]/ // `|` and `>` alone are block scalars, handled before this check
 
 function unquote(raw: string, line: number): string | { error: string } {
@@ -96,7 +100,7 @@ export function parseSkillMd(text: string): ParseResult {
     if (!m) return { ok: false, error: `line ${ln}: expected "key: value"` }
     const key = m[1]!
     const rest = (m[2] ?? '').trim()
-    if (key in meta) return { ok: false, error: `line ${ln}: duplicate key "${key}"` }
+    if (Object.hasOwn(meta, key)) return { ok: false, error: `line ${ln}: duplicate key "${key}"` }
     i++
 
     // block scalar
@@ -107,10 +111,9 @@ export function parseSkillMd(text: string): ParseResult {
       while (chunk.length && chunk[chunk.length - 1]!.trim() === '') chunk.pop()
       const indent = Math.min(...chunk.filter((l) => l.trim()).map((l) => /^\s*/.exec(l)![0].length), Infinity)
       const dedented = chunk.map((l) => (l.trim() ? l.slice(indent) : ''))
-      meta[key] =
-        block[1] === '|'
-          ? dedented.join('\n')
-          : dedented.reduce((acc, l) => (l === '' ? acc + '\n' : acc === '' || acc.endsWith('\n') ? acc + l : acc + ' ' + l), '')
+      setOwn(meta, key, block[1] === '|'
+        ? dedented.join('\n')
+        : dedented.reduce((acc, l) => (l === '' ? acc + '\n' : acc === '' || acc.endsWith('\n') ? acc + l : acc + ' ' + l), ''))
       continue
     }
 
@@ -120,7 +123,7 @@ export function parseSkillMd(text: string): ParseResult {
       while (i < end && (lines[i]!.trim() === '' || /^\s/.test(lines[i]!))) nested.push(lines[i++]!)
       const real = nested.filter((l) => l.trim() && !l.trim().startsWith('#'))
       if (real.length === 0) {
-        meta[key] = ''
+        setOwn(meta, key, '')
         continue
       }
       if (key !== 'metadata') return { ok: false, error: `line ${ln}: "${key}" has a nested value, which is only supported for "metadata"` }
@@ -133,16 +136,16 @@ export function parseSkillMd(text: string): ParseResult {
         if (!mm) return { ok: false, error: `metadata: expected "  key: value", got "${l.trim()}" (nested maps and lists are not supported)` }
         const v = scalar(mm[2] ?? '', ln)
         if (typeof v !== 'string') return { ok: false, error: `metadata.${mm[1]}: ${v.error}` }
-        if (mm[1]! in map) return { ok: false, error: `metadata: duplicate key "${mm[1]}"` }
-        map[mm[1]!] = v
+        if (Object.hasOwn(map, mm[1]!)) return { ok: false, error: `metadata: duplicate key "${mm[1]}"` }
+        setOwn(map, mm[1]!, v)
       }
-      meta[key] = map
+      setOwn(meta, key, map)
       continue
     }
 
     const v = scalar(rest, ln)
     if (typeof v !== 'string') return { ok: false, error: v.error }
-    meta[key] = v
+    setOwn(meta, key, v)
   }
   return { ok: true, meta, body }
 }
