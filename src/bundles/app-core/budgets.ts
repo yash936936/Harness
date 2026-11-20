@@ -520,6 +520,7 @@ export const BUDGET_RESERVATION_MIGRATIONS: readonly SQLiteMigration[] = [{
       project_id TEXT NOT NULL,
       task_id TEXT NOT NULL,
       session_id TEXT NOT NULL,
+      fencing_token INTEGER NOT NULL CHECK (fencing_token > 0),
       operations_json TEXT NOT NULL,
       path_prefixes_json TEXT NOT NULL,
       expires_at INTEGER NOT NULL,
