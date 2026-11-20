@@ -41,6 +41,44 @@ Phase 3 memory/retrieval scaling and Phase 4 task-scoped workspace sessions rema
 
 Updated 2026-11-20, main `71499dea7af36995a8e7e636a88d196c8e89002f`. PRs #128-130 are merged. PR #130 integrates shared session/day hard reservations into the model-call path and its PR-head CI run #881 passed. The next Phase 2 slice is shared rate-limit windows and concurrency permits. This is the active implementation roadmap. Phase 0 is complete on the merged audit PR. Phase 1 contract artifacts are drafted and all four D-119 policy choices are approved and recorded. Numeric baselines now cover session logs, episodic memory, reservations (legacy negative control), retrieval indexing, semantic reindex, and fake-provider streaming. Shared SQLite runtime, task workspaces, live Vercel acceptance, and bounded total-memory/query paths remain open. Current project state and binding constraints are in [STATE.md](STATE.md); architecture decisions are in [decisions.md](decisions.md); detailed findings are tracked in [CODEBASE-AUDIT-CHECKLIST.md](CODEBASE-AUDIT-CHECKLIST.md).
 
+## 2026-11-21 unified completion loop
+
+Current main baseline before this loop: `2a2a60315a1e6db8b448c9c7d48a460c5bfb75b5` (PR #156 merge commit).
+
+### Verified current state
+
+- PR #156 is merged. Its tombstone fix preserves semantic insertion order after deletion/reinsertion. CI run #44826849470 passed all 10 jobs, including Ubuntu/Windows with Node 20.19.0 and 22.12.0, typecheck, lint, tests, docs, dependency/security, license inventory, and architecture benchmarks.
+- Phase 2 shared SQLite coordination is implemented through PRs #128-140. The audit records PR #140 as closing the Windows Node 20 regression, legacy budget migration, explicit task identity/shared task reservations, and LLMService integration follow-ups. The historical PR #134 failure is superseded by the passing CI run #918.
+- Phase 3 has bounded session-log tail reads, indexed episodic identity and keyset pages, append-only semantic events, rebuildable semantic indexes, quotas, cursor invalidation, and checkpointed paged reindex. Phase 3 remains open for new semantic keyset page measurements, scale/failure testing, and the full audit.
+- CI run #44826849470 recorded current 100k episodic, 1,740-chunk indexing, and 2,000-fact semantic reindex measurements. Results and caveats are recorded in [architecture-contracts.md](architecture-contracts.md).
+- A reproducible 100k-event semantic page benchmark is being added to `bench:architecture`. Its measurements remain pending until CI executes it.
+- Phase 4 has backend-neutral workspace contracts and SQLite fenced lease storage, but no task-scoped workspace session runtime, capability enforcement, snapshot transfer, or result synchronization.
+- D-110/D-117/D-118 remain binding. Host command fallback, Docker/WSL/Crabbox, automatic provider selection, and coding-profile `run_command` exposure remain prohibited.
+- Vercel fake-client output capture is tested. Live SDK buffering, remote termination, and end-to-end Vercel acceptance remain unverified and require explicit egress authorization and credentials.
+- The full file-by-file and cross-folder audit is incomplete. The repository currently contains 424 tracked files; the 2026-11-07 file manifest is historical, not current coverage evidence.
+
+### Single execution order
+
+1. Close semantic performance evidence: run the new 100k-event, delete-heavy semantic page benchmark; publish p50/p95 and sampled RSS with caveats.
+2. Stress semantic storage: test cursor invalidation, index rebuild, concurrent writers, deletion/reinsertion, interrupted writes, large event logs, and memory bounds.
+3. Complete the D-110/D-117 security trace: follow every command execution route from CLI/profile/tool registration through provider dispatch; prove no host fallback or implicit provider selection is reachable.
+4. Implement Phase 4 runtime in bounded vertical slices: SQLite lease/fencing integration, task-scoped session lifecycle, operation/path/expiry capabilities, revocation, snapshot manifests, safe transfer, conflict handling, cancellation, and cleanup/recovery.
+5. Strengthen CI acceptance reporting: preserve mandatory-job aggregation and make informational not-run gates impossible to confuse with passed acceptance. Keep live provider gates explicitly owner-run.
+6. Finish the file-by-file audit: all current source, tests, scripts, desktop code, generated files, docs, and cross-folder flows. Record evidence, severity, regression tests, and dispositions in the checklist.
+7. Reconcile roadmap, state, contracts, audit register, and generated docs from verified implementation and test evidence.
+8. Run full final acceptance on Ubuntu/Windows and Node 20.19/22.12, plus migration, recovery, concurrency, security, performance, and compatibility tests. Do not mark blocked owner-run gates as complete.
+
+### Completion gates
+
+- Phase 2: implemented; retain passing cross-process and migration evidence.
+- Phase 3: open until semantic-page benchmark, scale/recovery tests, and audit evidence pass.
+- Phase 4: open; contracts and lease primitive do not equal a workspace runtime.
+- Phase 5: adapter-side bounded capture implemented; live SDK and remote termination acceptance open.
+- Phase 6: open until the full audit and cross-subsystem acceptance pass.
+- Phase 7: blocked on approved live-provider access, credentials, and secret-safe workspace transfer.
+
+The earlier status snapshots below are retained as historical implementation notes. When they conflict with this section, this current section is authoritative.
+
 ## Target outcome
 
 Complete the current security and reliability audit, then migrate Harness toward shared transactional state, bounded memory, task-scoped workspace sessions, and safe output collection without breaking existing public APIs or providers.
@@ -118,7 +156,7 @@ Withdrawn findings AUD-009, AUD-022, and AUD-027 must remain withdrawn unless ne
 - Ensure one authoritative write path at each migration stage; do not perform uncoordinated dual writes.
 - Keep the provider interface independent of SQLite so a server database can be added if deployment topology changes.
 
-**Exit:** independent-process tests prove budgets and rate limits cannot be oversubscribed; migration and recovery tests pass. PR #128's foundation tests do not yet prove budget/rate-limit correctness.
+**Exit: met for shared coordination stores.** Independent-process budget/rate-limit/lease tests, legacy migration tests, and LLMService integration are recorded in the audit checklist. This does not implement task workspace lifecycle.
 
 ### Phase 3: Durable history and bounded memory
 
