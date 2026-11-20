@@ -199,7 +199,7 @@ export class AgentLoop extends Service {
       const stepTools = sequenceComplete ? [] : (steps === 0 ? routed.tools : toolSpecs)
 
       const { res, retries: r } = await this.callModel(
-        { sessionId: opts.sessionId, ...(opts.actor ? { actor: opts.actor } : {}), messages, ...(system ? { system } : {}), ...(stepTools.length ? { tools: stepTools } : {}), ...(model ? { model } : {}), ...(opts.jsonSchema ? { jsonSchema: opts.jsonSchema } : {}) },
+        { sessionId: opts.sessionId, ...(opts.taskId !== undefined ? { taskId: opts.taskId } : {}), ...(opts.actor ? { actor: opts.actor } : {}), messages, ...(system ? { system } : {}), ...(stepTools.length ? { tools: stepTools } : {}), ...(model ? { model } : {}), ...(opts.jsonSchema ? { jsonSchema: opts.jsonSchema } : {}) },
         providerChain,
         opts.signal,
       )
