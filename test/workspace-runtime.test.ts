@@ -26,10 +26,14 @@ class FakeWorkspaceProvider implements WorkspaceSessionProvider {
   readonly revoked: string[] = []
   closeConfirmed = true
   createFailure?: Error
+  createGate?: Promise<void>
+  onCreate?: () => void
 
   async create(input: CreateWorkspaceSessionInput): Promise<WorkspaceSession> {
     this.createCalls += 1
+    this.onCreate?.()
     if (this.createFailure) throw this.createFailure
+    if (this.createGate) await this.createGate
     return {
       workspaceId: input.workspaceId,
       projectId: input.projectId,
@@ -138,6 +142,36 @@ describe('WorkspaceRuntime', () => {
     expect(closed.confirmed).toBe(true)
     expect((await sessions.getSession(session.workspaceId))?.state).toBe('closed')
     expect(await leases.isCurrent(session.leaseId!, 'owner-runtime', session.fencingToken!)).toBe(false)
+  })
+
+  it('does not start duplicate provider creation for concurrent idempotent opens', async () => {
+    const { provider, leases, sessions, runtime } = await fixture()
+    let releaseCreate!: () => void
+    let markStarted!: () => void
+    const createGate = new Promise<void>((resolve) => { releaseCreate = resolve })
+    const createStarted = new Promise<void>((resolve) => { markStarted = resolve })
+    provider.createGate = createGate
+    provider.onCreate = markStarted
+    const first = runtime.open(openInput)
+    await createStarted
+
+    const secondProvider = new FakeWorkspaceProvider()
+    const secondRuntime = new WorkspaceRuntime({
+      projectId: 'project-runtime',
+      ownerId: 'owner-runtime',
+      leases,
+      sessions,
+      provider: secondProvider,
+      now: () => NOW,
+    })
+    await expect(secondRuntime.open(openInput)).rejects.toThrow(/task session already exists; recovery requires/)
+    expect(provider.createCalls).toBe(1)
+    expect(secondProvider.createCalls).toBe(0)
+
+    releaseCreate()
+    const session = await first
+    expect(session.state).toBe('ready')
+    expect(provider.createCalls).toBe(1)
   })
 
   it('keeps the lease when provider cleanup is not confirmed', async () => {
