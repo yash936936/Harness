@@ -19,17 +19,27 @@ export class MemoryEpisodeStore implements EpisodeStore {
     const needle = query.task?.toLowerCase()
     const compare = (a: Episode, b: EpisodePageCursor | Episode) =>
       a.ts.localeCompare(b.ts) || a.sessionId.localeCompare(b.sessionId) || a.fromSeq - b.fromSeq || a.id.localeCompare(b.id)
-    const selected = [...this.items.values()].filter((episode) =>
-      (query.sessionId === undefined || episode.sessionId === query.sessionId) &&
-      (query.agentId === undefined || episode.agentId === query.agentId) &&
-      (query.outcome === undefined || episode.outcome === query.outcome) &&
-      (needle === undefined || episode.task.toLowerCase().includes(needle)) &&
-      (query.from === undefined || episode.ts >= query.from) &&
-      (query.to === undefined || episode.ts < query.to) &&
-      (!cursor || (descending ? compare(episode, cursor) < 0 : compare(episode, cursor) > 0)),
-    )
-    selected.sort((a, b) => descending ? -compare(a, b) : compare(a, b))
-    return { items: selected.slice(0, limit).map((episode) => structuredClone(episode)), hasMore: selected.length > limit }
+    const selected: Episode[] = []
+    for (const episode of this.items.values()) {
+      if ((query.sessionId !== undefined && episode.sessionId !== query.sessionId) ||
+        (query.agentId !== undefined && episode.agentId !== query.agentId) ||
+        (query.outcome !== undefined && episode.outcome !== query.outcome) ||
+        (needle !== undefined && !episode.task.toLowerCase().includes(needle)) ||
+        (query.from !== undefined && episode.ts < query.from) ||
+        (query.to !== undefined && episode.ts >= query.to) ||
+        (cursor && (descending ? compare(episode, cursor) >= 0 : compare(episode, cursor) <= 0))) continue
+      let low = 0, high = selected.length
+      while (low < high) {
+        const middle = (low + high) >>> 1
+        const relative = compare(selected[middle]!, episode)
+        if ((descending ? -relative : relative) <= 0) low = middle + 1
+        else high = middle
+      }
+      selected.splice(low, 0, episode)
+      if (selected.length > limit + 1) selected.pop()
+    }
+    const hasMore = selected.length > limit
+    return { items: selected.slice(0, limit).map((episode) => structuredClone(episode)), hasMore }
   }
 
   async *iterate(): AsyncGenerator<Episode> {
@@ -278,24 +288,35 @@ export class JsonlEpisodeStore implements EpisodeStore {
       const needle = query.task?.toLowerCase()
       const compare = (a: Pick<EpisodeIndexEntry, 'ts' | 'sessionId' | 'fromSeq' | 'id'>, b: EpisodePageCursor) =>
         a.ts.localeCompare(b.ts) || a.sessionId.localeCompare(b.sessionId) || a.fromSeq - b.fromSeq || a.id.localeCompare(b.id)
-      const selected = [...entries.values()].filter((entry) =>
-        (query.sessionId === undefined || entry.sessionId === query.sessionId) &&
-        (query.agentId === undefined || entry.agentId === query.agentId) &&
-        (query.outcome === undefined || entry.outcome === query.outcome) &&
-        (needle === undefined || entry.task.toLowerCase().includes(needle)) &&
-        (query.from === undefined || entry.ts >= query.from) &&
-        (query.to === undefined || entry.ts < query.to) &&
-        (!cursor || (descending ? compare(entry, cursor) < 0 : compare(entry, cursor) > 0)),
-      )
-      selected.sort((a, b) => descending ? -compare(a, b) : compare(a, b))
-      const page = selected.slice(0, limit + 1)
+      const selected: EpisodeIndexEntry[] = []
+      for (const entry of entries.values()) {
+        if ((query.sessionId !== undefined && entry.sessionId !== query.sessionId) ||
+          (query.agentId !== undefined && entry.agentId !== query.agentId) ||
+          (query.outcome !== undefined && entry.outcome !== query.outcome) ||
+          (needle !== undefined && !entry.task.toLowerCase().includes(needle)) ||
+          (query.from !== undefined && entry.ts < query.from) ||
+          (query.to !== undefined && entry.ts >= query.to) ||
+          (cursor && (descending ? compare(entry, cursor) >= 0 : compare(entry, cursor) <= 0))) continue
+        const key = { ts: entry.ts, sessionId: entry.sessionId, fromSeq: entry.fromSeq, id: entry.id }
+        let low = 0, high = selected.length
+        while (low < high) {
+          const middle = (low + high) >>> 1
+          const relative = compare(selected[middle]!, key)
+          if ((descending ? -relative : relative) <= 0) low = middle + 1
+          else high = middle
+        }
+        selected.splice(low, 0, entry)
+        if (selected.length > limit + 1) selected.pop()
+      }
+      const hasMore = selected.length > limit
+      const page = selected.slice(0, limit)
       const items: Episode[] = []
-      for (const entry of page.slice(0, limit)) {
+      for (const entry of page) {
         const episode = JSON.parse(await readTextRangeNoFollow(this.file, entry.offset, entry.length)) as Episode
         if (episode.id !== entry.id) throw new MemoryError('memory: episodic page index does not match its source record')
         items.push(episode)
       }
-      return { items, hasMore: page.length > limit }
+      return { items, hasMore }
     })
   }
 
