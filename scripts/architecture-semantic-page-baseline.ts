@@ -57,7 +57,7 @@ async function runSample(root: string, sample: number) {
     if (!last) throw new Error('index build failed to recover the final semantic fact')
     const revision = await store.revision()
     const liveCount = await store.count()
-    if (liveCount !== FACTS - DELETIONS) throw new Error(`expected ${FACTS - DELETIONS} live facts, got ${liveCount}`)
+    if (liveCount !== FACTS - DELETIONS + 1) throw new Error(`expected ${FACTS - DELETIONS} live facts, got ${liveCount}`)
 
     const pageResults: Record<string, { timings: number[]; firstId: string; lastId: string }> = {}
     for (const cursor of CURSORS) {
@@ -125,7 +125,7 @@ try {
       factsWritten: FACTS,
       deletes: DELETIONS,
       reinsertions: 1,
-      liveFacts: FACTS - DELETIONS,
+      liveFacts: FACTS - DELETIONS + 1,
       pageSize: PAGE_SIZE,
       cursorPositions: CURSORS,
       tailCursorPosition: FACTS - 1,
