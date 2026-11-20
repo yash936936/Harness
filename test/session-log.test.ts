@@ -185,6 +185,15 @@ describe('bundle-session-log', () => {
     await expect(ctx.log.fork('orig', 99)).rejects.toThrow(/no seq/)
   })
 
+  it('reads bounded inclusive sequence ranges without returning unrelated events', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'slog-range-'))
+    const ctx = await boot({ path: dir })
+    for (let i = 0; i < 100; i++) await ctx.log.append('range', 'event', { i })
+    expect((await ctx.log.readRange('range', 41, 45)).map((event) => event.seq)).toEqual([41, 42, 43, 44, 45])
+    expect((await ctx.log.readRange('range', 101, 110))).toEqual([])
+    await expect(ctx.log.readRange('range', 0, 2)).rejects.toThrow(/invalid sequence range/)
+  })
+
   it('replays from a given seq', async () => {
     const ctx = await boot({ memory: true })
     for (const t of ['a', 'b', 'c']) await ctx.log.append('r', t)
