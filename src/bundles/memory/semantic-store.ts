@@ -8,6 +8,18 @@ import { MemoryError, type SemanticFact } from './types.js'
 type SemanticEvent = { op: 'put'; fact: SemanticFact } | { op: 'delete'; id: string }
 interface SemanticIndexEntry { id: string; offset: number; length: number; textKey?: string; deleted?: boolean }
 interface SemanticManifest { version: 1; sourceBytes: number; indexBytes: number }
+export interface SemanticReindexCheckpoint {
+  version: 1
+  sourceBytes: number
+  fingerprint: string
+  dimensions: number
+  collection: string
+  resetRequested: boolean
+  resetApplied: boolean
+  cursor?: string
+  indexed: number
+  updatedAt: string
+}
 interface SemanticIndex { sourceBytes: number; indexBytes: number; byId: Map<string, SemanticIndexEntry>; byText: Map<string, string> }
 
 const textKey = (text: string) => text.toLowerCase()
@@ -27,11 +39,13 @@ function validFact(fact: any): fact is SemanticFact {
 export class SemanticFactStore {
   private cache?: SemanticIndex
   private readonly memoryFacts = new Map<string, SemanticFact>()
+  private memoryRevision = 0
   constructor(private readonly dir?: string) {}
 
   private get sourceFile() { return join(this.dir!, 'semantic.events.jsonl') }
   private get indexFile() { return join(this.dir!, 'semantic.index.jsonl') }
   private get manifestFile() { return join(this.dir!, 'semantic.index.meta.json') }
+  private get checkpointFile() { return join(this.dir!, 'semantic.reindex.checkpoint.json') }
   private get lockFile() { return join(this.dir!, 'semantic.events.jsonl.lock') }
 
   async withLock<T>(fn: () => Promise<T>): Promise<T> {
@@ -204,6 +218,7 @@ export class SemanticFactStore {
       const previous = this.memoryFacts.get(fact.id)
       const stored = previous ? { ...fact, ts: previous.ts, updatedTs: fact.ts } : { ...fact, updatedTs: undefined }
       this.memoryFacts.set(stored.id, structuredClone(stored))
+      this.memoryRevision++
       return { fact: structuredClone(stored), created: true }
     }
     const index = await this.ensureIndex()
@@ -232,6 +247,7 @@ export class SemanticFactStore {
       const previous = this.memoryFacts.get(id)
       if (!previous) return undefined
       this.memoryFacts.delete(id)
+      this.memoryRevision++
       return structuredClone(previous)
     }
     const index = await this.ensureIndex(), previous = await this.getFrom(id, index)
@@ -247,6 +263,69 @@ export class SemanticFactStore {
     await this.writeManifest({ version: 1, sourceBytes: index.sourceBytes, indexBytes: index.indexBytes })
     this.cache = index
     return previous
+  }
+
+  get persistent(): boolean { return !!this.dir }
+
+  async revision(): Promise<number> {
+    return this.dir ? (await this.ensureIndex()).sourceBytes : this.memoryRevision
+  }
+
+  async page(afterId: string | undefined, limit: number): Promise<{ items: SemanticFact[]; sourceBytes: number }> {
+    if (!Number.isSafeInteger(limit) || limit < 1) throw new MemoryError('memory: semantic page limit must be a positive safe integer')
+    if (!this.dir) {
+      const values = [...this.memoryFacts.values()]
+      const start = afterId === undefined ? 0 : values.findIndex((fact) => fact.id === afterId) + 1
+      if (afterId !== undefined && start === 0) throw new MemoryError('memory: semantic page cursor is stale')
+      return { items: values.slice(start, start + limit).map((fact) => structuredClone(fact)), sourceBytes: this.memoryRevision }
+    }
+    const index = await this.ensureIndex()
+    let started = afterId === undefined
+    let cursorFound = started
+    const items: SemanticFact[] = []
+    for (const id of index.byId.keys()) {
+      if (!started) {
+        if (id === afterId) { started = true; cursorFound = true }
+        continue
+      }
+      if (items.length >= limit) break
+      const fact = await this.getFrom(id, index)
+      if (fact) items.push(fact)
+    }
+    if (!cursorFound) throw new MemoryError('memory: semantic page cursor is stale')
+    return { items, sourceBytes: index.sourceBytes }
+  }
+
+  async loadReindexCheckpoint(): Promise<SemanticReindexCheckpoint | undefined> {
+    if (!this.dir) return undefined
+    try {
+      const value = JSON.parse(await readTextFileNoFollow(this.checkpointFile)) as Partial<SemanticReindexCheckpoint>
+      if (value.version !== 1 || !Number.isSafeInteger(value.sourceBytes) || value.sourceBytes! < 0 ||
+          typeof value.fingerprint !== 'string' || !value.fingerprint ||
+          !Number.isSafeInteger(value.dimensions) || value.dimensions! < 1 ||
+          typeof value.collection !== 'string' || !value.collection ||
+          typeof value.resetRequested !== 'boolean' || typeof value.resetApplied !== 'boolean' ||
+          (value.cursor !== undefined && typeof value.cursor !== 'string') ||
+          !Number.isSafeInteger(value.indexed) || value.indexed! < 0 ||
+          typeof value.updatedAt !== 'string' || !Number.isFinite(Date.parse(value.updatedAt))) return undefined
+      return value as SemanticReindexCheckpoint
+    } catch { return undefined }
+  }
+
+  async saveReindexCheckpoint(checkpoint: SemanticReindexCheckpoint): Promise<void> {
+    if (!this.dir) return
+    const temporary = `${this.checkpointFile}.${process.pid}.${randomUUID()}.tmp`
+    await assertNoSymlinkParents(this.checkpointFile)
+    try {
+      await writeFile(temporary, JSON.stringify(checkpoint), { encoding: 'utf8', mode: 0o600, flag: 'wx' })
+      await assertNoSymlinkParents(this.checkpointFile)
+      await rename(temporary, this.checkpointFile)
+    } catch (error) { await unlink(temporary).catch(() => {}); throw error }
+  }
+
+  async clearReindexCheckpoint(): Promise<void> {
+    if (!this.dir) return
+    await unlink(this.checkpointFile).catch((error: any) => { if (error?.code !== 'ENOENT') throw error })
   }
 
   async count() { return this.dir ? (await this.ensureIndex()).byId.size : this.memoryFacts.size }

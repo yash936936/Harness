@@ -62,6 +62,14 @@ class ConceptProvider implements EmbeddingProvider {
     })
   }
 }
+class FailSecondBatchProvider extends ConceptProvider {
+  calls = 0
+  override async embed(texts: readonly string[]) {
+    this.calls++
+    if (this.calls === 2) throw new EmbeddingProviderError('network', 'simulated interruption after first batch')
+    return super.embed(texts)
+  }
+}
 class OrderedRaceProvider implements EmbeddingProvider {
   readonly name = 'ordered-race'
   readonly model = 'ordered-race-2'
@@ -370,6 +378,29 @@ describe('semantic tier (3.3): the index is derived and recoverable', () => {
     const opened = await open('memory-semantic', { fingerprint: info.fingerprint!, dimensions: info.dimensions!, owner: 'memory.semantic' })
     expect(opened.ok).toBe(true)
     if (opened.ok) await expect(opened.collection.count()).resolves.toMatchObject({ ok: true, count: 70 })
+  })
+
+  it('resumes semantic reindex from its durable batch checkpoint after restart', async () => {
+    const dir = await tmp()
+    const facts = Array.from({ length: 70 }, (_, i) => ({
+      tier: 'semantic' as const, id: `fact-${i}`, text: `durable storage fact number ${i}`,
+      why: WHY, ts: '2026-11-01T00:00:00.000Z',
+    }))
+    await writeFile(join(dir, 'semantic.json'), JSON.stringify(facts), 'utf8')
+    const options = { sem: { path: dir, reindexBatchSize: 32 }, dbPath: join(dir, 'db') }
+    const interruptedProvider = new FailSecondBatchProvider()
+    const first = await boot({ ...options, provider: interruptedProvider })
+    const interrupted = await first.ctx.memorySemantic.reindex()
+    expect(interrupted).toMatchObject({ ok: false, error: { kind: 'embedding_network' } })
+    const checkpoint = JSON.parse(await readFile(join(dir, 'semantic.reindex.checkpoint.json'), 'utf8'))
+    expect(checkpoint.indexed).toBe(32)
+    expect(checkpoint.cursor).toBe('fact-31')
+
+    const resumed = await boot({ ...options, provider: new ConceptProvider() })
+    await expect(resumed.ctx.memorySemantic.reindex()).resolves.toEqual({ ok: true, indexed: 70 })
+    await expect(readFile(join(dir, 'semantic.reindex.checkpoint.json'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+    const queried = await resumed.ctx.memorySemantic.query('durable storage')
+    expect(queried.ok && queried.hits.length).toBeGreaterThan(0)
   })
 
   it('an embedding outage loses nothing: the fact is saved, reported unindexed, and reindex() makes it searchable', async () => {
