@@ -98,6 +98,12 @@ export class SQLiteWorkspaceStore implements WorkspaceSessionStore {
     this.now = options.now ?? Date.now
   }
 
+  private currentTime(): number {
+    const value = this.now()
+    if (!Number.isSafeInteger(value) || value < 0) throw new RangeError('workspace store: clock must return a non-negative safe integer')
+    return value
+  }
+
   private async ready(): Promise<void> {
     if (!this.readyPromise) this.readyPromise = (async () => {
       const plan = await this.database.plan()
@@ -129,7 +135,7 @@ export class SQLiteWorkspaceStore implements WorkspaceSessionStore {
     if (!Number.isSafeInteger(input.fencingToken) || input.fencingToken < 1) throw new RangeError('workspace store: fencingToken must be a positive integer')
     const createdAt = timestamp('createdAt', input.createdAt)
     const expiresAt = timestamp('expiresAt', input.expiresAt)
-    if (expiresAt <= createdAt || expiresAt <= this.now()) throw new RangeError('workspace store: expiresAt must be in the future and after createdAt')
+    if (expiresAt <= createdAt || expiresAt <= this.currentTime()) throw new RangeError('workspace store: expiresAt must be in the future and after createdAt')
     const requestHash = createHash('sha256').update(JSON.stringify({
       workspaceId, projectId, taskId, sessionId, provider, ownerId, leaseId,
       fencingToken: input.fencingToken, createdAt, expiresAt,
@@ -151,7 +157,7 @@ export class SQLiteWorkspaceStore implements WorkspaceSessionStore {
       )
       db.run(
         'INSERT INTO workspace_session_idempotency (project_id, idempotency_key, request_hash, workspace_id, created_at) VALUES (?, ?, ?, ?, ?)',
-        [projectId, idempotencyKey, requestHash, workspaceId, this.now()],
+        [projectId, idempotencyKey, requestHash, workspaceId, this.currentTime()],
       )
       const row = query(db, 'SELECT * FROM workspace_sessions WHERE workspace_id = ?', [workspaceId])[0]
       if (!row) throw new Error('workspace store: session insert was not visible')
@@ -202,7 +208,7 @@ export class SQLiteWorkspaceStore implements WorkspaceSessionStore {
     if (!SESSION_STATES.has(input.expectedState) || !SESSION_STATES.has(input.nextState)) throw new TypeError('workspace store: invalid transition state')
     if (!TRANSITIONS[input.expectedState].includes(input.nextState)) throw new Error(`workspace store: transition ${input.expectedState} -> ${input.nextState} is not allowed`)
     const expiresAt = input.expiresAt === undefined ? undefined : timestamp('expiresAt', input.expiresAt)
-    const now = this.now()
+    const now = this.currentTime()
     if (expiresAt !== undefined && expiresAt <= now) throw new RangeError('workspace store: transitioned session expiry must be in the future')
     await this.ready()
     return this.database.transaction((db) => {
@@ -217,7 +223,7 @@ export class SQLiteWorkspaceStore implements WorkspaceSessionStore {
       db.run(sql, values)
       const row = query(db, 'SELECT * FROM workspace_sessions WHERE workspace_id = ?', [input.workspaceId])[0]
       if (!row) throw new Error('workspace store: session does not exist')
-      if (String(row['state']) !== input.nextState || Number(row['fencing_token']) !== input.fencingToken || String(row['owner_id']) !== input.ownerId || String(row['lease_id']) !== input.leaseId) {
+      if (String(row['state']) !== input.nextState || Number(row['fencing_token']) !== input.fencingToken || String(row['owner_id']) !== input.ownerId || String(row['lease_id']) !== input.leaseId || (expiresAt !== undefined && Number(row['expires_at']) !== expiresAt)) {
         throw new Error('workspace store: stale owner or unexpected session state')
       }
       if (input.nextState === 'closed' || input.nextState === 'failed') {
@@ -285,7 +291,7 @@ export class SQLiteWorkspaceStore implements WorkspaceSessionStore {
     const path = input.path === undefined ? undefined : canonicalPath(input.path, true)
     if (input.path !== undefined && path === undefined) return false
     if (path === undefined && input.operation !== 'collect') return false
-    const now = input.now ?? this.now()
+    const now = input.now ?? this.currentTime()
     if (!Number.isSafeInteger(now) || now < 0) return false
     await this.ready()
     return this.database.read((db) => {
