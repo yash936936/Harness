@@ -185,7 +185,8 @@ export class EpisodicMemory {
         else high = middle
       }
       selected.splice(low, 0, episode)
-      if (selected.length > limit) selected.pop()
+      // Keep one look-ahead record so the page can tell whether another page exists.
+      if (selected.length > limit + 1) selected.pop()
     }
     const hasMore = selected.length > limit
     if (hasMore) selected.pop()
