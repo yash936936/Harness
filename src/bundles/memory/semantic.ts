@@ -1,8 +1,5 @@
 import { Service, type Context } from 'cordis'
-import { mkdir, rename, writeFile } from 'node:fs/promises'
-import { assertNoSymlinkParents, readTextFileNoFollow } from '../../util/secure-file.js'
-import { withFileLock } from '../../util/filelock.js'
-import { join } from 'node:path'
+import { SemanticFactStore } from './semantic-store.js'
 import { randomUUID } from 'node:crypto'
 import type { VectorCollection } from '../vectorstore-lancedb/index.js'
 import { MemoryError, type SemanticConfig, type SemanticFact, type SemanticFailure, type SemanticHit } from './types.js'
@@ -19,7 +16,6 @@ function oneLine(s: string): string {
 function clip(s: string, max: number): string {
   return s.length <= max ? s : s.slice(0, Math.max(0, max - 1)) + '…'
 }
-const sameText = (a: string, b: string) => a.toLowerCase() === b.toLowerCase()
 
 export interface AddResult {
   fact: SemanticFact
@@ -33,8 +29,9 @@ export interface AddResult {
 /**
  * `ctx.memorySemantic`: the semantic tier (3.3).
  *
- * The facts live in `semantic.json` (the source of truth). The vector
- * collection is only a search index over them: vectors from one embedding
+ * Facts live in an append-only event log with a rebuildable ID/text index.
+ * Legacy semantic.json files are migrated without being deleted. The vector
+ * collection is only a search index over facts: vectors from one embedding
  * model are useless under another (D-027 fingerprint rule), so the index must
  * be rebuildable, and `reindex()` rebuilds it from the facts.
  *
@@ -44,12 +41,11 @@ export interface AddResult {
 export class MemorySemantic extends Service {
   static inject = ['egress', 'embeddings', 'vectorstore']
 
-  private facts: SemanticFact[] | undefined
+  private readonly store: SemanticFactStore
   private queue: Promise<unknown> = Promise.resolve()
   private pendingOperations = 0
   private readonly maxPendingOperations: number
   private readonly reindexBatchSize: number
-  private readonly dir: string | undefined
   private readonly collectionName: string
   private readonly maxText: number
   private readonly maxWhy: number
@@ -57,7 +53,7 @@ export class MemorySemantic extends Service {
 
   constructor(ctx: Context, config: SemanticConfig = {}) {
     super(ctx, 'memorySemantic')
-    this.dir = config.path
+    this.store = new SemanticFactStore(config.path)
     this.maxPendingOperations = config.maxPendingOperations ?? 256
     if (!Number.isSafeInteger(this.maxPendingOperations) || this.maxPendingOperations < 1) {
       throw new MemoryError('memory: semantic maxPendingOperations must be a positive safe integer')
@@ -98,34 +94,22 @@ export class MemorySemantic extends Service {
     if (!text) throw new MemoryError('memory: semantic fact text is empty')
     if (!why) throw new MemoryError('memory: semantic fact needs a `why`: what makes it non-trivial to reconstruct from the code')
 
-    let result!: { fact: SemanticFact; created: boolean }
-    await this.mutate((list) => {
-      const dup = list.find((f) => sameText(f.text, text) && f.id !== id)
-      if (dup) {
-        result = { fact: this.safeFact(dup), created: false }
-        return false
-      }
-      const i = id ? list.findIndex((f) => f.id === id) : -1
-      const ts = this.now().toISOString()
-      const fact: SemanticFact = {
-        tier: 'semantic',
-        id: id ?? randomUUID(),
-        text,
-        why,
-        ...(tags?.length ? { tags: tags.map(oneLine).filter(Boolean) } : {}),
-        ...(source ? { source } : {}),
-        ts: i >= 0 ? list[i]!.ts : ts,
-        ...(i >= 0 ? { updatedTs: ts } : {}),
-      }
-      if (i >= 0) list[i] = fact
-      else list.push(fact)
-      result = { fact, created: true }
-      return true
-    })
-    if (!result.created) return result
+    const ts = this.now().toISOString()
+    const fact: SemanticFact = {
+      tier: 'semantic',
+      id: id ?? randomUUID(),
+      text,
+      why,
+      ...(tags?.length ? { tags: tags.map(oneLine).filter(Boolean) } : {}),
+      ...(source ? { source } : {}),
+      ts,
+      ...(id ? { updatedTs: ts } : {}),
+    }
+    const result = await this.exclusive(() => this.store.put(fact))
+    if (!result.created) return { fact: this.safeFact(result.fact), created: false }
 
     const indexed = await this.indexOneIfCurrent(result.fact)
-    return indexed.ok ? { ...result, indexed: true } : { ...result, indexed: false, indexError: `${indexed.error.kind}: ${indexed.error.detail}` }
+    return indexed.ok ? { fact: this.safeFact(result.fact), created: true, indexed: true } : { fact: this.safeFact(result.fact), created: true, indexed: false, indexError: `${indexed.error.kind}: ${indexed.error.detail}` }
   }
 
   /**
@@ -144,47 +128,39 @@ export class MemorySemantic extends Service {
     // Avoid paying for an embedding when the semantic tier is empty. Check under
     // the same cross-process lock used by mutations, then recheck before reading
     // the index because the facts may change while the provider is embedding.
-    const empty = await this.exclusive(async () => (await this.load()).length === 0)
+    const empty = await this.exclusive(() => this.store.count() === 0)
     if (empty) return { ok: true, hits: [], stale: false }
     const emb = await this.ctx.embeddings.embed([text], { kind: 'query' })
     if (!emb.ok) return { ok: false, error: { kind: `embedding_${emb.error.kind}`, detail: emb.error.detail } }
     return this.exclusive(async () => {
-      const facts = await this.load()
-      if (facts.length === 0) return { ok: true as const, hits: [], stale: false }
+      const factsCount = await this.store.count()
+      if (factsCount === 0) return { ok: true as const, hits: [], stale: false }
       const col = await this.collection()
       if (!col.ok) return col
       const found = await col.collection.query(emb.vectors[0]!, k)
       if (!found.ok) return found
       const count = await col.collection.count()
-      const byId = new Map(facts.map((f) => [f.id, f]))
       const hits: SemanticHit[] = []
       for (const h of found.hits) {
-        const fact = byId.get(h.id) // a vector whose fact was removed is ignored, never returned
+        const fact = await this.store.get(h.id) // orphaned vectors are ignored
         if (fact && (opts.minScore === undefined || h.score >= opts.minScore)) hits.push({ fact: this.safeFact(fact), score: h.score })
       }
-      return { ok: true as const, hits, stale: count.ok ? count.count !== facts.length : true }
+      return { ok: true as const, hits, stale: count.ok ? count.count !== factsCount : true }
     })
   }
 
   /** Rebuild the whole search index from the stored facts. Use `reset: true` after changing the embedding model. */
   async reindex(opts: { reset?: boolean } = {}): Promise<{ ok: true; indexed: number } | SemanticFailure> {
     return this.exclusive(async () => {
-      const facts = await this.load()
-      if (facts.length === 0) return { ok: true as const, indexed: 0 } // nothing to index; query() returns early on an empty tier
-      const r = await this.index(facts, opts.reset === true)
-      return r.ok ? { ok: true as const, indexed: facts.length } : r
+      const count = await this.store.count()
+      if (count === 0) return { ok: true as const, indexed: 0 }
+      return this.index(this.store.iterate(), opts.reset === true)
     })
   }
 
   /** Remove a fact and its vector. Returns false if there was no such fact. */
   async remove(id: string): Promise<boolean> {
-    let gone: SemanticFact | undefined
-    await this.mutate((list) => {
-      const i = list.findIndex((f) => f.id === id)
-      if (i < 0) return false
-      gone = list.splice(i, 1)[0]
-      return true
-    })
+    const gone = await this.exclusive(() => this.store.delete(id))
     if (!gone) return false
     // Best effort: if the index is unreachable, query() ignores the orphaned vector anyway.
     const emb = await this.ctx.embeddings.embed([gone.text])
@@ -193,7 +169,7 @@ export class MemorySemantic extends Service {
         await this.exclusive(async () => {
           // A same-id add may have completed while embedding the removed fact.
           // Never delete the replacement's vector.
-          if ((await this.load()).some((fact) => fact.id === id)) return
+          if (await this.store.get(id)) return
           const col = await this.collection()
           if (col.ok) await col.collection.deleteIds([id])
         })
@@ -207,7 +183,7 @@ export class MemorySemantic extends Service {
   }
 
   async list(): Promise<SemanticFact[]> {
-    return (await this.load()).map((fact) => this.safeFact(fact))
+    return this.exclusive(async () => (await this.store.all()).map((fact) => this.safeFact(fact)))
   }
 
   /** Redact every model-visible field, including metadata loaded from older persisted files. */
@@ -224,23 +200,37 @@ export class MemorySemantic extends Service {
 
   // ---- index plumbing -------------------------------------------------------------------------
 
-  private async index(facts: SemanticFact[], reset = false): Promise<{ ok: true } | SemanticFailure> {
+  private async index(facts: AsyncIterable<SemanticFact>, reset = false): Promise<{ ok: true; indexed: number } | SemanticFailure> {
     let collection: VectorCollection | undefined
-    for (let offset = 0; offset < facts.length; offset += this.reindexBatchSize) {
-      const batch = facts.slice(offset, offset + this.reindexBatchSize)
-      const emb = await this.ctx.embeddings.embed(batch.map((fact) => fact.text), { kind: 'document' })
+    let batch: SemanticFact[] = []
+    let indexed = 0
+    const flush = async (): Promise<SemanticFailure | undefined> => {
+      if (!batch.length) return undefined
+      const current = batch
+      batch = []
+      const emb = await this.ctx.embeddings.embed(current.map((fact) => fact.text), { kind: 'document' })
       if (!emb.ok) return { ok: false, error: { kind: `embedding_${emb.error.kind}`, detail: emb.error.detail } }
       if (!collection) {
         const opened = await this.collection(reset)
         if (!opened.ok) return opened
         collection = opened.collection
       }
-      const up = await collection.upsert(
-        batch.map((fact, index) => ({ id: fact.id, vector: emb.vectors[index]!, source: 'memory.semantic', metadata: { tier: 'semantic' } })),
-      )
+      const up = await collection.upsert(current.map((fact, index) => ({
+        id: fact.id, vector: emb.vectors[index]!, source: 'memory.semantic', metadata: { tier: 'semantic' },
+      })))
       if (!up.ok) return up
+      indexed += current.length
+      return undefined
     }
-    return { ok: true }
+    for await (const fact of facts) {
+      batch.push(fact)
+      if (batch.length >= this.reindexBatchSize) {
+        const error = await flush()
+        if (error) return error
+      }
+    }
+    const error = await flush()
+    return error ?? { ok: true, indexed }
   }
 
   /** Embed outside the shared lock, then verify the persisted version before writing its vector. */
@@ -249,7 +239,7 @@ export class MemorySemantic extends Service {
     if (!emb.ok) return { ok: false, error: { kind: 'embedding_' + emb.error.kind, detail: emb.error.detail } }
     try {
       return await this.exclusive(async () => {
-        const current = (await this.load()).find((item) => item.id === fact.id)
+        const current = await this.store.get(fact.id)
         if (!current || current.text !== fact.text) {
           return { ok: false as const, error: { kind: 'superseded', detail: 'semantic fact "' + fact.id + '" changed before its vector could be written; the newer mutation owns indexing' } }
         }
@@ -280,79 +270,14 @@ export class MemorySemantic extends Service {
     return { ok: true, collection: opened.collection }
   }
 
-  // ---- fact file ------------------------------------------------------------------------------
-
-  private get file() {
-    return join(this.dir!, 'semantic.json')
-  }
-
-  private async load(): Promise<SemanticFact[]> {
-    // BUG-09: shared file, so re-read it every time in directory mode; only the in-memory mode may use the cache.
-    if (this.facts && !this.dir) return this.facts
-    this.facts = []
-    if (this.dir) {
-      try {
-        const parsed = JSON.parse(await readTextFileNoFollow(this.file))
-        if (!Array.isArray(parsed)) throw new Error('not an array')
-        for (const [index, fact] of parsed.entries()) {
-          if (!fact || typeof fact !== 'object' || Array.isArray(fact) || fact.tier !== 'semantic' ||
-            typeof fact.id !== 'string' || !fact.id.trim() ||
-            typeof fact.text !== 'string' || !fact.text.trim() ||
-            typeof fact.why !== 'string' || !fact.why.trim() ||
-            typeof fact.ts !== 'string' || !Number.isFinite(Date.parse(fact.ts)) ||
-            (fact.updatedTs !== undefined && (typeof fact.updatedTs !== 'string' || !Number.isFinite(Date.parse(fact.updatedTs)))) ||
-            (fact.source !== undefined && typeof fact.source !== 'string') ||
-            (fact.tags !== undefined && (!Array.isArray(fact.tags) || fact.tags.some((tag: unknown) => typeof tag !== 'string')))) {
-            throw new Error(`invalid fact at index ${index}`)
-          }
-        }
-        this.facts = parsed
-      } catch (err: any) {
-        if (err?.code !== 'ENOENT') {
-          this.facts = undefined
-          throw new MemoryError(`memory: semantic.json is unreadable (${err?.message ?? err}); refusing to overwrite it`)
-        }
-      }
-    }
-    return this.facts!
-  }
-
-  /** Serialised read-modify-write; `fn` returns false when it changed nothing. Atomic file replace. */
   private async exclusive<T>(fn: () => Promise<T>): Promise<T> {
     if (this.pendingOperations >= this.maxPendingOperations) {
       throw new MemoryError(`memory: semantic operation queue is full (${this.pendingOperations}/${this.maxPendingOperations})`)
     }
     this.pendingOperations++
-    const job = this.queue.then(async () => {
-      if (!this.dir) return fn()
-      await assertNoSymlinkParents(this.file)
-      await mkdir(this.dir, { recursive: true })
-      await assertNoSymlinkParents(this.file)
-      return withFileLock(`${this.file}.lock`, fn)
-    })
+    const job = this.queue.then(() => this.store.withLock(fn))
     this.queue = job.catch(() => {})
-    void job.then(
-      () => { this.pendingOperations-- },
-      () => { this.pendingOperations-- },
-    )
+    void job.then(() => { this.pendingOperations-- }, () => { this.pendingOperations-- })
     return job
-  }
-
-  private mutate(fn: (list: SemanticFact[]) => boolean): Promise<void> {
-    const work = async () => {
-      const list = structuredClone(await this.load())
-      if (!fn(list)) return
-      if (this.dir) {
-        await assertNoSymlinkParents(this.file)
-        await mkdir(this.dir, { recursive: true })
-        await assertNoSymlinkParents(this.file)
-        const tmp = `${this.file}.${process.pid}.${randomUUID()}.tmp`
-        await writeFile(tmp, JSON.stringify(list, null, 2), { encoding: 'utf8', mode: 0o600, flag: 'wx' })
-        await assertNoSymlinkParents(this.file)
-        await rename(tmp, this.file)
-      }
-      this.facts = list
-    }
-    return this.exclusive(work)
   }
 }
