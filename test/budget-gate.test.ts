@@ -321,13 +321,17 @@ describe('LLMService shared SQLite rate-limit integration', () => {
   it('enforces one concurrency ceiling across separate LLMService instances', async () => {
     let active = 0
     let peak = 0
-    const makeProvider = (text: string) => new MockProvider(async () => {
-      active++
-      peak = Math.max(peak, active)
-      await new Promise((resolve) => setTimeout(resolve, 40))
-      active--
-      return { text, usage: { inputTokens: 1, outputTokens: 1 } }
-    })
+    const makeProvider = (text: string) => {
+      const provider = new MockProvider(() => ({ text, usage: { inputTokens: 1, outputTokens: 1 } }))
+      provider.complete = async () => {
+        active++
+        peak = Math.max(peak, active)
+        await new Promise((resolve) => setTimeout(resolve, 40))
+        active--
+        return { text, usage: { inputTokens: 1, outputTokens: 1 } }
+      }
+      return provider
+    }
     const databasePath = join(tempDir(), 'shared-rate.sqlite')
     const config: ModelAdapterConfig = {
       rateLimit: { perMinute: 10, maxConcurrent: 1 },
