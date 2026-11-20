@@ -441,10 +441,10 @@ describe('semantic tier (3.3): the index is derived and recoverable', () => {
     const r = await b.ctx.memorySemantic.query('where does information get saved onto disk')
     expect(r.ok && r.hits[0]!.fact.id).toBe('storage')
 
-    await writeFile(join(dir, 'mem', 'semantic.events.jsonl'), '{ nope\\n', 'utf8')
+    await writeFile(join(dir, 'mem', 'semantic.events.jsonl'), '{ nope\n', 'utf8')
     const c = await boot(opts)
     await expect(c.ctx.memorySemantic.add({ text: 'new', why: WHY })).rejects.toThrow(/corrupt semantic event log/)
-    expect(await readFile(join(dir, 'mem', 'semantic.events.jsonl'), 'utf8')).toBe('{ nope\\n')
+    expect(await readFile(join(dir, 'mem', 'semantic.events.jsonl'), 'utf8')).toBe('{ nope\n')
   })
 })
 
