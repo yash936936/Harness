@@ -17,8 +17,9 @@ export function extractJson(text: string): { ok: true; value: unknown } | { ok: 
   if (!body.startsWith('{') || !body.endsWith('}')) return { ok: false, error: 'the reply must be exactly one JSON object and nothing else' }
   try {
     return { ok: true, value: JSON.parse(body) }
-  } catch (e: any) {
-    return { ok: false, error: `the reply is not valid JSON (${e?.message ?? e})` }
+  } catch (error: unknown) {
+    const detail = error instanceof Error ? error.message : String(error)
+    return { ok: false, error: `the reply is not valid JSON (${detail})` }
   }
 }
 
@@ -33,17 +34,19 @@ export function validatePlan(
     if (errors.length < MAX_ERRORS) errors.push(m)
   }
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { ok: false, errors: ['the top level must be an object like {"subtasks": [...]}'] }
-  const list = (raw as any).subtasks
+  const record = raw as Record<string, unknown>
+  const list = record.subtasks
   if (!Array.isArray(list)) return { ok: false, errors: ['"subtasks" must be an array'] }
   if (list.length === 0) return { ok: false, errors: ['"subtasks" must contain at least one subtask'] }
   if (list.length > limits.maxSubtasks) return { ok: false, errors: [`too many subtasks (${list.length}); the limit is ${limits.maxSubtasks}, so merge or drop some`] }
 
   const subtasks: Subtask[] = []
   const seen = new Set<string>()
-  list.forEach((s: any, i: number) => {
+  list.forEach((value: unknown, i: number) => {
     const at = `subtask ${i + 1}`
-    if (!s || typeof s !== 'object' || Array.isArray(s)) return err(`${at}: must be an object`)
-    const { id, goal } = s
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return err(`${at}: must be an object`)
+    const subtask = value as Record<string, unknown>
+    const { id, goal } = subtask
     if (typeof id !== 'string' || !ID_RE.test(id) || id.length > limits.maxIdChars) {
       err(`${at}: "id" must be a string of letters, digits, _ or - (at most ${limits.maxIdChars})`)
     } else if (seen.has(id)) {
@@ -52,14 +55,14 @@ export function validatePlan(
     if (typeof goal !== 'string' || !goal.trim()) err(`${at}: "goal" must be a non-empty string`)
     else if (goal.length > limits.maxGoalChars) err(`${at}: "goal" is too long (${goal.length}); the limit is ${limits.maxGoalChars}, so make it narrower`)
 
-    const tools = s.tools ?? []
+    const tools = subtask.tools ?? []
     if (!Array.isArray(tools) || tools.some((t: unknown) => typeof t !== 'string')) err(`${at}: "tools" must be an array of strings`)
     else {
       if (tools.length > limits.maxToolsPerSubtask) err(`${at}: too many tools (${tools.length}); the limit is ${limits.maxToolsPerSubtask}`)
       for (const t of tools) if (!registered.has(t)) err(`${at}: unknown tool "${t}"; available tools: ${[...registered].join(', ') || 'none'}`)
     }
 
-    const deps = s.dependsOn ?? []
+    const deps = subtask.dependsOn ?? []
     if (!Array.isArray(deps) || deps.some((d: unknown) => typeof d !== 'string')) err(`${at}: "dependsOn" must be an array of strings`)
     else for (const d of deps) if (!seen.has(d)) err(`${at}: dependsOn "${d}" must be the id of an EARLIER subtask`)
 
