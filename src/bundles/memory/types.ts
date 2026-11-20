@@ -185,6 +185,10 @@ export interface SemanticConfig {
   maxTextChars?: number
   /** Default 500 chars. */
   maxWhyChars?: number
+  /** Maximum active searchable semantic facts. New facts are rejected at the cap; history is never auto-deleted. Default 10000. */
+  maxFacts?: number
+  /** Maximum UTF-8 bytes for one serialized searchable fact. Default 8192. */
+  maxFactBytes?: number
   now?: () => Date
 }
 
