@@ -12,7 +12,6 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { bootProfileCoding, missingServices, verifyGates, ProfileError, MIN_CONFIDENCE_THRESHOLD, type ProfileCodingConfig } from '../src/profiles/profile-coding.js'
 import { SessionLog, type SessionEvent } from '../src/bundles/session-log/index.js'
 import { ToolRegistry } from '../src/bundles/tool-registry/index.js'
-import { Subprocess } from '../src/bundles/subprocess/index.js'
 import { EgressPolicy } from '../src/bundles/egress/index.js'
 import { Sandbox } from '../src/bundles/sandbox/index.js'
 import { PolicyGates, type ApprovalRequest, type Signal } from '../src/bundles/policy-gates/index.js'
@@ -60,15 +59,20 @@ function registerTestSandbox(ctx: any): void {
 describe('boot', () => {
   it('boots the whole stack and registers the real tools with their classes', async () => {
     const ctx = await bootProfileCoding(cfg(project()))
-    for (const s of ['log', 'egress', 'llm', 'tools', 'subprocess', 'agentLoop', 'memory', 'subagents', 'policy', 'inputGuard', 'retrievalGrep', 'retrievalRank', 'retrievalTools', 'localTools', 'orchestrator'])
+    for (const s of ['log', 'egress', 'llm', 'tools', 'agentLoop', 'memory', 'subagents', 'policy', 'inputGuard', 'retrievalGrep', 'retrievalRank', 'retrievalTools', 'localTools', 'orchestrator'])
       expect((ctx as any)[s], s).toBeTruthy()
     expect((ctx as any).skills).toBeUndefined() // never auto-discovered
+    expect((ctx as any).subprocess).toBeUndefined() // D-117: no host subprocess service in the coding profile
     const by = Object.fromEntries(ctx.tools.list().map((t) => [t.name, t.actionClass]))
     expect(by).toEqual({ read_file: 'read-only', edit_file: 'real-fs-write', write_file: 'real-fs-write' })
     expect(by).not.toHaveProperty('search_code')
     expect(by).not.toHaveProperty('list_code_files')
     expect(by).not.toHaveProperty('run_command')
     expect(by).not.toHaveProperty('__profile_selftest') // the probe is gone
+  })
+  it('rejects attempts to configure the host subprocess service under D-117', async () => {
+    const root = project()
+    await expect(bootProfileCoding({ ...cfg(root), subprocess: {} } as any)).rejects.toThrow('unknown option "subprocess"')
   })
   it('does not expose run_command through direct profile callers before D-118 acceptance', async () => {
     const ctx = await bootProfileCoding(cfg(project()))
@@ -168,6 +172,7 @@ describe('missingServices', () => {
     expect(missingServices(new Context(), false)).toEqual(expect.arrayContaining(['policy', 'subagents', 'localTools', 'memory']))
     const ctx = await bootProfileCoding(cfg(project()))
     expect(missingServices(ctx, false)).toEqual([])
+    expect((ctx as any).subprocess).toBeUndefined()
     expect(missingServices(ctx, true)).toEqual(['skills'])
   })
 })
@@ -178,7 +183,6 @@ describe('verifyGates refuses a context whose gates are not enforcing', () => {
     const ctx = new Context()
     await ctx.plugin(SessionLog, { memory: true })
     await ctx.plugin(ToolRegistry)
-    await ctx.plugin(Subprocess)
     await ctx.plugin(EgressPolicy, { projectId: 'profile-coding-selftest' })
     await ctx.plugin(Sandbox)
     if (parts.local !== false) await ctx.plugin(LocalTools, { root, enableCommand: false })
@@ -216,7 +220,6 @@ describe('verifyGates refuses a context whose gates are not enforcing', () => {
     const ctx = new Context()
     await ctx.plugin(SessionLog, { memory: true })
     await ctx.plugin(ToolRegistry)
-    await ctx.plugin(Subprocess)
     await ctx.plugin(LocalTools, { root, enableCommand: false })
     class Inert extends Service {
       constructor(c: Context) {
