@@ -200,7 +200,7 @@ export class WorkspaceRuntime {
     const workspaceId = workspaceIdFor(this.projectId, taskId, sessionId)
     const existing = await this.sessions.getTaskSession(this.projectId, taskId, sessionId)
     if (existing) {
-      if (existing.ownerId === this.ownerId && existing.state === 'ready' && await this.leases.isCurrent(existing.leaseId ?? '', this.ownerId, existing.fencingToken ?? 0)) return existing
+      if (existing.ownerId === this.ownerId && existing.provider === this.provider.name && existing.state === 'ready' && await this.leases.isCurrent(existing.leaseId ?? '', this.ownerId, existing.fencingToken ?? 0)) return existing
       throw new Error('workspace runtime: task session already exists; recovery requires an expired lease and provider validation')
     }
 
@@ -293,7 +293,7 @@ export class WorkspaceRuntime {
   async issueCapability(input: IssueWorkspaceCapabilityInput): Promise<WorkspaceCapability> {
     const workspaceId = required('workspaceId', input.workspaceId)
     const session = await this.sessions.getSession(workspaceId)
-    if (!session || session.state !== 'ready') throw new Error('workspace runtime: session is not ready')
+    if (!session || session.provider !== this.provider.name || session.state !== 'ready') throw new Error('workspace runtime: session is not ready for this provider')
     const lease = await this.assertCurrentLease(session)
     if (!Number.isSafeInteger(input.ttlMs) || input.ttlMs < 1_000 || input.ttlMs > this.maxCapabilityTtlMs) throw new RangeError('workspace runtime: capability TTL exceeds configured bounds')
     const allowedOperations = new Set<WorkspaceOperation>(['list', 'read', 'write', 'execute', 'collect'])
@@ -393,6 +393,7 @@ export class WorkspaceRuntime {
     required('close reason', reason, 512)
     const session = await this.sessions.getSession(workspaceId)
     if (!session) throw new Error('workspace runtime: session does not exist')
+    if (session.provider !== this.provider.name) throw new Error('workspace runtime: session belongs to a different provider')
     if (session.state === 'closed') return { confirmed: true }
     const lease = await this.assertCurrentLease(session)
     if (session.state !== 'closing') {
