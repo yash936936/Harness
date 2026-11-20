@@ -122,7 +122,7 @@ export class SemanticFactStore {
   private compactOrder(index: SemanticIndex): void {
     if (index.orderedIds.length <= index.byId.size * 2 + 1024) return
     index.orderedIds = index.orderedIds.filter((id) => index.byId.has(id))
-    index.positions = new Map(index.orderedIds.map((id, position) => [id, position]))
+    index.positions = new Map(index.orderedIds.map((id, position) => [id, position] as const))
   }
 
   private async ensureIndex(): Promise<SemanticIndex> {
@@ -276,7 +276,8 @@ export class SemanticFactStore {
       this.memoryPositions.delete(id)
       if (this.memoryOrder.length > this.memoryFacts.size * 2 + 1024) {
         const live = this.memoryOrder.filter((key) => this.memoryFacts.has(key))
-        this.memoryOrder.splice(0, this.memoryOrder.length, ...live)
+        this.memoryOrder.length = 0
+        for (const key of live) this.memoryOrder.push(key)
         this.memoryPositions.clear()
         this.memoryOrder.forEach((key, position) => this.memoryPositions.set(key, position))
       }
