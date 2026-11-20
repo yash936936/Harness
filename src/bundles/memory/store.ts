@@ -1,5 +1,6 @@
-import { mkdir } from 'node:fs/promises'
-import { appendTextFileNoFollow, assertNoSymlinkParents, readTextLinesNoFollow, truncateFileNoFollow } from '../../util/secure-file.js'
+import { mkdir, rename, stat, writeFile } from 'node:fs/promises'
+import { randomUUID } from 'node:crypto'
+import { appendTextFileNoFollow, assertNoSymlinkParents, readTextFileNoFollow, readTextLinesNoFollow, readTextRangeNoFollow, truncateFileNoFollow } from '../../util/secure-file.js'
 import { withFileLock } from '../../util/filelock.js'
 import { join } from 'node:path'
 import { MemoryError, type Episode, type EpisodeStore } from './types.js'
@@ -33,10 +34,22 @@ export class MemoryEpisodeStore implements EpisodeStore {
   }
 }
 
-/** One JSONL file, `<dir>/episodic.jsonl`. Append-only, like the session log. */
+interface EpisodeIndexEntry {
+  id: string
+  offset: number
+  length: number
+}
+interface EpisodeIndexManifest {
+  version: 1
+  sourceBytes: number
+  indexBytes: number
+}
+
+/** One append-only JSONL source plus a rebuildable, append-only identity index. */
 export class JsonlEpisodeStore implements EpisodeStore {
   private queue: Promise<unknown> = Promise.resolve()
   private pendingWrites = 0
+  private indexCache?: { sourceBytes: number; indexBytes: number; entries: Map<string, EpisodeIndexEntry> }
 
   constructor(private dir: string, private maxPendingWrites = 1024) {
     if (!Number.isSafeInteger(this.maxPendingWrites) || this.maxPendingWrites < 1) {
@@ -44,9 +57,9 @@ export class JsonlEpisodeStore implements EpisodeStore {
     }
   }
 
-  private get file() {
-    return join(this.dir, 'episodic.jsonl')
-  }
+  private get file() { return join(this.dir, 'episodic.jsonl') }
+  private get indexFile() { return join(this.dir, 'episodic.index.jsonl') }
+  private get manifestFile() { return join(this.dir, 'episodic.index.meta.json') }
 
   async add(e: Episode): Promise<boolean> {
     const episode = structuredClone(e)
@@ -59,71 +72,138 @@ export class JsonlEpisodeStore implements EpisodeStore {
       await mkdir(this.dir, { recursive: true })
       await assertNoSymlinkParents(this.file)
       return withFileLock(`${this.file}.lock`, async () => {
-        if (await this.repairTailAndHasId(episode.id)) return false
-        await appendTextFileNoFollow(this.file, JSON.stringify(episode) + '\n')
-        return true
+        const entries = await this.ensureIndex()
+        if (entries.has(episode.id)) return false
+        const sourceBytes = await this.fileSize(this.file)
+        const line = JSON.stringify(episode) + '\n'
+        await appendTextFileNoFollow(this.file, line)
+        const offset = sourceBytes
+        const length = Buffer.byteLength(line, 'utf8') - 1
+        const indexLine = JSON.stringify({ id: episode.id, offset, length }) + '\n'
+        try {
+          await appendTextFileNoFollow(this.indexFile, indexLine)
+          const nextSourceBytes = sourceBytes + Buffer.byteLength(line, 'utf8')
+          const nextIndexBytes = (await this.fileSize(this.indexFile))
+          await this.writeManifest({ version: 1, sourceBytes: nextSourceBytes, indexBytes: nextIndexBytes })
+          entries.set(episode.id, { id: episode.id, offset, length })
+          this.indexCache = { sourceBytes: nextSourceBytes, indexBytes: nextIndexBytes, entries }
+          return true
+        } catch (error) {
+          // The episode log is authoritative. A failed index update is rebuilt on the next operation.
+          this.indexCache = undefined
+          throw error
+        }
       })
     })
     this.queue = job.catch(() => {})
-    void job.then(
-      () => { this.pendingWrites-- },
-      () => { this.pendingWrites-- },
-    )
+    void job.then(() => { this.pendingWrites-- }, () => { this.pendingWrites-- })
     return job
   }
 
-  /** Repair the final record and detect duplicates in one bounded-memory pass. */
-  private async repairTailAndHasId(id: string): Promise<boolean> {
-    let candidate: { line: string; start: number; lineNumber: number } | undefined
-    let offset = 0
-    let trailingBlankBytes = 0
-    let endedWithNewline = true
-    let physicalLine = 0
-    let found = false
-    try {
-      for await (const item of readTextLinesNoFollow(this.file)) {
-        physicalLine++
-        endedWithNewline = item.newline
-        const bytes = Buffer.byteLength(item.line, 'utf8') + (item.newline ? 1 : 0)
-        if (!item.line.trim()) {
-          trailingBlankBytes += bytes
-          continue
-        }
-        if (candidate) {
-          let parsed: Episode
-          try {
-            parsed = JSON.parse(candidate.line) as Episode
-          } catch {
-            throw new Error(`memory: corrupt episodic.jsonl at line ${candidate.lineNumber}`)
-          }
-          if (parsed.id === id) found = true
-          offset = candidate.start + Buffer.byteLength(candidate.line, 'utf8') + 1 + trailingBlankBytes
-        } else {
-          offset += trailingBlankBytes
-        }
-        candidate = { line: item.line, start: offset, lineNumber: physicalLine }
-        trailingBlankBytes = 0
-      }
-    } catch (error: any) {
-      if (error?.code === 'ENOENT') return false
-      throw error
-    }
-
-    if (candidate) {
-      let parsed: Episode
-      try {
-        parsed = JSON.parse(candidate.line) as Episode
-      } catch {
-        await truncateFileNoFollow(this.file, candidate.start)
-        return found
-      }
-      if (parsed.id === id) found = true
-      if (!endedWithNewline) await appendTextFileNoFollow(this.file, '\n')
-    }
-    return found
+  private async fileSize(path: string): Promise<number> {
+    try { return (await stat(path)).size }
+    catch (error: any) { if (error?.code === 'ENOENT') return 0; throw error }
   }
 
-  /** Stream valid records; tolerate only a malformed final non-blank record. */
+  private async writeManifest(manifest: EpisodeIndexManifest): Promise<void> {
+    const temporary = `${this.manifestFile}.${process.pid}.${randomUUID()}.tmp`
+    await assertNoSymlinkParents(this.manifestFile)
+    try {
+      await writeFile(temporary, JSON.stringify(manifest), { encoding: 'utf8', mode: 0o600, flag: 'wx' })
+      await assertNoSymlinkParents(this.manifestFile)
+      await rename(temporary, this.manifestFile)
+    } catch (error) {
+      const { unlink } = await import('node:fs/promises')
+      await unlink(temporary).catch(() => {})
+      throw error
+    }
+  }
+
+  private async readManifest(): Promise<EpisodeIndexManifest | undefined> {
+    try {
+      const parsed = JSON.parse(await readTextFileNoFollow(this.manifestFile)) as Partial<EpisodeIndexManifest>
+      if (parsed.version !== 1 || !Number.isSafeInteger(parsed.sourceBytes) || parsed.sourceBytes! < 0 ||
+          !Number.isSafeInteger(parsed.indexBytes) || parsed.indexBytes! < 0) return undefined
+      return parsed as EpisodeIndexManifest
+    } catch (error: any) {
+      if (error?.code === 'ENOENT') return undefined
+      return undefined
+    }
+  }
+
+  /** Trust the index only when its manifest matches both files; otherwise rebuild from the authoritative episode log. */
+  private async ensureIndex(): Promise<Map<string, EpisodeIndexEntry>> {
+    const sourceBytes = await this.fileSize(this.file)
+    const indexBytes = await this.fileSize(this.indexFile)
+    if (this.indexCache?.sourceBytes === sourceBytes && this.indexCache.indexBytes === indexBytes) return this.indexCache.entries
+
+    const manifest = await this.readManifest()
+    if (manifest && manifest.sourceBytes === sourceBytes && manifest.indexBytes === indexBytes) {
+      try {
+        const entries = new Map<string, EpisodeIndexEntry>()
+        for await (const item of readTextLinesNoFollow(this.indexFile)) {
+          if (!item.line.trim()) continue
+          const entry = JSON.parse(item.line) as EpisodeIndexEntry
+          if (typeof entry.id !== 'string' || !entry.id || !Number.isSafeInteger(entry.offset) || entry.offset < 0 ||
+              !Number.isSafeInteger(entry.length) || entry.length < 0) throw new Error('invalid identity index entry')
+          entries.set(entry.id, entry)
+        }
+        this.indexCache = { sourceBytes, indexBytes, entries }
+        return entries
+      } catch {
+        // Rebuild below from the authoritative episode log.
+      }
+    }
+    return this.rebuildIndex()
+  }
+
+  private async rebuildIndex(): Promise<Map<string, EpisodeIndexEntry>> {
+    const entries = new Map<string, EpisodeIndexEntry>()
+    let offset = 0
+    try {
+      for await (const item of readTextLinesNoFollow(this.file)) {
+        const lineBytes = Buffer.byteLength(item.line, 'utf8')
+        if (!item.line.trim()) {
+          offset += lineBytes + (item.newline ? 1 : 0)
+          continue
+        }
+        let episode: Episode
+        try { episode = JSON.parse(item.line) as Episode }
+        catch {
+          if (!item.newline) {
+            await truncateFileNoFollow(this.file, offset)
+            break
+          }
+          throw new Error('memory: corrupt episodic.jsonl before final record; refusing to rebuild its identity index')
+        }
+        entries.set(episode.id, { id: episode.id, offset, length: lineBytes })
+        offset += lineBytes + (item.newline ? 1 : 0)
+      }
+    } catch (error: any) {
+      if (error?.code !== 'ENOENT') throw error
+    }
+
+    const temporary = `${this.indexFile}.${process.pid}.${randomUUID()}.tmp`
+    await assertNoSymlinkParents(this.indexFile)
+    try {
+      await writeFile(temporary, '', { encoding: 'utf8', mode: 0o600, flag: 'wx' })
+      for (const entry of entries.values()) {
+        await appendTextFileNoFollow(temporary, JSON.stringify(entry) + '\n')
+      }
+      await assertNoSymlinkParents(this.indexFile)
+      await rename(temporary, this.indexFile)
+    } catch (error) {
+      const { unlink } = await import('node:fs/promises')
+      await unlink(temporary).catch(() => {})
+      throw error
+    }
+    const sourceBytes = await this.fileSize(this.file)
+    const indexBytes = await this.fileSize(this.indexFile)
+    await this.writeManifest({ version: 1, sourceBytes, indexBytes })
+    this.indexCache = { sourceBytes, indexBytes, entries }
+    return entries
+  }
+
   async *iterate(): AsyncGenerator<Episode> {
     let candidate: { line: string; lineNumber: number } | undefined
     let physicalLine = 0
@@ -132,11 +212,8 @@ export class JsonlEpisodeStore implements EpisodeStore {
         physicalLine++
         if (!item.line.trim()) continue
         if (candidate) {
-          try {
-            yield JSON.parse(candidate.line) as Episode
-          } catch {
-            throw new Error(`memory: corrupt episodic.jsonl at line ${candidate.lineNumber}`)
-          }
+          try { yield JSON.parse(candidate.line) as Episode }
+          catch { throw new Error(`memory: corrupt episodic.jsonl at line ${candidate.lineNumber}`) }
         }
         candidate = { line: item.line, lineNumber: physicalLine }
       }
@@ -145,18 +222,25 @@ export class JsonlEpisodeStore implements EpisodeStore {
       throw error
     }
     if (candidate) {
-      try {
-        yield JSON.parse(candidate.line) as Episode
-      } catch {
-        // An interrupted final write is ignored; the next add() repairs it.
-      }
+      try { yield JSON.parse(candidate.line) as Episode }
+      catch { /* An interrupted final write is ignored; the next add() repairs it. */ }
     }
   }
 
   async findById(id: string): Promise<Episode | undefined> {
-    let found: Episode | undefined
-    for await (const episode of this.iterate()) if (episode.id === id) found = episode
-    return found ? structuredClone(found) : undefined
+    return withFileLock(`${this.file}.lock`, async () => {
+      const entry = (await this.ensureIndex()).get(id)
+      if (!entry) return undefined
+      try {
+        return JSON.parse(await readTextRangeNoFollow(this.file, entry.offset, entry.length)) as Episode
+      } catch (error: any) {
+        // A stale or damaged index is never authoritative.
+        this.indexCache = undefined
+        const rebuilt = await this.rebuildIndex()
+        const current = rebuilt.get(id)
+        return current ? JSON.parse(await readTextRangeNoFollow(this.file, current.offset, current.length)) as Episode : undefined
+      }
+    })
   }
 
   async count(): Promise<number> {
