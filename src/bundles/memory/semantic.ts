@@ -1,5 +1,5 @@
 import { Service, type Context } from 'cordis'
-import { SemanticFactStore } from './semantic-store.js'
+import { SemanticFactStore, type SemanticReindexCheckpoint } from './semantic-store.js'
 import { randomUUID } from 'node:crypto'
 import type { VectorCollection } from '../vectorstore-lancedb/index.js'
 import { MemoryError, type SemanticConfig, type SemanticFact, type SemanticFailure, type SemanticHit } from './types.js'
@@ -149,13 +149,141 @@ export class MemorySemantic extends Service {
     })
   }
 
-  /** Rebuild the whole search index from the stored facts. Use `reset: true` after changing the embedding model. */
+  /** Resume a source-version-bound semantic index rebuild in idempotent batches. */
   async reindex(opts: { reset?: boolean } = {}): Promise<{ ok: true; indexed: number } | SemanticFailure> {
-    return this.exclusive(async () => {
-      const count = await this.store.count()
-      if (count === 0) return { ok: true as const, indexed: 0 }
-      return this.index(this.store.iterate(), opts.reset === true)
-    })
+    if (!this.store.persistent) {
+      return this.exclusive(async () => {
+        const count = await this.store.count()
+        if (count === 0) return { ok: true as const, indexed: 0 }
+        return this.index(this.store.iterate(), opts.reset === true)
+      })
+    }
+
+    let state = await this.exclusive(async () => ({
+      count: await this.store.count(),
+      sourceBytes: await this.store.revision(),
+      checkpoint: await this.store.loadReindexCheckpoint(),
+    }))
+    if (state.count === 0) {
+      await this.exclusive(() => this.store.clearReindexCheckpoint())
+      return { ok: true, indexed: 0 }
+    }
+
+    let checkpoint = state.checkpoint
+    if (checkpoint && checkpoint.sourceBytes !== state.sourceBytes) {
+      await this.exclusive(() => this.store.clearReindexCheckpoint())
+      checkpoint = undefined
+    }
+    let cursor = checkpoint?.cursor
+    let indexed = checkpoint?.indexed ?? 0
+    let resetRequested = checkpoint?.resetRequested ?? (opts.reset === true)
+    let resetApplied = checkpoint?.resetApplied ?? false
+    let page = await this.exclusive(() => this.store.page(cursor, this.reindexBatchSize))
+    if (page.sourceBytes !== state.sourceBytes) {
+      await this.exclusive(() => this.store.clearReindexCheckpoint())
+      return { ok: false, error: { kind: 'source_changed', detail: 'semantic facts changed while reindexing; retry reindex() to start from the new source version' } }
+    }
+    if (page.items.length === 0) {
+      await this.exclusive(() => this.store.clearReindexCheckpoint())
+      return { ok: true, indexed }
+    }
+
+    let embedded = await this.ctx.embeddings.embed(page.items.map((fact) => fact.text), { kind: 'document' })
+    if (!embedded.ok) return { ok: false, error: { kind: `embedding_${embedded.error.kind}`, detail: embedded.error.detail } }
+    let info = this.ctx.embeddings.info()
+    if (!info?.fingerprint || !info.dimensions) return { ok: false, error: { kind: 'embedding_config', detail: 'no embedding fingerprint yet (no provider, or no vector produced)' } }
+
+    const checkpointMatches = !!checkpoint &&
+      checkpoint.sourceBytes === state.sourceBytes &&
+      checkpoint.fingerprint === info.fingerprint &&
+      checkpoint.dimensions === info.dimensions &&
+      checkpoint.collection === this.collectionName &&
+      (opts.reset !== true || checkpoint.resetRequested)
+    if (!checkpointMatches) {
+      cursor = undefined
+      indexed = 0
+      resetRequested = opts.reset === true
+      resetApplied = false
+      page = await this.exclusive(() => this.store.page(undefined, this.reindexBatchSize))
+      embedded = await this.ctx.embeddings.embed(page.items.map((fact) => fact.text), { kind: 'document' })
+      if (!embedded.ok) return { ok: false, error: { kind: `embedding_${embedded.error.kind}`, detail: embedded.error.detail } }
+      info = this.ctx.embeddings.info()
+      if (!info?.fingerprint || !info.dimensions) return { ok: false, error: { kind: 'embedding_config', detail: 'no embedding fingerprint yet (no provider, or no vector produced)' } }
+    }
+
+    let collection: VectorCollection | undefined
+    for (;;) {
+      const committed = await this.exclusive(async () => {
+        const currentRevision = await this.store.revision()
+        if (currentRevision !== state.sourceBytes) return { changed: true as const }
+        if (!collection) {
+          const opened = await this.collection(!resetApplied && resetRequested)
+          if (!opened.ok) return { failure: opened as SemanticFailure }
+          collection = opened.collection
+          resetApplied = true
+          const prepared: SemanticReindexCheckpoint = {
+            version: 1,
+            sourceBytes: state.sourceBytes,
+            fingerprint: info!.fingerprint!,
+            dimensions: info!.dimensions!,
+            collection: this.collectionName,
+            resetRequested,
+            resetApplied,
+            ...(cursor ? { cursor } : {}),
+            indexed,
+            updatedAt: new Date().toISOString(),
+          }
+          await this.store.saveReindexCheckpoint(prepared)
+        }
+        const up = await collection!.upsert(page.items.map((fact, index) => ({
+          id: fact.id,
+          vector: embedded.vectors[index]!,
+          source: 'memory.semantic',
+          metadata: { tier: 'semantic' },
+        })))
+        if (!up.ok) return { failure: up as SemanticFailure }
+        const nextCursor = page.items[page.items.length - 1]!.id
+        const nextIndexed = indexed + page.items.length
+        const committedRevision = await this.store.revision()
+        if (committedRevision !== state.sourceBytes) return { changed: true as const }
+        await this.store.saveReindexCheckpoint({
+          version: 1,
+          sourceBytes: state.sourceBytes,
+          fingerprint: info!.fingerprint!,
+          dimensions: info!.dimensions!,
+          collection: this.collectionName,
+          resetRequested,
+          resetApplied: true,
+          cursor: nextCursor,
+          indexed: nextIndexed,
+          updatedAt: new Date().toISOString(),
+        })
+        return { changed: false as const, cursor: nextCursor, indexed: nextIndexed }
+      })
+      if ('failure' in committed) return committed.failure
+      if (committed.changed) {
+        await this.exclusive(() => this.store.clearReindexCheckpoint())
+        return { ok: false, error: { kind: 'source_changed', detail: 'semantic facts changed during a reindex batch; retry reindex() to rebuild from the current source version' } }
+      }
+      cursor = committed.cursor
+      indexed = committed.indexed
+      page = await this.exclusive(() => this.store.page(cursor, this.reindexBatchSize))
+      if (page.sourceBytes !== state.sourceBytes) {
+        await this.exclusive(() => this.store.clearReindexCheckpoint())
+        return { ok: false, error: { kind: 'source_changed', detail: 'semantic facts changed while reindexing; retry reindex() to start from the new source version' } }
+      }
+      if (page.items.length === 0) {
+        const finalRevision = await this.exclusive(() => this.store.revision())
+        if (finalRevision !== state.sourceBytes) {
+          await this.exclusive(() => this.store.clearReindexCheckpoint())
+          return { ok: false, error: { kind: 'source_changed', detail: 'semantic facts changed before reindex completed; retry reindex()' } }
+        }
+        await this.exclusive(() => this.store.clearReindexCheckpoint())
+        return { ok: true, indexed }
+      }
+      embedded = await this.ctx.embeddings.embed(page.items.map((fact) => fact.text), { kind: 'document' })
+      if (!embedded.ok) return { ok: false, error: { kind: `embedding_${embedded.error.kind}`, detail: embedded.error.detail } }
+    }
   }
 
   /** Remove a fact and its vector. Returns false if there was no such fact. */
