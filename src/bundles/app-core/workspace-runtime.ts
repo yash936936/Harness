@@ -1,4 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto'
+import { SQLiteLeaseStore } from './budgets.js'
+import { SQLiteWorkspaceStore } from './workspaces.js'
 import type {
   LeaseStore,
   WorkspaceCapability,
@@ -37,6 +39,23 @@ export interface IssueWorkspaceCapabilityInput {
   readonly operations: readonly WorkspaceOperation[]
   readonly pathPrefixes: readonly string[]
   readonly ttlMs: number
+}
+
+export interface SQLiteWorkspaceRuntimeOptions extends Omit<WorkspaceRuntimeOptions, 'leases' | 'sessions'> {
+  readonly databasePath: string
+  readonly maxLeaseTtlMs?: number
+}
+
+/** Construct the lease and session stores over the same per-project SQLite database. */
+export function createSQLiteWorkspaceRuntime(options: SQLiteWorkspaceRuntimeOptions): WorkspaceRuntime {
+  const databasePath = required('databasePath', options.databasePath, 4_096)
+  const { databasePath: _databasePath, maxLeaseTtlMs, ...runtimeOptions } = options
+  const leases = new SQLiteLeaseStore(databasePath, {
+    now: runtimeOptions.now,
+    maxLeaseTtlMs: maxLeaseTtlMs ?? runtimeOptions.maxSessionTtlMs,
+  })
+  const sessions = new SQLiteWorkspaceStore(databasePath, { now: runtimeOptions.now })
+  return new WorkspaceRuntime({ ...runtimeOptions, leases, sessions })
 }
 
 function required(name: string, value: unknown, max = 256): string {
