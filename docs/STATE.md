@@ -10,7 +10,7 @@
 - Phase 2 SQLite coordination is complete through PR #140, including transactional budget reservations, rate-limit windows/concurrency permits, and fenced leases.
 - Phase 3 has bounded session-log reads, episodic indexes/pages, append-only semantic events, rebuildable semantic indexes, quotas, cursor invalidation, checkpointed reindex, a 100k semantic-page benchmark, and independent-process semantic writer/deletion tests. It remains open for crash-during-write/restart recovery, additional cross-process cache/session-log recovery, large-file memory bounds, and full audit closeout.
 - Performance evidence and measurement caveats are in [architecture-contracts.md](architecture-contracts.md). The 100k semantic fixture had 25k deletions and one reinsertion. Cold index rebuild p50/p95 was 4,310.982/4,404.561 ms. Warm 50-row pages were 19.953/25.641 ms at cursor 49,999, 18.225/25.586 ms at 89,999, and 17.867/20.190 ms at 99,899. Sampled RSS delta p50/p95 was 25,427,968/26,869,760 bytes.
-- Phase 4 is not implemented as a runtime. Backend-neutral contracts and SQLite fenced leases exist, but task-scoped workspace sessions, provider-enforced capabilities, secure snapshot/file transfer, conflict-safe result synchronization, and crash recovery are missing.
+- Phase 4 has a durable metadata foundation but no runtime orchestrator. PR #163 adds `SQLiteWorkspaceStore` with task-scoped sessions, idempotent creation, fenced lifecycle transitions/adoption, hashed capability tokens, path/operation/expiry authorization, and revocation. It is not yet integrated with `SQLiteLeaseStore` or a provider. Provider session lifecycle, provider-side enforcement, byte-level transfer, snapshot manifests, conflict-safe result application, and crash recovery remain missing.
 - D-110/D-117/D-118/D-119 remain binding. Built-in profiles no longer expose host subprocess execution, but generic exported bundles and other source paths still require the full reachability audit. Do not enable `COMMAND_TOOL`.
 - Live Vercel acceptance is not performed by CI. It requires explicit owner-run project egress authorization and credentials; the informational not-run job is not evidence of acceptance.
 
@@ -19,7 +19,7 @@
 1. Finish the post-merge main CI run #44832920650.
 2. Complete Phase 3 recovery from interruption during source append itself, cross-process session-log/cache recovery, and memory-bound evidence.
 3. Finish the repository-wide D-110/D-117 subprocess and indirect execution audit.
-4. Implement Phase 4 workspace lifecycle, capability enforcement, transfer, conflict handling, and recovery.
+4. Integrate `SQLiteWorkspaceStore` with `SQLiteLeaseStore` and implement Phase 4 provider lifecycle, provider-enforced capabilities, byte transfer, conflict handling, and recovery.
 5. Complete the file-by-file audit and reconcile every active status document.
 6. Run final migration, cross-platform, security, performance, documentation, and owner-authorized Vercel acceptance.
 
