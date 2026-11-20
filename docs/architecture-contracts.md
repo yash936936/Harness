@@ -1,6 +1,6 @@
 # Architecture contracts and migration safety
 
-Status: Phase 2 shared SQLite coordination is implemented through PR #140, including budget reservations, rate-limit windows/concurrency permits, fenced leases, legacy budget migration, explicit task identity/task reservations, and LLMService integration. Phase 3 memory/retrieval implementation is merged, with current benchmark evidence recorded below; semantic keyset-page benchmarking and full audit closeout remain open. Phase 4 has backend-neutral workspace contracts and the SQLite lease primitive, but no task-scoped workspace session or transfer runtime. The SQLite implementation uses sql.js WebAssembly and an existing cross-process file lock; each write reloads/exports the database, so it is intended for bounded coordination metadata, not large durable-history or vector datasets.
+Status: Phase 2 shared SQLite coordination is implemented through PR #140. Phase 3 performance evidence, including the 100k semantic-page benchmark, is recorded below; PR #158 adds passing independent-process semantic writer/deletion, cursor invalidation, and sidecar-rebuild tests. Phase 3 remains open for crash-during-write/restart recovery, further cross-process session-log/cache evidence, large-file memory bounds, and full audit closeout. Phase 4 has backend-neutral workspace contracts and the SQLite lease primitive, but no task-scoped workspace session or transfer runtime. The current `WorkspaceTransferProvider` contract describes manifest metadata and change metadata only; it does not yet define bounded byte streaming, file-content transport, or an atomic governed apply protocol. Those contracts must be completed before implementing secure transfer. The SQLite implementation uses sql.js WebAssembly and an existing cross-process file lock; each write reloads/exports the database, so it is intended for bounded coordination metadata, not large durable-history or vector datasets.
 
 ## Scope and constraints
 
@@ -259,6 +259,13 @@ The source event log is authoritative; the identity index and manifest are rebui
 The warm session append path reads no existing source bytes when its validated tail cursor remains valid. A cold append after cache invalidation reads the existing log. Episodic selective query still reads the full 27,635,492-byte source file in this benchmark; indexed page and identity lookup are bounded warm paths. These file-size estimates are not OS I/O counters.
 
 ### Semantic keyset page benchmark: CI run #44828389243
+
+
+### Cross-process semantic-store acceptance: PR #158
+
+PR #158 adds an independent-process test using four Node workers. Each worker writes 50 unique facts and acquires the store lock per operation. A separate worker deletes 50 facts. The test verifies 200 initial facts, invalidation of a cursor created before the external-process deletion, 150 remaining facts, rebuild of the missing sidecar index and manifest, and reinsertion of a deleted ID at the end of the ordered projection. The test passed in PR-head CI run #44831362470 on Ubuntu and Windows with Node 20.19 and 22.12; post-merge main CI run #44831864535 also passed.
+
+This does not establish crash-during-append recovery, concurrent process restart recovery, constant-memory semantic identity indexing, or large-file memory bounds. Those remain open Phase 3 requirements.
 
 Ubuntu x64, Node v22.12.0, 4 CPUs. Three index-build samples and fifteen warm-page timings per cursor. The fixture writes 100,000 facts, deletes 25,000, then reinserts one deleted ID. The final live count is 75,001. The source log is 20,475,235 bytes and the rebuilt sidecar index is 11,593,405 bytes.
 
