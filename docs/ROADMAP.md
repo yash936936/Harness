@@ -2,18 +2,19 @@
 
 ## 2026-11-21 unified completion loop: current status
 
-Main baseline: `0bbd15617f250d42484fd1164e383fda7aae7f5f` (PR #159 merged). Post-merge main CI run #44832920650 passed all mandatory jobs; PR-head CI run #44832567598 also passed.
+Main baseline: `5c6179d6c1bb60c71ecc603afbfb41aba23715d3` (PR #161 merged). Post-merge main CI run #44834019205 is pending; PR-head CI runs #44832567598 and #44833502733 passed all mandatory jobs.
 
 **Completed and verified**
 - PR #156: semantic insertion-order/tombstone fix; post-merge CI #44827470725 passed.
 - PR #157: performance evidence, roadmap updates, and explicit informational-only reporting for acceptance gates not run; PR-head CI #44829118899 passed.
 - PR #158: independent-process semantic storage acceptance. Four processes wrote 200 facts with per-operation locking; a separate process deleted 50; the test verified cross-process cursor invalidation, sidecar rebuild, 150 live facts, and delete/reinsert ordering. Full CI #44831362470 passed, and post-merge main CI #44831864535 passed.
 - PR #159: D-117 restrictions across both built-in profiles. Neither profile registers host `Subprocess`; `profile-coding` also rejects `router.needle` and host-backed retrieval configuration. Tree-sitter parsing and configured semantic memory remain available. PR-head CI #44832567598 passed.
+- PR #161: semantic append recovery test. It simulates interruption after the authoritative event append but before sidecar/manifest update; a fresh service instance rebuilt the sidecar and retained both facts. Full PR-head CI #44833502733 passed.
 - Phase 2 SQLite coordination remains complete through PR #140 and its accepted cross-process/migration tests.
 - Phase 3 p50/p95 measurements are published in [architecture-contracts.md](architecture-contracts.md). The 100k semantic-page fixture included 25k deletions and one reinsertion. Cold sidecar rebuild was 4,310.982/4,404.561 ms p50/p95. Warm 50-row pages were 19.953/25.641 ms at cursor 49,999, 18.225/25.586 ms at 89,999, and 17.867/20.190 ms at 99,899. Sampled process RSS delta was 25,427,968/26,869,760 bytes p50/p95. These are small-sample benchmark results, not production guarantees.
 
 **Still open**
-1. Phase 3: crash-during-write recovery and cross-process session-log/cache recovery; large-file and metadata-scan memory bounds; full semantic reindex/recovery stress; remaining source audit.
+1. Phase 3: interruption during the source append itself; cross-process session-log/cache recovery; large-file and metadata-scan memory bounds; full semantic reindex/recovery stress; remaining source audit.
 2. Phase 4: SQLite-backed workspace session metadata and ownership/fencing integration; task-scoped lifecycle; provider-enforced operation/path/expiry capabilities and revocation; byte-level secret-safe snapshot transfer; bounded result collection; hash-based conflict detection and governed apply; crash recovery and cleanup.
 3. D-110/D-117: built-in profile paths are restricted, but generic `CommandBackend`, `Subprocess`, retrieval bundles, Crabbox source, scripts, desktop paths, and downstream direct construction still need a repository-wide reachability audit.
 4. Final acceptance: migration safety, crash recovery, full compatibility and cross-platform matrix, documentation consistency, and live Vercel acceptance.
