@@ -17,6 +17,7 @@ Composes the episodic and hot memory tiers behind `ctx.memory`. It records one l
 - `maxPendingEpisodeWrites` bounds outstanding writes to persistent episodic storage, including the active write. It defaults to 1024 and must be a positive safe integer.
 - `MemorySemantic` accepts `maxPendingOperations` to bound serialized semantic mutations and reads per service instance. It defaults to 256 outstanding operations and must be a positive safe integer.
 - `MemorySemantic` accepts `reindexBatchSize` to bound facts embedded and vector-upserted per reindex batch. It defaults to 64 and must be a positive safe integer.
+- Persistent semantic facts use append-only `semantic.events.jsonl` plus rebuildable `semantic.index.jsonl` and `semantic.index.meta.json`. A validated legacy `semantic.json` array is imported once and retained unchanged as a backup. ID lookup, text deduplication, and semantic query hit hydration use indexed byte ranges.
 - `deriveLessons` defaults to false. When enabled, lessons are templated only from harness facts in the session log, never model or file text.
 - `injectHot` defaults to true. The hot tier is added as a system section at order 10.
 - `compaction.everyTurns`, when set, must be a positive safe integer. Compaction errors are recorded in `lastCompaction` and do not fail the user's turn.
@@ -36,7 +37,7 @@ Composes the episodic and hot memory tiers behind `ctx.memory`. It records one l
 - The persistent compaction ledger rejects symlinked parent/final paths and uses exclusive, unique temporary files for atomic replacement.
 - Semantic fact mutations and vector-index writes share a serialized lock. A delayed embedding cannot overwrite a newer same-ID fact, and a removal cannot delete a replacement's vector.
 - The semantic operation queue limit is per process and per service instance; it does not coordinate capacity across processes.
-- Semantic reindex batches embedding and vector upserts, but still loads the complete `semantic.json` fact array and restarts from the beginning after interruption. It is not yet paged or checkpointed.
+- The semantic `list()` API still materializes every fact for compatibility. Reindex reads facts incrementally and batches embeddings/upserts, but it still starts from the beginning after interruption. Durable reindex checkpoints, page APIs, and explicit searchable-fact quotas remain open.
 
 ---
 **Next:** Return to [`context.md`](../../context.md).
