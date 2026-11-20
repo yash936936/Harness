@@ -306,6 +306,39 @@ describe('one shared rate limiter', () => {
   })
 })
 
+describe('LLMService shared SQLite rate-limit integration', () => {
+  it('enforces one concurrency ceiling across separate LLMService instances', async () => {
+    let active = 0
+    let peak = 0
+    const makeProvider = (text: string) => new MockProvider(async () => {
+      active++
+      peak = Math.max(peak, active)
+      await new Promise((resolve) => setTimeout(resolve, 40))
+      active--
+      return { text, usage: { inputTokens: 1, outputTokens: 1 } }
+    })
+    const databasePath = join(tempDir(), 'shared-rate.sqlite')
+    const config: ModelAdapterConfig = {
+      rateLimit: { perMinute: 10, maxConcurrent: 1 },
+      sharedRateLimit: { databasePath, projectId: 'rate-project', principalId: 'provider-account', permitTtlMs: 30_000 },
+    }
+    const first = await boot(config, makeProvider('first'))
+    const second = await boot(config, makeProvider('second'))
+    const results = await Promise.all([first.ctx.llm.complete(req()), second.ctx.llm.complete(req())])
+    expect(results.map((result) => result.text).sort()).toEqual(['first', 'second'])
+    expect(peak).toBe(1)
+  })
+
+  it('rejects shared budget and rate-limit configurations that disagree on database or project', async () => {
+    await expect(boot({
+      budgets: { requests: { day: { hard: 10 } } },
+      sharedBudget: { databasePath: join(tempDir(), 'budget.sqlite'), projectId: 'project-a' },
+      rateLimit: { perMinute: 10 },
+      sharedRateLimit: { databasePath: join(tempDir(), 'rate.sqlite'), projectId: 'project-a', principalId: 'account-a' },
+    })).rejects.toMatchObject({ kind: 'config' })
+  })
+})
+
 describe('profile-coding meters every run by default', () => {
   const base = { projectId: 'b', projectRoot: process.cwd(), sessionLog: { memory: true } } as any
   it('applies the default runaway guard when no budgets are given', async () => {
