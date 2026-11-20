@@ -11,6 +11,20 @@ Current main before this audit loop: `2a2a60315a1e6db8b448c9c7d48a460c5bfb75b5` 
 - A new 100k-event semantic page benchmark is being added; its measurements are pending. Do not close the semantic performance audit before the benchmark and stress tests pass.
 - The main tree at the PR #156 merge contained 424 tracked files. The earlier 108-file source scan was only a triage pass. The full file-by-file and cross-folder audit remains incomplete, and folder-ledger checkboxes remain open until call paths, tests, configuration, and docs are traced.
 
+### D-110 / D-117 host-execution trace (in progress)
+
+Verified current paths:
+- `src/cli/code.ts` hard-filters `run_command`, `search_code`, and `list_files` from the coding CLI tool offer and records that command execution is disabled under D-110.
+- `src/profiles/profile-coding.ts` rejects any `sandbox` configuration, registers `LocalTools` with `enableCommand: false`, and registers `RetrievalTools` with `enabled: false`.
+- `src/bundles/tools-local/command.ts` delegates only to `Sandbox.run()`; it does not spawn a host process. The hardened Git configuration probe also uses the sandbox seam.
+- `src/bundles/sandbox/index.ts` requires explicit provider selection unless an explicit default is registered, and checks project consent plus host allowlisting for remote providers.
+- `src/bundles/sandbox-crabbox/index.ts` still contains a provider implementation backed by host `Subprocess`, but the coding profile rejects sandbox-provider configuration and D-110 permanently holds Crabbox. Its presence in the source tree is not proof of runtime reachability.
+
+Open trace items:
+- `src/bundles/router/backends.ts` contains an optional `CommandBackend` that spawns a configured host executable for the Needle routing backend. It is separate from `run_command` and receives router task/candidate text, not a project command request. Verify the trust boundary, allowed configuration source, and whether this local inference process is compatible with D-117 before closing the host-execution audit.
+- Trace every other `Subprocess` consumer, CLI entry point, smoke/evidence script, and desktop entry point. The checks above are a focused path trace, not a completed repository-wide audit.
+- Keep the D-110 Crabbox hold and D-117 no-host-fallback rules unchanged. Do not run local commands or probe Docker/WSL/Crabbox during this audit.
+
 Resolved follow-up findings:
 - [x] AUD-056: Windows Node 20 independent-process SQLite test failure; fixed before CI run #918.
 - [x] AUD-057: lossless, idempotent migration of legacy `Budgets.statePath` JSON counters; migration tests cover exact import, one-time behavior, stale-day rollover, malformed/future state, and missing files.
