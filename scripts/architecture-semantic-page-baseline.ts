@@ -9,7 +9,7 @@ const FACTS = 100_000
 const DELETIONS = 25_000
 const SAMPLES = 3
 const PAGE_SIZE = 50
-const CURSORS = [49_999, 89_999, 99_899, 99_999]
+const CURSORS = [49_999, 89_999, 99_899]
 
 function percentile(values: number[], p: number): number {
   const sorted = [...values].sort((a, b) => a - b)
@@ -88,6 +88,7 @@ async function runSample(root: string, sample: number) {
       indexBuildMs: Number(indexBuildMs.toFixed(3)),
       pageResults: Object.fromEntries(Object.entries(pageResults).map(([cursor, value]) => [cursor, {
         ...stats(value.timings),
+        timings: value.timings,
         firstId: value.firstId,
         lastId: value.lastId,
       }])),
@@ -107,7 +108,7 @@ try {
   const pageStats = Object.fromEntries(CURSORS.map((cursor) => {
     const values = samples.flatMap((sample) => {
       const entry = sample.pageResults[String(cursor)] as { p50: number; p95: number }
-      return [entry.p50]
+      return entry.timings
     })
     return [String(cursor), stats(values)]
   }))
@@ -127,6 +128,7 @@ try {
       liveFacts: FACTS - DELETIONS,
       pageSize: PAGE_SIZE,
       cursorPositions: CURSORS,
+      tailCursorPosition: FACTS - 1,
       samples: SAMPLES,
       warmPageRepeatsPerCursorPerSample: 5,
       memory: 'process RSS sampled every 5 ms during index build and warm page reads; process-wide and may miss short-lived peaks',
