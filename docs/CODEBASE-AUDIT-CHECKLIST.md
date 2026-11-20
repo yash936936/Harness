@@ -18,9 +18,9 @@
 - The cloud-only Vercel workspace path remains unavailable until Phase 4 transfer, result synchronization, lifecycle, and policy integration pass.
 
 
-## 2026-11-21 audit continuation baseline
+## Historical audit continuation baseline (PR #156 merge)
 
-Current main before this audit loop: `2a2a60315a1e6db8b448c9c7d48a460c5bfb75b5` (PR #156 merged).
+Main at the time of this audit snapshot: `2a2a60315a1e6db8b448c9c7d48a460c5bfb75b5` (PR #156 merged).
 
 - PR #156's semantic page ordering/tombstone fix passed all 10 CI jobs in run #44826849470, including the Ubuntu/Windows Node 20.19/22.12 matrix.
 - Phase 2 follow-ups AUD-056 through AUD-059 are closed by PR #140. Run #918 passed the Ubuntu/Windows Node 20/22 matrix. Legacy budget import, explicit task identity, shared task reservations, and LLMService shared-SQLite integration tests are present.
