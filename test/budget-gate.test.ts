@@ -150,6 +150,7 @@ describe('LLMService enforces the budget before the call', () => {
       budgets: { requests: { task: { hard: 1 } } },
       sharedBudget: { databasePath: join(tempDir(), 'agent-task.sqlite'), projectId: 'agent-task-project' },
     })
+    await ctx.plugin(ToolRegistry)
     await ctx.plugin(AgentLoop)
     await ctx.agentLoop.run({ sessionId: 'agent-session', taskId: 'agent-task-1', prompt: 'first run', tools: [] })
     await expect(ctx.agentLoop.run({ sessionId: 'agent-session', taskId: 'agent-task-1', prompt: 'second run', tools: [] }))
@@ -321,13 +322,21 @@ describe('LLMService shared SQLite rate-limit integration', () => {
   it('enforces one concurrency ceiling across separate LLMService instances', async () => {
     let active = 0
     let peak = 0
-    const makeProvider = (text: string) => new MockProvider(async () => {
-      active++
-      peak = Math.max(peak, active)
-      await new Promise((resolve) => setTimeout(resolve, 40))
-      active--
-      return { text, usage: { inputTokens: 1, outputTokens: 1 } }
-    })
+    const makeProvider = (text: string) => {
+      const provider = new MockProvider(() => ({ text, usage: { inputTokens: 1, outputTokens: 1 } }))
+      const originalComplete = provider.complete.bind(provider)
+      provider.complete = async (request) => {
+        active++
+        peak = Math.max(peak, active)
+        try {
+          await new Promise((resolve) => setTimeout(resolve, 40))
+          return await originalComplete(request)
+        } finally {
+          active--
+        }
+      }
+      return provider
+    }
     const databasePath = join(tempDir(), 'shared-rate.sqlite')
     const config: ModelAdapterConfig = {
       rateLimit: { perMinute: 10, maxConcurrent: 1 },
