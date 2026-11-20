@@ -1,5 +1,15 @@
 # Current project state
 
+## 2026-11-21 SQLite Phase 2 continuation
+
+- Current main baseline: `75574f337707460340bd2877c4a9b5a26ddaaef0`. PR #134 (independent-process SQLite rate-limit and lease tests) and PR #135 (stable rate-limit policies and bounded lease history) are merged.
+- PR #135 head CI run #899 passed all mandatory jobs, including Ubuntu and Windows on Node 20.19.0 and 22.12.0. Its Vercel deployment check failed separately and is not GitHub Actions CI.
+- PR #134 run #896 failed on Windows Node 20 during `npm test`; Ubuntu Node 20/22 and Windows Node 22 passed. The PR was merged, but this failure remains an unresolved cross-platform test defect. Do not describe cross-process acceptance as fully green until it is reproduced, fixed, and rerun.
+- SQLite now includes shared session/day budget reservations, shared rate-limit windows/concurrency permits, fenced resource leases, stable rate-limit policy rows, and terminal lease-history cleanup that preserves fencing counters.
+- Still open in Phase 2: investigate and fix the Windows Node 20 process-test failure; migrate legacy `Budgets.statePath` JSON counters without loss or double counting; add shared task-scope budget reservations with an explicit task identity; test complete LLMService shared-budget/rate-limit integration and migration/recovery behavior.
+- Phase 3 indexed memory/retrieval, paging, quotas, and resumable reindex remain open. Phase 4 task-scoped workspace lifecycle/transfer/result synchronization remains open. Live Vercel acceptance, S6/S7, and the full file-by-file audit remain separate open gates. `COMMAND_TOOL` remains disabled; D-110/D-117/D-118/D-119 remain binding.
+
+
 Updated 2026-11-20, main `71499dea7af36995a8e7e636a88d196c8e89002f`. PRs #128-130 are merged. PR #130 integrates shared session/day hard reservations into the model-call path; its PR-head CI run #881 passed. The merge commit's combined status currently reports a failed Vercel deployment context, which is separate from GitHub Actions CI. This file records the current implementation state and binding project constraints. The active implementation order is in [ROADMAP.md](ROADMAP.md), architecture choices are in [decisions.md](decisions.md), and detailed audit findings are in [CODEBASE-AUDIT-CHECKLIST.md](CODEBASE-AUDIT-CHECKLIST.md).
 
 ## 2026-11-20 current main status
