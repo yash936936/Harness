@@ -200,13 +200,16 @@ export class MemorySemantic extends Service {
       checkpoint.collection === this.collectionName &&
       (opts.reset !== true || checkpoint.resetRequested)
     if (!checkpointMatches) {
+      const reuseFirstBatch = !checkpoint && cursor === undefined
       cursor = undefined
       indexed = 0
       resetRequested = opts.reset === true
       resetApplied = false
       page = await this.exclusive(() => this.store.page(undefined, this.reindexBatchSize))
-      embedded = await this.ctx.embeddings.embed(page.items.map((fact) => fact.text), { kind: 'document' })
-      if (!embedded.ok) return { ok: false, error: { kind: `embedding_${embedded.error.kind}`, detail: embedded.error.detail } }
+      if (!reuseFirstBatch) {
+        embedded = await this.ctx.embeddings.embed(page.items.map((fact) => fact.text), { kind: 'document' })
+        if (!embedded.ok) return { ok: false, error: { kind: `embedding_${embedded.error.kind}`, detail: embedded.error.detail } }
+      }
       info = this.ctx.embeddings.info()
       if (!info?.fingerprint || !info.dimensions) return { ok: false, error: { kind: 'embedding_config', detail: 'no embedding fingerprint yet (no provider, or no vector produced)' } }
     }
