@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { appendTextFileNoFollow, assertNoSymlinkParents, readTextFileNoFollow, readTextLinesNoFollow, readTextRangeNoFollow, truncateFileNoFollow } from '../../util/secure-file.js'
 import { withFileLock } from '../../util/filelock.js'
 import { join } from 'node:path'
-import { MemoryError, type Episode, type EpisodeStore } from './types.js'
+import { MemoryError, type Episode, type EpisodeStore, type EpisodeQuery, type EpisodePageCursor } from './types.js'
 
 export class MemoryEpisodeStore implements EpisodeStore {
   private items = new Map<string, Episode>()
@@ -12,6 +12,55 @@ export class MemoryEpisodeStore implements EpisodeStore {
     if (this.items.has(e.id)) return false
     this.items.set(e.id, structuredClone(e))
     return true
+  }
+
+  async queryPage(query: Omit<EpisodeQuery, 'limit'>, cursor: EpisodePageCursor | undefined, limit: number): Promise<{ items: Episode[]; hasMore: boolean }> {
+    return withFileLock(`${this.file}.lock`, async () => {
+      const entries = await this.ensureIndex()
+      const descending = query.order === 'desc'
+      const needle = query.task?.toLowerCase()
+      const compare = (a: Pick<EpisodeIndexEntry, 'ts' | 'sessionId' | 'fromSeq' | 'id'>, b: EpisodePageCursor) =>
+        a.ts.localeCompare(b.ts) || a.sessionId.localeCompare(b.sessionId) || a.fromSeq - b.fromSeq || a.id.localeCompare(b.id)
+      const cursorKey: EpisodePageCursor | undefined = cursor
+      const selected = [...entries.values()].filter((entry) =>
+        (query.sessionId === undefined || entry.sessionId === query.sessionId) &&
+        (query.agentId === undefined || entry.agentId === query.agentId) &&
+        (query.outcome === undefined || entry.outcome === query.outcome) &&
+        (needle === undefined || entry.task.toLowerCase().includes(needle)) &&
+        (query.from === undefined || entry.ts >= query.from) &&
+        (query.to === undefined || entry.ts < query.to) &&
+        (!cursorKey || (descending
+          ? compare(entry, cursorKey) < 0
+          : compare(entry, cursorKey) > 0)),
+      )
+      selected.sort((a, b) => descending ? -compare(a, b) : compare(a, b))
+      const page = selected.slice(0, limit + 1)
+      const items: Episode[] = []
+      for (const entry of page.slice(0, limit)) {
+        const episode = JSON.parse(await readTextRangeNoFollow(this.file, entry.offset, entry.length)) as Episode
+        if (episode.id !== entry.id) throw new MemoryError('memory: episodic page index does not match its source record')
+        items.push(episode)
+      }
+      return { items, hasMore: page.length > limit }
+    })
+  }
+
+  async queryPage(query: Omit<EpisodeQuery, 'limit'>, cursor: EpisodePageCursor | undefined, limit: number): Promise<{ items: Episode[]; hasMore: boolean }> {
+    const descending = query.order === 'desc'
+    const needle = query.task?.toLowerCase()
+    const compare = (a: Episode, b: EpisodePageCursor | Episode) =>
+      a.ts.localeCompare(b.ts) || a.sessionId.localeCompare(b.sessionId) || a.fromSeq - b.fromSeq || a.id.localeCompare(b.id)
+    const selected = [...this.items.values()].filter((episode) =>
+      (query.sessionId === undefined || episode.sessionId === query.sessionId) &&
+      (query.agentId === undefined || episode.agentId === query.agentId) &&
+      (query.outcome === undefined || episode.outcome === query.outcome) &&
+      (needle === undefined || episode.task.toLowerCase().includes(needle)) &&
+      (query.from === undefined || episode.ts >= query.from) &&
+      (query.to === undefined || episode.ts < query.to) &&
+      (!cursor || (descending ? compare(episode, cursor) < 0 : compare(episode, cursor) > 0)),
+    )
+    selected.sort((a, b) => descending ? -compare(a, b) : compare(a, b))
+    return { items: selected.slice(0, limit).map((episode) => structuredClone(episode)), hasMore: selected.length > limit }
   }
 
   async *iterate(): AsyncGenerator<Episode> {
@@ -38,9 +87,15 @@ interface EpisodeIndexEntry {
   id: string
   offset: number
   length: number
+  ts: string
+  sessionId: string
+  agentId: string
+  fromSeq: number
+  outcome: Episode['outcome']
+  task: string
 }
 interface EpisodeIndexManifest {
-  version: 1
+  version: 2
   sourceBytes: number
   indexBytes: number
 }
@@ -94,13 +149,14 @@ export class JsonlEpisodeStore implements EpisodeStore {
         await appendTextFileNoFollow(this.file, line)
         const offset = sourceBytes
         const length = Buffer.byteLength(line, 'utf8') - 1
-        const indexLine = JSON.stringify({ id: episode.id, offset, length }) + '\n'
+        const entry: EpisodeIndexEntry = { id: episode.id, offset, length, ts: episode.ts, sessionId: episode.sessionId, agentId: episode.agentId, fromSeq: episode.fromSeq, outcome: episode.outcome, task: episode.task }
+        const indexLine = JSON.stringify(entry) + '\n'
         try {
           await appendTextFileNoFollow(this.indexFile, indexLine)
           const nextSourceBytes = sourceBytes + Buffer.byteLength(line, 'utf8')
           const nextIndexBytes = (await this.fileSize(this.indexFile))
-          await this.writeManifest({ version: 1, sourceBytes: nextSourceBytes, indexBytes: nextIndexBytes })
-          entries.set(episode.id, { id: episode.id, offset, length })
+          await this.writeManifest({ version: 2, sourceBytes: nextSourceBytes, indexBytes: nextIndexBytes })
+          entries.set(episode.id, entry)
           this.indexCache = { sourceBytes: nextSourceBytes, indexBytes: nextIndexBytes, entries }
           return true
         } catch (error) {
@@ -137,7 +193,7 @@ export class JsonlEpisodeStore implements EpisodeStore {
   private async readManifest(): Promise<EpisodeIndexManifest | undefined> {
     try {
       const parsed = JSON.parse(await readTextFileNoFollow(this.manifestFile)) as Partial<EpisodeIndexManifest>
-      if (parsed.version !== 1 || !Number.isSafeInteger(parsed.sourceBytes) || parsed.sourceBytes! < 0 ||
+      if (parsed.version !== 2 || !Number.isSafeInteger(parsed.sourceBytes) || parsed.sourceBytes! < 0 ||
           !Number.isSafeInteger(parsed.indexBytes) || parsed.indexBytes! < 0) return undefined
       return parsed as EpisodeIndexManifest
     } catch (error: any) {
@@ -160,7 +216,10 @@ export class JsonlEpisodeStore implements EpisodeStore {
           if (!item.line.trim()) continue
           const entry = JSON.parse(item.line) as EpisodeIndexEntry
           if (typeof entry.id !== 'string' || !entry.id || !Number.isSafeInteger(entry.offset) || entry.offset < 0 ||
-              !Number.isSafeInteger(entry.length) || entry.length < 0 || entry.offset + entry.length > sourceBytes) throw new Error('invalid identity index entry')
+              !Number.isSafeInteger(entry.length) || entry.length < 0 || entry.offset + entry.length > sourceBytes ||
+              typeof entry.ts !== 'string' || typeof entry.sessionId !== 'string' || typeof entry.agentId !== 'string' ||
+              !Number.isSafeInteger(entry.fromSeq) || typeof entry.task !== 'string' ||
+              !['done', 'max_steps', 'error'].includes(entry.outcome)) throw new Error('invalid identity index entry')
           entries.set(entry.id, entry)
         }
         this.indexCache = { sourceBytes, indexBytes, entries }
@@ -194,7 +253,7 @@ export class JsonlEpisodeStore implements EpisodeStore {
           }
           throw new Error(`memory: corrupt episodic.jsonl at line ${physicalLine}; refusing to rebuild its identity index`)
         }
-        entries.set(episode.id, { id: episode.id, offset, length: lineBytes })
+        entries.set(episode.id, { id: episode.id, offset, length: lineBytes, ts: episode.ts, sessionId: episode.sessionId, agentId: episode.agentId, fromSeq: episode.fromSeq, outcome: episode.outcome, task: episode.task })
         validFinalRecordWithoutNewline = !item.newline
         offset += lineBytes + (item.newline ? 1 : 0)
       }
@@ -222,9 +281,37 @@ export class JsonlEpisodeStore implements EpisodeStore {
     }
     const sourceBytes = await this.fileSize(this.file)
     const indexBytes = await this.fileSize(this.indexFile)
-    await this.writeManifest({ version: 1, sourceBytes, indexBytes })
+    await this.writeManifest({ version: 2, sourceBytes, indexBytes })
     this.indexCache = { sourceBytes, indexBytes, entries }
     return entries
+  }
+
+  async queryPage(query: Omit<EpisodeQuery, 'limit'>, cursor: EpisodePageCursor | undefined, limit: number): Promise<{ items: Episode[]; hasMore: boolean }> {
+    return withFileLock(`${this.file}.lock`, async () => {
+      const entries = await this.ensureIndex()
+      const descending = query.order === 'desc'
+      const needle = query.task?.toLowerCase()
+      const compare = (a: Pick<EpisodeIndexEntry, 'ts' | 'sessionId' | 'fromSeq' | 'id'>, b: EpisodePageCursor) =>
+        a.ts.localeCompare(b.ts) || a.sessionId.localeCompare(b.sessionId) || a.fromSeq - b.fromSeq || a.id.localeCompare(b.id)
+      const selected = [...entries.values()].filter((entry) =>
+        (query.sessionId === undefined || entry.sessionId === query.sessionId) &&
+        (query.agentId === undefined || entry.agentId === query.agentId) &&
+        (query.outcome === undefined || entry.outcome === query.outcome) &&
+        (needle === undefined || entry.task.toLowerCase().includes(needle)) &&
+        (query.from === undefined || entry.ts >= query.from) &&
+        (query.to === undefined || entry.ts < query.to) &&
+        (!cursor || (descending ? compare(entry, cursor) < 0 : compare(entry, cursor) > 0)),
+      )
+      selected.sort((a, b) => descending ? -compare(a, b) : compare(a, b))
+      const page = selected.slice(0, limit + 1)
+      const items: Episode[] = []
+      for (const entry of page.slice(0, limit)) {
+        const episode = JSON.parse(await readTextRangeNoFollow(this.file, entry.offset, entry.length)) as Episode
+        if (episode.id !== entry.id) throw new MemoryError('memory: episodic page index does not match its source record')
+        items.push(episode)
+      }
+      return { items, hasMore: page.length > limit }
+    })
   }
 
   async *iterate(): AsyncGenerator<Episode> {
