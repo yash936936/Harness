@@ -5,6 +5,7 @@
 - Main commit: `0bbd15617f250d42484fd1164e383fda7aae7f5f`, PR #159 merged. Post-merge main CI #44832920650 passed all mandatory jobs.
 - PR #158 merged cross-process semantic acceptance. Four independent writers added 200 facts, a separate process deleted 50, and tests verified cursor invalidation, sidecar rebuild to 150 live facts, and delete/reinsert ordering. PR-head CI #44831362470 and post-merge main CI #44831864535 both passed.
 - PR #159 merged D-117 profile hardening. Neither built-in profile registers host `Subprocess`; `profile-coding` also rejects `router.needle` and disables host-backed `retrieval.grep`, `retrieval.rank`, and `retrieval.tools`. Regression tests verify the services are absent and configuration fails closed. PR-head CI #44832567598 passed.
+- PR #161 merged a semantic crash-window test. It appends a valid durable event without updating the disposable sidecar/manifest, starts a fresh service instance, and verifies the index is rebuilt and both committed facts remain. PR-head CI #44833502733 passed.
 - PR #157's performance benchmark and CI reporting changes are merged. The informational `acceptance gates NOT RUN` job is explicitly not acceptance; `ci-pass` requires all mandatory jobs.
 - Phase 2 SQLite coordination is complete through PR #140, including transactional budget reservations, rate-limit windows/concurrency permits, and fenced leases.
 - Phase 3 has bounded session-log reads, episodic indexes/pages, append-only semantic events, rebuildable semantic indexes, quotas, cursor invalidation, checkpointed reindex, a 100k semantic-page benchmark, and independent-process semantic writer/deletion tests. It remains open for crash-during-write/restart recovery, additional cross-process cache/session-log recovery, large-file memory bounds, and full audit closeout.
@@ -16,7 +17,7 @@
 ## Remaining execution queue
 
 1. Finish the post-merge main CI run #44832920650.
-2. Complete Phase 3 crash/restart recovery and memory-bound evidence.
+2. Complete Phase 3 recovery from interruption during source append itself, cross-process session-log/cache recovery, and memory-bound evidence.
 3. Finish the repository-wide D-110/D-117 subprocess and indirect execution audit.
 4. Implement Phase 4 workspace lifecycle, capability enforcement, transfer, conflict handling, and recovery.
 5. Complete the file-by-file audit and reconcile every active status document.

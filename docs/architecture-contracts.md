@@ -1,6 +1,6 @@
 # Architecture contracts and migration safety
 
-Status: Phase 2 shared SQLite coordination is implemented through PR #140. Phase 3 performance evidence, including the 100k semantic-page benchmark, is recorded below; PR #158 adds passing independent-process semantic writer/deletion, cursor invalidation, and sidecar-rebuild tests. Phase 3 remains open for crash-during-write/restart recovery, further cross-process session-log/cache evidence, large-file memory bounds, and full audit closeout. Phase 4 has backend-neutral workspace contracts and the SQLite lease primitive, but no task-scoped workspace session or transfer runtime. The current `WorkspaceTransferProvider` contract describes manifest metadata and change metadata only; it does not yet define bounded byte streaming, file-content transport, or an atomic governed apply protocol. Those contracts must be completed before implementing secure transfer. The SQLite implementation uses sql.js WebAssembly and an existing cross-process file lock; each write reloads/exports the database, so it is intended for bounded coordination metadata, not large durable-history or vector datasets.
+Status: Phase 2 shared SQLite coordination is implemented through PR #140. Phase 3 performance evidence, including the 100k semantic-page benchmark, is recorded below; PR #158 adds passing independent-process semantic writer/deletion, cursor invalidation, and sidecar-rebuild tests. PR #161 adds passing recovery evidence for interruption after durable event append but before index/manifest update. Phase 3 remains open for interruption during the source append itself, further cross-process session-log/cache evidence, large-file memory bounds, and full audit closeout. Phase 4 has backend-neutral workspace contracts and the SQLite lease primitive, but no task-scoped workspace session or transfer runtime. The current `WorkspaceTransferProvider` contract describes manifest metadata and change metadata only; it does not yet define bounded byte streaming, file-content transport, or an atomic governed apply protocol. Those contracts must be completed before implementing secure transfer. The SQLite implementation uses sql.js WebAssembly and an existing cross-process file lock; each write reloads/exports the database, so it is intended for bounded coordination metadata, not large durable-history or vector datasets.
 
 ## Scope and constraints
 
@@ -280,6 +280,12 @@ These results show that warm cursor page latency is similar at early, middle, an
 PR #158 adds an independent-process test using four Node workers. Each worker writes 50 unique facts and acquires the store lock per operation. A separate worker deletes 50 facts. The test verifies 200 initial facts, invalidation of a cursor created before the external-process deletion, 150 remaining facts, rebuild of the missing sidecar index and manifest, and reinsertion of a deleted ID at the end of the ordered projection. The test passed in PR-head CI run #44831362470 on Ubuntu and Windows with Node 20.19 and 22.12; post-merge main CI run #44831864535 also passed.
 
 This test establishes cross-process semantic write/delete and cursor invalidation only. It does not test crash-during-append or restart recovery.
+
+### Semantic append crash-window recovery: PR #161
+
+The test writes one committed fact through `MemorySemantic`, then appends a second valid `put` event directly to the authoritative `semantic.events.jsonl` without updating the derived index or manifest. A newly booted service instance must detect the source/index revision mismatch, rebuild the sidecar, and return both facts. PR-head CI run #44833502733 passed on Ubuntu and Windows with Node 20.19 and 22.12.
+
+This proves recovery from the specific interruption window after the source append and before sidecar publication. It does not prove recovery from a torn/partial source append or process restart during session-log writes.
 
 ## Approved deployment and operating policy
 
