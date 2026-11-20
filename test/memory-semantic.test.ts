@@ -275,6 +275,24 @@ describe('semantic public keyset pagination', () => {
     }
   })
 
+  it('continues from an indexed cursor after deletions and reinsertions', async () => {
+    for (const path of [undefined, await tmp()]) {
+      const { ctx } = await boot({ sem: { ...(path ? { path } : {}) } })
+      for (const id of ['order-a', 'order-b', 'order-c']) {
+        await ctx.memorySemantic.add({ id, text: `fact ${id}`, why: WHY })
+      }
+      expect(await ctx.memorySemantic.remove('order-b')).toBe(true)
+      await ctx.memorySemantic.add({ id: 'order-b', text: 'fact order-b recreated', why: WHY })
+
+      const first = await ctx.memorySemantic.page({ limit: 2 })
+      expect(first.items.map((fact) => fact.id)).toEqual(['order-a', 'order-c'])
+      expect(first.nextCursor).toBeTruthy()
+      const second = await ctx.memorySemantic.page({ limit: 2, cursor: first.nextCursor })
+      expect(second.items.map((fact) => fact.id)).toEqual(['order-b'])
+      expect(second.nextCursor).toBeUndefined()
+    }
+  })
+
   it('rejects a cursor after the source changes rather than skipping or repeating records', async () => {
     const { ctx } = await boot({ sem: { path: await tmp() } })
     for (const id of ['stable-a', 'stable-b', 'stable-c']) {

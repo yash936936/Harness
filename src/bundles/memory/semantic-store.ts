@@ -20,7 +20,7 @@ export interface SemanticReindexCheckpoint {
   indexed: number
   updatedAt: string
 }
-interface SemanticIndex { sourceBytes: number; indexBytes: number; byId: Map<string, SemanticIndexEntry>; byText: Map<string, string> }
+interface SemanticIndex { sourceBytes: number; indexBytes: number; byId: Map<string, SemanticIndexEntry>; byText: Map<string, string>; orderedIds: string[]; positions: Map<string, number> }
 
 const textKey = (text: string) => text.toLowerCase()
 
@@ -39,6 +39,8 @@ function validFact(fact: any): fact is SemanticFact {
 export class SemanticFactStore {
   private cache?: SemanticIndex
   private readonly memoryFacts = new Map<string, SemanticFact>()
+  private readonly memoryOrder: string[] = []
+  private readonly memoryPositions = new Map<string, number>()
   private memoryRevision = 0
   constructor(private readonly dir?: string) {}
 
@@ -102,9 +104,27 @@ export class SemanticFactStore {
   private apply(index: SemanticIndex, entry: SemanticIndexEntry): void {
     const previous = index.byId.get(entry.id)
     if (previous?.textKey && index.byText.get(previous.textKey) === entry.id) index.byText.delete(previous.textKey)
-    if (entry.deleted) { index.byId.delete(entry.id); return }
+    if (entry.deleted) {
+      const position = index.positions.get(entry.id)
+      if (position !== undefined) index.orderedIds[position] = ''
+      index.byId.delete(entry.id)
+      index.positions.delete(entry.id)
+      this.compactOrder(index)
+      return
+    }
+    if (!previous) {
+      index.positions.set(entry.id, index.orderedIds.length)
+      index.orderedIds.push(entry.id)
+    }
     index.byId.set(entry.id, entry)
     if (entry.textKey) index.byText.set(entry.textKey, entry.id)
+  }
+
+  /** Keep tombstones bounded while preserving insertion order for live IDs. */
+  private compactOrder(index: SemanticIndex): void {
+    if (index.orderedIds.length <= index.byId.size * 2 + 1024) return
+    index.orderedIds = index.orderedIds.filter((id) => index.byId.has(id))
+    index.positions = new Map(index.orderedIds.map((id, position) => [id, position] as const))
   }
 
   private async ensureIndex(): Promise<SemanticIndex> {
@@ -114,7 +134,7 @@ export class SemanticFactStore {
     const manifest = await this.readManifest()
     if (manifest?.sourceBytes === sourceBytes && manifest.indexBytes === indexBytes) {
       try {
-        const index: SemanticIndex = { sourceBytes, indexBytes, byId: new Map(), byText: new Map() }
+        const index: SemanticIndex = { sourceBytes, indexBytes, byId: new Map(), byText: new Map(), orderedIds: [], positions: new Map() }
         for await (const item of readTextLinesNoFollow(this.indexFile)) {
           if (!item.line.trim()) continue
           const entry = JSON.parse(item.line) as SemanticIndexEntry
@@ -132,7 +152,7 @@ export class SemanticFactStore {
   }
 
   private async rebuildIndex(): Promise<SemanticIndex> {
-    const index: SemanticIndex = { sourceBytes: 0, indexBytes: 0, byId: new Map(), byText: new Map() }
+    const index: SemanticIndex = { sourceBytes: 0, indexBytes: 0, byId: new Map(), byText: new Map(), orderedIds: [], positions: new Map() }
     let offset = 0, lineNumber = 0, validFinalRecordWithoutNewline = false
     const temporary = `${this.indexFile}.${process.pid}.${randomUUID()}.tmp`
     await assertNoSymlinkParents(this.indexFile)
@@ -219,6 +239,10 @@ export class SemanticFactStore {
       if (!previous && this.memoryFacts.size >= limits.maxFacts) throw new MemoryError(`memory: semantic searchable fact quota reached (maxFacts=${limits.maxFacts}); remove or revise an existing fact before adding another`)
       const stored = previous ? { ...fact, ts: previous.ts, updatedTs: fact.ts } : { ...fact, updatedTs: undefined }
       if (Buffer.byteLength(JSON.stringify(stored), 'utf8') > limits.maxFactBytes) throw new MemoryError(`memory: semantic fact exceeds maxFactBytes=${limits.maxFactBytes}`)
+      if (!previous) {
+        this.memoryPositions.set(stored.id, this.memoryOrder.length)
+        this.memoryOrder.push(stored.id)
+      }
       this.memoryFacts.set(stored.id, structuredClone(stored))
       this.memoryRevision++
       return { fact: structuredClone(stored), created: true }
@@ -251,6 +275,16 @@ export class SemanticFactStore {
       const previous = this.memoryFacts.get(id)
       if (!previous) return undefined
       this.memoryFacts.delete(id)
+      const position = this.memoryPositions.get(id)
+      if (position !== undefined) this.memoryOrder[position] = ''
+      this.memoryPositions.delete(id)
+      if (this.memoryOrder.length > this.memoryFacts.size * 2 + 1024) {
+        const live = this.memoryOrder.filter((key) => this.memoryFacts.has(key))
+        this.memoryOrder.length = 0
+        for (const key of live) this.memoryOrder.push(key)
+        this.memoryPositions.clear()
+        this.memoryOrder.forEach((key, position) => this.memoryPositions.set(key, position))
+      }
       this.memoryRevision++
       return structuredClone(previous)
     }
@@ -279,26 +313,34 @@ export class SemanticFactStore {
     if (!Number.isSafeInteger(limit) || limit < 1) throw new MemoryError('memory: semantic page limit must be a positive safe integer')
     if (!this.dir) {
       if (expectedSourceBytes !== undefined && expectedSourceBytes !== this.memoryRevision) throw new MemoryError('memory: semantic page cursor is stale because the source changed')
-      const values = [...this.memoryFacts.values()]
-      const start = afterId === undefined ? 0 : values.findIndex((fact) => fact.id === afterId) + 1
-      if (afterId !== undefined && start === 0) throw new MemoryError('memory: semantic page cursor is stale')
-      return { items: values.slice(start, start + limit).map((fact) => structuredClone(fact)), sourceBytes: this.memoryRevision }
+      let cursorPosition = -1
+      if (afterId !== undefined) {
+        const position = this.memoryPositions.get(afterId)
+        if (position === undefined) throw new MemoryError('memory: semantic page cursor is stale')
+        cursorPosition = position
+      }
+      const items: SemanticFact[] = []
+      for (let position = cursorPosition + 1; position < this.memoryOrder.length && items.length < limit; position++) {
+        const fact = this.memoryFacts.get(this.memoryOrder[position]!)
+        if (fact) items.push(structuredClone(fact))
+      }
+      return { items, sourceBytes: this.memoryRevision }
     }
     const index = await this.ensureIndex()
     if (expectedSourceBytes !== undefined && expectedSourceBytes !== index.sourceBytes) throw new MemoryError('memory: semantic page cursor is stale because the source changed')
-    let started = afterId === undefined
-    let cursorFound = started
+    let cursorPosition = -1
+    if (afterId !== undefined) {
+      const position = index.positions.get(afterId)
+      if (position === undefined) throw new MemoryError('memory: semantic page cursor is stale')
+      cursorPosition = position
+    }
     const items: SemanticFact[] = []
-    for (const id of index.byId.keys()) {
-      if (!started) {
-        if (id === afterId) { started = true; cursorFound = true }
-        continue
-      }
-      if (items.length >= limit) break
+    for (let position = cursorPosition + 1; position < index.orderedIds.length && items.length < limit; position++) {
+      const id = index.orderedIds[position]!
+      if (!index.byId.has(id)) continue
       const fact = await this.getFrom(id, index)
       if (fact) items.push(fact)
     }
-    if (!cursorFound) throw new MemoryError('memory: semantic page cursor is stale')
     return { items, sourceBytes: index.sourceBytes }
   }
 
