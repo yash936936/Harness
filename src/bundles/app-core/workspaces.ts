@@ -153,7 +153,7 @@ export class SQLiteWorkspaceStore implements WorkspaceSessionStore {
       if (existing) throw new Error('workspace store: task session already exists')
       db.run(
         'INSERT INTO workspace_sessions (workspace_id, project_id, task_id, session_id, provider, state, owner_id, lease_id, fencing_token, created_at, expires_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [workspaceId, projectId, taskId, sessionId, provider, 'creating', ownerId, leaseId, input.fencingToken, createdAt, expiresAt, this.now()],
+        [workspaceId, projectId, taskId, sessionId, provider, 'creating', ownerId, leaseId, input.fencingToken, createdAt, expiresAt, this.currentTime()],
       )
       db.run(
         'INSERT INTO workspace_session_idempotency (project_id, idempotency_key, request_hash, workspace_id, created_at) VALUES (?, ?, ?, ?, ?)',
@@ -248,7 +248,7 @@ export class SQLiteWorkspaceStore implements WorkspaceSessionStore {
     const prefixes = capability.pathPrefixes.map((prefix) => canonicalPath(prefix, true))
     if (prefixes.some((prefix) => prefix === undefined) || new Set(prefixes).size !== prefixes.length) throw new TypeError('workspace store: pathPrefixes must be canonical and unique')
     const expiresAt = timestamp('capability expiresAt', capability.expiresAt)
-    const now = this.now()
+    const now = this.currentTime()
     if (expiresAt <= now) throw new RangeError('workspace store: capability is already expired')
     await this.ready()
     await this.database.transaction((db) => {
@@ -317,7 +317,7 @@ export class SQLiteWorkspaceStore implements WorkspaceSessionStore {
   async revokeCapability(capabilityId: string, reason: string): Promise<void> {
     requiredString('capabilityId', capabilityId)
     requiredString('revocation reason', reason, 512)
-    const now = this.now()
+    const now = this.currentTime()
     await this.ready()
     await this.database.transaction((db) => {
       db.run('UPDATE workspace_capabilities SET revoked_at = COALESCE(revoked_at, ?), revoke_reason = COALESCE(revoke_reason, ?) WHERE capability_id = ?', [now, reason, capabilityId])
@@ -327,7 +327,7 @@ export class SQLiteWorkspaceStore implements WorkspaceSessionStore {
   async revokeWorkspaceCapabilities(workspaceId: string, reason: string): Promise<void> {
     requiredString('workspaceId', workspaceId)
     requiredString('revocation reason', reason, 512)
-    const now = this.now()
+    const now = this.currentTime()
     await this.ready()
     await this.database.transaction((db) => {
       db.run('UPDATE workspace_capabilities SET revoked_at = COALESCE(revoked_at, ?), revoke_reason = COALESCE(revoke_reason, ?) WHERE workspace_id = ?', [now, reason, workspaceId])
