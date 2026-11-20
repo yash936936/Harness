@@ -129,6 +129,33 @@ describe('LLMService enforces the budget before the call', () => {
     expect(provider.calls).toHaveLength(0)
   })
 
+  it('requires explicit taskId and shares task reservations across LLMService instances', async () => {
+    const databasePath = join(tempDir(), 'task-state.sqlite')
+    const config: ModelAdapterConfig = {
+      budgets: { requests: { task: { hard: 1 } }, tokens: { task: { hard: 10_000 } } },
+      sharedBudget: { databasePath, projectId: 'shared-task-project' },
+    }
+    const first = await boot(config)
+    const second = await boot(config)
+    await expect(first.ctx.llm.complete(req())).rejects.toMatchObject({ kind: 'config' })
+    await first.ctx.llm.complete(req({ taskId: 'task-42' }))
+    await expect(second.ctx.llm.complete(req({ taskId: 'task-42' }))).rejects.toMatchObject({ kind: 'budget' })
+    await expect(second.ctx.llm.complete(req({ taskId: 'task-43' }))).resolves.toBeTruthy()
+    const status = await second.ctx.llm.budget!.statusAsync('s', 'task-42')
+    expect(status.requests.task.used).toBe(1)
+  })
+
+  it('AgentLoop carries its explicit taskId into shared task reservations', async () => {
+    const { ctx } = await boot({
+      budgets: { requests: { task: { hard: 1 } } },
+      sharedBudget: { databasePath: join(tempDir(), 'agent-task.sqlite'), projectId: 'agent-task-project' },
+    })
+    await ctx.plugin(AgentLoop)
+    await ctx.agentLoop.run({ sessionId: 'agent-session', taskId: 'agent-task-1', prompt: 'first run', tools: [] })
+    await expect(ctx.agentLoop.run({ sessionId: 'agent-session', taskId: 'agent-task-1', prompt: 'second run', tools: [] }))
+      .rejects.toMatchObject({ kind: 'budget' })
+  })
+
   it('two LLMService instances share session reservations through SQLite', async () => {
     let started!: () => void
     let finish!: () => void
@@ -287,6 +314,39 @@ describe('one shared rate limiter', () => {
     const { ctx } = await boot({ rateLimit: { maxConcurrent: 2 } }, slow)
     await Promise.all(Array.from({ length: 8 }, () => ctx.llm.complete(req())))
     expect(peak).toBe(2)
+  })
+})
+
+describe('LLMService shared SQLite rate-limit integration', () => {
+  it('enforces one concurrency ceiling across separate LLMService instances', async () => {
+    let active = 0
+    let peak = 0
+    const makeProvider = (text: string) => new MockProvider(async () => {
+      active++
+      peak = Math.max(peak, active)
+      await new Promise((resolve) => setTimeout(resolve, 40))
+      active--
+      return { text, usage: { inputTokens: 1, outputTokens: 1 } }
+    })
+    const databasePath = join(tempDir(), 'shared-rate.sqlite')
+    const config: ModelAdapterConfig = {
+      rateLimit: { perMinute: 10, maxConcurrent: 1 },
+      sharedRateLimit: { databasePath, projectId: 'rate-project', principalId: 'provider-account', permitTtlMs: 30_000 },
+    }
+    const first = await boot(config, makeProvider('first'))
+    const second = await boot(config, makeProvider('second'))
+    const results = await Promise.all([first.ctx.llm.complete(req()), second.ctx.llm.complete(req())])
+    expect(results.map((result) => result.text).sort()).toEqual(['first', 'second'])
+    expect(peak).toBe(1)
+  })
+
+  it('rejects shared budget and rate-limit configurations that disagree on database or project', async () => {
+    await expect(boot({
+      budgets: { requests: { day: { hard: 10 } } },
+      sharedBudget: { databasePath: join(tempDir(), 'budget.sqlite'), projectId: 'project-a' },
+      rateLimit: { perMinute: 10 },
+      sharedRateLimit: { databasePath: join(tempDir(), 'rate.sqlite'), projectId: 'project-a', principalId: 'account-a' },
+    })).rejects.toMatchObject({ kind: 'config' })
   })
 })
 
