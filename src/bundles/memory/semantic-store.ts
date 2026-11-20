@@ -118,8 +118,10 @@ export class SemanticFactStore {
 
   private async rebuildIndex(): Promise<SemanticIndex> {
     const index: SemanticIndex = { sourceBytes: 0, indexBytes: 0, byId: new Map(), byText: new Map() }
-    const records: SemanticIndexEntry[] = []
     let offset = 0, lineNumber = 0, validFinalRecordWithoutNewline = false
+    const temporary = `${this.indexFile}.${process.pid}.${randomUUID()}.tmp`
+    await assertNoSymlinkParents(this.indexFile)
+    const handle = await open(temporary, 'wx', 0o600)
     try {
       for await (const item of readTextLinesNoFollow(this.sourceFile)) {
         lineNumber++
@@ -135,20 +137,20 @@ export class SemanticFactStore {
         if (event.op === 'put' && validFact(event.fact)) entry = { id: event.fact.id, offset, length, textKey: textKey(event.fact.text) }
         else if (event.op === 'delete' && typeof event.id === 'string' && event.id) entry = { id: event.id, offset, length, deleted: true }
         else throw new MemoryError(`memory: invalid semantic event at line ${lineNumber}; refusing to rebuild its index`)
-        records.push(entry)
+        await handle.write(JSON.stringify(entry) + '\n')
         this.apply(index, entry)
         validFinalRecordWithoutNewline = !item.newline
         offset += length + (item.newline ? 1 : 0)
       }
       if (validFinalRecordWithoutNewline) await appendTextFileNoFollow(this.sourceFile, '\n')
-    } catch (error: any) { if (error?.code !== 'ENOENT') throw error }
-
-    const temporary = `${this.indexFile}.${process.pid}.${randomUUID()}.tmp`
-    await assertNoSymlinkParents(this.indexFile)
+      await handle.sync()
+    } catch (error: any) {
+      await handle.close().catch(() => {})
+      await unlink(temporary).catch(() => {})
+      if (error?.code !== 'ENOENT') throw error
+    }
+    await handle.close().catch(() => {})
     try {
-      const handle = await open(temporary, 'wx', 0o600)
-      try { for (const entry of records) await handle.write(JSON.stringify(entry) + '\n'); await handle.sync() }
-      finally { await handle.close() }
       await assertNoSymlinkParents(this.indexFile)
       await rename(temporary, this.indexFile)
     } catch (error) { await unlink(temporary).catch(() => {}); throw error }
@@ -191,7 +193,7 @@ export class SemanticFactStore {
       if (duplicate) return { fact: duplicate, created: false }
     }
     const previous = await this.getFrom(fact.id, index)
-    const stored = previous ? { ...fact, ts: previous.ts } : fact
+    const stored = previous ? { ...fact, ts: previous.ts, updatedTs: fact.ts } : { ...fact, updatedTs: undefined }
     const line = JSON.stringify({ op: 'put', fact: stored } satisfies SemanticEvent) + '\n'
     const offset = index.sourceBytes, length = Buffer.byteLength(line, 'utf8') - 1
     await appendTextFileNoFollow(this.sourceFile, line)
