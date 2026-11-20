@@ -5,6 +5,7 @@ import type {
   WorkspaceSession,
   WorkspaceSessionStore,
   WorkspaceSessionTransition,
+  WorkspaceSessionAdoption,
 } from '../../architecture/contracts.js'
 import { SQLiteDatabase, type SQLiteConnection, type SQLiteValue, type SQLiteDatabaseOptions } from '../../util/sqlite.js'
 import { BUDGET_RESERVATION_MIGRATIONS } from './budgets.js'
@@ -233,6 +234,48 @@ export class SQLiteWorkspaceStore implements WorkspaceSessionStore {
     })
   }
 
+  async adoptSession(input: WorkspaceSessionAdoption): Promise<WorkspaceSession> {
+    requiredString('workspaceId', input.workspaceId)
+    requiredString('expectedOwnerId', input.expectedOwnerId)
+    requiredString('expectedLeaseId', input.expectedLeaseId)
+    requiredString('ownerId', input.ownerId)
+    requiredString('leaseId', input.leaseId)
+    if (!Number.isSafeInteger(input.expectedFencingToken) || input.expectedFencingToken < 1 ||
+        !Number.isSafeInteger(input.fencingToken) || input.fencingToken <= input.expectedFencingToken) {
+      throw new RangeError('workspace store: adoption must advance the fencing token')
+    }
+    const expiresAt = timestamp('expiresAt', input.expiresAt)
+    const now = this.currentTime()
+    if (expiresAt <= now) throw new RangeError('workspace store: adopted session expiry must be in the future')
+    await this.ready()
+    return this.database.transaction((db) => {
+      const row = query(db, 'SELECT * FROM workspace_sessions WHERE workspace_id = ?', [input.workspaceId])[0]
+      if (!row) throw new Error('workspace store: session does not exist')
+      const alreadyAdopted = String(row['owner_id']) === input.ownerId && String(row['lease_id']) === input.leaseId &&
+        Number(row['fencing_token']) === input.fencingToken && String(row['state']) === 'ready' &&
+        Number(row['expires_at']) === expiresAt
+      if (alreadyAdopted) return toSession(row)
+      if (String(row['owner_id']) !== input.expectedOwnerId || String(row['lease_id']) !== input.expectedLeaseId ||
+          Number(row['fencing_token']) !== input.expectedFencingToken ||
+          ['closed', 'failed'].includes(String(row['state']))) {
+        throw new Error('workspace store: stale session cannot be adopted')
+      }
+      db.run(
+        "UPDATE workspace_sessions SET owner_id = ?, lease_id = ?, fencing_token = ?, state = 'ready', expires_at = ?, updated_at = ? WHERE workspace_id = ? AND owner_id = ? AND lease_id = ? AND fencing_token = ?",
+        [input.ownerId, input.leaseId, input.fencingToken, expiresAt, now, input.workspaceId, input.expectedOwnerId, input.expectedLeaseId, input.expectedFencingToken],
+      )
+      db.run(
+        "UPDATE workspace_capabilities SET revoked_at = COALESCE(revoked_at, ?), revoke_reason = COALESCE(revoke_reason, 'session adopted by a new fenced owner') WHERE workspace_id = ?",
+        [now, input.workspaceId],
+      )
+      const adopted = query(db, 'SELECT * FROM workspace_sessions WHERE workspace_id = ?', [input.workspaceId])[0]
+      if (!adopted || String(adopted['owner_id']) !== input.ownerId || Number(adopted['fencing_token']) !== input.fencingToken) {
+        throw new Error('workspace store: session adoption lost its compare-and-set race')
+      }
+      return toSession(adopted)
+    })
+  }
+
   async recordCapability(capability: WorkspaceCapability): Promise<void> {
     const token = requiredString('capability token', capability.token, 4096)
     if (token.length < 16) throw new TypeError('workspace store: capability token is too short')
@@ -252,7 +295,7 @@ export class SQLiteWorkspaceStore implements WorkspaceSessionStore {
     if (expiresAt <= now) throw new RangeError('workspace store: capability is already expired')
     await this.ready()
     await this.database.transaction((db) => {
-      const session = query(db, 'SELECT project_id, task_id, session_id, state, expires_at FROM workspace_sessions WHERE workspace_id = ?', [workspaceId])[0]
+      const session = query(db, 'SELECT project_id, task_id, session_id, state, expires_at, fencing_token FROM workspace_sessions WHERE workspace_id = ?', [workspaceId])[0]
       if (!session || String(session['project_id']) !== projectId || String(session['task_id']) !== taskId || String(session['session_id']) !== sessionId) {
         throw new Error('workspace store: capability does not match a stored task session')
       }
@@ -260,18 +303,18 @@ export class SQLiteWorkspaceStore implements WorkspaceSessionStore {
         throw new Error('workspace store: capability exceeds session state or expiry')
       }
       const tokenHash = hashToken(token)
-      const prior = query(db, 'SELECT token_hash, workspace_id, project_id, task_id, session_id, operations_json, path_prefixes_json, expires_at FROM workspace_capabilities WHERE capability_id = ?', [capabilityId])[0]
+      const prior = query(db, 'SELECT token_hash, workspace_id, project_id, task_id, session_id, fencing_token, operations_json, path_prefixes_json, expires_at FROM workspace_capabilities WHERE capability_id = ?', [capabilityId])[0]
       if (prior) {
         const same = String(prior['token_hash']) === tokenHash && String(prior['workspace_id']) === workspaceId &&
-          String(prior['project_id']) === projectId && String(prior['task_id']) === taskId && String(prior['session_id']) === sessionId &&
+          String(prior['project_id']) === projectId && String(prior['task_id']) === taskId && String(prior['session_id']) === sessionId && Number(prior['fencing_token']) === Number(session['fencing_token']) &&
           String(prior['operations_json']) === JSON.stringify([...new Set(capability.operations)]) &&
           String(prior['path_prefixes_json']) === JSON.stringify(prefixes) && Number(prior['expires_at']) === expiresAt
         if (!same) throw new Error('workspace store: capability ID already exists with different scope')
         return
       }
       db.run(
-        'INSERT INTO workspace_capabilities (capability_id, token_hash, workspace_id, project_id, task_id, session_id, operations_json, path_prefixes_json, expires_at, revoked_at, revoke_reason, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?)',
-        [capabilityId, tokenHash, workspaceId, projectId, taskId, sessionId, JSON.stringify([...new Set(capability.operations)]), JSON.stringify(prefixes), expiresAt, now],
+        'INSERT INTO workspace_capabilities (capability_id, token_hash, workspace_id, project_id, task_id, session_id, fencing_token, operations_json, path_prefixes_json, expires_at, revoked_at, revoke_reason, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?)',
+        [capabilityId, tokenHash, workspaceId, projectId, taskId, sessionId, Number(session['fencing_token']), JSON.stringify([...new Set(capability.operations)]), JSON.stringify(prefixes), expiresAt, now],
       )
     })
   }
@@ -299,7 +342,7 @@ export class SQLiteWorkspaceStore implements WorkspaceSessionStore {
         FROM workspace_capabilities c
         JOIN workspace_sessions s ON s.workspace_id = c.workspace_id
         WHERE c.token_hash = ? AND c.workspace_id = ? AND c.project_id = ? AND c.task_id = ? AND c.session_id = ?
-          AND c.expires_at > ? AND c.revoked_at IS NULL AND s.expires_at > ? AND s.state IN ('ready', 'transferring', 'running')`,
+          AND c.fencing_token = s.fencing_token AND c.expires_at > ? AND c.revoked_at IS NULL AND s.expires_at > ? AND s.state IN ('ready', 'transferring', 'running')`,
       [hashToken(input.token), input.workspaceId, input.projectId, input.taskId, input.sessionId, now, now])[0]
       if (!row) return false
       let operations: unknown
