@@ -10,10 +10,7 @@ import { SubagentScope } from '../bundles/subagent-scope/index.js'
 import { PolicyGates, type PolicyConfig } from '../bundles/policy-gates/index.js'
 import { InputGuard, type InputGuardConfig } from '../bundles/input-guard/index.js'
 import { Memory, MemorySemantic, type MemoryConfig, type SemanticConfig } from '../bundles/memory/index.js'
-import { RetrievalGrep, type RetrievalGrepConfig } from '../bundles/retrieval-grep/index.js'
 import { RetrievalTreesitter, type RetrievalTreesitterConfig } from '../bundles/retrieval-treesitter/index.js'
-import { RetrievalRank, type RetrievalRankConfig } from '../bundles/retrieval-rank/index.js'
-import { RetrievalTools, type RetrievalToolsConfig } from '../bundles/retrieval-tools/index.js'
 import { Embeddings, type EmbeddingsConfig } from '../bundles/embeddings/index.js'
 import { LanceVectorStore, type VectorStoreConfig } from '../bundles/vectorstore-lancedb/index.js'
 import { Skills, type SkillsConfig } from '../bundles/skills/index.js'
@@ -79,13 +76,10 @@ export interface ProfileCodingConfig {
    */
   router?: { owned?: DecisionClass[]; backendTimeoutMs?: number; shadowTool?: boolean }
   retrieval?: {
-    grep?: Omit<RetrievalGrepConfig, 'root'>
     treesitter?: RetrievalTreesitterConfig
     /** Give BOTH to add vector search; with neither, ranking is BM25 only. */
     embeddings?: EmbeddingsConfig
     vectorStore?: VectorStoreConfig
-    rank?: Omit<RetrievalRankConfig, 'root'>
-    tools?: RetrievalToolsConfig
   }
   orchestrator?: OrchestratorConfig
   /**
@@ -106,6 +100,12 @@ function validate(config: unknown): asserts config is ProfileCodingConfig {
   const c = config as Record<string, unknown>
   if ('sandbox' in c) {
     throw new ProfileError('profile-coding: sandbox provider integration is unavailable. Crabbox is permanently held by D-110; CubeSandbox is out of scope by D-118; Vercel workspace transfer, result sync, lifecycle audit, and policy integration are not complete. Do not enable COMMAND_TOOL.')
+  }
+  const retrievalConfig = c['retrieval']
+  if (retrievalConfig && typeof retrievalConfig === 'object') {
+    for (const key of ['grep', 'rank', 'tools']) {
+      if (key in retrievalConfig) throw new ProfileError(`profile-coding: retrieval.${key} is disabled under D-117 because it can search project files through host subprocess execution`)
+    }
   }
   const routerConfig = c['router']
   if (routerConfig && typeof routerConfig === 'object' && 'needle' in routerConfig) {
@@ -134,7 +134,7 @@ function validate(config: unknown): asserts config is ProfileCodingConfig {
 /** Services this profile must end up with. A plugin whose dependency is absent is never started and does not throw, so boot checks for them by name. */
 export const CODING_REQUIRED_SERVICES = [
   'log', 'egress', 'llm', 'tools', 'sandbox', 'router', 'agentLoop', 'memory', 'subagents', 'policy', 'inputGuard',
-  'retrievalGrep', 'retrievalParse', 'retrievalRank', 'retrievalTools', 'localTools', 'orchestrator', 'eval',
+  'retrievalParse', 'localTools', 'orchestrator', 'eval',
 ] as const
 
 /**
@@ -186,7 +186,6 @@ export async function bootProfileCoding(config: ProfileCodingConfig): Promise<Co
 
     const r = config.retrieval ?? {}
     await ctx.plugin(InputGuard, config.inputGuard)
-    await ctx.plugin(RetrievalGrep, { ...r.grep, root })
     await ctx.plugin(RetrievalTreesitter, r.treesitter)
     if (r.embeddings && r.vectorStore) {
       await ctx.plugin(Embeddings, r.embeddings)
@@ -209,8 +208,6 @@ export async function bootProfileCoding(config: ProfileCodingConfig): Promise<Co
         },
       })
     }
-    await ctx.plugin(RetrievalRank, { ...r.rank, root })
-    await ctx.plugin(RetrievalTools, { ...r.tools, enabled: false })
     await ctx.plugin(LocalTools, { ...config.localTools, root, enableCommand: false })
     if (config.skills) await ctx.plugin(Skills, config.skills)
     await ctx.plugin(Orchestrator, config.orchestrator)
