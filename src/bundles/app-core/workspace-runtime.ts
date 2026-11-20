@@ -332,7 +332,7 @@ export class WorkspaceRuntime {
         await this.leases.isCurrent(lease.leaseId, this.ownerId, lease.fencingToken)
     } catch { validCapability = false }
     if (!validCapability) {
-      if (typeof capability.capabilityId === 'string' && capability.capabilityId) {
+      if (capability && typeof capability.capabilityId === 'string' && capability.capabilityId) {
         try { await this.provider.revoke(capability.capabilityId, 'provider returned an invalid capability scope') } catch { /* local grant was never stored */ }
       }
       throw new Error('workspace runtime: provider returned a capability outside the requested scope')
@@ -350,8 +350,9 @@ export class WorkspaceRuntime {
     const session = await this.sessions.getSession(required('workspaceId', workspaceId))
     if (!session || session.state !== 'ready') throw new Error('workspace runtime: session is not ready')
     const lease = await this.assertCurrentLease(session)
-    if (capability.fencingToken !== lease.fencingToken || capability.workspaceId !== workspaceId || capability.projectId !== this.projectId ||
-        capability.taskId !== session.taskId || capability.sessionId !== session.sessionId || !capability.operations.includes('execute') ||
+    if (!capability || !Array.isArray(capability.operations) || capability.fencingToken !== lease.fencingToken ||
+        capability.workspaceId !== workspaceId || capability.projectId !== this.projectId || capability.taskId !== session.taskId ||
+        capability.sessionId !== session.sessionId || !capability.operations.includes('execute') ||
         isoTimestamp('capability expiry', capability.expiresAt) <= this.currentTime()) throw new Error('workspace runtime: stale or mis-scoped capability')
     validateCommand(command, this.maxCommandTimeoutMs, this.maxOutputBytes)
     const allowed = await this.sessions.authorizeCapability({
@@ -414,7 +415,7 @@ export class WorkspaceRuntime {
       } catch { /* retain the current state if the lease/fence changed */ }
       throw error
     }
-    if (typeof result.confirmed !== 'boolean') {
+    if (!result || typeof result.confirmed !== 'boolean') {
       await this.sessions.transitionSession({
         workspaceId, ownerId: this.ownerId, leaseId: lease.leaseId, fencingToken: lease.fencingToken,
         expectedState: 'closing', nextState: 'unknown',
