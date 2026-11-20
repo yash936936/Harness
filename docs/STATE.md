@@ -1,18 +1,30 @@
 # Current project state
 
-## 2026-11-21 Phase 3 unified execution
+## 2026-11-21 current verified state
 
-- Main baseline: `c8079f13568835fa9bdc8639889fe9405bf25c06`.
-- PRs #141 and #142 merged bounded session-log reads and episodic keyset pagination.
-- PR #148 merged public semantic keyset pagination. Mandatory CI run #44820082776 passed.
-- PR #150 merged persistent episodic metadata indexing, byte-offset page reads, bounded page-selection memory, index recovery tests, and a 100,000-record page benchmark. Merge-commit CI run #44822435655 is still running; do not treat Phase 3 as fully CI-validated until it passes.
-- Semantic fact storage already uses append-only JSONL events with a rebuildable index and validated legacy JSON migration. Searchable-fact quotas, durable-history retention rules, public paging, and bounded write operations are implemented.
-- Semantic reindex already uses bounded batches and durable source/model/collection checkpoints. Tests cover restart resume, reset after model changes, source mutation, torn-tail recovery, quotas, and sidecar rebuild.
-- Remaining Phase 3 work: final full CI result for #150, reconcile actual numeric performance measurements, and complete the full file-by-file/cross-folder audit with checklist evidence. Phase 3 is not complete until these closeout items pass.
-- Live Vercel/provider acceptance and Phase 4 task-scoped workspace lifecycle/transfer are separate gates. CI's informational acceptance-gates job does not execute them.
-- D-110/D-117/D-118/D-119 remain binding. Durable history is retained indefinitely by default; do not automatically delete it to meet searchable-memory quotas.
+- Main commit: `0bbd15617f250d42484fd1164e383fda7aae7f5f`, PR #159 merged. Post-merge main CI #44832920650 is still running; do not claim its result until it completes.
+- PR #158 merged cross-process semantic acceptance. Four independent writers added 200 facts, a separate process deleted 50, and tests verified cursor invalidation, sidecar rebuild to 150 live facts, and delete/reinsert ordering. PR-head CI #44831362470 and post-merge main CI #44831864535 both passed.
+- PR #159 merged D-117 profile hardening. Neither built-in profile registers host `Subprocess`; `profile-coding` also rejects `router.needle` and disables host-backed `retrieval.grep`, `retrieval.rank`, and `retrieval.tools`. Regression tests verify the services are absent and configuration fails closed. PR-head CI #44832567598 passed.
+- PR #157's performance benchmark and CI reporting changes are merged. The informational `acceptance gates NOT RUN` job is explicitly not acceptance; `ci-pass` requires all mandatory jobs.
+- Phase 2 SQLite coordination is complete through PR #140, including transactional budget reservations, rate-limit windows/concurrency permits, and fenced leases.
+- Phase 3 has bounded session-log reads, episodic indexes/pages, append-only semantic events, rebuildable semantic indexes, quotas, cursor invalidation, checkpointed reindex, a 100k semantic-page benchmark, and independent-process semantic writer/deletion tests. It remains open for crash-during-write/restart recovery, additional cross-process cache/session-log recovery, large-file memory bounds, and full audit closeout.
+- Performance evidence and measurement caveats are in [architecture-contracts.md](architecture-contracts.md). The 100k semantic fixture had 25k deletions and one reinsertion. Cold index rebuild p50/p95 was 4,310.982/4,404.561 ms. Warm 50-row pages were 19.953/25.641 ms at cursor 49,999, 18.225/25.586 ms at 89,999, and 17.867/20.190 ms at 99,899. Sampled RSS delta p50/p95 was 25,427,968/26,869,760 bytes.
+- Phase 4 is not implemented as a runtime. Backend-neutral contracts and SQLite fenced leases exist, but task-scoped workspace sessions, provider-enforced capabilities, secure snapshot/file transfer, conflict-safe result synchronization, and crash recovery are missing.
+- D-110/D-117/D-118/D-119 remain binding. Built-in profiles no longer expose host subprocess execution, but generic exported bundles and other source paths still require the full reachability audit. Do not enable `COMMAND_TOOL`.
+- Live Vercel acceptance is not performed by CI. It requires explicit owner-run project egress authorization and credentials; the informational not-run job is not evidence of acceptance.
 
-## 2026-11-21 unified completion-loop status
+## Remaining execution queue
+
+1. Finish the post-merge main CI run #44832920650.
+2. Complete Phase 3 crash/restart recovery and memory-bound evidence.
+3. Finish the repository-wide D-110/D-117 subprocess and indirect execution audit.
+4. Implement Phase 4 workspace lifecycle, capability enforcement, transfer, conflict handling, and recovery.
+5. Complete the file-by-file audit and reconcile every active status document.
+6. Run final migration, cross-platform, security, performance, documentation, and owner-authorized Vercel acceptance.
+
+## Historical status snapshots
+
+## Historical snapshot: unified completion-loop status (PR #156 baseline)
 
 - Main commit: `2a2a60315a1e6db8b448c9c7d48a460c5bfb75b5`, merged from PR #156.
 - PR #156 is merged. Its semantic insertion-order tombstone fix passed CI run #44826849470, all 10 jobs, including Ubuntu/Windows Node 20.19.0 and 22.12.0, typecheck, lint, tests, docs, security/dependencies, licenses, and architecture benchmarks.
