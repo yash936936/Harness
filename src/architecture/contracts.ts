@@ -266,6 +266,17 @@ export interface WorkspaceSessionTransition {
   readonly nextState: WorkspaceSession['state']
   readonly expiresAt?: string
 }
+ 
+export interface WorkspaceSessionAdoption {
+  readonly workspaceId: ResourceId
+  readonly expectedOwnerId: string
+  readonly expectedLeaseId: ResourceId
+  readonly expectedFencingToken: number
+  readonly ownerId: string
+  readonly leaseId: ResourceId
+  readonly fencingToken: number
+  readonly expiresAt: string
+}
 
 /** Durable session and capability metadata. Raw bearer tokens are never persisted. */
 export interface WorkspaceSessionStore {
@@ -276,6 +287,8 @@ export interface WorkspaceSessionStore {
   listSessions(projectId: ProjectId, states?: readonly WorkspaceSession['state'][], limit?: number): Promise<readonly WorkspaceSession[]>
   /** Compare-and-set transition fenced by owner, lease ID, and monotonically increasing fencing token. */
   transitionSession(input: WorkspaceSessionTransition): Promise<WorkspaceSession>
+  /** Adopt a prior session only after the old lease expired and the provider validated recovery; rotates the fence and revokes old capabilities. */
+  adoptSession(input: WorkspaceSessionAdoption): Promise<WorkspaceSession>
   /** Store only a SHA-256 token digest and the capability's scope/expiry. */
   recordCapability(capability: WorkspaceCapability): Promise<void>
   /** Validate token, task/session/workspace binding, operation, path prefix, expiry, and revocation. */
