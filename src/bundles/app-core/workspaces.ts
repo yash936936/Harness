@@ -133,13 +133,14 @@ export class SQLiteWorkspaceStore implements WorkspaceSessionStore {
     const idempotencyKey = requiredString('idempotencyKey', input.idempotencyKey)
     if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/.test(idempotencyKey)) throw new TypeError('workspace store: invalid idempotencyKey')
     if (input.state !== 'creating') throw new TypeError('workspace store: new sessions must start in creating state')
-    if (!Number.isSafeInteger(input.fencingToken) || input.fencingToken < 1) throw new RangeError('workspace store: fencingToken must be a positive integer')
+    const fencingToken = input.fencingToken
+    if (typeof fencingToken !== 'number' || !Number.isSafeInteger(fencingToken) || fencingToken < 1) throw new RangeError('workspace store: fencingToken must be a positive integer')
     const createdAt = timestamp('createdAt', input.createdAt)
     const expiresAt = timestamp('expiresAt', input.expiresAt)
     if (expiresAt <= createdAt || expiresAt <= this.currentTime()) throw new RangeError('workspace store: expiresAt must be in the future and after createdAt')
     const requestHash = createHash('sha256').update(JSON.stringify({
       workspaceId, projectId, taskId, sessionId, provider, ownerId, leaseId,
-      fencingToken: input.fencingToken, createdAt, expiresAt,
+      fencingToken, createdAt, expiresAt,
     }), 'utf8').digest('hex')
     await this.ready()
     return this.database.transaction((db) => {
@@ -154,7 +155,7 @@ export class SQLiteWorkspaceStore implements WorkspaceSessionStore {
       if (existing) throw new Error('workspace store: task session already exists')
       db.run(
         'INSERT INTO workspace_sessions (workspace_id, project_id, task_id, session_id, provider, state, owner_id, lease_id, fencing_token, created_at, expires_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [workspaceId, projectId, taskId, sessionId, provider, 'creating', ownerId, leaseId, input.fencingToken, createdAt, expiresAt, this.currentTime()],
+        [workspaceId, projectId, taskId, sessionId, provider, 'creating', ownerId, leaseId, fencingToken, createdAt, expiresAt, this.currentTime()],
       )
       db.run(
         'INSERT INTO workspace_session_idempotency (project_id, idempotency_key, request_hash, workspace_id, created_at) VALUES (?, ?, ?, ?, ?)',
