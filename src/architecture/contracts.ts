@@ -229,6 +229,8 @@ export interface WorkspaceCapability {
   readonly taskId: TaskId
   readonly sessionId: SessionId
   readonly workspaceId: ResourceId
+  /** Lease fencing token the provider must check on every operation. */
+  readonly fencingToken: number
   readonly operations: readonly WorkspaceOperation[]
   /** Canonical workspace-relative prefixes. An empty array grants no path access; an empty-string prefix grants the workspace root. */
   readonly pathPrefixes: readonly string[]
@@ -241,6 +243,7 @@ export interface WorkspaceSession {
   readonly taskId: TaskId
   readonly sessionId: SessionId
   readonly provider: string
+  readonly ownerId: string
   readonly state: 'creating' | 'ready' | 'transferring' | 'running' | 'closing' | 'closed' | 'failed' | 'unknown'
   readonly leaseId?: ResourceId
   readonly fencingToken?: number
@@ -249,6 +252,10 @@ export interface WorkspaceSession {
 }
 
 export interface CreateWorkspaceSessionInput extends IdempotentCommand {
+  readonly workspaceId: ResourceId
+  readonly ownerId: string
+  readonly leaseId: ResourceId
+  readonly fencingToken: number
   readonly projectId: ProjectId
   readonly taskId: TaskId
   readonly sessionId: SessionId
@@ -326,11 +333,14 @@ export interface WorkspaceCommandResult {
   readonly aborted: boolean
 }
 
+/** Provider implementations must enforce capability scope and the current fencing token on every remote operation. */
 export interface WorkspaceSessionProvider {
   readonly name: string
   create(input: CreateWorkspaceSessionInput): Promise<WorkspaceSession>
   issueCapability(input: {
     readonly workspaceId: ResourceId
+    readonly projectId: ProjectId
+    readonly fencingToken: number
     readonly taskId: TaskId
     readonly sessionId: SessionId
     readonly operations: readonly WorkspaceOperation[]
@@ -339,7 +349,13 @@ export interface WorkspaceSessionProvider {
   }): Promise<WorkspaceCapability>
   execute(workspaceId: ResourceId, capability: WorkspaceCapability, command: WorkspaceCommand): Promise<WorkspaceCommandResult>
   revoke(capabilityId: ResourceId, reason: string): Promise<void>
-  close(workspaceId: ResourceId, reason: string): Promise<{ readonly confirmed: boolean; readonly detail?: string }>
+  close(input: {
+    readonly workspaceId: ResourceId
+    readonly reason: string
+    readonly ownerId: string
+    readonly leaseId: ResourceId
+    readonly fencingToken: number
+  }): Promise<{ readonly confirmed: boolean; readonly detail?: string }>
 }
 
 export interface WorkspaceSnapshotEntry {
