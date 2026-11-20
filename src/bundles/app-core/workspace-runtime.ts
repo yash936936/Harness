@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import type {
   LeaseStore,
   WorkspaceCapability,
@@ -177,7 +177,7 @@ export class WorkspaceRuntime {
       resourceType: 'workspace',
       resourceId: workspaceId,
       ownerId: this.ownerId,
-      idempotencyKey: `workspace:${createHash('sha256').update(idempotencyKey, 'utf8').digest('hex')}`,
+      idempotencyKey: `workspace-attempt:${randomUUID()}`,
       ttlMs: input.ttlMs,
     })
     if (!decision.acquired) throw new Error(`workspace runtime: workspace lease unavailable (${decision.reason})`)
