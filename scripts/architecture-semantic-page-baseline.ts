@@ -102,8 +102,9 @@ async function runSample(root: string, sample: number) {
 }
 
 const root = await mkdtemp(join(tmpdir(), 'harness-semantic-page-baseline-'))
+type SampleResult = Awaited<ReturnType<typeof runSample>>
 try {
-  const samples = []
+  const samples: SampleResult[] = []
   for (let sample = 0; sample < SAMPLES; sample++) samples.push(await runSample(root, sample))
   const pageStats = Object.fromEntries(CURSORS.map((cursor) => {
     const values = samples.flatMap((sample) => {
