@@ -1,4 +1,4 @@
-import { mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { performance } from 'node:perf_hooks'
@@ -38,7 +38,7 @@ function fact(id: number, revision = 0): SemanticFact {
 
 async function runSample(root: string, sample: number) {
   const dir = join(root, `sample-${sample}`)
-  await import('node:fs/promises').then(({ mkdir }) => mkdir(dir, { recursive: true }))
+  await mkdir(dir, { recursive: true })
   const source = [
     ...Array.from({ length: FACTS }, (_, id) => JSON.stringify({ op: 'put', fact: fact(id) })),
     ...Array.from({ length: DELETIONS }, (_, id) => JSON.stringify({ op: 'delete', id: fact(id).id })),
@@ -57,7 +57,7 @@ async function runSample(root: string, sample: number) {
     if (!last) throw new Error('index build failed to recover the final semantic fact')
     const revision = await store.revision()
     const liveCount = await store.count()
-    if (liveCount !== FACTS - DELETIONS + 1) throw new Error(`expected ${FACTS - DELETIONS} live facts, got ${liveCount}`)
+    if (liveCount !== FACTS - DELETIONS + 1) throw new Error(`expected ${FACTS - DELETIONS + 1} live facts, got ${liveCount}`)
 
     const pageResults: Record<string, { timings: number[]; firstId: string; lastId: string }> = {}
     for (const cursor of CURSORS) {
@@ -107,7 +107,7 @@ try {
   for (let sample = 0; sample < SAMPLES; sample++) samples.push(await runSample(root, sample))
   const pageStats = Object.fromEntries(CURSORS.map((cursor) => {
     const values = samples.flatMap((sample) => {
-      const entry = sample.pageResults[String(cursor)] as { p50: number; p95: number }
+      const entry = sample.pageResults[String(cursor)] as { timings: number[] }
       return entry.timings
     })
     return [String(cursor), stats(values)]
