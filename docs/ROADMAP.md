@@ -1,29 +1,27 @@
 # Roadmap: Harness audit closeout and scalable architecture
 
-## 2026-11-21 unified Phase 3 execution
+## 2026-11-21 unified completion loop: current status
 
-Main baseline: `c8079f13568835fa9bdc8639889fe9405bf25c06`.
+Main baseline: `0bbd15617f250d42484fd1164e383fda7aae7f5f` (PR #159 merged). Post-merge main CI run #44832920650 is in progress; PR-head CI run #44832567598 passed all mandatory jobs.
 
-**Implemented slices**
-- PR #141: bounded session-log range reads and episodic recording.
-- PR #142: stable episodic keyset pagination.
-- PR #148: public semantic keyset pagination with revision-bound cursors; mandatory CI run #44820082776 passed.
-- PR #150: persistent episodic metadata index, byte-offset page reads, bounded page-selection memory, recovery tests, and a 100,000-record page benchmark. Merged as `c8079f13568835fa9bdc8639889fe9405bf25c06`; mandatory CI run #44822435655 is still running and is not yet counted as green.
+**Completed and verified**
+- PR #156: semantic insertion-order/tombstone fix; post-merge CI #44827470725 passed.
+- PR #157: performance evidence, roadmap updates, and explicit informational-only reporting for acceptance gates not run; PR-head CI #44829118899 passed.
+- PR #158: independent-process semantic storage acceptance. Four processes wrote 200 facts with per-operation locking; a separate process deleted 50; the test verified cross-process cursor invalidation, sidecar rebuild, 150 live facts, and delete/reinsert ordering. Full CI #44831362470 passed, and post-merge main CI #44831864535 passed.
+- PR #159: D-117 restrictions across both built-in profiles. Neither profile registers host `Subprocess`; `profile-coding` also rejects `router.needle` and host-backed retrieval configuration. Tree-sitter parsing and configured semantic memory remain available. PR-head CI #44832567598 passed.
+- Phase 2 SQLite coordination remains complete through PR #140 and its accepted cross-process/migration tests.
+- Phase 3 p50/p95 measurements are published in [architecture-contracts.md](architecture-contracts.md). The 100k semantic-page fixture included 25k deletions and one reinsertion. Cold sidecar rebuild was 4,310.982/4,404.561 ms p50/p95. Warm 50-row pages were 19.953/25.641 ms at cursor 49,999, 18.225/25.586 ms at 89,999, and 17.867/20.190 ms at 99,899. Sampled process RSS delta was 25,427,968/26,869,760 bytes p50/p95. These are small-sample benchmark results, not production guarantees.
 
-**Storage capabilities already present in main**
-- Semantic facts use an append-only `semantic.events.jsonl` source with a rebuildable sidecar index. The legacy `semantic.json` migration validates all facts and refuses to overwrite unreadable legacy data.
-- Searchable semantic facts have explicit quotas and bounded serialized-operation limits. Durable history is retained indefinitely by default under D-119.
-- Semantic reindex uses bounded embedding/vector-upsert batches and a durable checkpoint containing source revision, embedding fingerprint/dimensions, collection, reset state, cursor, and indexed count. Existing tests cover restart resume, model reset, source validation, torn-tail recovery, quotas, and index rebuild.
-- Public semantic pages use an opaque keyset cursor tied to the source revision. Mutations invalidate the cursor rather than silently skipping or repeating facts.
-- Episodic JSONL remains authoritative. Its sidecar index can be rebuilt after missing, malformed, or stale index data; warm pages read only the selected source ranges and retain at most page-size plus one metadata candidates.
+**Still open**
+1. Phase 3: crash-during-write recovery and cross-process session-log/cache recovery; large-file and metadata-scan memory bounds; full semantic reindex/recovery stress; remaining source audit.
+2. Phase 4: SQLite-backed workspace session metadata and ownership/fencing integration; task-scoped lifecycle; provider-enforced operation/path/expiry capabilities and revocation; byte-level secret-safe snapshot transfer; bounded result collection; hash-based conflict detection and governed apply; crash recovery and cleanup.
+3. D-110/D-117: built-in profile paths are restricted, but generic `CommandBackend`, `Subprocess`, retrieval bundles, Crabbox source, scripts, desktop paths, and downstream direct construction still need a repository-wide reachability audit.
+4. Final acceptance: migration safety, crash recovery, full compatibility and cross-platform matrix, documentation consistency, and live Vercel acceptance.
+5. Live Vercel acceptance is owner-run and requires explicit project egress authorization and credentials. The CI job named `acceptance gates NOT RUN` is informational only and is never counted as live acceptance.
 
-**Remaining closeout**
-1. Confirm PR #150's merge-commit CI run #44822435655 passes the full Ubuntu/Windows Node 20/22 matrix and mandatory docs, dependency/security, license, and architecture checks. Fix any failures and rerun.
-2. Reconcile numeric performance baselines using the new 100k indexed-page measurement, and record actual p50/p95/RSS values from CI artifacts rather than inferred values.
-3. Complete the file-by-file and cross-folder audit, including stale code, unreferenced paths, duplicate logic, hard-coded limits, lifecycle/error paths, and docs-to-code contract checks. Update the audit checklist with evidence.
-4. Synchronize all remaining roadmap/state/audit references after the final audit.
+**Execution order:** finish mandatory post-merge CI; complete Phase 3 recovery and memory-bound evidence; finish the host-execution source trace; implement Phase 4 in secure vertical slices; reconcile all docs; then run final acceptance. Do not enable `COMMAND_TOOL` before Phase 4 transfer, result synchronization, lifecycle, and policy gates pass.
 
-Phase 3 is not closed until the final mandatory CI and audit evidence are complete. The informational CI acceptance-gates job does not execute live provider acceptance. Live Vercel acceptance and Phase 4 task-scoped workspaces remain separate open gates.
+## Historical execution snapshots
 
 ## 2026-11-21 Phase 2 execution update
 
