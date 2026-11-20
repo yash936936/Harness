@@ -1,7 +1,7 @@
 // Records and queries per-turn episodic memory linked to session-log events.
 import type { Context } from 'cordis'
 import type { SessionEvent } from '../session-log/index.js'
-import { MemoryError, type Episode, type EpisodeQuery, type EpisodeStore, type RecordTurnInput } from './types.js'
+import { MemoryError, type Episode, type EpisodePage, type EpisodeQuery, type EpisodeStore, type RecordTurnInput } from './types.js'
 
 function clip(s: string, max: number): string {
   return s.length <= max ? s : s.slice(0, Math.max(0, max - 1)) + '…'
