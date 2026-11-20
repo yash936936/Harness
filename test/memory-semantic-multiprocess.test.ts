@@ -57,8 +57,8 @@ describe('semantic store cross-process scaling', () => {
       ts: '2026-11-21T00:01:00.000Z',
     }, { maxFacts: 10_000, maxFactBytes: 8_192 }))
 
-    const tail = await recovered.withLock(() => recovered.page('writer-3-49', 10))
-    expect(tail.items.map((fact) => fact.id)).toContain('writer-0-0')
+    const tail = await recovered.withLock(() => recovered.page(undefined, 1_000))
+    expect(tail.items.at(-1)?.id).toBe('writer-0-0')
     expect(await recovered.withLock(() => recovered.count())).toBe(151)
   }, 120_000)
 })
