@@ -185,10 +185,10 @@ export class BudgetGate {
     }
   }
 
-  private reserveLocal(req: Pick<CompletionRequest, 'messages' | 'system' | 'tools' | 'maxTokens'>): CallReservation {
-    const requests = this.budgets.reserve('requests', 1)
+  private reserveLocal(req: Pick<CompletionRequest, 'messages' | 'system' | 'tools' | 'maxTokens'>, sharedTaskScope = false): CallReservation {
+    const requests = this.budgets.reserve('requests', 1, sharedTaskScope)
     try {
-      const tokens = this.budgets.reserve('tokens', estimateRequestTokens(req, this.defaultOutputTokens))
+      const tokens = this.budgets.reserve('tokens', estimateRequestTokens(req, this.defaultOutputTokens), sharedTaskScope)
       return new CallReservation(this.budgets, requests, tokens)
     } catch (error) {
       this.budgets.release(requests)
@@ -203,15 +203,22 @@ export class BudgetGate {
   }
 
   /**
-   * Hold local task/session/day capacity and cross-process session/day capacity
+   * Hold local task/session/day capacity and cross-process task/session/day capacity
    * before any request is logged or dispatched.
    */
   async reserveAsync(
     req: Pick<CompletionRequest, 'messages' | 'system' | 'tools' | 'maxTokens'>,
     sessionId?: string,
+    taskId?: string,
   ): Promise<CallReservation> {
-    const local = this.reserveLocal(req)
+    const local = this.reserveLocal(req, Boolean(this.sharedStore && this.sharedConfig && taskId))
     if (!this.sharedStore || !this.sharedConfig) return local
+    const hasTaskHardLimit = this.budgets.hardLimit('requests', 'task') !== undefined ||
+      this.budgets.hardLimit('tokens', 'task') !== undefined
+    if (hasTaskHardLimit && (typeof taskId !== 'string' || !taskId.trim())) {
+      local.release()
+      throw new BudgetReservationStoreError('budget gate: taskId is required for shared task hard limits')
+    }
     const hasSessionHardLimit = this.budgets.hardLimit('requests', 'session') !== undefined ||
       this.budgets.hardLimit('tokens', 'session') !== undefined
     if (hasSessionHardLimit && (typeof sessionId !== 'string' || !sessionId.trim())) {
@@ -222,6 +229,7 @@ export class BudgetGate {
     const callId = randomUUID()
     const expiresAt = new Date(this.budgets.currentTimestamp() + this.reservationTtlMs).toISOString()
     const targets: Array<{ scope: BudgetScope; subjectId: string }> = [
+      ...(taskId ? [{ scope: 'task' as const, subjectId: `task:${taskId}` }] : []),
       ...(sessionId ? [{ scope: 'session' as const, subjectId: `session:${sessionId}` }] : []),
       { scope: 'day', subjectId: `day:${this.budgets.currentDay()}` },
     ]
@@ -274,11 +282,12 @@ export class BudgetGate {
     return this.budgets.status()
   }
 
-  /** Status with cross-process session/day usage refreshed from SQLite. */
-  async statusAsync(sessionId?: string): Promise<BudgetStatus> {
+  /** Status with cross-process task/session/day usage refreshed from SQLite. */
+  async statusAsync(sessionId?: string, taskId?: string): Promise<BudgetStatus> {
     const status = this.budgets.status()
     if (!this.sharedStore || !this.sharedConfig) return status
     const targets: Array<{ scope: BudgetScope; subjectId: string }> = [
+      ...(taskId ? [{ scope: 'task' as const, subjectId: `task:${taskId}` }] : []),
       ...(sessionId ? [{ scope: 'session' as const, subjectId: `session:${sessionId}` }] : []),
       { scope: 'day', subjectId: `day:${this.budgets.currentDay()}` },
     ]
