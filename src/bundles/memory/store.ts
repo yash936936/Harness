@@ -15,37 +15,6 @@ export class MemoryEpisodeStore implements EpisodeStore {
   }
 
   async queryPage(query: Omit<EpisodeQuery, 'limit'>, cursor: EpisodePageCursor | undefined, limit: number): Promise<{ items: Episode[]; hasMore: boolean }> {
-    return withFileLock(`${this.file}.lock`, async () => {
-      const entries = await this.ensureIndex()
-      const descending = query.order === 'desc'
-      const needle = query.task?.toLowerCase()
-      const compare = (a: Pick<EpisodeIndexEntry, 'ts' | 'sessionId' | 'fromSeq' | 'id'>, b: EpisodePageCursor) =>
-        a.ts.localeCompare(b.ts) || a.sessionId.localeCompare(b.sessionId) || a.fromSeq - b.fromSeq || a.id.localeCompare(b.id)
-      const cursorKey: EpisodePageCursor | undefined = cursor
-      const selected = [...entries.values()].filter((entry) =>
-        (query.sessionId === undefined || entry.sessionId === query.sessionId) &&
-        (query.agentId === undefined || entry.agentId === query.agentId) &&
-        (query.outcome === undefined || entry.outcome === query.outcome) &&
-        (needle === undefined || entry.task.toLowerCase().includes(needle)) &&
-        (query.from === undefined || entry.ts >= query.from) &&
-        (query.to === undefined || entry.ts < query.to) &&
-        (!cursorKey || (descending
-          ? compare(entry, cursorKey) < 0
-          : compare(entry, cursorKey) > 0)),
-      )
-      selected.sort((a, b) => descending ? -compare(a, b) : compare(a, b))
-      const page = selected.slice(0, limit + 1)
-      const items: Episode[] = []
-      for (const entry of page.slice(0, limit)) {
-        const episode = JSON.parse(await readTextRangeNoFollow(this.file, entry.offset, entry.length)) as Episode
-        if (episode.id !== entry.id) throw new MemoryError('memory: episodic page index does not match its source record')
-        items.push(episode)
-      }
-      return { items, hasMore: page.length > limit }
-    })
-  }
-
-  async queryPage(query: Omit<EpisodeQuery, 'limit'>, cursor: EpisodePageCursor | undefined, limit: number): Promise<{ items: Episode[]; hasMore: boolean }> {
     const descending = query.order === 'desc'
     const needle = query.task?.toLowerCase()
     const compare = (a: Episode, b: EpisodePageCursor | Episode) =>
