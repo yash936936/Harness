@@ -261,10 +261,11 @@ export class Budgets {
    * remaining capacity. Pair every successful `reserve` with exactly one `release` (the call is not made / failed) or a
    * `record` followed by `release` (it was made).
    */
-  reserve(metric: BudgetMetric, amount: number): Reservation {
+  reserve(metric: BudgetMetric, amount: number, sharedTaskScope = false): Reservation {
     if (!Number.isFinite(amount) || amount < 0) throw new RangeError('budget: reserve amount must be finite and non-negative')
     this.rollDayIfNeeded()
     for (const scope of SCOPES) {
+      if (scope === 'task' && sharedTaskScope) continue
       const limit = this.limitFor(metric, scope)
       if (limit?.hard === undefined) continue
       if (this.usedFor(metric, scope) + this.reserved[metric] + amount > limit.hard) {
