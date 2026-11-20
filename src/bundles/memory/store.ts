@@ -181,7 +181,7 @@ export class JsonlEpisodeStore implements EpisodeStore {
         validFinalRecordWithoutNewline = !item.newline
         offset += lineBytes + (item.newline ? 1 : 0)
       }
-      if (validFinalRecordWithoutNewline) await appendTextFileNoFollow(this.file, '\\n')
+      if (validFinalRecordWithoutNewline) await appendTextFileNoFollow(this.file, '\n')
     } catch (error: any) {
       if (error?.code !== 'ENOENT') throw error
     }
