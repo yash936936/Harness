@@ -1,7 +1,7 @@
 import { constants as fsConstants } from 'node:fs'
 import { lstat, mkdir, open, readdir } from 'node:fs/promises'
 import { withFileLock } from '../../util/filelock.js'
-import { assertNoSymlinkParents } from '../../util/secure-file.js'
+import { assertNoSymlinkParents, readTextLinesNoFollow } from '../../util/secure-file.js'
 import { join } from 'node:path'
 import type { SessionEvent, SessionStore } from './types.js'
 
@@ -30,6 +30,10 @@ export class MemoryStore implements SessionStore {
   async read(sessionId: string) {
     return structuredClone(this.sessions.get(sessionId) ?? [])
   }
+  async readRange(sessionId: string, fromSeq: number, toSeq: number) {
+    return structuredClone((this.sessions.get(sessionId) ?? []).filter((event) => event.seq >= fromSeq && event.seq <= toSeq))
+  }
+
   async list() {
     return [...this.sessions.keys()]
   }
@@ -235,6 +239,39 @@ export class JsonlStore implements SessionStore {
     }
     if (cacheValid) await this.rememberTail(event.sessionId, event.seq)
     else this.tailCursors.delete(event.sessionId)
+  }
+
+  async readRange(sessionId: string, fromSeq: number, toSeq: number): Promise<SessionEvent[]> {
+    if (!Number.isSafeInteger(fromSeq) || !Number.isSafeInteger(toSeq) || fromSeq < 1 || toSeq < fromSeq) {
+      throw new Error(`session log ${sessionId}: invalid sequence range ${fromSeq}..${toSeq}`)
+    }
+    const events: SessionEvent[] = []
+    let pending: { line: string; lineNumber: number } | undefined
+    let lineNumber = 0
+    try {
+      for await (const item of readTextLinesNoFollow(this.file(sessionId))) {
+        lineNumber++
+        if (!item.line.trim()) continue
+        if (pending) {
+          let event: SessionEvent
+          try { event = JSON.parse(pending.line) as SessionEvent }
+          catch { throw new Error(`Corrupt session log ${sessionId}: line ${pending.lineNumber} is not valid JSON`) }
+          if (event.seq >= fromSeq && event.seq <= toSeq) events.push(event)
+          if (event.seq > toSeq) return events
+        }
+        pending = { line: item.line, lineNumber }
+      }
+    } catch (error: any) {
+      if (error?.code === 'ENOENT') return []
+      throw error
+    }
+    if (pending) {
+      try {
+        const event = JSON.parse(pending.line) as SessionEvent
+        if (event.seq >= fromSeq && event.seq <= toSeq) events.push(event)
+      } catch { /* tolerate only an incomplete final record */ }
+    }
+    return events
   }
 
   async read(sessionId: string): Promise<SessionEvent[]> {
