@@ -150,6 +150,7 @@ describe('LLMService enforces the budget before the call', () => {
       budgets: { requests: { task: { hard: 1 } } },
       sharedBudget: { databasePath: join(tempDir(), 'agent-task.sqlite'), projectId: 'agent-task-project' },
     })
+    await ctx.plugin(ToolRegistry)
     await ctx.plugin(AgentLoop)
     await ctx.agentLoop.run({ sessionId: 'agent-session', taskId: 'agent-task-1', prompt: 'first run', tools: [] })
     await expect(ctx.agentLoop.run({ sessionId: 'agent-session', taskId: 'agent-task-1', prompt: 'second run', tools: [] }))
