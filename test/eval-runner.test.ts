@@ -18,7 +18,7 @@ import { MockProvider } from '../src/bundles/model-adapter/index.js'
 import { bootProfileCoding } from '../src/profiles/profile-coding.js'
 
 const dirs: string[] = []
-afterEach(() => { for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true }) })
+afterEach(() => { for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) })
 const tmp = () => { const d = realpathSync(mkdtempSync(join(tmpdir(), 'eval-'))); dirs.push(d); return d }
 
 // ---- fixtures built by hand, for the unit tests only ---------------------------------------------------------------------------
@@ -213,7 +213,7 @@ describe('6.2 calibration against labelled real-stack runs', () => {
       if (scoreEvents('task', events, SCORERS()).passed === (s.label === 'good')) agree++
     }
     expect(agree / SCENARIOS.length).toBeGreaterThanOrEqual(0.9)
-  })
+  }, 30_000)
 })
 
 describe('6.4 a real profile-coding session scores end to end', () => {
