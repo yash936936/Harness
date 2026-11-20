@@ -1,4 +1,4 @@
-import { mkdir, rename, stat, writeFile } from 'node:fs/promises'
+import { mkdir, open, rename, stat, writeFile } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import { appendTextFileNoFollow, assertNoSymlinkParents, readTextFileNoFollow, readTextLinesNoFollow, readTextRangeNoFollow, truncateFileNoFollow } from '../../util/secure-file.js'
 import { withFileLock } from '../../util/filelock.js'
@@ -206,9 +206,12 @@ export class JsonlEpisodeStore implements EpisodeStore {
     const temporary = `${this.indexFile}.${process.pid}.${randomUUID()}.tmp`
     await assertNoSymlinkParents(this.indexFile)
     try {
-      await writeFile(temporary, '', { encoding: 'utf8', mode: 0o600, flag: 'wx' })
-      for (const entry of entries.values()) {
-        await appendTextFileNoFollow(temporary, JSON.stringify(entry) + '\n')
+      const handle = await open(temporary, 'wx', 0o600)
+      try {
+        for (const entry of entries.values()) await handle.write(JSON.stringify(entry) + '\n')
+        await handle.sync()
+      } finally {
+        await handle.close()
       }
       await assertNoSymlinkParents(this.indexFile)
       await rename(temporary, this.indexFile)
