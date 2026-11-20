@@ -1,5 +1,15 @@
 # Full codebase audit checklist
 
+## 2026-11-21 latest main and verified closeout
+
+- Current main: `0bbd15617f250d42484fd1164e383fda7aae7f5f`, PR #159 merged. Post-merge CI #44832920650 is running; PR-head CI #44832567598 passed all mandatory jobs.
+- PR #158 merged cross-process semantic acceptance: four writers, 200 facts, 50 deletions from another process, stale cursor rejection, 150 live facts after sidecar rebuild, and delete/reinsert ordering. PR-head CI #44831362470 and post-merge main CI #44831864535 passed.
+- PR #157 published semantic page benchmark evidence. Cold index rebuild p50/p95 4,310.982/4,404.561 ms; warm 50-row page p50/p95 19.953/25.641 ms (49,999), 18.225/25.586 ms (89,999), and 17.867/20.190 ms (99,899); sampled RSS delta 25,427,968/26,869,760 bytes. Measurement caveats are in `docs/architecture-contracts.md`.
+- PR #159 removes host `Subprocess` from both built-in profiles and disables host-backed retrieval/router configuration in `profile-coding`. Generic subprocess and retrieval bundles remain exported, so this is not the complete repository-wide D-110/D-117 audit.
+- Phase 4 remains unimplemented. The current transfer contract has manifest/change metadata but no bounded byte transport or governed apply protocol. Workspace runtime and live Vercel acceptance remain open.
+- The complete file-by-file/cross-folder audit remains incomplete; the 108-file scan and 424-file historical count below are triage evidence only.
+
+
 ## 2026-11-21 D-117 router executable path update
 
 - Neither `profile-coding` nor `profile-minimal` registers the host `Subprocess` service. Both reject attempts to configure host subprocess execution; `profile-coding` also rejects `router.needle` and host-backed `retrieval.grep`, `retrieval.rank`, and `retrieval.tools`. It no longer constructs `CommandBackend`, `RetrievalGrep`, or `RetrievalRank`. Tree-sitter parsing remains available without launching a host process.
@@ -16,14 +26,14 @@ Current main before this audit loop: `2a2a60315a1e6db8b448c9c7d48a460c5bfb75b5` 
 - Phase 2 follow-ups AUD-056 through AUD-059 are closed by PR #140. Run #918 passed the Ubuntu/Windows Node 20/22 matrix. Legacy budget import, explicit task identity, shared task reservations, and LLMService shared-SQLite integration tests are present.
 - Phase 3 PRs #141, #142, #148, and #150 are merged. PR #150's merge-commit CI run #44822435655 passed mandatory checks. PR #151 reconciled roadmap/state and its CI run #44822718826 passed. PR #156 adds cursor-indexed semantic pages.
 - CI run #44826849470 refreshed 100k episodic, 1,740-chunk indexing, and 2,000-fact semantic reindex measurements. Current numbers and caveats are recorded in `docs/architecture-contracts.md`.
-- The 100k-event semantic page benchmark ran in architecture job #44828389243 with 25k deletions and one reinsertion. Warm 50-row page p50/p95 was 19.953/25.641 ms (cursor 49,999), 18.225/25.586 ms (89,999), and 17.867/20.190 ms (99,899); cold index build was 4,310.982/4,404.561 ms p50/p95. Concurrent writers, crash recovery, and cross-process cache invalidation remain untested. Do not close the semantic performance audit before those stress tests pass.
+- The 100k-event semantic page benchmark ran in architecture job #44828389243 with 25k deletions and one reinsertion. Warm 50-row page p50/p95 was 19.953/25.641 ms (cursor 49,999), 18.225/25.586 ms (89,999), and 17.867/20.190 ms (99,899); cold index build was 4,310.982/4,404.561 ms p50/p95. PR #158 subsequently added and passed independent-process concurrent writer/deletion, cursor invalidation, sidecar rebuild, and reinsert-order tests. Crash-during-write/restart recovery, cross-process session-log/cache recovery, and large-file memory bounds remain open.
 - The main tree at the PR #156 merge contained 424 tracked files. The earlier 108-file source scan was only a triage pass. The full file-by-file and cross-folder audit remains incomplete, and folder-ledger checkboxes remain open until call paths, tests, configuration, and docs are traced.
 
 ### D-110 / D-117 host-execution trace (in progress)
 
 Verified current paths:
 - `src/cli/code.ts` hard-filters `run_command`, `search_code`, and `list_files` from the coding CLI tool offer and records that command execution is disabled under D-110.
-- `src/profiles/profile-coding.ts` rejects any `sandbox` configuration, registers `LocalTools` with `enableCommand: false`, and no longer loads `Subprocess`, `RetrievalGrep`, `RetrievalRank`, or `RetrievalTools` under D-117.
+- `src/profiles/profile-coding.ts` rejects any `sandbox` configuration, registers `LocalTools` with `enableCommand: false`, and no longer loads `Subprocess`, `RetrievalGrep`, `RetrievalRank`, or `RetrievalTools` under D-117. PR #159 also removes `Subprocess` from `profile-minimal`.
 - `src/bundles/tools-local/command.ts` delegates only to `Sandbox.run()`; it does not spawn a host process. The hardened Git configuration probe also uses the sandbox seam. Built-in profiles do not expose `ctx.subprocess`.
 - `src/bundles/sandbox/index.ts` requires explicit provider selection unless an explicit default is registered, and checks project consent plus host allowlisting for remote providers.
 - `src/bundles/sandbox-crabbox/index.ts` still contains a provider implementation backed by host `Subprocess`, but the coding profile rejects sandbox-provider configuration and D-110 permanently holds Crabbox. Its presence in the source tree is not proof of runtime reachability.
