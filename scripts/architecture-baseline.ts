@@ -162,7 +162,7 @@ try {
   }
 
   const report = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     generatedAt: new Date().toISOString(),
     environment: {
       node: process.version,
