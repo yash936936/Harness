@@ -275,15 +275,17 @@ export class SemanticFactStore {
     return this.dir ? (await this.ensureIndex()).sourceBytes : this.memoryRevision
   }
 
-  async page(afterId: string | undefined, limit: number): Promise<{ items: SemanticFact[]; sourceBytes: number }> {
+  async page(afterId: string | undefined, limit: number, expectedSourceBytes?: number): Promise<{ items: SemanticFact[]; sourceBytes: number }> {
     if (!Number.isSafeInteger(limit) || limit < 1) throw new MemoryError('memory: semantic page limit must be a positive safe integer')
     if (!this.dir) {
+      if (expectedSourceBytes !== undefined && expectedSourceBytes !== this.memoryRevision) throw new MemoryError('memory: semantic page cursor is stale because the source changed')
       const values = [...this.memoryFacts.values()]
       const start = afterId === undefined ? 0 : values.findIndex((fact) => fact.id === afterId) + 1
       if (afterId !== undefined && start === 0) throw new MemoryError('memory: semantic page cursor is stale')
       return { items: values.slice(start, start + limit).map((fact) => structuredClone(fact)), sourceBytes: this.memoryRevision }
     }
     const index = await this.ensureIndex()
+    if (expectedSourceBytes !== undefined && expectedSourceBytes !== index.sourceBytes) throw new MemoryError('memory: semantic page cursor is stale because the source changed')
     let started = afterId === undefined
     let cursorFound = started
     const items: SemanticFact[] = []

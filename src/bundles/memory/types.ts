@@ -164,6 +164,12 @@ export interface SemanticFact {
   updatedTs?: string
 }
 
+export interface SemanticPage {
+  items: SemanticFact[]
+  /** Opaque keyset cursor. Omitted when no further facts exist. */
+  nextCursor?: string
+}
+
 export interface SemanticHit {
   fact: SemanticFact
   /** Cosine similarity of the query to the fact text. Higher is better. */

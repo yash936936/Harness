@@ -2,7 +2,7 @@ import { Service, type Context } from 'cordis'
 import { SemanticFactStore, type SemanticReindexCheckpoint } from './semantic-store.js'
 import { randomUUID } from 'node:crypto'
 import type { VectorCollection } from '../vectorstore-lancedb/index.js'
-import { MemoryError, type SemanticConfig, type SemanticFact, type SemanticFailure, type SemanticHit } from './types.js'
+import { MemoryError, type SemanticConfig, type SemanticFact, type SemanticFailure, type SemanticHit, type SemanticPage } from './types.js'
 
 declare module 'cordis' {
   interface Context {
@@ -321,6 +321,39 @@ export class MemorySemantic extends Service {
       }
     }
     return true
+  }
+
+  /**
+   * Return a stable keyset page. Cursors are opaque and bound to the source
+   * revision, so a mutation between requests fails closed instead of silently
+   * skipping or repeating facts.
+   */
+  async page(opts: { cursor?: string; limit?: number } = {}): Promise<SemanticPage> {
+    const limit = opts.limit ?? 50
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 1000) throw new MemoryError('memory: semantic page limit must be an integer from 1 to 1000')
+    if (opts.cursor !== undefined && (typeof opts.cursor !== 'string' || opts.cursor.length > 4096)) throw new MemoryError('memory: semantic page cursor is invalid')
+    let afterId: string | undefined
+    let expectedSourceBytes: number | undefined
+    if (opts.cursor !== undefined) {
+      try {
+        const decoded = JSON.parse(Buffer.from(opts.cursor, 'base64url').toString('utf8')) as { v?: unknown; id?: unknown; revision?: unknown }
+        if (decoded.v !== 1 || typeof decoded.id !== 'string' || !decoded.id || !Number.isSafeInteger(decoded.revision) || (decoded.revision as number) < 0) throw new Error('invalid cursor payload')
+        afterId = decoded.id
+        expectedSourceBytes = decoded.revision as number
+      } catch {
+        throw new MemoryError('memory: semantic page cursor is invalid')
+      }
+    }
+    return this.exclusive(async () => {
+      const result = await this.store.page(afterId, limit + 1, expectedSourceBytes)
+      const hasMore = result.items.length > limit
+      const items = result.items.slice(0, limit).map((fact) => this.safeFact(fact))
+      const last = items.at(-1)
+      const nextCursor = hasMore && last
+        ? Buffer.from(JSON.stringify({ v: 1, id: last.id, revision: result.sourceBytes })).toString('base64url')
+        : undefined
+      return { items, ...(nextCursor ? { nextCursor } : {}) }
+    })
   }
 
   async list(): Promise<SemanticFact[]> {
