@@ -243,6 +243,7 @@ export interface WorkspaceSession {
   readonly taskId: TaskId
   readonly sessionId: SessionId
   readonly provider: string
+  readonly ownerId: string
   readonly state: 'creating' | 'ready' | 'transferring' | 'running' | 'closing' | 'closed' | 'failed' | 'unknown'
   readonly leaseId?: ResourceId
   readonly fencingToken?: number
