@@ -168,10 +168,13 @@ export class WorkspaceRuntime {
   }
 
   private async assertCurrentLease(session: WorkspaceSession): Promise<{ leaseId: string; fencingToken: number }> {
-    if (!session.leaseId || !Number.isSafeInteger(session.fencingToken) || !await this.leases.isCurrent(session.leaseId, this.ownerId, session.fencingToken)) {
+    const leaseId = session.leaseId
+    const fencingToken = session.fencingToken
+    if (!leaseId || typeof fencingToken !== 'number' || !Number.isSafeInteger(fencingToken) ||
+        !await this.leases.isCurrent(leaseId, this.ownerId, fencingToken)) {
       throw new Error('workspace runtime: lease is not current for this owner')
     }
-    return { leaseId: session.leaseId, fencingToken: session.fencingToken }
+    return { leaseId, fencingToken }
   }
 
   private async transition(session: WorkspaceSession, expectedState: WorkspaceSession['state'], nextState: WorkspaceSession['state']): Promise<WorkspaceSession> {
