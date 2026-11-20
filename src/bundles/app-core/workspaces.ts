@@ -129,7 +129,7 @@ export class SQLiteWorkspaceStore implements WorkspaceSessionStore {
     if (!Number.isSafeInteger(input.fencingToken) || input.fencingToken < 1) throw new RangeError('workspace store: fencingToken must be a positive integer')
     const createdAt = timestamp('createdAt', input.createdAt)
     const expiresAt = timestamp('expiresAt', input.expiresAt)
-    if (expiresAt <= createdAt) throw new RangeError('workspace store: expiresAt must be after createdAt')
+    if (expiresAt <= createdAt || expiresAt <= this.now()) throw new RangeError('workspace store: expiresAt must be in the future and after createdAt')
     const requestHash = createHash('sha256').update(JSON.stringify({
       workspaceId, projectId, taskId, sessionId, provider, ownerId, leaseId,
       fencingToken: input.fencingToken, createdAt, expiresAt,
@@ -179,16 +179,17 @@ export class SQLiteWorkspaceStore implements WorkspaceSessionStore {
     })
   }
 
-  async listSessions(projectId: string, states?: readonly WorkspaceSession['state'][]): Promise<readonly WorkspaceSession[]> {
+  async listSessions(projectId: string, states?: readonly WorkspaceSession['state'][], limit = 100): Promise<readonly WorkspaceSession[]> {
     requiredString('projectId', projectId)
     if (states && states.some((state) => !SESSION_STATES.has(state))) throw new TypeError('workspace store: invalid session state filter')
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 1_000) throw new RangeError('workspace store: session list limit must be from 1 to 1000')
     await this.ready()
     return this.database.read((db) => {
       const rows = states?.length
-        ? query(db, `SELECT * FROM workspace_sessions WHERE project_id = ? AND state IN (${states.map(() => '?').join(',')}) ORDER BY created_at, workspace_id`, [projectId, ...states])
+        ? query(db, `SELECT * FROM workspace_sessions WHERE project_id = ? AND state IN (${states.map(() => '?').join(',')}) ORDER BY created_at, workspace_id LIMIT ?`, [projectId, ...states, limit])
         : states
           ? []
-          : query(db, 'SELECT * FROM workspace_sessions WHERE project_id = ? ORDER BY created_at, workspace_id', [projectId])
+          : query(db, 'SELECT * FROM workspace_sessions WHERE project_id = ? ORDER BY created_at, workspace_id LIMIT ?', [projectId, limit])
       return rows.map(toSession)
     })
   }
@@ -202,6 +203,7 @@ export class SQLiteWorkspaceStore implements WorkspaceSessionStore {
     if (!TRANSITIONS[input.expectedState].includes(input.nextState)) throw new Error(`workspace store: transition ${input.expectedState} -> ${input.nextState} is not allowed`)
     const expiresAt = input.expiresAt === undefined ? undefined : timestamp('expiresAt', input.expiresAt)
     const now = this.now()
+    if (expiresAt !== undefined && expiresAt <= now) throw new RangeError('workspace store: transitioned session expiry must be in the future')
     await this.ready()
     return this.database.transaction((db) => {
       const values: SQLiteValue[] = [input.nextState, now]
@@ -215,7 +217,7 @@ export class SQLiteWorkspaceStore implements WorkspaceSessionStore {
       db.run(sql, values)
       const row = query(db, 'SELECT * FROM workspace_sessions WHERE workspace_id = ?', [input.workspaceId])[0]
       if (!row) throw new Error('workspace store: session does not exist')
-      if (String(row['state']) !== input.nextState || Number(row['fencing_token']) !== input.fencingToken || String(row['owner_id']) !== input.ownerId) {
+      if (String(row['state']) !== input.nextState || Number(row['fencing_token']) !== input.fencingToken || String(row['owner_id']) !== input.ownerId || String(row['lease_id']) !== input.leaseId) {
         throw new Error('workspace store: stale owner or unexpected session state')
       }
       if (input.nextState === 'closed' || input.nextState === 'failed') {
@@ -236,7 +238,7 @@ export class SQLiteWorkspaceStore implements WorkspaceSessionStore {
     if (!Array.isArray(capability.operations) || capability.operations.length === 0 || capability.operations.some((op) => !OPERATIONS.has(op))) {
       throw new TypeError('workspace store: invalid capability operations')
     }
-    if (!Array.isArray(capability.pathPrefixes)) throw new TypeError('workspace store: pathPrefixes must be an array')
+    if (!Array.isArray(capability.pathPrefixes) || capability.pathPrefixes.length > 128) throw new TypeError('workspace store: pathPrefixes must be an array of at most 128 entries')
     const prefixes = capability.pathPrefixes.map((prefix) => canonicalPath(prefix, true))
     if (prefixes.some((prefix) => prefix === undefined) || new Set(prefixes).size !== prefixes.length) throw new TypeError('workspace store: pathPrefixes must be canonical and unique')
     const expiresAt = timestamp('capability expiresAt', capability.expiresAt)
@@ -252,9 +254,13 @@ export class SQLiteWorkspaceStore implements WorkspaceSessionStore {
         throw new Error('workspace store: capability exceeds session state or expiry')
       }
       const tokenHash = hashToken(token)
-      const prior = query(db, 'SELECT token_hash FROM workspace_capabilities WHERE capability_id = ?', [capabilityId])[0]
+      const prior = query(db, 'SELECT token_hash, workspace_id, project_id, task_id, session_id, operations_json, path_prefixes_json, expires_at FROM workspace_capabilities WHERE capability_id = ?', [capabilityId])[0]
       if (prior) {
-        if (String(prior['token_hash']) !== tokenHash) throw new Error('workspace store: capability ID already exists')
+        const same = String(prior['token_hash']) === tokenHash && String(prior['workspace_id']) === workspaceId &&
+          String(prior['project_id']) === projectId && String(prior['task_id']) === taskId && String(prior['session_id']) === sessionId &&
+          String(prior['operations_json']) === JSON.stringify([...new Set(capability.operations)]) &&
+          String(prior['path_prefixes_json']) === JSON.stringify(prefixes) && Number(prior['expires_at']) === expiresAt
+        if (!same) throw new Error('workspace store: capability ID already exists with different scope')
         return
       }
       db.run(
