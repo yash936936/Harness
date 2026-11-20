@@ -47,7 +47,7 @@ Current main baseline before this loop: `2a2a60315a1e6db8b448c9c7d48a460c5bfb75b
 
 ### Verified current state
 
-- PR #156 is merged. Its tombstone fix preserves semantic insertion order after deletion/reinsertion. CI run #44826849470 passed all 10 jobs, including Ubuntu/Windows with Node 20.19.0 and 22.12.0, typecheck, lint, tests, docs, dependency/security, license inventory, and architecture benchmarks.
+- PR #156 is merged. Its tombstone fix preserves semantic insertion order after deletion/reinsertion. CI run #44826849470 passed all 10 jobs, including Ubuntu/Windows with Node 20.19.0 and 22.12.0, typecheck, lint, tests, docs, dependency/security, license inventory, and architecture benchmarks. Post-merge main CI run #44827470725 also passed all 10 jobs.
 - Phase 2 shared SQLite coordination is implemented through PRs #128-140. The audit records PR #140 as closing the Windows Node 20 regression, legacy budget migration, explicit task identity/shared task reservations, and LLMService integration follow-ups. The historical PR #134 failure is superseded by the passing CI run #918.
 - Phase 3 has bounded session-log tail reads, indexed episodic identity and keyset pages, append-only semantic events, rebuildable semantic indexes, quotas, cursor invalidation, and checkpointed paged reindex. Phase 3 remains open for new semantic keyset page measurements, scale/failure testing, and the full audit.
 - CI run #44826849470 recorded current 100k episodic, 1,740-chunk indexing, and 2,000-fact semantic reindex measurements. Results and caveats are recorded in [architecture-contracts.md](architecture-contracts.md).
