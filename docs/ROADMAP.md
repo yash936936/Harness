@@ -39,9 +39,9 @@ Phase 3 memory/retrieval scaling and Phase 4 task-scoped workspace sessions rema
 
 Updated 2026-11-20, main `71499dea7af36995a8e7e636a88d196c8e89002f`. PRs #128-130 are merged. PR #130 integrates shared session/day hard reservations into the model-call path and its PR-head CI run #881 passed. The next Phase 2 slice is shared rate-limit windows and concurrency permits. This is the active implementation roadmap. Phase 0 is complete on the merged audit PR. Phase 1 contract artifacts are drafted and all four D-119 policy choices are approved and recorded. Numeric baselines now cover session logs, episodic memory, reservations (legacy negative control), retrieval indexing, semantic reindex, and fake-provider streaming. Shared SQLite runtime, task workspaces, live Vercel acceptance, and bounded total-memory/query paths remain open. Current project state and binding constraints are in [STATE.md](STATE.md); architecture decisions are in [decisions.md](decisions.md); detailed findings are tracked in [CODEBASE-AUDIT-CHECKLIST.md](CODEBASE-AUDIT-CHECKLIST.md).
 
-## 2026-11-21 unified completion loop
+## Historical snapshot: unified completion loop (PR #156 baseline)
 
-Current main baseline before this loop: `2a2a60315a1e6db8b448c9c7d48a460c5bfb75b5` (PR #156 merge commit).
+Main baseline at the time of this snapshot: `2a2a60315a1e6db8b448c9c7d48a460c5bfb75b5` (PR #156 merge commit).
 
 ### Verified current state
 
