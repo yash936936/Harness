@@ -182,6 +182,7 @@ export async function executePlan(deps: ExecutorDeps, plan: Plan, opts: ExecuteO
           let retryable = true
           try {
             const r = await agent.run(subtaskPrompt(valid, st, done, deps.maxResultChars), {
+              taskId: `${opts.taskId ?? runId}:${st.id}`,
               ...(opts.provider ? { provider: opts.provider } : {}),
               ...(opts.model ? { model: opts.model } : {}),
               ...(opts.signal ? { signal: opts.signal } : {}),
