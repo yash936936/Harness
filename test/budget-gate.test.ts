@@ -145,6 +145,17 @@ describe('LLMService enforces the budget before the call', () => {
     expect(status.requests.task.used).toBe(1)
   })
 
+  it('AgentLoop carries its explicit taskId into shared task reservations', async () => {
+    const { ctx } = await boot({
+      budgets: { requests: { task: { hard: 1 } } },
+      sharedBudget: { databasePath: join(tempDir(), 'agent-task.sqlite'), projectId: 'agent-task-project' },
+    })
+    await ctx.plugin(AgentLoop)
+    await ctx.agentLoop.run({ sessionId: 'agent-session', taskId: 'agent-task-1', prompt: 'first run', tools: [] })
+    await expect(ctx.agentLoop.run({ sessionId: 'agent-session', taskId: 'agent-task-1', prompt: 'second run', tools: [] }))
+      .rejects.toMatchObject({ kind: 'budget' })
+  })
+
   it('two LLMService instances share session reservations through SQLite', async () => {
     let started!: () => void
     let finish!: () => void
