@@ -2,7 +2,7 @@
 
 ## 2026-11-21 current verified state
 
-- Main commit: `0bbd15617f250d42484fd1164e383fda7aae7f5f`, PR #159 merged. Post-merge main CI #44832920650 is still running; do not claim its result until it completes.
+- Main commit: `0bbd15617f250d42484fd1164e383fda7aae7f5f`, PR #159 merged. Post-merge main CI #44832920650 passed all mandatory jobs.
 - PR #158 merged cross-process semantic acceptance. Four independent writers added 200 facts, a separate process deleted 50, and tests verified cursor invalidation, sidecar rebuild to 150 live facts, and delete/reinsert ordering. PR-head CI #44831362470 and post-merge main CI #44831864535 both passed.
 - PR #159 merged D-117 profile hardening. Neither built-in profile registers host `Subprocess`; `profile-coding` also rejects `router.needle` and disables host-backed `retrieval.grep`, `retrieval.rank`, and `retrieval.tools`. Regression tests verify the services are absent and configuration fails closed. PR-head CI #44832567598 passed.
 - PR #157's performance benchmark and CI reporting changes are merged. The informational `acceptance gates NOT RUN` job is explicitly not acceptance; `ci-pass` requires all mandatory jobs.
