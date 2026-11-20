@@ -173,7 +173,7 @@ export interface SemanticHit {
 export type SemanticFailure = { ok: false; error: { kind: string; detail: string } }
 
 export interface SemanticConfig {
-  /** Directory for `semantic.json` (the facts themselves). Omit to keep facts in-process. */
+  /** Directory for the append-only semantic event log and rebuildable indexes. A legacy semantic.json is retained as a migration backup. Omit to keep facts in-process. */
   path?: string
   /** Maximum outstanding serialized semantic operations, including the active operation. Default 256. */
   maxPendingOperations?: number
