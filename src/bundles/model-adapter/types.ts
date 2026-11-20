@@ -22,6 +22,8 @@ export interface CompletionRequest {
    * session, so "model-visible = logged" is structural, not a convention.
    */
   sessionId: string
+  /** Explicit logical task identity for shared task-scope budgets. Never inferred from sessionId. */
+  taskId?: string
   messages: Message[]
   system?: string
   tools?: ToolSpec[]
