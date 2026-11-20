@@ -56,7 +56,10 @@ function isoTimestamp(name: string, value: string): number {
 }
 
 function sameStrings(left: readonly string[], right: readonly string[]): boolean {
-  return left.length === right.length && [...left].sort().every((value, index) => value === [...right].sort()[index])
+  if (left.length !== right.length) return false
+  const a = [...left].sort()
+  const b = [...right].sort()
+  return a.every((value, index) => value === b[index])
 }
 
 function validateCommand(command: WorkspaceCommand, maxTimeoutMs: number, maxOutputBytes: number): void {
@@ -281,14 +284,21 @@ export class WorkspaceRuntime {
       pathPrefixes: input.pathPrefixes,
       ttlMs: input.ttlMs,
     })
-    const capabilityExpiry = isoTimestamp('capability expiry', capability.expiresAt)
-    if (capability.workspaceId !== workspaceId || capability.projectId !== this.projectId ||
-        capability.taskId !== session.taskId || capability.sessionId !== session.sessionId ||
-        capability.fencingToken !== lease.fencingToken ||
-        !sameStrings(capability.operations, input.operations) || !sameStrings(capability.pathPrefixes, input.pathPrefixes) ||
-        capabilityExpiry <= now || capabilityExpiry > now + input.ttlMs || capabilityExpiry > sessionExpiry ||
-        !await this.leases.isCurrent(lease.leaseId, this.ownerId, lease.fencingToken)) {
-      try { await this.provider.revoke(capability.capabilityId, 'provider returned an invalid capability scope') } catch { /* local grant was never stored */ }
+    let capabilityExpiry = 0
+    let validCapability = false
+    try {
+      capabilityExpiry = isoTimestamp('capability expiry', capability.expiresAt)
+      validCapability = capability.workspaceId === workspaceId && capability.projectId === this.projectId &&
+        capability.taskId === session.taskId && capability.sessionId === session.sessionId &&
+        capability.fencingToken === lease.fencingToken &&
+        sameStrings(capability.operations, input.operations) && sameStrings(capability.pathPrefixes, input.pathPrefixes) &&
+        capabilityExpiry > now && capabilityExpiry <= now + input.ttlMs && capabilityExpiry <= sessionExpiry &&
+        await this.leases.isCurrent(lease.leaseId, this.ownerId, lease.fencingToken)
+    } catch { validCapability = false }
+    if (!validCapability) {
+      if (typeof capability.capabilityId === 'string' && capability.capabilityId) {
+        try { await this.provider.revoke(capability.capabilityId, 'provider returned an invalid capability scope') } catch { /* local grant was never stored */ }
+      }
       throw new Error('workspace runtime: provider returned a capability outside the requested scope')
     }
     try {
@@ -395,6 +405,13 @@ export class WorkspaceRuntime {
         })
       } catch { /* retain the current state if the lease/fence changed */ }
       throw error
+    }
+    if (typeof result.confirmed !== 'boolean') {
+      await this.sessions.transitionSession({
+        workspaceId, ownerId: this.ownerId, leaseId: lease.leaseId, fencingToken: lease.fencingToken,
+        expectedState: 'closing', nextState: 'unknown',
+      })
+      throw new Error('workspace runtime: provider returned an invalid close confirmation')
     }
     await this.sessions.transitionSession({
       workspaceId,
