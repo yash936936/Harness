@@ -285,6 +285,7 @@ export class SQLiteWorkspaceStore implements WorkspaceSessionStore {
     const projectId = requiredString('projectId', capability.projectId)
     const taskId = requiredString('taskId', capability.taskId)
     const sessionId = requiredString('sessionId', capability.sessionId)
+    if (!Number.isSafeInteger(capability.fencingToken) || capability.fencingToken < 1) throw new RangeError('workspace store: capability fencingToken must be a positive integer')
     if (!Array.isArray(capability.operations) || capability.operations.length === 0 || capability.operations.some((op) => !OPERATIONS.has(op))) {
       throw new TypeError('workspace store: invalid capability operations')
     }
@@ -300,7 +301,7 @@ export class SQLiteWorkspaceStore implements WorkspaceSessionStore {
       if (!session || String(session['project_id']) !== projectId || String(session['task_id']) !== taskId || String(session['session_id']) !== sessionId) {
         throw new Error('workspace store: capability does not match a stored task session')
       }
-      if (!['ready', 'transferring', 'running'].includes(String(session['state'])) || expiresAt > Number(session['expires_at'])) {
+      if (!['ready', 'transferring', 'running'].includes(String(session['state'])) || expiresAt > Number(session['expires_at']) || capability.fencingToken !== Number(session['fencing_token'])) {
         throw new Error('workspace store: capability exceeds session state or expiry')
       }
       const tokenHash = hashToken(token)
@@ -308,7 +309,7 @@ export class SQLiteWorkspaceStore implements WorkspaceSessionStore {
       if (prior) {
         if (prior['revoked_at'] !== null && prior['revoked_at'] !== undefined) throw new Error('workspace store: revoked capability IDs cannot be reissued')
         const same = String(prior['token_hash']) === tokenHash && String(prior['workspace_id']) === workspaceId &&
-          String(prior['project_id']) === projectId && String(prior['task_id']) === taskId && String(prior['session_id']) === sessionId && Number(prior['fencing_token']) === Number(session['fencing_token']) &&
+          String(prior['project_id']) === projectId && String(prior['task_id']) === taskId && String(prior['session_id']) === sessionId && Number(prior['fencing_token']) === capability.fencingToken &&
           String(prior['operations_json']) === JSON.stringify([...new Set(capability.operations)]) &&
           String(prior['path_prefixes_json']) === JSON.stringify(prefixes) && Number(prior['expires_at']) === expiresAt
         if (!same) throw new Error('workspace store: capability ID already exists with different scope')
@@ -316,7 +317,7 @@ export class SQLiteWorkspaceStore implements WorkspaceSessionStore {
       }
       db.run(
         'INSERT INTO workspace_capabilities (capability_id, token_hash, workspace_id, project_id, task_id, session_id, fencing_token, operations_json, path_prefixes_json, expires_at, revoked_at, revoke_reason, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?)',
-        [capabilityId, tokenHash, workspaceId, projectId, taskId, sessionId, Number(session['fencing_token']), JSON.stringify([...new Set(capability.operations)]), JSON.stringify(prefixes), expiresAt, now],
+        [capabilityId, tokenHash, workspaceId, projectId, taskId, sessionId, capability.fencingToken, JSON.stringify([...new Set(capability.operations)]), JSON.stringify(prefixes), expiresAt, now],
       )
     })
   }
