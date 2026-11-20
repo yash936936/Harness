@@ -323,12 +323,16 @@ describe('LLMService shared SQLite rate-limit integration', () => {
     let peak = 0
     const makeProvider = (text: string) => {
       const provider = new MockProvider(() => ({ text, usage: { inputTokens: 1, outputTokens: 1 } }))
-      provider.complete = async () => {
+      const originalComplete = provider.complete.bind(provider)
+      provider.complete = async (request) => {
         active++
         peak = Math.max(peak, active)
-        await new Promise((resolve) => setTimeout(resolve, 40))
-        active--
-        return { text, usage: { inputTokens: 1, outputTokens: 1 } }
+        try {
+          await new Promise((resolve) => setTimeout(resolve, 40))
+          return await originalComplete(request)
+        } finally {
+          active--
+        }
       }
       return provider
     }
