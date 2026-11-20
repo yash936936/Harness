@@ -128,7 +128,7 @@ export class MemorySemantic extends Service {
     // Avoid paying for an embedding when the semantic tier is empty. Check under
     // the same cross-process lock used by mutations, then recheck before reading
     // the index because the facts may change while the provider is embedding.
-    const empty = await this.exclusive(() => this.store.count() === 0)
+    const empty = await this.exclusive(async () => (await this.store.count()) === 0)
     if (empty) return { ok: true, hits: [], stale: false }
     const emb = await this.ctx.embeddings.embed([text], { kind: 'query' })
     if (!emb.ok) return { ok: false, error: { kind: `embedding_${emb.error.kind}`, detail: emb.error.detail } }
