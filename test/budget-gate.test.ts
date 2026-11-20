@@ -129,6 +129,22 @@ describe('LLMService enforces the budget before the call', () => {
     expect(provider.calls).toHaveLength(0)
   })
 
+  it('requires explicit taskId and shares task reservations across LLMService instances', async () => {
+    const databasePath = join(tempDir(), 'task-state.sqlite')
+    const config: ModelAdapterConfig = {
+      budgets: { requests: { task: { hard: 1 } }, tokens: { task: { hard: 10_000 } } },
+      sharedBudget: { databasePath, projectId: 'shared-task-project' },
+    }
+    const first = await boot(config)
+    const second = await boot(config)
+    await expect(first.ctx.llm.complete(req())).rejects.toMatchObject({ kind: 'config' })
+    await first.ctx.llm.complete(req({ taskId: 'task-42' }))
+    await expect(second.ctx.llm.complete(req({ taskId: 'task-42' }))).rejects.toMatchObject({ kind: 'budget' })
+    await expect(second.ctx.llm.complete(req({ taskId: 'task-43' }))).resolves.toBeTruthy()
+    const status = await second.ctx.llm.budget!.statusAsync('s', 'task-42')
+    expect(status.requests.task.used).toBe(1)
+  })
+
   it('two LLMService instances share session reservations through SQLite', async () => {
     let started!: () => void
     let finish!: () => void
