@@ -59,10 +59,13 @@ function registerTestSandbox(ctx: any): void {
 describe('boot', () => {
   it('boots the whole stack and registers the real tools with their classes', async () => {
     const ctx = await bootProfileCoding(cfg(project()))
-    for (const s of ['log', 'egress', 'llm', 'tools', 'agentLoop', 'memory', 'subagents', 'policy', 'inputGuard', 'retrievalGrep', 'retrievalRank', 'retrievalTools', 'localTools', 'orchestrator'])
+    for (const s of ['log', 'egress', 'llm', 'tools', 'agentLoop', 'memory', 'subagents', 'policy', 'inputGuard', 'localTools', 'orchestrator'])
       expect((ctx as any)[s], s).toBeTruthy()
     expect((ctx as any).skills).toBeUndefined() // never auto-discovered
     expect((ctx as any).subprocess).toBeUndefined() // D-117: no host subprocess service in the coding profile
+    expect((ctx as any).retrievalGrep).toBeUndefined() // no host ripgrep process
+    expect((ctx as any).retrievalRank).toBeUndefined()
+    expect((ctx as any).retrievalTools).toBeUndefined()
     const by = Object.fromEntries(ctx.tools.list().map((t) => [t.name, t.actionClass]))
     expect(by).toEqual({ read_file: 'read-only', edit_file: 'real-fs-write', write_file: 'real-fs-write' })
     expect(by).not.toHaveProperty('search_code')
@@ -434,12 +437,13 @@ describe('ARCH-04 / BUG-11: a service that fails to start is named at boot', () 
   it('a parser that fails to construct fails the whole boot (never a half-built profile)', async () => {
     await expect(bootProfileCoding(cfg(project(), { retrieval: { treesitter: { languages: ['cobol' as any] } } }))).rejects.toThrow(/unsupported language|retrievalParse/)
   })
-  it('the SILENT case: a plugin whose dependency is absent never starts and never throws, so the manifest must catch it', async () => {
-    const { RetrievalRank } = await import('../src/bundles/retrieval-rank/index.js')
-    const ctx = new Context()
-    await ctx.plugin(RetrievalRank, { root: '/tmp' }) // needs retrievalGrep + retrievalParse; neither exists
+  it('does not load host-backed project search and rejects its configuration under D-117', async () => {
+    const ctx = await bootProfileCoding(cfg(project()))
+    expect((ctx as any).retrievalGrep).toBeUndefined()
     expect((ctx as any).retrievalRank).toBeUndefined()
-    expect(missingServices(ctx, false)).toEqual(expect.arrayContaining(['retrievalParse', 'retrievalRank']))
+    expect((ctx as any).retrievalTools).toBeUndefined()
+    await expect(bootProfileCoding(cfg(project(), { retrieval: { grep: {} } as any })))
+      .rejects.toThrow(/retrieval\.grep is disabled under D-117/)
   })
   it('the manifest includes retrievalParse, router and sandbox', async () => {
     const { CODING_REQUIRED_SERVICES } = await import('../src/profiles/profile-coding.js')
