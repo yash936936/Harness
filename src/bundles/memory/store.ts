@@ -160,6 +160,7 @@ export class JsonlEpisodeStore implements EpisodeStore {
   private async rebuildIndex(): Promise<Map<string, EpisodeIndexEntry>> {
     const entries = new Map<string, EpisodeIndexEntry>()
     let offset = 0
+    let validFinalRecordWithoutNewline = false
     try {
       for await (const item of readTextLinesNoFollow(this.file)) {
         const lineBytes = Buffer.byteLength(item.line, 'utf8')
@@ -177,8 +178,10 @@ export class JsonlEpisodeStore implements EpisodeStore {
           throw new Error('memory: corrupt episodic.jsonl before final record; refusing to rebuild its identity index')
         }
         entries.set(episode.id, { id: episode.id, offset, length: lineBytes })
+        validFinalRecordWithoutNewline = !item.newline
         offset += lineBytes + (item.newline ? 1 : 0)
       }
+      if (validFinalRecordWithoutNewline) await appendTextFileNoFollow(this.file, '\\n')
     } catch (error: any) {
       if (error?.code !== 'ENOENT') throw error
     }
