@@ -258,6 +258,32 @@ describe('memory: episodic tier (3.1)', () => {
     expect(await q({ outcome: 'error' })).toEqual([])
   })
 
+  it('pages episodic history with stable ascending and descending keyset cursors', async () => {
+    const dir = await tmp()
+    const ctx = await boot([], { path: dir })
+    const session = ctx.log.create('page')
+    for (let i = 0; i < 13; i++) {
+      await ctx.log.append(session, 'test', { i })
+      const seq = (await ctx.log.resume(session)).nextSeq - 1
+      await ctx.memory.episodic.record({ sessionId: session, task: `task ${i}`, fromSeq: seq, toSeq: seq, outcome: 'done', result: String(i) })
+    }
+    const collect = async (order: 'asc' | 'desc') => {
+      const ids: string[] = []
+      let cursor: string | undefined
+      do {
+        const page = await ctx.memory.episodic.page({ order }, { limit: 4, ...(cursor ? { cursor } : {}) })
+        ids.push(...page.items.map((item) => item.id))
+        cursor = page.nextCursor
+      } while (cursor)
+      return ids
+    }
+    const all = await ctx.memory.episodic.query()
+    expect(await collect('asc')).toEqual(all.map((item) => item.id))
+    expect(await collect('desc')).toEqual(all.slice().reverse().map((item) => item.id))
+    await expect(ctx.memory.episodic.page({}, { limit: 501 })).rejects.toThrow(/page limit/)
+    await expect(ctx.memory.episodic.page({}, { cursor: 'not-a-cursor' })).rejects.toThrow(/invalid episode page cursor/)
+  })
+
   it('returns limited query results in the same stable order as an unbounded query', async () => {
     const dir = await tmp()
     const ctx = await boot([], { path: dir })
