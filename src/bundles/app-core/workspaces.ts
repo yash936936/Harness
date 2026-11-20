@@ -303,8 +303,9 @@ export class SQLiteWorkspaceStore implements WorkspaceSessionStore {
         throw new Error('workspace store: capability exceeds session state or expiry')
       }
       const tokenHash = hashToken(token)
-      const prior = query(db, 'SELECT token_hash, workspace_id, project_id, task_id, session_id, fencing_token, operations_json, path_prefixes_json, expires_at FROM workspace_capabilities WHERE capability_id = ?', [capabilityId])[0]
+      const prior = query(db, 'SELECT token_hash, workspace_id, project_id, task_id, session_id, fencing_token, operations_json, path_prefixes_json, expires_at, revoked_at FROM workspace_capabilities WHERE capability_id = ?', [capabilityId])[0]
       if (prior) {
+        if (prior['revoked_at'] !== null && prior['revoked_at'] !== undefined) throw new Error('workspace store: revoked capability IDs cannot be reissued')
         const same = String(prior['token_hash']) === tokenHash && String(prior['workspace_id']) === workspaceId &&
           String(prior['project_id']) === projectId && String(prior['task_id']) === taskId && String(prior['session_id']) === sessionId && Number(prior['fencing_token']) === Number(session['fencing_token']) &&
           String(prior['operations_json']) === JSON.stringify([...new Set(capability.operations)]) &&
