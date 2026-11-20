@@ -14,6 +14,7 @@ import { buildDoctorReport, type DoctorReport, type EgressStatusSource, type Mod
 import type { LLMProvider } from '../model-adapter/types.js'
 
 export * from './budgets.js'
+export * from './workspaces.js'
 export * from './credentials.js'
 export * from './consent-copy.js'
 export * from './provider-connection.js'
