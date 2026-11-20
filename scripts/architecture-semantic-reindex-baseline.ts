@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { performance } from 'node:perf_hooks'
@@ -24,6 +24,11 @@ function stats(values: number[]) {
     p95: Number(percentile(values, 0.95).toFixed(3)),
     samples: values.length,
   }
+}
+
+async function fileBytes(path: string): Promise<number> {
+  try { return (await stat(path)).size }
+  catch (error: any) { if (error?.code === 'ENOENT') return 0; throw error }
 }
 
 function makeFacts(): SemanticFact[] {
@@ -99,10 +104,19 @@ async function runSample(root: string, sample: number) {
     const count = await opened.collection.count()
     if (!count.ok || count.count !== FACTS) throw new Error(`expected ${FACTS} vectors, got ${count.ok ? count.count : count.error.detail}`)
 
+    const eventLogBytes = await fileBytes(join(dataDir, 'semantic.events.jsonl'))
+    const identityIndexBytes = await fileBytes(join(dataDir, 'semantic.index.jsonl'))
+    const indexManifestBytes = await fileBytes(join(dataDir, 'semantic.index.meta.json'))
+    const checkpointBytes = await fileBytes(join(dataDir, 'semantic.reindex.checkpoint.json'))
+
     return {
       sample,
       facts: result.indexed,
       vectors: count.count,
+      eventLogBytes,
+      identityIndexBytes,
+      indexManifestBytes,
+      checkpointBytes,
       elapsedMs: Number(elapsedMs.toFixed(3)),
       factsPerSecond: Number((result.indexed / (elapsedMs / 1000)).toFixed(1)),
       embeddingRequests: batchSizes.length,
@@ -125,7 +139,7 @@ try {
   const samples = []
   for (let sample = 0; sample < SAMPLES; sample++) samples.push(await runSample(root, sample))
   const report = {
-    schemaVersion: 2,
+    schemaVersion: 3,
     generatedAt: new Date().toISOString(),
     environment: {
       node: process.version,
@@ -141,7 +155,8 @@ try {
       provider: 'deterministic local hashing embeddings (not a semantic-quality benchmark)',
       timing: 'MemorySemantic.reindex({ reset: true }); fixture generation and LanceDB module loading are outside the timed interval',
       memory: 'process RSS sampled every 5 ms during setup and reindex; process-wide, includes setup, and can miss short-lived peaks',
-      batching: 'MemorySemantic embeds and upserts one bounded batch at a time. The semantic fact source is still loaded as one JSON array; reindex is not yet paged or resumable.',
+      batching: 'MemorySemantic reads indexed fact pages and embeds/upserts one bounded batch at a time. Persistent reindex checkpoints are written after successful idempotent vector upserts and cleared only after a stable source version completes.',
+      storage: 'Append-only semantic.events.jsonl is authoritative; semantic.index.jsonl and semantic.index.meta.json are rebuildable projections. semantic.json is retained as a one-time migration backup.',
     },
     results: {
       elapsedMs: stats(samples.map((s) => s.elapsedMs)),
@@ -152,9 +167,13 @@ try {
       vectorUpserts: samples.map((s) => s.vectorUpserts),
       indexedFacts: samples.map((s) => s.facts),
       indexedVectors: samples.map((s) => s.vectors),
+      eventLogBytes: stats(samples.map((s) => s.eventLogBytes)),
+      identityIndexBytes: stats(samples.map((s) => s.identityIndexBytes)),
+      indexManifestBytes: stats(samples.map((s) => s.indexManifestBytes)),
+      checkpointBytesAfterCompletion: samples.map((s) => s.checkpointBytes),
       samples,
     },
-    interpretation: 'This measures bounded embedding and vector-upsert batches. The complete semantic fact array is still loaded in memory, and reindex restarts from the beginning after interruption; this is not paged or resumable reindexing.',
+    interpretation: 'This measures indexed, paged semantic reindex with bounded embedding/upsert batches and durable restart checkpoints. Event history is append-only and retained; the ID/text projection is rebuildable. RSS is process-wide and sampled, so short-lived peaks may be missed. The active searchable-fact quota is separate from durable event-history retention.'
   }
   const output = JSON.stringify(report, null, 2)
   console.log(output)

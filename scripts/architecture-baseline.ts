@@ -1,4 +1,4 @@
-import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { copyFile, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { performance } from 'node:perf_hooks'
@@ -105,9 +105,13 @@ try {
   }
 
   for (const count of [100_000]) {
+    const identityBuildTimings: number[] = []
     const duplicateTimings: number[] = []
+    const lookupTimings: number[] = []
     const queryTimings: number[] = []
     let fixtureBytes = 0
+    let identityIndexBytes = 0
+    let identityManifestBytes = 0
     for (let sample = 0; sample < SAMPLES; sample++) {
       const dir = join(root, `memory-${count}-${sample}`)
       await mkdir(dir)
@@ -117,9 +121,19 @@ try {
       const store = new JsonlEpisodeStore(dir)
       const duplicate = episode(50_000)
       let started = performance.now()
+      const indexed = await store.findById(duplicate.id)
+      identityBuildTimings.push(performance.now() - started)
+      if (!indexed) throw new Error('identity index build/lookup did not find the expected episode')
+      started = performance.now()
       const created = await store.add(duplicate)
       duplicateTimings.push(performance.now() - started)
       if (created) throw new Error('duplicate benchmark fixture was not recognized')
+      started = performance.now()
+      const found = await store.findById(duplicate.id)
+      lookupTimings.push(performance.now() - started)
+      if (!found) throw new Error('warm indexed lookup did not find the expected episode')
+      identityIndexBytes = (await stat(join(dir, 'episodic.index.jsonl'))).size
+      identityManifestBytes = (await stat(join(dir, 'episodic.index.meta.json'))).size
 
       const ctx = {
         egress: { redactValue: <T>(value: T): T => value },
@@ -131,11 +145,14 @@ try {
       if (hits.length !== 20) throw new Error(`selective query correctness failed: expected 20, got ${hits.length}`)
       observeRss()
     }
+    results.episodicIdentityIndexBuildAt100k = { ...stats(identityBuildTimings), fixtureBytes, identityIndexBytes, identityManifestBytes, sourceLogScannedOnceToBuild: true }
     results.episodicDuplicateCheckAt100k = {
       ...stats(duplicateTimings),
       fixtureBytes,
-      estimatedFullFileReadBytesPerCheck: fixtureBytes,
+      identityIndexBytes,
+      estimatedFullFileReadBytesPerWarmCheck: 0,
     }
+    results.episodicFindByIdAt100k = { ...stats(lookupTimings), fixtureBytes, identityIndexBytes, estimatedFullFileReadBytesPerWarmLookup: 0 }
     results.episodicSelectiveQueryAt100k = {
       ...stats(queryTimings),
       fixtureBytes,
@@ -145,7 +162,7 @@ try {
   }
 
   const report = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     generatedAt: new Date().toISOString(),
     environment: {
       node: process.version,
@@ -161,7 +178,7 @@ try {
       reservations: 'The separate reservation baseline measures the legacy process-local implementation as a negative control. Shared SQLite acceptance is not measurable until a transactional SQLite provider exists.',
       indexing: 'Measured separately by architecture-indexing-baseline.ts with a deterministic project tree and local hashing embeddings; the project-wide prepared chunk list remains in memory.',
       output: 'Measured separately by architecture-output-capture-baseline.ts using detached command log iteration and bounded fake chunks; live Vercel provider acceptance remains unverified.',
-      semanticReindex: 'Measured separately by architecture-semantic-reindex-baseline.ts with deterministic embeddings; full source facts remain loaded in memory and the vector-upsert path still needs paging review.',
+      semanticReindex: 'Measured separately by architecture-semantic-reindex-baseline.ts with deterministic embeddings; semantic facts are read in bounded pages and durable source-version checkpoints allow restart.',
     },
   }
   console.log(JSON.stringify(report, null, 2))

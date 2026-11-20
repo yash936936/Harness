@@ -49,6 +49,8 @@ export class MemorySemantic extends Service {
   private readonly collectionName: string
   private readonly maxText: number
   private readonly maxWhy: number
+  private readonly maxFacts: number
+  private readonly maxFactBytes: number
   private readonly now: () => Date
 
   constructor(ctx: Context, config: SemanticConfig = {}) {
@@ -65,6 +67,11 @@ export class MemorySemantic extends Service {
     this.collectionName = config.collection ?? 'memory-semantic'
     this.maxText = config.maxTextChars ?? 1000
     this.maxWhy = config.maxWhyChars ?? 500
+    this.maxFacts = config.maxFacts ?? 10_000
+    this.maxFactBytes = config.maxFactBytes ?? 8_192
+    if (!Number.isSafeInteger(this.maxFacts) || this.maxFacts < 1 || !Number.isSafeInteger(this.maxFactBytes) || this.maxFactBytes < 1) {
+      throw new MemoryError('memory: maxFacts and maxFactBytes must be positive safe integers')
+    }
     if (!Number.isSafeInteger(this.maxText) || this.maxText < 1 || !Number.isSafeInteger(this.maxWhy) || this.maxWhy < 1) {
       throw new MemoryError('memory: semantic maxTextChars and maxWhyChars must be positive safe integers')
     }
@@ -105,7 +112,7 @@ export class MemorySemantic extends Service {
       ts,
       ...(id ? { updatedTs: ts } : {}),
     }
-    const result = await this.exclusive(() => this.store.put(fact))
+    const result = await this.exclusive(() => this.store.put(fact, { maxFacts: this.maxFacts, maxFactBytes: this.maxFactBytes }))
     if (!result.created) return { fact: this.safeFact(result.fact), created: false }
 
     const indexed = await this.indexOneIfCurrent(result.fact)

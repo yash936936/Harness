@@ -17,6 +17,7 @@ Composes the episodic and hot memory tiers behind `ctx.memory`. It records one l
 - `maxPendingEpisodeWrites` bounds outstanding writes to persistent episodic storage, including the active write. It defaults to 1024 and must be a positive safe integer.
 - `MemorySemantic` accepts `maxPendingOperations` to bound serialized semantic mutations and reads per service instance. It defaults to 256 outstanding operations and must be a positive safe integer.
 - `MemorySemantic` accepts `reindexBatchSize` to bound facts embedded and vector-upserted per reindex batch. It defaults to 64 and must be a positive safe integer.
+- Persistent and in-memory semantic stores enforce an active searchable-fact quota (`maxFacts`, default 10000) and a serialized per-fact byte cap (`maxFactBytes`, default 8192). At the active-fact cap, new IDs are rejected; replacing an existing ID remains allowed. These quotas never auto-delete durable history.
 - Persistent semantic facts use append-only `semantic.events.jsonl` plus rebuildable `semantic.index.jsonl` and `semantic.index.meta.json`. A validated legacy `semantic.json` array is imported once and retained unchanged as a backup. ID lookup, text deduplication, and semantic query hit hydration use indexed byte ranges.
 - `deriveLessons` defaults to false. When enabled, lessons are templated only from harness facts in the session log, never model or file text.
 - `injectHot` defaults to true. The hot tier is added as a system section at order 10.
@@ -37,7 +38,7 @@ Composes the episodic and hot memory tiers behind `ctx.memory`. It records one l
 - The persistent compaction ledger rejects symlinked parent/final paths and uses exclusive, unique temporary files for atomic replacement.
 - Semantic fact mutations and vector-index writes share a serialized lock. A delayed embedding cannot overwrite a newer same-ID fact, and a removal cannot delete a replacement's vector.
 - The semantic operation queue limit is per process and per service instance; it does not coordinate capacity across processes.
-- The semantic `list()` API still materializes every fact for compatibility. Persistent reindex reads bounded pages and stores a source-version/model-fingerprint checkpoint in `semantic.reindex.checkpoint.json`; vector upserts are idempotent, so a crash before checkpoint advancement safely repeats the last batch. A source change invalidates the checkpoint and returns a retryable error. Public semantic pagination and explicit searchable-fact quotas remain open.
+- The semantic `list()` API still materializes every fact for compatibility. Persistent reindex reads bounded pages and stores a source-version/model-fingerprint checkpoint in `semantic.reindex.checkpoint.json`; vector upserts are idempotent, so a crash before checkpoint advancement safely repeats the last batch. A source change invalidates the checkpoint and returns a retryable error. Public semantic pagination remains open. The active semantic index is held in a bounded ID/text map under the configurable fact quota; append-only event history is retained indefinitely by default.
 
 ---
 **Next:** Return to [`context.md`](../../context.md).

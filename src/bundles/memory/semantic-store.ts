@@ -211,12 +211,14 @@ export class SemanticFactStore {
     return id ? this.getFrom(id, index) : undefined
   }
 
-  async put(fact: SemanticFact): Promise<{ fact: SemanticFact; created: boolean }> {
+  async put(fact: SemanticFact, limits: { maxFacts: number; maxFactBytes: number }): Promise<{ fact: SemanticFact; created: boolean }> {
     if (!this.dir) {
       const duplicate = [...this.memoryFacts.values()].find((item) => textKey(item.text) === textKey(fact.text) && item.id !== fact.id)
       if (duplicate) return { fact: structuredClone(duplicate), created: false }
       const previous = this.memoryFacts.get(fact.id)
+      if (!previous && this.memoryFacts.size >= limits.maxFacts) throw new MemoryError(`memory: semantic searchable fact quota reached (maxFacts=${limits.maxFacts}); remove or revise an existing fact before adding another`)
       const stored = previous ? { ...fact, ts: previous.ts, updatedTs: fact.ts } : { ...fact, updatedTs: undefined }
+      if (Buffer.byteLength(JSON.stringify(stored), 'utf8') > limits.maxFactBytes) throw new MemoryError(`memory: semantic fact exceeds maxFactBytes=${limits.maxFactBytes}`)
       this.memoryFacts.set(stored.id, structuredClone(stored))
       this.memoryRevision++
       return { fact: structuredClone(stored), created: true }
@@ -228,7 +230,9 @@ export class SemanticFactStore {
       if (duplicate) return { fact: duplicate, created: false }
     }
     const previous = await this.getFrom(fact.id, index)
+    if (!previous && index.byId.size >= limits.maxFacts) throw new MemoryError(`memory: semantic searchable fact quota reached (maxFacts=${limits.maxFacts}); remove or revise an existing fact before adding another`)
     const stored = previous ? { ...fact, ts: previous.ts, updatedTs: fact.ts } : { ...fact, updatedTs: undefined }
+    if (Buffer.byteLength(JSON.stringify(stored), 'utf8') > limits.maxFactBytes) throw new MemoryError(`memory: semantic fact exceeds maxFactBytes=${limits.maxFactBytes}`)
     const line = JSON.stringify({ op: 'put', fact: stored } satisfies SemanticEvent) + '\n'
     const offset = index.sourceBytes, length = Buffer.byteLength(line, 'utf8') - 1
     await appendTextFileNoFollow(this.sourceFile, line)
