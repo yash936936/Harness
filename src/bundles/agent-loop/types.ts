@@ -30,6 +30,8 @@ export interface AgentLoopConfig {
 
 export interface RunTaskOptions {
   sessionId: string
+  /** Stable logical task identity used by shared task-scope budgets. */
+  taskId?: string
   actor?: string
   /** The task, as the first user message. */
   prompt: string
