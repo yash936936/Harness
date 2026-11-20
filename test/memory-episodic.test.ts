@@ -91,7 +91,11 @@ describe('memory: JSONL tail recovery', () => {
     const second = new JsonlEpisodeStore(dir)
     await expect(second.add(makeEpisode('one'))).resolves.toBe(false)
     await expect(second.findById('two')).resolves.toMatchObject({ id: 'two', task: 'two' })
-    expect(await readFile(join(dir, 'episodic.index.meta.json'), 'utf8')).toContain('"version":1')
+    await expect(second.queryPage!({}, undefined, 1)).resolves.toMatchObject({ items: [{ id: 'one' }], hasMore: true })
+    const index = await readFile(join(dir, 'episodic.index.jsonl'), 'utf8')
+    expect(index).toContain('"ts":"2026-11-07T00:00:00.000Z"')
+    expect(index).toContain('"task":"one"')
+    expect(await readFile(join(dir, 'episodic.index.meta.json'), 'utf8')).toContain('"version":2')
   })
 
   it('rebuilds a missing or corrupt episodic identity index from the authoritative log', async () => {
