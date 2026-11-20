@@ -1,6 +1,6 @@
 # Build plan
 
-Updated 2026-11-21 against main `0bbd15617f250d42484fd1164e383fda7aae7f5f` (PR #159 merged). Post-merge main CI #44832920650 is in progress. This is the active execution queue; detailed exit criteria are in [ROADMAP.md](ROADMAP.md), with evidence and blockers in [STATE.md](STATE.md).
+Updated 2026-11-21 against main `0bbd15617f250d42484fd1164e383fda7aae7f5f` (PR #159 merged). Post-merge main CI #44832920650 passed all mandatory jobs. This is the active execution queue; detailed exit criteria are in [ROADMAP.md](ROADMAP.md), with evidence and blockers in [STATE.md](STATE.md).
 
 ## Current work queue
 
