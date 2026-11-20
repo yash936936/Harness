@@ -348,7 +348,7 @@ export class WorkspaceRuntime {
 
   async execute(workspaceId: string, capability: WorkspaceCapability, command: WorkspaceCommand): Promise<WorkspaceCommandResult> {
     const session = await this.sessions.getSession(required('workspaceId', workspaceId))
-    if (!session || session.state !== 'ready') throw new Error('workspace runtime: session is not ready')
+    if (!session || session.provider !== this.provider.name || session.state !== 'ready') throw new Error('workspace runtime: session is not ready for this provider')
     const lease = await this.assertCurrentLease(session)
     if (!capability || !Array.isArray(capability.operations) || capability.fencingToken !== lease.fencingToken ||
         capability.workspaceId !== workspaceId || capability.projectId !== this.projectId || capability.taskId !== session.taskId ||
