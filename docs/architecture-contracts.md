@@ -214,6 +214,54 @@ No numeric estimate is substituted for live SDK-internal buffering or remote com
 
 The current-code baseline runner is `npm run bench:architecture` (also executed by the `architecture performance baseline` CI job). It records Node/platform/CPU metadata, fixture sizes, p50/p95 timings, file-size-based read-volume estimates, and observed RSS. It measures session-log append at 0/50k/100k events, episodic duplicate-check/selective-query at 100k episodes, independent-process reservations, deterministic indexing, and batched semantic reindex. Adapter-side bounded streaming measurements are recorded above; live SDK-internal buffering and cancel-at-cap remain unmeasured.
 
+## Current indexed-memory performance evidence: CI run #44826849470
+
+The run executed on Ubuntu x64 with Node v22.12.0 and 4 CPUs. It is a three-sample deterministic benchmark run from the merged PR #156 head. These results are current implementation measurements, not service-level production SLOs.
+
+### Retrieval indexing
+
+The fixture contains 31 files and 1,740 chunks, including one 540-chunk file; embedding groups are capped at 512 chunks. The local hashing provider is deterministic test infrastructure and does not measure semantic quality.
+
+| Measurement | p50 | p95 (maximum of 3 samples) |
+|---|---:|---:|
+| `indexFiles` elapsed time | 264.804 ms | 334.006 ms |
+| Throughput | 6,570.9 chunks/s | 7,144.8 chunks/s |
+| Observed process RSS delta | 12,451,840 bytes | 112,234,496 bytes |
+
+The implementation still prepares all readable files and chunks before embedding groups. A 512-chunk embedding group bounds each provider request, not the total prepared chunk list. The RSS maximum is a process-wide sample and includes native allocations; it is not attributable only to indexing.
+
+### Semantic reindex
+
+The fixture contains 2,000 persisted facts and verifies 2,000 vectors. Embedding and vector-upsert batches are 64 records, producing 32 requests and 32 upserts per sample. The deterministic local hashing provider does not measure semantic quality.
+
+| Measurement | p50 | p95 (maximum of 3 samples) |
+|---|---:|---:|
+| Reindex elapsed time | 921.177 ms | 997.219 ms |
+| Throughput | 2,171.1 facts/s | 2,272.8 facts/s |
+| Observed process RSS delta | 2,244,608 bytes | 67,596,288 bytes |
+
+The source event log is authoritative; the identity index and manifest are rebuildable. Reindex reads indexed fact pages, processes bounded embedding/upsert batches, and persists restart checkpoints after successful idempotent upserts. RSS is sampled every 5 ms during setup and reindex, so it is process-wide and can miss short-lived peaks. Three samples are not a stable tail estimate.
+
+### Session-log and episodic hot paths
+
+| Operation | Dataset | p50 | p95 |
+|---|---:|---:|---:|
+| Cold session append | 50k events | 47.505 ms | 69.078 ms |
+| Warm session append | 50k events | 1.362 ms | 1.742 ms |
+| Cold session append | 100k events | 93.372 ms | 95.211 ms |
+| Warm session append | 100k events | 1.326 ms | 1.519 ms |
+| Episodic index build | 100k episodes | 2,496.398 ms | 2,540.749 ms |
+| Warm duplicate check | 100k episodes | 0.988 ms | 1.224 ms |
+| Warm ID lookup | 100k episodes | 0.563 ms | 0.683 ms |
+| Indexed page, 50 records | 100k episodes | 36.209 ms | 37.412 ms |
+| Selective query | 100k episodes | 204.625 ms | 217.217 ms |
+
+The warm session append path reads no existing source bytes when its validated tail cursor remains valid. A cold append after cache invalidation reads the existing log. Episodic selective query still reads the full 27,635,492-byte source file in this benchmark; indexed page and identity lookup are bounded warm paths. These file-size estimates are not OS I/O counters.
+
+### Semantic keyset page benchmark
+
+A new `bench:semantic-page` workload is being added to measure a 100,000-event semantic source with 25,000 deletes and one delete/reinsert, then report cold index rebuild, warm 50-record pages from early/middle/late cursors, and sampled RSS. Its measurements are intentionally pending until the workflow runs. Do not infer page latency from episodic page results or from the semantic reindex benchmark.
+
 ## Approved deployment and operating policy
 
 The four D-119 owner decisions are approved and binding for the initial implementation:
