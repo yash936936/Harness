@@ -281,7 +281,7 @@ export class JsonlEpisodeStore implements EpisodeStore {
     }
     const sourceBytes = await this.fileSize(this.file)
     const indexBytes = await this.fileSize(this.indexFile)
-    await this.writeManifest({ version: 1, sourceBytes, indexBytes })
+    await this.writeManifest({ version: 2, sourceBytes, indexBytes })
     this.indexCache = { sourceBytes, indexBytes, entries }
     return entries
   }
