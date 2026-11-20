@@ -1,5 +1,13 @@
 # Full codebase audit checklist
 
+## 2026-11-21 D-117 router executable path update
+
+- The coding profile no longer accepts `router.needle` configuration or constructs the local `CommandBackend`. Startup now fails closed with a D-117-specific error if that key is supplied.
+- Regression coverage: `test/router.test.ts` verifies a configured host executable is rejected by `bootProfileCoding`.
+- The generic `CommandBackend` implementation remains exported for explicit non-profile consumers and still uses Node `spawn`. This change closes the default coding-profile path only; it does not close the repository-wide host-execution audit. Trace any direct construction by downstream applications and all other subprocess consumers before declaring D-117 complete.
+- The cloud-only Vercel workspace path remains unavailable until Phase 4 transfer, result synchronization, lifecycle, and policy integration pass.
+
+
 ## 2026-11-21 audit continuation baseline
 
 Current main before this audit loop: `2a2a60315a1e6db8b448c9c7d48a460c5bfb75b5` (PR #156 merged).
