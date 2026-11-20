@@ -63,6 +63,18 @@ interface EpisodeIndexEntry {
   outcome: Episode['outcome']
   task: string
 }
+function isIndexableEpisode(value: unknown): value is Episode {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const episode = value as Partial<Episode>
+  return typeof episode.id === 'string' && !!episode.id &&
+    typeof episode.ts === 'string' && Number.isFinite(Date.parse(episode.ts)) &&
+    typeof episode.sessionId === 'string' && !!episode.sessionId &&
+    typeof episode.agentId === 'string' && !!episode.agentId &&
+    typeof episode.task === 'string' &&
+    Number.isSafeInteger(episode.fromSeq) &&
+    (episode.outcome === 'done' || episode.outcome === 'max_steps' || episode.outcome === 'error')
+}
+
 interface EpisodeIndexManifest {
   version: 2
   sourceBytes: number
@@ -87,6 +99,7 @@ export class JsonlEpisodeStore implements EpisodeStore {
 
   async add(e: Episode): Promise<boolean> {
     const episode = structuredClone(e)
+    if (!isIndexableEpisode(episode)) throw new MemoryError('memory: invalid episode; required indexed fields are missing or malformed')
     if (this.pendingWrites >= this.maxPendingWrites) {
       throw new MemoryError(`memory: episodic write queue is full (${this.pendingWrites}/${this.maxPendingWrites})`)
     }
@@ -214,7 +227,10 @@ export class JsonlEpisodeStore implements EpisodeStore {
           continue
         }
         let episode: Episode
-        try { episode = JSON.parse(item.line) as Episode }
+        try {
+          episode = JSON.parse(item.line) as Episode
+          if (!isIndexableEpisode(episode)) throw new Error('invalid indexed episode fields')
+        }
         catch {
           if (!item.newline) {
             await truncateFileNoFollow(this.file, offset)
