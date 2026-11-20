@@ -1,5 +1,19 @@
 # Roadmap: Harness audit closeout and scalable architecture
 
+## 2026-11-21 unified Phase 3 execution
+
+PR #141 (bounded session-log range reads and episodic recording) and PR #142 (episodic keyset pagination) are merged. PR #142's corrected head passed CI run #924. Pagination is implemented, but persistent episodic identity indexing and bounded scan I/O are not complete.
+
+Execute the remaining Phase 3 work as one dependency-ordered program, with a separate reviewable PR and fresh mandatory CI for each storage boundary:
+
+1. **Loop 2 completion:** persistent episodic identity index, duplicate detection without a full JSONL scan on every append, and safe index rebuild after missing, corrupt, stale, or interrupted index writes. The episode log remains authoritative.
+2. **Loop 3:** replace whole-file semantic fact loading and rewriting with bounded, indexed durable storage. Preserve semantic.json through a validated, idempotent migration; never overwrite unreadable legacy data or perform uncoordinated dual writes.
+3. **Loop 4:** checkpoint semantic reindex progress durably. Make batches idempotent, detect source changes during a run, resume after restart, and support embedding-model reset without treating partial indexing as complete.
+4. **Loop 5:** define bounded searchable-memory quotas and explicit retention behavior. Durable history remains indefinite by default under D-119. Add crash/recovery, corruption, concurrency, quota, and restart tests, plus comparable performance baselines.
+5. **Final loop:** synchronize roadmap/state/audit documentation, review every changed path and cross-folder caller, run the full Ubuntu/Windows Node 20/22 matrix and all mandatory docs, security, dependency, license, and architecture checks.
+
+Do not mark Phase 3 complete until every loop above has merged with green mandatory CI and the storage recovery invariants have test evidence. CI's informational acceptance-gates job is not live provider acceptance. Live Vercel acceptance and Phase 4 task-scoped workspaces remain separate open gates.
+
 ## 2026-11-21 Phase 2 execution update
 
 Main baseline: `75574f337707460340bd2877c4a9b5a26ddaaef0`. PRs #134 and #135 are merged. PR #135 CI run #899 passed the mandatory matrix. PR #134 run #896 has one unresolved failure: Windows Node 20 `npm test`; the other three OS/runtime combinations passed. Cross-process acceptance therefore remains open.
