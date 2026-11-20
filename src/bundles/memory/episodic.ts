@@ -1,7 +1,7 @@
 // Records and queries per-turn episodic memory linked to session-log events.
 import type { Context } from 'cordis'
 import type { SessionEvent } from '../session-log/index.js'
-import { MemoryError, type Episode, type EpisodeQuery, type EpisodeStore, type RecordTurnInput } from './types.js'
+import { MemoryError, type Episode, type EpisodePage, type EpisodeQuery, type EpisodeStore, type RecordTurnInput } from './types.js'
 
 function clip(s: string, max: number): string {
   return s.length <= max ? s : s.slice(0, Math.max(0, max - 1)) + '…'
@@ -134,6 +134,67 @@ export class EpisodicMemory {
     items.sort(compareAsc)
     if (q.order === 'desc') items.reverse()
     return items
+  }
+
+
+  /**
+   * Return one bounded page using a stable keyset cursor. The scan is streaming
+   * and retains at most limit + 1 matching episodes, even for large histories.
+   */
+  async page(q: Omit<EpisodeQuery, 'limit'> = {}, opts: { limit?: number; cursor?: string } = {}): Promise<EpisodePage> {
+    const limit = opts.limit ?? 50
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500) {
+      throw new MemoryError('memory: episode page limit must be an integer from 1 to 500')
+    }
+    const descending = q.order === 'desc'
+    type Key = { ts: string; sessionId: string; fromSeq: number; id: string }
+    const keyOf = (e: Episode): Key => ({ ts: e.ts, sessionId: e.sessionId, fromSeq: e.fromSeq, id: e.id })
+    const compare = (a: Key, b: Key) =>
+      a.ts.localeCompare(b.ts) || a.sessionId.localeCompare(b.sessionId) || a.fromSeq - b.fromSeq || a.id.localeCompare(b.id)
+    let cursor: Key | undefined
+    if (opts.cursor) {
+      try {
+        const parsed = JSON.parse(Buffer.from(opts.cursor, 'base64url').toString('utf8')) as Key
+        if (!parsed || typeof parsed.ts !== 'string' || typeof parsed.sessionId !== 'string' ||
+          !Number.isSafeInteger(parsed.fromSeq) || typeof parsed.id !== 'string') throw new Error('invalid cursor')
+        cursor = parsed
+      } catch {
+        throw new MemoryError('memory: invalid episode page cursor')
+      }
+    }
+    const needle = q.task?.toLowerCase()
+    const selected: Episode[] = []
+    for await (const episode of this.iterate()) {
+      if ((q.sessionId !== undefined && episode.sessionId !== q.sessionId) ||
+        (q.agentId !== undefined && episode.agentId !== q.agentId) ||
+        (q.outcome !== undefined && episode.outcome !== q.outcome) ||
+        (needle !== undefined && !episode.task.toLowerCase().includes(needle)) ||
+        (q.from !== undefined && episode.ts < q.from) ||
+        (q.to !== undefined && episode.ts >= q.to)) continue
+      const key = keyOf(episode)
+      if (cursor) {
+        const relative = compare(key, cursor)
+        if (descending ? relative >= 0 : relative <= 0) continue
+      }
+      let low = 0
+      let high = selected.length
+      while (low < high) {
+        const middle = (low + high) >>> 1
+        const relative = compare(keyOf(selected[middle]!), key)
+        if ((descending ? -relative : relative) <= 0) low = middle + 1
+        else high = middle
+      }
+      selected.splice(low, 0, episode)
+      // Keep one look-ahead record so the page can tell whether another page exists.
+      if (selected.length > limit + 1) selected.pop()
+    }
+    const hasMore = selected.length > limit
+    if (hasMore) selected.pop()
+    const last = selected[selected.length - 1]
+    return {
+      items: selected,
+      ...(hasMore && last ? { nextCursor: Buffer.from(JSON.stringify(keyOf(last))).toString('base64url') } : {}),
+    }
   }
 
   /** True when the log still holds the events this entry points at. */

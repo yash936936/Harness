@@ -55,6 +55,12 @@ export interface EpisodeQuery {
   limit?: number
 }
 
+/** Stable keyset cursor for bounded episodic retrieval. Treat as opaque. */
+export interface EpisodePage {
+  items: Episode[]
+  nextCursor?: string
+}
+
 /** Storage backend. Append-only: there is no update or delete. */
 export interface EpisodeStore {
   /** Returns false (and writes nothing) when an entry with this id already exists. */
