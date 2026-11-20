@@ -342,7 +342,7 @@ export class Budgets {
 
 /* ---------------------------------------------------------------- shared SQLite reservations */
 
-const BUDGET_RESERVATION_MIGRATIONS: readonly SQLiteMigration[] = [{
+export const BUDGET_RESERVATION_MIGRATIONS: readonly SQLiteMigration[] = [{
   version: 1,
   id: 'budget-reservations',
   sql: `
@@ -483,6 +483,52 @@ const BUDGET_RESERVATION_MIGRATIONS: readonly SQLiteMigration[] = [{
       imported_at TEXT NOT NULL,
       PRIMARY KEY (project_id, day)
     );
+  `,
+}, {
+  version: 6,
+  id: 'task-scoped-workspace-sessions',
+  sql: `
+    CREATE TABLE workspace_sessions (
+      workspace_id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      task_id TEXT NOT NULL,
+      session_id TEXT NOT NULL,
+      provider TEXT NOT NULL,
+      state TEXT NOT NULL CHECK (state IN ('creating', 'ready', 'transferring', 'running', 'closing', 'closed', 'failed', 'unknown')),
+      owner_id TEXT NOT NULL,
+      lease_id TEXT NOT NULL,
+      fencing_token INTEGER NOT NULL CHECK (fencing_token > 0),
+      created_at INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      UNIQUE (project_id, task_id, session_id)
+    );
+    CREATE INDEX workspace_sessions_project_state
+      ON workspace_sessions (project_id, state, expires_at);
+    CREATE TABLE workspace_session_idempotency (
+      project_id TEXT NOT NULL,
+      idempotency_key TEXT NOT NULL,
+      request_hash TEXT NOT NULL,
+      workspace_id TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      PRIMARY KEY (project_id, idempotency_key)
+    );
+    CREATE TABLE workspace_capabilities (
+      capability_id TEXT PRIMARY KEY,
+      token_hash TEXT NOT NULL UNIQUE,
+      workspace_id TEXT NOT NULL,
+      project_id TEXT NOT NULL,
+      task_id TEXT NOT NULL,
+      session_id TEXT NOT NULL,
+      operations_json TEXT NOT NULL,
+      path_prefixes_json TEXT NOT NULL,
+      expires_at INTEGER NOT NULL,
+      revoked_at INTEGER,
+      revoke_reason TEXT,
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX workspace_capabilities_active
+      ON workspace_capabilities (workspace_id, revoked_at, expires_at);
   `,
 }]
 
