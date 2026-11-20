@@ -208,7 +208,7 @@ export class Memory extends Service {
   private async lessonFor(sessionId: string, fromSeq: number, toSeq: number, given: string | null | undefined): Promise<string | null | undefined> {
     if (given !== undefined) return given
     if (!this.deriveLessons) return undefined
-    return deriveLesson(await this.ctx.log.read(sessionId), fromSeq, toSeq)
+    return deriveLesson(await this.ctx.log.readRange(sessionId, fromSeq, toSeq), fromSeq, toSeq)
   }
 
   private async autoCompact(): Promise<void> {
