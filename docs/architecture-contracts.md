@@ -273,13 +273,13 @@ Ubuntu x64, Node v22.12.0, 4 CPUs. Three index-build samples and fifteen warm-pa
 
 Warm-page percentiles use 15 timings per cursor. Index-build and RSS percentiles use three samples, so p95 is the maximum observed sample, not a stable tail estimate. RSS is process-wide, sampled every 5 ms, and can miss short-lived peaks. Fixture creation is outside the timed interval. The benchmark also verifies that a deleted-and-reinserted fact moves to the end of insertion order.
 
-These results show that warm cursor page latency is similar at early, middle, and late positions for this workload. They do not establish constant-memory identity indexing: the semantic ID/text projection is still loaded in memory. They do not establish constant-memory identity indexing, crash-during-append recovery, process-restart recovery, cross-process session-log recovery, or large-file memory bounds. Those remain separate stress-test requirements.
+These results show that warm cursor page latency is similar at early, middle, and late positions for this workload. They do not establish constant-memory identity indexing: the semantic ID/text projection is still loaded in memory. Crash-during-append recovery, process-restart recovery, cross-process session-log recovery, and large-file memory bounds remain separate requirements.
 
 ### Cross-process semantic-store acceptance: PR #158
 
 PR #158 adds an independent-process test using four Node workers. Each worker writes 50 unique facts and acquires the store lock per operation. A separate worker deletes 50 facts. The test verifies 200 initial facts, invalidation of a cursor created before the external-process deletion, 150 remaining facts, rebuild of the missing sidecar index and manifest, and reinsertion of a deleted ID at the end of the ordered projection. The test passed in PR-head CI run #44831362470 on Ubuntu and Windows with Node 20.19 and 22.12; post-merge main CI run #44831864535 also passed.
 
-This does not establish crash-during-append recovery, concurrent process restart recovery, constant-memory semantic identity indexing, or large-file memory bounds. Those remain open Phase 3 requirements.
+This test establishes cross-process semantic write/delete and cursor invalidation only. It does not test crash-during-append or restart recovery.
 
 ## Approved deployment and operating policy
 
