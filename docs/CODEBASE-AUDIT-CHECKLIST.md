@@ -2,7 +2,7 @@
 
 ## 2026-11-21 latest main and verified closeout
 
-- Current main: `0bbd15617f250d42484fd1164e383fda7aae7f5f`, PR #159 merged. Post-merge CI #44832920650 is running; PR-head CI #44832567598 passed all mandatory jobs.
+- Current main: `0bbd15617f250d42484fd1164e383fda7aae7f5f`, PR #159 merged. Post-merge CI #44832920650 and PR-head CI #44832567598 both passed all mandatory jobs.
 - PR #158 merged cross-process semantic acceptance: four writers, 200 facts, 50 deletions from another process, stale cursor rejection, 150 live facts after sidecar rebuild, and delete/reinsert ordering. PR-head CI #44831362470 and post-merge main CI #44831864535 passed.
 - PR #157 published semantic page benchmark evidence. Cold index rebuild p50/p95 4,310.982/4,404.561 ms; warm 50-row page p50/p95 19.953/25.641 ms (49,999), 18.225/25.586 ms (89,999), and 17.867/20.190 ms (99,899); sampled RSS delta 25,427,968/26,869,760 bytes. Measurement caveats are in `docs/architecture-contracts.md`.
 - PR #159 removes host `Subprocess` from both built-in profiles and disables host-backed retrieval/router configuration in `profile-coding`. Generic subprocess and retrieval bundles remain exported, so this is not the complete repository-wide D-110/D-117 audit.
