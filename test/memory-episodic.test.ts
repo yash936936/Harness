@@ -52,6 +52,14 @@ describe('memory: JSONL tail recovery', () => {
   })
 
 
+  it('records and verifies an episode using only its linked session-log range', async () => {
+    const ctx = await boot([])
+    for (let i = 0; i < 20; i++) await ctx.log.append('range-episode', i === 11 ? 'tool.call' : 'noise', i === 11 ? { name: 'search' } : null)
+    const result = await ctx.memory.episodic.record({ sessionId: 'range-episode', task: 'bounded', fromSeq: 10, toSeq: 13, outcome: 'done', result: 'ok' })
+    expect(result.episode.approach).toBe('search')
+    expect(await ctx.memory.episodic.verifyLink(result.episode)).toBe(true)
+  })
+
   it('streams, counts, and looks up episodes without changing storage order', async () => {
     const dir = await tmp()
     const store = new JsonlEpisodeStore(dir)
