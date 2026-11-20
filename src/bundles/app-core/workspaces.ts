@@ -257,7 +257,7 @@ export class SQLiteWorkspaceStore implements WorkspaceSessionStore {
       if (alreadyAdopted) return toSession(row)
       if (String(row['owner_id']) !== input.expectedOwnerId || String(row['lease_id']) !== input.expectedLeaseId ||
           Number(row['fencing_token']) !== input.expectedFencingToken ||
-          ['closed', 'failed'].includes(String(row['state']))) {
+          ['closing', 'closed', 'failed'].includes(String(row['state']))) {
         throw new Error('workspace store: stale session cannot be adopted')
       }
       db.run(
