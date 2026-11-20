@@ -124,6 +124,24 @@ text
     expect(fail('---\nname: a\nmetadata:\n  deep:\n    x: 1\n---\n')).toMatch(/metadata/)
     expect(fail('---\nname a\n---\n')).toMatch(/expected "key: value"/)
   })
+
+  it('treats prototype-named YAML keys as ordinary own data without changing object prototypes', () => {
+    const r = ok(`---
+constructor: safe
+metadata:
+  __proto__: inert
+  constructor: safe-meta
+---
+`)
+    expect(Object.hasOwn(r.meta, 'constructor')).toBe(true)
+    expect(r.meta.constructor).toBe('safe')
+    const metadata = r.meta.metadata as Record<string, string>
+    expect(Object.getPrototypeOf(metadata)).toBe(Object.prototype)
+    expect(Object.hasOwn(metadata, '__proto__')).toBe(true)
+    expect(metadata.__proto__).toBe('inert')
+    expect(metadata.constructor).toBe('safe-meta')
+  })
+
 })
 
 // ---- loading and validation (the spec's rules) --------------------------------------------------
