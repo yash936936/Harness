@@ -19,8 +19,7 @@ import { Embeddings, type EmbeddingsConfig } from '../bundles/embeddings/index.j
 import { LanceVectorStore, type VectorStoreConfig } from '../bundles/vectorstore-lancedb/index.js'
 import { Skills, type SkillsConfig } from '../bundles/skills/index.js'
 import { Orchestrator, type OrchestratorConfig } from '../bundles/orchestrator/index.js'
-import { CommandBackend, Router, WorkerBackend, type CommandBackendConfig, type DecisionClass } from '../bundles/router/index.js'
-import { NEEDLE_PIN } from '../bundles/model-store/index.js'
+import { Router, WorkerBackend, type DecisionClass } from '../bundles/router/index.js'
 import { Sandbox } from '../bundles/sandbox/index.js'
 import { LocalTools, commandRisk, type LocalToolsConfig } from '../bundles/tools-local/index.js'
 
@@ -80,7 +79,7 @@ export interface ProfileCodingConfig {
    * them only affects callers that call `ctx.router.decide` directly. `shadowTool: true` records Needle's tool pick next to the worker's.
    * `needle.expectedSha256` defaults to the pinned Needle digest.
    */
-  router?: { needle?: CommandBackendConfig; owned?: DecisionClass[]; backendTimeoutMs?: number; shadowTool?: boolean }
+  router?: { owned?: DecisionClass[]; backendTimeoutMs?: number; shadowTool?: boolean }
   retrieval?: {
     grep?: Omit<RetrievalGrepConfig, 'root'>
     treesitter?: RetrievalTreesitterConfig
@@ -109,6 +108,10 @@ function validate(config: unknown): asserts config is ProfileCodingConfig {
   const c = config as Record<string, unknown>
   if ('sandbox' in c) {
     throw new ProfileError('profile-coding: sandbox provider integration is unavailable. Crabbox is permanently held by D-110; CubeSandbox is out of scope by D-118; Vercel workspace transfer, result sync, lifecycle audit, and policy integration are not complete. Do not enable COMMAND_TOOL.')
+  }
+  const routerConfig = c['router']
+  if (routerConfig && typeof routerConfig === 'object' && 'needle' in routerConfig) {
+    throw new ProfileError('profile-coding: router.needle is disabled under D-117 because it launches a host executable. Use the configured cloud model backend or rules fallback.')
   }
   for (const key of Object.keys(c)) {
     if (ALLOWED_KEYS.has(key)) continue
@@ -173,7 +176,6 @@ export async function bootProfileCoding(config: ProfileCodingConfig): Promise<Co
     await ctx.plugin(Sandbox)
     await ctx.plugin(Router, {
       worker: new WorkerBackend({ complete: (r, signal) => ctx.llm.complete(r as any, signal) }),
-      needle: config.router?.needle ? new CommandBackend({ expectedSha256: NEEDLE_PIN.sha256, ...config.router.needle }) : undefined,
       owned: config.router?.owned,
       ...(config.router?.shadowTool ? { shadowTool: true } : {}),
       onDecision: async (sid, d) => { await ctx.log.append(sid, 'router.decision', { class: d.class, choice: d.choice, source: d.source, requestSaved: d.requestSaved, latencyMs: d.latencyMs, skipped: d.skipped }, 'router') },
