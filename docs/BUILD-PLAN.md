@@ -5,7 +5,7 @@ Updated 2026-11-21 against main `2a2a60315a1e6db8b448c9c7d48a460c5bfb75b5`. This
 ## Current work queue
 
 - [x] **B0: Merge semantic cursor fix.** PR #156 merged; CI run #44826849470 and post-merge main run #44827470725 passed all 10 jobs.
-- [ ] **B1: Semantic page performance.** Run the new 100k-event benchmark with 25k deletions and reinsertion; record cold index build, warm cursor p50/p95, and sampled RSS. Add large-store and concurrent-writer stress tests.
+- [x] **B1: Semantic page performance benchmark.** CI architecture job #44828389243 measured cold index build at 4,310.982/4,404.561 ms p50/p95; warm 50-row pages at early/middle/late cursors were 19.953/25.641, 18.225/25.586, and 17.867/20.190 ms p50/p95; sampled RSS delta was 25,427,968/26,869,760 bytes p50/p95. The fixture included 100k puts, 25k deletes, and one reinsertion. Large-store concurrency and recovery stress tests remain open.
 - [ ] **B2: Memory recovery and bounds.** Verify cursor invalidation, sidecar rebuild, torn-tail recovery, quota behavior, interrupted reindex, and deletion-heavy index compaction. Profile metadata scans and large prepared chunk lists.
 - [ ] **B3: Phase 4 workspace runtime.** Implement SQLite lease/fencing integration, task-scoped workspace lifecycle, explicit ownership, and crash recovery.
 - [ ] **B4: Workspace capabilities and transfer.** Add operation/path/expiry-bound capabilities, revocation, deterministic secret-safe snapshots, bounded upload/collection, hash validation, conflict detection, and governed result application.
