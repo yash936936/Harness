@@ -114,6 +114,17 @@ describe('SQLiteWorkspaceStore', () => {
 
     await store.revokeCapability('capability-1', 'task completed')
     expect(await authorize()).toBe(false)
+    await expect(store.recordCapability({
+      token,
+      capabilityId: 'capability-1',
+      projectId: 'project-1',
+      taskId: 'task-1',
+      sessionId: 'session-1',
+      workspaceId: 'workspace-1',
+      operations: ['read', 'write'],
+      pathPrefixes: ['src'],
+      expiresAt: new Date(NOW + 30_000).toISOString(),
+    })).rejects.toThrow(/revoked capability IDs cannot be reissued/)
 
     const closingToken = 'closing-capability-secret-token-456'
     await store.recordCapability({
