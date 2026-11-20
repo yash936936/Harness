@@ -202,6 +202,33 @@ describe('semantic tier configuration and persisted data validation', () => {
     expect(history).toContain('quota-two')
   })
 
+  it('recovers a torn final semantic event without losing committed facts', async () => {
+    const dir = await tmp()
+    const opts = { sem: { path: dir }, dbPath: join(dir, 'db') }
+    const first = await boot(opts)
+    await first.ctx.memorySemantic.add({ id: 'committed', text: 'committed fact', why: WHY })
+    const eventPath = join(dir, 'semantic.events.jsonl')
+    await writeFile(eventPath, (await readFile(eventPath, 'utf8')) + '{"op":"put","fact":', 'utf8')
+
+    const restarted = await boot(opts)
+    await restarted.ctx.memorySemantic.add({ id: 'after-recovery', text: 'after recovery fact', why: WHY })
+    expect((await restarted.ctx.memorySemantic.list()).map((fact) => fact.id).sort()).toEqual(['after-recovery', 'committed'])
+    expect(await readFile(eventPath, 'utf8')).not.toContain('{"op":"put","fact":')
+  })
+
+  it('serializes duplicate semantic writes across independent service instances', async () => {
+    const dir = await tmp()
+    const opts = { sem: { path: dir }, dbPath: join(dir, 'db') }
+    const first = await boot({ ...opts, provider: new ConceptProvider() })
+    const second = await boot({ ...opts, provider: new ConceptProvider() })
+    const [left, right] = await Promise.all([
+      first.ctx.memorySemantic.add({ id: 'writer-a', text: 'same cross process fact', why: WHY }),
+      second.ctx.memorySemantic.add({ id: 'writer-b', text: 'SAME cross process fact', why: WHY }),
+    ])
+    expect(Number(left.created) + Number(right.created)).toBe(1)
+    expect(await first.ctx.memorySemantic.list()).toHaveLength(1)
+  })
+
   it('rejects a single semantic fact that exceeds its serialized byte quota', async () => {
     const { ctx } = await boot({ sem: { maxFactBytes: 64 } })
     await expect(ctx.memorySemantic.add({ text: 'fact', why: WHY })).rejects.toThrow(/exceeds maxFactBytes=64/)
