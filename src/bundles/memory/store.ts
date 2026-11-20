@@ -160,7 +160,7 @@ export class JsonlEpisodeStore implements EpisodeStore {
           if (!item.line.trim()) continue
           const entry = JSON.parse(item.line) as EpisodeIndexEntry
           if (typeof entry.id !== 'string' || !entry.id || !Number.isSafeInteger(entry.offset) || entry.offset < 0 ||
-              !Number.isSafeInteger(entry.length) || entry.length < 0) throw new Error('invalid identity index entry')
+              !Number.isSafeInteger(entry.length) || entry.length < 0 || entry.offset + entry.length > sourceBytes) throw new Error('invalid identity index entry')
           entries.set(entry.id, entry)
         }
         this.indexCache = { sourceBytes, indexBytes, entries }
