@@ -114,6 +114,33 @@ describe('SQLiteWorkspaceStore', () => {
 
     await store.revokeCapability('capability-1', 'task completed')
     expect(await authorize()).toBe(false)
+
+    const closingToken = 'closing-capability-secret-token-456'
+    await store.recordCapability({
+      token: closingToken,
+      capabilityId: 'capability-2',
+      projectId: 'project-1',
+      taskId: 'task-1',
+      sessionId: 'session-1',
+      workspaceId: 'workspace-1',
+      operations: ['read'],
+      pathPrefixes: ['src'],
+      expiresAt: new Date(NOW + 30_000).toISOString(),
+    })
+    const authorizeClosing = () => store.authorizeCapability({
+      token: closingToken, projectId: 'project-1', taskId: 'task-1', sessionId: 'session-1',
+      workspaceId: 'workspace-1', operation: 'read', path: 'src/index.ts', now: NOW,
+    })
+    expect(await authorizeClosing()).toBe(true)
+    await store.transitionSession({
+      workspaceId: 'workspace-1', ownerId: 'owner-1', leaseId: 'lease-1', fencingToken: 1,
+      expectedState: 'ready', nextState: 'closing',
+    })
+    await store.transitionSession({
+      workspaceId: 'workspace-1', ownerId: 'owner-1', leaseId: 'lease-1', fencingToken: 1,
+      expectedState: 'closing', nextState: 'closed',
+    })
+    expect(await authorizeClosing()).toBe(false)
   })
 
   it('rotates the fencing token and revokes prior capabilities when a validated session is adopted', async () => {
