@@ -72,12 +72,12 @@ export interface ProfileCodingConfig {
   /** Skills are never auto-discovered (D-0xx): without `dirs` the skills bundle is not loaded. */
   skills?: SkillsConfig
   /**
-   * The router (4.5). Absent = `ctx.router` exists and owns nothing: every decision goes to the worker (then rules). A class goes in
-   * `owned` only after it beat the worker on the frozen suite (`scripts/eval-router.ts`). Needle files missing = skipped silently.
-   * NOTE (ARCH-02): the harness's own flows consult the router at ONE point, the `tool` class on the first model call of a run. `agent` and
-   * `playbook` have no such point yet (sub-agents are planner-assigned scoped realms; skills are loaded by the model through a tool), so owning
-   * them only affects callers that call `ctx.router.decide` directly. `shadowTool: true` records Needle's tool pick next to the worker's.
-   * `needle.expectedSha256` defaults to the pinned Needle digest.
+   * The router (4.5). Absent = `ctx.router` exists and owns nothing: every decision goes to the cloud model worker (then rules).
+   * A class goes in `owned` only after it beat the worker on the frozen suite (`scripts/eval-router.ts`).
+   * D-117 prohibits host-executable router backends in this profile; `router.needle` is rejected at startup.
+   * NOTE (ARCH-02): the harness's own flows consult the router at ONE point, the `tool` class on the first model call of a run.
+   * `agent` and `playbook` have no such point yet, so owning them only affects direct `ctx.router.decide` callers.
+   * `shadowTool: true` records the worker/rules decision without changing it.
    */
   router?: { owned?: DecisionClass[]; backendTimeoutMs?: number; shadowTool?: boolean }
   retrieval?: {
