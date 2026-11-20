@@ -49,7 +49,7 @@ Current main baseline before this loop: `2a2a60315a1e6db8b448c9c7d48a460c5bfb75b
 
 - PR #156 is merged. Its tombstone fix preserves semantic insertion order after deletion/reinsertion. CI run #44826849470 passed all 10 jobs, including Ubuntu/Windows with Node 20.19.0 and 22.12.0, typecheck, lint, tests, docs, dependency/security, license inventory, and architecture benchmarks. Post-merge main CI run #44827470725 also passed all 10 jobs.
 - Phase 2 shared SQLite coordination is implemented through PRs #128-140. The audit records PR #140 as closing the Windows Node 20 regression, legacy budget migration, explicit task identity/shared task reservations, and LLMService integration follow-ups. The historical PR #134 failure is superseded by the passing CI run #918.
-- Phase 3 has bounded session-log tail reads, indexed episodic identity and keyset pages, append-only semantic events, rebuildable semantic indexes, quotas, cursor invalidation, and checkpointed paged reindex. Phase 3 remains open for new semantic keyset page measurements, scale/failure testing, and the full audit.
+- Phase 3 has bounded session-log tail reads, indexed episodic identity and keyset pages, append-only semantic events, rebuildable semantic indexes, quotas, cursor invalidation, and checkpointed paged reindex. Phase 3 remains open for concurrent/deletion-heavy scale tests, recovery and cross-process cache-invalidation evidence, and the full audit.
 - CI run #44826849470 recorded current 100k episodic, 1,740-chunk indexing, and 2,000-fact semantic reindex measurements. Results and caveats are recorded in [architecture-contracts.md](architecture-contracts.md).
 - CI run #44828389243's architecture job executed the 100k-event semantic page benchmark: 4,310.982 ms p50 cold index rebuild; warm 50-record pages p50/p95 19.953/25.641 ms (cursor 49,999), 18.225/25.586 ms (89,999), and 17.867/20.190 ms (99,899); sampled RSS delta p50/p95 25,427,968/26,869,760 bytes. The 100k-event fixture included 25k deletions and one reinsertion. Full CI for the latest docs commit is still required.
 - Phase 4 has backend-neutral workspace contracts and SQLite fenced lease storage, but no task-scoped workspace session runtime, capability enforcement, snapshot transfer, or result synchronization.
@@ -59,7 +59,7 @@ Current main baseline before this loop: `2a2a60315a1e6db8b448c9c7d48a460c5bfb75b
 
 ### Single execution order
 
-1. Close semantic performance evidence: run the new 100k-event, delete-heavy semantic page benchmark; publish p50/p95 and sampled RSS with caveats.
+1. Complete semantic stress evidence: exercise concurrent writers, cursor invalidation across processes, interrupted writes, sidecar rebuild, tombstone compaction, and reindex recovery against large stores. The 100k-event baseline is now recorded in architecture-contracts.md.
 2. Stress semantic storage: test cursor invalidation, index rebuild, concurrent writers, deletion/reinsertion, interrupted writes, large event logs, and memory bounds.
 3. Complete the D-110/D-117 security trace: follow every command execution route from CLI/profile/tool registration through provider dispatch; prove no host fallback or implicit provider selection is reachable.
 4. Implement Phase 4 runtime in bounded vertical slices: SQLite lease/fencing integration, task-scoped session lifecycle, operation/path/expiry capabilities, revocation, snapshot manifests, safe transfer, conflict handling, cancellation, and cleanup/recovery.
