@@ -259,6 +259,41 @@ describe('semantic tier configuration and persisted data validation', () => {
   })
 })
 
+describe('semantic public keyset pagination', () => {
+  it('returns bounded pages with an opaque cursor for persistent and in-memory stores', async () => {
+    for (const path of [undefined, await tmp()]) {
+      const { ctx } = await boot({ sem: { ...(path ? { path } : {}) } })
+      for (const id of ['page-a', 'page-b', 'page-c']) {
+        await ctx.memorySemantic.add({ id, text: `fact ${id}`, why: WHY })
+      }
+      const first = await ctx.memorySemantic.page({ limit: 2 })
+      expect(first.items.map((fact) => fact.id)).toEqual(['page-a', 'page-b'])
+      expect(first.nextCursor).toBeTruthy()
+      const second = await ctx.memorySemantic.page({ limit: 2, cursor: first.nextCursor })
+      expect(second.items.map((fact) => fact.id)).toEqual(['page-c'])
+      expect(second.nextCursor).toBeUndefined()
+    }
+  })
+
+  it('rejects a cursor after the source changes rather than skipping or repeating records', async () => {
+    const { ctx } = await boot({ sem: { path: await tmp() } })
+    for (const id of ['stable-a', 'stable-b', 'stable-c']) {
+      await ctx.memorySemantic.add({ id, text: `fact ${id}`, why: WHY })
+    }
+    const first = await ctx.memorySemantic.page({ limit: 1 })
+    expect(first.nextCursor).toBeTruthy()
+    await ctx.memorySemantic.add({ id: 'stable-d', text: 'fact stable-d', why: WHY })
+    await expect(ctx.memorySemantic.page({ limit: 1, cursor: first.nextCursor })).rejects.toThrow(/cursor is stale/)
+  })
+
+  it('validates page limits and malformed cursors', async () => {
+    const { ctx } = await boot()
+    await expect(ctx.memorySemantic.page({ limit: 0 })).rejects.toThrow(/limit must be an integer/)
+    await expect(ctx.memorySemantic.page({ limit: 1001 })).rejects.toThrow(/limit must be an integer/)
+    await expect(ctx.memorySemantic.page({ cursor: 'not-a-valid-cursor' })).rejects.toThrow(/cursor is invalid/)
+  })
+})
+
 describe('semantic tier (3.3): write, retrieve by meaning', () => {
   it('snapshots fact metadata before waiting for persistence and indexing', async () => {
     const { ctx } = await boot({ sem: { path: await tmp() } })
