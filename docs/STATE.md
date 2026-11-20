@@ -2,14 +2,15 @@
 
 ## 2026-11-21 Phase 3 unified execution
 
-- Main baseline: 072d50e3b116d94f3d4238d2aa48a24bd9c74fd7, including PR #142.
-- PR #141 merged bounded session-log range reads and episodic recording.
-- PR #142 merged episodic keyset pagination. Corrected head 0e37653c80298d432346da435ca57d8c052935cf passed CI run #924.
-- Loop 2 is only partially complete: persistent JSONL identity indexing, index recovery, and bounded scan I/O remain open.
-- Loops 3-5 remain open: bounded indexed semantic fact storage and migration, durable resumable reindex checkpoints, quotas/retention/recovery tests, and refreshed performance baselines.
-- The final audit and docs synchronization remain open. Phase 3 is not complete.
-- Live Vercel/provider acceptance and Phase 4 task-scoped workspaces are separate gates. CI's informational acceptance-gates job does not execute them.
-- Binding D-110/D-117/D-118/D-119 constraints remain unchanged. Durable history is retained indefinitely by default; do not add automatic deletion to meet searchable-memory quotas.
+- Main baseline: `c8079f13568835fa9bdc8639889fe9405bf25c06`.
+- PRs #141 and #142 merged bounded session-log reads and episodic keyset pagination.
+- PR #148 merged public semantic keyset pagination. Mandatory CI run #44820082776 passed.
+- PR #150 merged persistent episodic metadata indexing, byte-offset page reads, bounded page-selection memory, index recovery tests, and a 100,000-record page benchmark. Merge-commit CI run #44822435655 is still running; do not treat Phase 3 as fully CI-validated until it passes.
+- Semantic fact storage already uses append-only JSONL events with a rebuildable index and validated legacy JSON migration. Searchable-fact quotas, durable-history retention rules, public paging, and bounded write operations are implemented.
+- Semantic reindex already uses bounded batches and durable source/model/collection checkpoints. Tests cover restart resume, reset after model changes, source mutation, torn-tail recovery, quotas, and sidecar rebuild.
+- Remaining Phase 3 work: final full CI result for #150, reconcile actual numeric performance measurements, and complete the full file-by-file/cross-folder audit with checklist evidence. Phase 3 is not complete until these closeout items pass.
+- Live Vercel/provider acceptance and Phase 4 task-scoped workspace lifecycle/transfer are separate gates. CI's informational acceptance-gates job does not execute them.
+- D-110/D-117/D-118/D-119 remain binding. Durable history is retained indefinitely by default; do not automatically delete it to meet searchable-memory quotas.
 
 ## 2026-11-21 SQLite Phase 2 continuation
 
