@@ -117,7 +117,7 @@ export class WorkspaceRuntime {
     this.maxSessionTtlMs = options.maxSessionTtlMs ?? 24 * 60 * 60 * 1_000
     this.maxCommandTimeoutMs = options.maxCommandTimeoutMs ?? 60_000
     this.maxOutputBytes = options.maxOutputBytes ?? 1_000_000
-    this.maxCapabilityTtlMs = options.maxCapabilityTtlMs ?? 60 * 60 * 1_000
+    this.maxCapabilityTtlMs = options.maxCapabilityTtlMs ?? Math.min(60 * 60 * 1_000, this.maxSessionTtlMs)
     if (!Number.isSafeInteger(this.maxSessionTtlMs) || this.maxSessionTtlMs < 1_000 || this.maxSessionTtlMs > 7 * 24 * 60 * 60 * 1_000) {
       throw new RangeError('workspace runtime: maxSessionTtlMs must be from 1000 ms to 7 days')
     }
@@ -227,6 +227,7 @@ export class WorkspaceRuntime {
           isoTimestamp('session expiry', created.expiresAt) > isoTimestamp('lease expiry', lease.expiresAt)) {
         throw new Error('workspace runtime: provider returned a session outside the requested ownership or expiry scope')
       }
+      if (!await this.leases.isCurrent(lease.leaseId, this.ownerId, lease.fencingToken)) throw new Error('workspace runtime: lease expired during provider creation')
       return this.sessions.transitionSession({
         workspaceId,
         ownerId: this.ownerId,
@@ -239,17 +240,20 @@ export class WorkspaceRuntime {
     } catch (error) {
       let confirmed = false
       try { confirmed = (await this.provider.close({ workspaceId, reason: 'workspace creation failed', ownerId: this.ownerId, leaseId: lease.leaseId, fencingToken: lease.fencingToken })).confirmed } catch { /* keep lease until expiry */ }
-      try {
-        await this.sessions.transitionSession({
-          workspaceId,
-          ownerId: this.ownerId,
-          leaseId: lease.leaseId,
-          fencingToken: lease.fencingToken,
-          expectedState: 'creating',
-          nextState: confirmed ? 'failed' : 'unknown',
-        })
-      } catch { /* a newer fence or changed state must not be overwritten */ }
-      if (confirmed) await this.leases.release(lease.leaseId, this.ownerId, lease.fencingToken)
+      const stillCurrent = await this.leases.isCurrent(lease.leaseId, this.ownerId, lease.fencingToken)
+      if (stillCurrent) {
+        try {
+          await this.sessions.transitionSession({
+            workspaceId,
+            ownerId: this.ownerId,
+            leaseId: lease.leaseId,
+            fencingToken: lease.fencingToken,
+            expectedState: 'creating',
+            nextState: confirmed ? 'failed' : 'unknown',
+          })
+        } catch { /* a newer fence or changed state must not be overwritten */ }
+        if (confirmed) await this.leases.release(lease.leaseId, this.ownerId, lease.fencingToken)
+      }
       throw error
     }
   }
@@ -330,36 +334,15 @@ export class WorkspaceRuntime {
     })
     if (!allowed) throw new Error('workspace runtime: command capability denied')
 
-    await this.sessions.transitionSession({
-      workspaceId,
-      ownerId: this.ownerId,
-      leaseId: lease.leaseId,
-      fencingToken: lease.fencingToken,
-      expectedState: 'ready',
-      nextState: 'running',
-    })
+    await this.transition(session, 'ready', 'running')
     try {
       const result = await this.provider.execute(workspaceId, capability, command)
       validateResult(result, command.maxOutputBytes)
-      await this.sessions.transitionSession({
-        workspaceId,
-        ownerId: this.ownerId,
-        leaseId: lease.leaseId,
-        fencingToken: lease.fencingToken,
-        expectedState: 'running',
-        nextState: 'ready',
-      })
+      await this.transition(session, 'running', 'ready')
       return result
     } catch (error) {
       try {
-        await this.sessions.transitionSession({
-          workspaceId,
-          ownerId: this.ownerId,
-          leaseId: lease.leaseId,
-          fencingToken: lease.fencingToken,
-          expectedState: 'running',
-          nextState: 'unknown',
-        })
+        await this.transition(session, 'running', 'unknown')
       } catch { /* retain the newer state/fence */ }
       throw error
     }
@@ -380,14 +363,7 @@ export class WorkspaceRuntime {
     if (session.state === 'closed') return { confirmed: true }
     const lease = await this.assertCurrentLease(session)
     if (session.state !== 'closing') {
-      await this.sessions.transitionSession({
-        workspaceId,
-        ownerId: this.ownerId,
-        leaseId: lease.leaseId,
-        fencingToken: lease.fencingToken,
-        expectedState: session.state,
-        nextState: 'closing',
-      })
+      await this.transition(session, session.state, 'closing')
     }
     await this.sessions.revokeWorkspaceCapabilities(workspaceId, reason)
     let result: { readonly confirmed: boolean; readonly detail?: string }
@@ -413,14 +389,7 @@ export class WorkspaceRuntime {
       })
       throw new Error('workspace runtime: provider returned an invalid close confirmation')
     }
-    await this.sessions.transitionSession({
-      workspaceId,
-      ownerId: this.ownerId,
-      leaseId: lease.leaseId,
-      fencingToken: lease.fencingToken,
-      expectedState: 'closing',
-      nextState: result.confirmed ? 'closed' : 'unknown',
-    })
+    await this.transition(session, 'closing', result.confirmed ? 'closed' : 'unknown')
     if (result.confirmed) await this.leases.release(lease.leaseId, this.ownerId, lease.fencingToken)
     return result
   }
