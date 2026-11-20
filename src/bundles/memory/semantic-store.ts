@@ -26,6 +26,7 @@ function validFact(fact: any): fact is SemanticFact {
 /** Append-only semantic history. semantic.json is retained as the migration backup. */
 export class SemanticFactStore {
   private cache?: SemanticIndex
+  private readonly memoryFacts = new Map<string, SemanticFact>()
   constructor(private readonly dir?: string) {}
 
   private get sourceFile() { return join(this.dir!, 'semantic.events.jsonl') }
@@ -179,13 +180,32 @@ export class SemanticFactStore {
     return event.fact
   }
 
-  async get(id: string) { return this.getFrom(id, await this.ensureIndex()) }
+  async get(id: string) {
+    if (!this.dir) {
+      const fact = this.memoryFacts.get(id)
+      return fact ? structuredClone(fact) : undefined
+    }
+    return this.getFrom(id, await this.ensureIndex())
+  }
   async findByText(text: string) {
+    if (!this.dir) {
+      const key = textKey(text)
+      for (const fact of this.memoryFacts.values()) if (textKey(fact.text) === key) return structuredClone(fact)
+      return undefined
+    }
     const index = await this.ensureIndex(), id = index.byText.get(textKey(text))
     return id ? this.getFrom(id, index) : undefined
   }
 
   async put(fact: SemanticFact): Promise<{ fact: SemanticFact; created: boolean }> {
+    if (!this.dir) {
+      const duplicate = [...this.memoryFacts.values()].find((item) => textKey(item.text) === textKey(fact.text) && item.id !== fact.id)
+      if (duplicate) return { fact: structuredClone(duplicate), created: false }
+      const previous = this.memoryFacts.get(fact.id)
+      const stored = previous ? { ...fact, ts: previous.ts, updatedTs: fact.ts } : { ...fact, updatedTs: undefined }
+      this.memoryFacts.set(stored.id, structuredClone(stored))
+      return { fact: structuredClone(stored), created: true }
+    }
     const index = await this.ensureIndex()
     const duplicateId = index.byText.get(textKey(fact.text))
     if (duplicateId && duplicateId !== fact.id) {
@@ -208,6 +228,12 @@ export class SemanticFactStore {
   }
 
   async delete(id: string): Promise<SemanticFact | undefined> {
+    if (!this.dir) {
+      const previous = this.memoryFacts.get(id)
+      if (!previous) return undefined
+      this.memoryFacts.delete(id)
+      return structuredClone(previous)
+    }
     const index = await this.ensureIndex(), previous = await this.getFrom(id, index)
     if (!previous) return undefined
     const line = JSON.stringify({ op: 'delete', id } satisfies SemanticEvent) + '\n'
@@ -223,13 +249,18 @@ export class SemanticFactStore {
     return previous
   }
 
-  async count() { return (await this.ensureIndex()).byId.size }
+  async count() { return this.dir ? (await this.ensureIndex()).byId.size : this.memoryFacts.size }
   async all() {
+    if (!this.dir) return [...this.memoryFacts.values()].map((fact) => structuredClone(fact))
     const index = await this.ensureIndex(), result: SemanticFact[] = []
     for (const id of index.byId.keys()) { const fact = await this.getFrom(id, index); if (fact) result.push(fact) }
     return result
   }
   async *iterate() {
+    if (!this.dir) {
+      for (const fact of this.memoryFacts.values()) yield structuredClone(fact)
+      return
+    }
     const index = await this.ensureIndex()
     for (const id of index.byId.keys()) { const fact = await this.getFrom(id, index); if (fact) yield fact }
   }
