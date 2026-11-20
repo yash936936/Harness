@@ -258,9 +258,21 @@ The source event log is authoritative; the identity index and manifest are rebui
 
 The warm session append path reads no existing source bytes when its validated tail cursor remains valid. A cold append after cache invalidation reads the existing log. Episodic selective query still reads the full 27,635,492-byte source file in this benchmark; indexed page and identity lookup are bounded warm paths. These file-size estimates are not OS I/O counters.
 
-### Semantic keyset page benchmark
+### Semantic keyset page benchmark: CI run #44828389243
 
-A new `bench:semantic-page` workload is being added to measure a 100,000-event semantic source with 25,000 deletes and one delete/reinsert, then report cold index rebuild, warm 50-record pages from early/middle/late cursors, and sampled RSS. Its measurements are intentionally pending until the workflow runs. Do not infer page latency from episodic page results or from the semantic reindex benchmark.
+Ubuntu x64, Node v22.12.0, 4 CPUs. Three index-build samples and fifteen warm-page timings per cursor. The fixture writes 100,000 facts, deletes 25,000, then reinserts one deleted ID. The final live count is 75,001. The source log is 20,475,235 bytes and the rebuilt sidecar index is 11,593,405 bytes.
+
+| Measurement | p50 | p95 |
+|---|---:|---:|
+| Cold sidecar index rebuild | 4,310.982 ms | 4,404.561 ms (max of 3) |
+| Sampled process RSS delta during rebuild and warm reads | 25,427,968 bytes | 26,869,760 bytes (max of 3) |
+| Warm 50-record page after cursor 49,999 | 19.953 ms | 25.641 ms |
+| Warm 50-record page after cursor 89,999 | 18.225 ms | 25.586 ms |
+| Warm 50-record page after cursor 99,899 | 17.867 ms | 20.190 ms |
+
+Warm-page percentiles use 15 timings per cursor. Index-build and RSS percentiles use three samples, so p95 is the maximum observed sample, not a stable tail estimate. RSS is process-wide, sampled every 5 ms, and can miss short-lived peaks. Fixture creation is outside the timed interval. The benchmark also verifies that a deleted-and-reinserted fact moves to the end of insertion order.
+
+These results show that warm cursor page latency is similar at early, middle, and late positions for this workload. They do not establish constant-memory identity indexing: the semantic ID/text projection is still loaded in memory. They also do not measure concurrent writers, cross-process cache invalidation, or crash recovery; those remain separate stress-test requirements.
 
 ## Approved deployment and operating policy
 
