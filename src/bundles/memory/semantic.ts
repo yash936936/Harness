@@ -190,6 +190,7 @@ export class MemorySemantic extends Service {
 
     let embedded = await this.ctx.embeddings.embed(page.items.map((fact) => fact.text), { kind: 'document' })
     if (!embedded.ok) return { ok: false, error: { kind: `embedding_${embedded.error.kind}`, detail: embedded.error.detail } }
+    let batchVectors = embedded.vectors
     let info = this.ctx.embeddings.info()
     if (!info?.fingerprint || !info.dimensions) return { ok: false, error: { kind: 'embedding_config', detail: 'no embedding fingerprint yet (no provider, or no vector produced)' } }
 
@@ -209,6 +210,7 @@ export class MemorySemantic extends Service {
       if (!reuseFirstBatch) {
         embedded = await this.ctx.embeddings.embed(page.items.map((fact) => fact.text), { kind: 'document' })
         if (!embedded.ok) return { ok: false, error: { kind: `embedding_${embedded.error.kind}`, detail: embedded.error.detail } }
+        batchVectors = embedded.vectors
       }
       info = this.ctx.embeddings.info()
       if (!info?.fingerprint || !info.dimensions) return { ok: false, error: { kind: 'embedding_config', detail: 'no embedding fingerprint yet (no provider, or no vector produced)' } }
@@ -240,7 +242,7 @@ export class MemorySemantic extends Service {
         }
         const up = await collection!.upsert(page.items.map((fact, index) => ({
           id: fact.id,
-          vector: embedded.vectors[index]!,
+          vector: batchVectors[index]!,
           source: 'memory.semantic',
           metadata: { tier: 'semantic' },
         })))
@@ -263,7 +265,7 @@ export class MemorySemantic extends Service {
         })
         return { changed: false as const, cursor: nextCursor, indexed: nextIndexed }
       })
-      if ('failure' in committed) return committed.failure
+      if ('failure' in committed && committed.failure) return committed.failure
       if (committed.changed) {
         await this.exclusive(() => this.store.clearReindexCheckpoint())
         return { ok: false, error: { kind: 'source_changed', detail: 'semantic facts changed during a reindex batch; retry reindex() to rebuild from the current source version' } }
@@ -286,6 +288,7 @@ export class MemorySemantic extends Service {
       }
       embedded = await this.ctx.embeddings.embed(page.items.map((fact) => fact.text), { kind: 'document' })
       if (!embedded.ok) return { ok: false, error: { kind: `embedding_${embedded.error.kind}`, detail: embedded.error.detail } }
+      batchVectors = embedded.vectors
     }
   }
 
