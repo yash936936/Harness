@@ -4,7 +4,7 @@
 
 ## Purpose
 
-Composes Cordis service stacks. `profile-minimal` provides session logging, model access, tools, subprocess service, and agent loop. `profile-coding` adds project file tools, retrieval, memory, skills, policy gates, input guard, orchestration, and evaluation.
+Composes Cordis service stacks. `profile-minimal` provides session logging, model access, tools, and the agent loop. `profile-coding` adds project file tools, retrieval, memory, skills, policy gates, input guard, orchestration, and evaluation. The coding profile deliberately does not register the host `Subprocess` service under D-117.
 
 ## Route
 
