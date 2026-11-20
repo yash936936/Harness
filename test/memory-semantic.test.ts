@@ -179,9 +179,32 @@ describe('semantic tier configuration and persisted data validation', () => {
     await expect(boot({ sem: { maxPendingOperations: 1.5 } })).rejects.toThrow(/maxPendingOperations must be a positive safe integer/)
     await expect(boot({ sem: { reindexBatchSize: 0 } })).rejects.toThrow(/reindexBatchSize must be a positive safe integer/)
     await expect(boot({ sem: { reindexBatchSize: 1.5 } })).rejects.toThrow(/reindexBatchSize must be a positive safe integer/)
+    await expect(boot({ sem: { maxFacts: 0 } })).rejects.toThrow(/maxFacts and maxFactBytes must be positive safe integers/)
+    await expect(boot({ sem: { maxFactBytes: 1.5 } })).rejects.toThrow(/maxFacts and maxFactBytes must be positive safe integers/)
     const { ctx } = await boot()
     await expect(ctx.memorySemantic.query('query', { minScore: Number.NaN })).rejects.toThrow(/minScore/)
     await expect(ctx.memorySemantic.query('query', { minScore: 1.1 })).rejects.toThrow(/minScore/)
+  })
+
+  it('enforces active searchable-fact quotas without deleting durable history', async () => {
+    const dir = await tmp()
+    const { ctx } = await boot({ sem: { path: dir, maxFacts: 2 } })
+    await ctx.memorySemantic.add({ id: 'quota-one', text: 'first searchable fact', why: WHY })
+    await ctx.memorySemantic.add({ id: 'quota-two', text: 'second searchable fact', why: WHY })
+    await expect(ctx.memorySemantic.add({ id: 'quota-three', text: 'third searchable fact', why: WHY })).rejects.toThrow(/searchable fact quota reached/)
+    // Replacing an existing ID is allowed at capacity.
+    await expect(ctx.memorySemantic.add({ id: 'quota-one', text: 'updated first searchable fact', why: WHY })).resolves.toMatchObject({ created: true })
+    expect(await ctx.memorySemantic.remove('quota-two')).toBe(true)
+    await expect(ctx.memorySemantic.add({ id: 'quota-three', text: 'third searchable fact', why: WHY })).resolves.toMatchObject({ created: true })
+    expect((await ctx.memorySemantic.list()).map((fact) => fact.id).sort()).toEqual(['quota-one', 'quota-three'])
+    const history = await readFile(join(dir, 'semantic.events.jsonl'), 'utf8')
+    expect(history).toContain('second searchable fact')
+    expect(history).toContain('quota-two')
+  })
+
+  it('rejects a single semantic fact that exceeds its serialized byte quota', async () => {
+    const { ctx } = await boot({ sem: { maxFactBytes: 64 } })
+    await expect(ctx.memorySemantic.add({ text: 'fact', why: WHY })).rejects.toThrow(/exceeds maxFactBytes=64/)
   })
 
   it('bounds serialized semantic operations and releases capacity after completion', async () => {
