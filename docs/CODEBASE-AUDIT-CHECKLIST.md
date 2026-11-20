@@ -1,5 +1,16 @@
 # Full codebase audit checklist
 
+## 2026-11-21 audit continuation baseline
+
+Current main: `75574f337707460340bd2877c4a9b5a26ddaaef0`. PR #134 added independent-process rate-limit and lease tests but its CI run #896 failed on Windows Node 20 during `npm test`; Ubuntu Node 20/22 and Windows Node 22 passed. PR #135 added stable rate-limit policy enforcement and bounded terminal lease history; CI run #899 passed all mandatory jobs. The Windows Node 20 failure remains open and must be fixed before cross-process acceptance is marked complete.
+
+New follow-up audit items:
+- [ ] AUD-052: isolate and fix the Windows Node 20 independent-process SQLite test failure (PR #134, run #896).
+- [ ] AUD-053: implement a lossless, idempotent migration path for legacy `Budgets.statePath` JSON day counters into shared SQLite state.
+- [ ] AUD-054: add explicit task identity and cross-process task-scope budget reservations; do not infer task scope from session identity.
+- [ ] AUD-055: add end-to-end LLMService shared SQLite integration coverage for rejection, settlement, release, retry, and project/database isolation.
+
+
 Baseline: `main` at `0e2e38d5ea9e5b40d74422abccda4d9173c00b33` (2026-11-16). Post-merge main CI run #862 (`43876511421`) passed all 10 jobs.
 Audit continuation branch: `docs/audit-findings-050-051-closeout-2026-11`.
 
