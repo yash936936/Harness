@@ -88,12 +88,13 @@ jobs:
       - name: measure architecture hot paths, reservations, indexing, semantic reindex, and output capture
         run: npm run bench:architecture
   not-run:
-    name: acceptance gates NOT run by CI
+    name: acceptance gates NOT RUN (informational only)
     runs-on: ubuntu-latest
     steps:
       - run: |
           {
             echo "### Not covered by CI (green here is not acceptance)"
+            echo "This informational job is deliberately excluded from ci-pass. A green result here is not acceptance evidence."
             echo "- Real Docker/Crabbox sandbox (S0/S1, on permanent hold under D-110)"
             echo "- Live OpenRouter / Ollama full coding tasks (S4)"
             echo "- Human-labelled evaluation (S6) and live poisoning/embedding runs (S7)"
@@ -117,5 +118,5 @@ jobs:
               console.error("Required CI jobs did not succeed:", failed.map((name) => `${name}=${needs[name]?.result ?? "missing"}`).join(", "));
               process.exit(1);
             }
-            console.log("All mandatory CI jobs succeeded.");
+            console.log("All mandatory CI jobs succeeded. Provider acceptance remains a separate, owner-run gate.");
           '

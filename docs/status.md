@@ -1,3 +1,7 @@
+# Historical status log
+
+> This file is a dated implementation history, not the active project status. Use [STATE.md](STATE.md) for verified current state and [ROADMAP.md](ROADMAP.md) for the active completion order.
+
 ## 2026-11-16 shared budget enforcement integrated (PR #130)
 
 - Main baseline: `0e2e38d5ea9e5b40d74422abccda4d9173c00b33`. PR #129 merged the SQLite budget reservation store after its initial Windows CI failure exposed concurrent read handles blocking atomic replacement. The fix makes existing-file readers share the cross-process lock; the full matrix passed on the corrected head.

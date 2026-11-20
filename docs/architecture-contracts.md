@@ -1,6 +1,6 @@
 # Architecture contracts and migration safety
 
-Status: Phase 1 contract baseline plus three Phase 2 implementation slices. Backend-neutral contracts live in `src/architecture/contracts.ts`. PR #128 merged a file-backed SQLite transaction/migration foundation in `src/util/sqlite.ts` using sql.js WebAssembly and the existing cross-process file lock. PR #129 adds `SQLiteBudgetReservationStore` in `src/bundles/app-core/budgets.ts`; PR #130 wires it into `BudgetGate`/`LLMService` for configured session/day hard limits. The coding profile uses `.harness/state.sqlite` per project when hard limits are configured. Rate-limit and lease stores remain unimplemented. Each write reloads and exports the full database, so this layer is for bounded coordination metadata.
+Status: Phase 2 shared SQLite coordination is implemented through PR #140, including budget reservations, rate-limit windows/concurrency permits, fenced leases, legacy budget migration, explicit task identity/task reservations, and LLMService integration. Phase 3 memory/retrieval implementation is merged, with current benchmark evidence recorded below; semantic keyset-page benchmarking and full audit closeout remain open. Phase 4 has backend-neutral workspace contracts and the SQLite lease primitive, but no task-scoped workspace session or transfer runtime. The SQLite implementation uses sql.js WebAssembly and an existing cross-process file lock; each write reloads/exports the database, so it is intended for bounded coordination metadata, not large durable-history or vector datasets.
 
 ## Scope and constraints
 
@@ -213,6 +213,66 @@ No numeric estimate is substituted for live SDK-internal buffering or remote com
 
 
 The current-code baseline runner is `npm run bench:architecture` (also executed by the `architecture performance baseline` CI job). It records Node/platform/CPU metadata, fixture sizes, p50/p95 timings, file-size-based read-volume estimates, and observed RSS. It measures session-log append at 0/50k/100k events, episodic duplicate-check/selective-query at 100k episodes, independent-process reservations, deterministic indexing, and batched semantic reindex. Adapter-side bounded streaming measurements are recorded above; live SDK-internal buffering and cancel-at-cap remain unmeasured.
+
+## Current indexed-memory performance evidence: CI run #44826849470
+
+The run executed on Ubuntu x64 with Node v22.12.0 and 4 CPUs. It is a three-sample deterministic benchmark run from the merged PR #156 head. These results are current implementation measurements, not service-level production SLOs.
+
+### Retrieval indexing
+
+The fixture contains 31 files and 1,740 chunks, including one 540-chunk file; embedding groups are capped at 512 chunks. The local hashing provider is deterministic test infrastructure and does not measure semantic quality.
+
+| Measurement | p50 | p95 (maximum of 3 samples) |
+|---|---:|---:|
+| `indexFiles` elapsed time | 264.804 ms | 334.006 ms |
+| Throughput | 6,570.9 chunks/s | 7,144.8 chunks/s |
+| Observed process RSS delta | 12,451,840 bytes | 112,234,496 bytes |
+
+The implementation still prepares all readable files and chunks before embedding groups. A 512-chunk embedding group bounds each provider request, not the total prepared chunk list. The RSS maximum is a process-wide sample and includes native allocations; it is not attributable only to indexing.
+
+### Semantic reindex
+
+The fixture contains 2,000 persisted facts and verifies 2,000 vectors. Embedding and vector-upsert batches are 64 records, producing 32 requests and 32 upserts per sample. The deterministic local hashing provider does not measure semantic quality.
+
+| Measurement | p50 | p95 (maximum of 3 samples) |
+|---|---:|---:|
+| Reindex elapsed time | 921.177 ms | 997.219 ms |
+| Throughput | 2,171.1 facts/s | 2,272.8 facts/s |
+| Observed process RSS delta | 2,244,608 bytes | 67,596,288 bytes |
+
+The source event log is authoritative; the identity index and manifest are rebuildable. Reindex reads indexed fact pages, processes bounded embedding/upsert batches, and persists restart checkpoints after successful idempotent upserts. RSS is sampled every 5 ms during setup and reindex, so it is process-wide and can miss short-lived peaks. Three samples are not a stable tail estimate.
+
+### Session-log and episodic hot paths
+
+| Operation | Dataset | p50 | p95 |
+|---|---:|---:|---:|
+| Cold session append | 50k events | 47.505 ms | 69.078 ms |
+| Warm session append | 50k events | 1.362 ms | 1.742 ms |
+| Cold session append | 100k events | 93.372 ms | 95.211 ms |
+| Warm session append | 100k events | 1.326 ms | 1.519 ms |
+| Episodic index build | 100k episodes | 2,496.398 ms | 2,540.749 ms |
+| Warm duplicate check | 100k episodes | 0.988 ms | 1.224 ms |
+| Warm ID lookup | 100k episodes | 0.563 ms | 0.683 ms |
+| Indexed page, 50 records | 100k episodes | 36.209 ms | 37.412 ms |
+| Selective query | 100k episodes | 204.625 ms | 217.217 ms |
+
+The warm session append path reads no existing source bytes when its validated tail cursor remains valid. A cold append after cache invalidation reads the existing log. Episodic selective query still reads the full 27,635,492-byte source file in this benchmark; indexed page and identity lookup are bounded warm paths. These file-size estimates are not OS I/O counters.
+
+### Semantic keyset page benchmark: CI run #44828389243
+
+Ubuntu x64, Node v22.12.0, 4 CPUs. Three index-build samples and fifteen warm-page timings per cursor. The fixture writes 100,000 facts, deletes 25,000, then reinserts one deleted ID. The final live count is 75,001. The source log is 20,475,235 bytes and the rebuilt sidecar index is 11,593,405 bytes.
+
+| Measurement | p50 | p95 |
+|---|---:|---:|
+| Cold sidecar index rebuild | 4,310.982 ms | 4,404.561 ms (max of 3) |
+| Sampled process RSS delta during rebuild and warm reads | 25,427,968 bytes | 26,869,760 bytes (max of 3) |
+| Warm 50-record page after cursor 49,999 | 19.953 ms | 25.641 ms |
+| Warm 50-record page after cursor 89,999 | 18.225 ms | 25.586 ms |
+| Warm 50-record page after cursor 99,899 | 17.867 ms | 20.190 ms |
+
+Warm-page percentiles use 15 timings per cursor. Index-build and RSS percentiles use three samples, so p95 is the maximum observed sample, not a stable tail estimate. RSS is process-wide, sampled every 5 ms, and can miss short-lived peaks. Fixture creation is outside the timed interval. The benchmark also verifies that a deleted-and-reinserted fact moves to the end of insertion order.
+
+These results show that warm cursor page latency is similar at early, middle, and late positions for this workload. They do not establish constant-memory identity indexing: the semantic ID/text projection is still loaded in memory. They also do not measure concurrent writers, cross-process cache invalidation, or crash recovery; those remain separate stress-test requirements.
 
 ## Approved deployment and operating policy
 
