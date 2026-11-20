@@ -27,6 +27,8 @@ export interface ForkOrigin {
 export interface SessionStore {
   append(event: SessionEvent): Promise<void>
   read(sessionId: string): Promise<SessionEvent[]>
+  /** Read an inclusive sequence range without materialising unrelated history. */
+  readRange?(sessionId: string, fromSeq: number, toSeq: number): Promise<SessionEvent[]>
   list(): Promise<string[]>
   /**
    * Stores shared between processes provide both of these (BUG-07): `withLock` excludes other processes for the duration of `fn`, and
