@@ -2,17 +2,28 @@
 
 ## 2026-11-21 unified Phase 3 execution
 
-PR #141 (bounded session-log range reads and episodic recording) and PR #142 (episodic keyset pagination) are merged. PR #142's corrected head passed CI run #924. Pagination is implemented, but persistent episodic identity indexing and bounded scan I/O are not complete.
+Main baseline: `c8079f13568835fa9bdc8639889fe9405bf25c06`.
 
-Execute the remaining Phase 3 work as one dependency-ordered program, with a separate reviewable PR and fresh mandatory CI for each storage boundary:
+**Implemented slices**
+- PR #141: bounded session-log range reads and episodic recording.
+- PR #142: stable episodic keyset pagination.
+- PR #148: public semantic keyset pagination with revision-bound cursors; mandatory CI run #44820082776 passed.
+- PR #150: persistent episodic metadata index, byte-offset page reads, bounded page-selection memory, recovery tests, and a 100,000-record page benchmark. Merged as `c8079f13568835fa9bdc8639889fe9405bf25c06`; mandatory CI run #44822435655 is still running and is not yet counted as green.
 
-1. **Loop 2 completion:** persistent episodic identity index, duplicate detection without a full JSONL scan on every append, and safe index rebuild after missing, corrupt, stale, or interrupted index writes. The episode log remains authoritative.
-2. **Loop 3:** replace whole-file semantic fact loading and rewriting with bounded, indexed durable storage. Preserve semantic.json through a validated, idempotent migration; never overwrite unreadable legacy data or perform uncoordinated dual writes.
-3. **Loop 4:** checkpoint semantic reindex progress durably. Make batches idempotent, detect source changes during a run, resume after restart, and support embedding-model reset without treating partial indexing as complete.
-4. **Loop 5:** define bounded searchable-memory quotas and explicit retention behavior. Durable history remains indefinite by default under D-119. Add crash/recovery, corruption, concurrency, quota, and restart tests, plus comparable performance baselines.
-5. **Final loop:** synchronize roadmap/state/audit documentation, review every changed path and cross-folder caller, run the full Ubuntu/Windows Node 20/22 matrix and all mandatory docs, security, dependency, license, and architecture checks.
+**Storage capabilities already present in main**
+- Semantic facts use an append-only `semantic.events.jsonl` source with a rebuildable sidecar index. The legacy `semantic.json` migration validates all facts and refuses to overwrite unreadable legacy data.
+- Searchable semantic facts have explicit quotas and bounded serialized-operation limits. Durable history is retained indefinitely by default under D-119.
+- Semantic reindex uses bounded embedding/vector-upsert batches and a durable checkpoint containing source revision, embedding fingerprint/dimensions, collection, reset state, cursor, and indexed count. Existing tests cover restart resume, model reset, source validation, torn-tail recovery, quotas, and index rebuild.
+- Public semantic pages use an opaque keyset cursor tied to the source revision. Mutations invalidate the cursor rather than silently skipping or repeating facts.
+- Episodic JSONL remains authoritative. Its sidecar index can be rebuilt after missing, malformed, or stale index data; warm pages read only the selected source ranges and retain at most page-size plus one metadata candidates.
 
-Do not mark Phase 3 complete until every loop above has merged with green mandatory CI and the storage recovery invariants have test evidence. CI's informational acceptance-gates job is not live provider acceptance. Live Vercel acceptance and Phase 4 task-scoped workspaces remain separate open gates.
+**Remaining closeout**
+1. Confirm PR #150's merge-commit CI run #44822435655 passes the full Ubuntu/Windows Node 20/22 matrix and mandatory docs, dependency/security, license, and architecture checks. Fix any failures and rerun.
+2. Reconcile numeric performance baselines using the new 100k indexed-page measurement, and record actual p50/p95/RSS values from CI artifacts rather than inferred values.
+3. Complete the file-by-file and cross-folder audit, including stale code, unreferenced paths, duplicate logic, hard-coded limits, lifecycle/error paths, and docs-to-code contract checks. Update the audit checklist with evidence.
+4. Synchronize all remaining roadmap/state/audit references after the final audit.
+
+Phase 3 is not closed until the final mandatory CI and audit evidence are complete. The informational CI acceptance-gates job does not execute live provider acceptance. Live Vercel acceptance and Phase 4 task-scoped workspaces remain separate open gates.
 
 ## 2026-11-21 Phase 2 execution update
 
