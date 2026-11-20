@@ -52,7 +52,7 @@ function timestamp(name: string, value: string): number {
 }
 
 function canonicalPath(value: string, allowRoot = false): string | undefined {
-  if (typeof value !== 'string' || value.length > 1024 || value.includes('\\0') || value.includes('\\') || value.startsWith('/') || /^[A-Za-z]:/.test(value)) return undefined
+  if (typeof value !== 'string' || value.length > 1024 || value.includes('\0') || value.includes('\\') || value.startsWith('/') || /^[A-Za-z]:/.test(value)) return undefined
   if (value === '') return allowRoot ? '' : undefined
   const segments = value.split('/')
   if (segments.some((segment) => !segment || segment === '.' || segment === '..')) return undefined
