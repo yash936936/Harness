@@ -257,6 +257,42 @@ export interface CreateWorkspaceSessionInput extends IdempotentCommand {
   readonly signal?: AbortSignal
 }
 
+export interface WorkspaceSessionTransition {
+  readonly workspaceId: ResourceId
+  readonly ownerId: string
+  readonly leaseId: ResourceId
+  readonly fencingToken: number
+  readonly expectedState: WorkspaceSession['state']
+  readonly nextState: WorkspaceSession['state']
+  readonly expiresAt?: string
+}
+
+/** Durable session and capability metadata. Raw bearer tokens are never persisted. */
+export interface WorkspaceSessionStore {
+  /** Idempotently create one task-scoped session. Reusing a key with a different request is a conflict. */
+  createSession(input: WorkspaceSession & { readonly ownerId: string; readonly idempotencyKey: string }): Promise<WorkspaceSession>
+  getSession(workspaceId: ResourceId): Promise<WorkspaceSession | undefined>
+  getTaskSession(projectId: ProjectId, taskId: TaskId, sessionId: SessionId): Promise<WorkspaceSession | undefined>
+  listSessions(projectId: ProjectId, states?: readonly WorkspaceSession['state'][]): Promise<readonly WorkspaceSession[]>
+  /** Compare-and-set transition fenced by owner, lease ID, and monotonically increasing fencing token. */
+  transitionSession(input: WorkspaceSessionTransition): Promise<WorkspaceSession>
+  /** Store only a SHA-256 token digest and the capability's scope/expiry. */
+  recordCapability(capability: WorkspaceCapability): Promise<void>
+  /** Validate token, task/session/workspace binding, operation, path prefix, expiry, and revocation. */
+  authorizeCapability(input: {
+    readonly token: string
+    readonly projectId: ProjectId
+    readonly taskId: TaskId
+    readonly sessionId: SessionId
+    readonly workspaceId: ResourceId
+    readonly operation: WorkspaceOperation
+    readonly path?: string
+    readonly now?: number
+  }): Promise<boolean>
+  revokeCapability(capabilityId: ResourceId, reason: string): Promise<void>
+  revokeWorkspaceCapabilities(workspaceId: ResourceId, reason: string): Promise<void>
+}
+
 export interface WorkspaceCommand {
   readonly command: string
   readonly args: readonly string[]
