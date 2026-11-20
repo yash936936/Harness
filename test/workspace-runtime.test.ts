@@ -23,6 +23,7 @@ class FakeWorkspaceProvider implements WorkspaceSessionProvider {
   readonly name = 'fake-workspace'
   createCalls = 0
   closeCalls = 0
+  lastCloseFence?: number
   readonly revoked: string[] = []
   closeConfirmed = true
   createFailure?: Error
@@ -81,8 +82,9 @@ class FakeWorkspaceProvider implements WorkspaceSessionProvider {
     this.revoked.push(capabilityId)
   }
 
-  async close(): Promise<{ confirmed: boolean }> {
+  async close(input: { readonly workspaceId: string; readonly reason: string; readonly ownerId: string; readonly leaseId: string; readonly fencingToken: number }): Promise<{ confirmed: boolean }> {
     this.closeCalls += 1
+    this.lastCloseFence = input.fencingToken
     return { confirmed: this.closeConfirmed }
   }
 }
@@ -140,6 +142,7 @@ describe('WorkspaceRuntime', () => {
 
     const closed = await runtime.close(session.workspaceId, 'task complete')
     expect(closed.confirmed).toBe(true)
+    expect(provider.lastCloseFence).toBe(1)
     expect((await sessions.getSession(session.workspaceId))?.state).toBe('closed')
     expect(await leases.isCurrent(session.leaseId!, 'owner-runtime', session.fencingToken!)).toBe(false)
   })
