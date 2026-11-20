@@ -49,13 +49,23 @@ export interface SQLiteWorkspaceRuntimeOptions extends Omit<WorkspaceRuntimeOpti
 /** Construct the lease and session stores over the same per-project SQLite database. */
 export function createSQLiteWorkspaceRuntime(options: SQLiteWorkspaceRuntimeOptions): WorkspaceRuntime {
   const databasePath = required('databasePath', options.databasePath, 4_096)
-  const { databasePath: _databasePath, maxLeaseTtlMs, ...runtimeOptions } = options
   const leases = new SQLiteLeaseStore(databasePath, {
-    now: runtimeOptions.now,
-    maxLeaseTtlMs: maxLeaseTtlMs ?? runtimeOptions.maxSessionTtlMs,
+    now: options.now,
+    maxLeaseTtlMs: options.maxLeaseTtlMs ?? options.maxSessionTtlMs,
   })
-  const sessions = new SQLiteWorkspaceStore(databasePath, { now: runtimeOptions.now })
-  return new WorkspaceRuntime({ ...runtimeOptions, leases, sessions })
+  const sessions = new SQLiteWorkspaceStore(databasePath, { now: options.now })
+  return new WorkspaceRuntime({
+    projectId: options.projectId,
+    ownerId: options.ownerId,
+    provider: options.provider,
+    now: options.now,
+    maxSessionTtlMs: options.maxSessionTtlMs,
+    maxCommandTimeoutMs: options.maxCommandTimeoutMs,
+    maxOutputBytes: options.maxOutputBytes,
+    maxCapabilityTtlMs: options.maxCapabilityTtlMs,
+    leases,
+    sessions,
+  })
 }
 
 function required(name: string, value: unknown, max = 256): string {
