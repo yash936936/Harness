@@ -2,7 +2,7 @@
 
 A TypeScript multi-agent coding harness built on [Cordis](https://github.com/cordiverse/cordis). Profiles compose model access, tools, retrieval, memory, orchestration, policy gates, sandbox providers, and evaluation.
 
-**Project status (2026-11-14):** research/sample prototype. The current direction is cloud-hosted model inference and command execution only in an explicitly selected remote cloud sandbox. D-118 selects Vercel Sandbox as the first provider. Its adapter exists, but workspace transfer, result synchronization, lifecycle audit, CLI integration, and live acceptance remain incomplete. The command tool stays disabled.
+**Project status (2026-11-21):** the repository has completed the Phase 2 shared SQLite implementation and the Phase 3 memory/retrieval storage slices. Main CI run #44822435655 passed the full Ubuntu/Windows Node 20/22 matrix and mandatory architecture, docs, dependency/security, and license checks. The full file-by-file audit is still in progress. D-118 selects Vercel Sandbox as the first provider, but end-to-end workspace transfer, result synchronization, lifecycle acceptance, and live provider acceptance remain incomplete. The command tool stays disabled.
 
 ## Current decisions
 
