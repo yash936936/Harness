@@ -2,7 +2,7 @@ import { Service, type Context } from 'cordis'
 import { SemanticFactStore, type SemanticReindexCheckpoint } from './semantic-store.js'
 import { randomUUID } from 'node:crypto'
 import type { VectorCollection } from '../vectorstore-lancedb/index.js'
-import { MemoryError, type SemanticConfig, type SemanticFact, type SemanticFailure, type SemanticHit } from './types.js'
+import { MemoryError, type SemanticConfig, type SemanticFact, type SemanticFailure, type SemanticHit, type SemanticPage } from './types.js'
 
 declare module 'cordis' {
   interface Context {
