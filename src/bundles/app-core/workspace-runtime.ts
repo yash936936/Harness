@@ -362,7 +362,7 @@ export class WorkspaceRuntime {
       sessionId: session.sessionId,
       workspaceId,
       operation: 'execute',
-      path: command.cwd,
+      path: command.cwd === '.' ? '' : command.cwd,
       now: this.currentTime(),
     })
     if (!allowed) throw new Error('workspace runtime: command capability denied')
