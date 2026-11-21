@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { isSecretPath } from '../../architecture/secret-paths.js'
 import type { WorkspaceSnapshotManifest, WorkspaceSnapshotEntry, WorkspaceTransferFile, WorkspaceTransferLimits } from '../../architecture/contracts.js'
 
 const SHA256 = /^[a-f0-9]{64}$/
@@ -15,6 +16,8 @@ export function canonicalWorkspacePath(value: string): string | undefined {
   const segments = value.split('/')
   if (segments.some((segment) => !segment || segment === '.' || segment === '..' ||
     segment.endsWith('.') || segment.endsWith(' ') || WINDOWS_RESERVED.test(segment) || FORBIDDEN_SEGMENT.test(segment))) return undefined
+  if (segments.some((segment) => ['.git', '.harness', 'node_modules'].includes(segment.toLowerCase()))) return undefined
+  if (isSecretPath(value)) return undefined
   return value
 }
 
