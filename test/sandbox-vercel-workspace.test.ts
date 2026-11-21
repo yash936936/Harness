@@ -58,7 +58,7 @@ function fakeClient(options: { createUserFails?: boolean; realpath?: (path: stri
           return user
         },
         async update(value) { calls.push(['update', value]) },
-        async stop() { calls.push(['stop']); return { snapshot: { status: 'created' } } },
+        async snapshot(value) { calls.push(['snapshot', value]); return { status: 'created' } },
         async delete(value) { calls.push(['delete', value]); deleted = true },
         fs: {
           async realpath(path) { return options.realpath ? options.realpath(path) : path },
@@ -209,7 +209,7 @@ describe('Vercel task-scoped workspace provider', () => {
     const run = fake.calls.find((call) => Array.isArray(call) && call[0] === 'run') as [string, { cmd: string; args: string[]; cwd: string }]
     expect(run[1]).toMatchObject({ cmd: 'node', args: ['--version'], cwd: '/home/harness/workspace' })
     expect(fake.calls).toContainEqual(['update', { networkPolicy: 'deny-all' }])
-    expect(fake.calls.filter((call) => Array.isArray(call) && call[0] === 'stop')).toHaveLength(2)
+    expect(fake.calls.filter((call) => Array.isArray(call) && call[0] === 'snapshot')).toHaveLength(2)
 
     const closed = await runtime.close(session.workspaceId, 'test complete')
     expect(closed.confirmed).toBe(true)
