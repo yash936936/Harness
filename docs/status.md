@@ -23,6 +23,13 @@
 - `reindexBatchSize` now has a hard maximum of 1000, bounding each embedding/vector-upsert batch.
 - Added configuration regression tests for values above both ceilings and synchronized component docs.
 
+## 2026-11-21 bounded semantic sidecar metadata (PR #181)
+
+- Rebuild writes only active semantic facts to the disposable index sidecar, preserving insertion order and source byte ranges, without first writing every historical row to a temporary file.
+- Normal updates/deletions compact the sidecar when it exceeds max(64 KiB, active fact count × 256 bytes).
+- The authoritative append-only semantic event log is never truncated or rewritten.
+- Added tests for 1,200 replacements of one fact and for delete/reinsert ordering after a sidecar rebuild; both verify that history remains intact while sidecar size stays bounded.
+
 ## 2026-11-21 shared secret-path policy for workspace transfer (PR #179)
 
 - Moved the existing model-facing secret-path matcher into src/architecture/secret-paths.ts and reused it from both tools-local and workspace transfer validation.
