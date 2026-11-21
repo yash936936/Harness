@@ -392,7 +392,10 @@ export interface WorkspaceChangeSet {
  * non-finite, zero, or over-policy limits before reading or writing any bytes.
  */
 export interface WorkspaceTransferLimits {
+  /** Maximum number of file entries, excluding directories. */
   readonly maxFiles: number
+  /** Maximum total manifest entries, including directories. */
+  readonly maxEntries: number
   readonly maxFileBytes: number
   readonly maxTotalBytes: number
   readonly chunkBytes: number
