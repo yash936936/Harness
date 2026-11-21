@@ -21,9 +21,15 @@ export interface ChunkOptions {
   maxChunkLines: number
   /** Hard cap on a chunk's text. Default 6000 characters. */
   maxChunkChars: number
+  /** Maximum chunks emitted from one file. Default 5000. */
+  maxChunks?: number
 }
 
-export const DEFAULT_CHUNK_OPTIONS: ChunkOptions = { windowLines: 40, maxChunkLines: 80, maxChunkChars: 6000 }
+export const DEFAULT_CHUNK_OPTIONS: ChunkOptions = { windowLines: 40, maxChunkLines: 80, maxChunkChars: 6000, maxChunks: 5000 }
+
+export class ChunkLimitError extends Error {
+  override name = 'ChunkLimitError'
+}
 
 export function splitLines(source: string): string[] {
   return source.split(/\r?\n/)
@@ -58,6 +64,7 @@ export function chunkSource(file: string, source: string, symbols: readonly Code
     if (seen.has(key)) return
     const text = sliceChunkText(lines, start, end, opts.maxChunkChars)
     if (text.trim() === '') return
+    if (out.length >= (opts.maxChunks ?? 5000)) throw new ChunkLimitError(`retrieval-rank: file ${file} exceeds the per-file chunk limit`)
     seen.add(key)
     out.push({ file, startLine: start, endLine: end, kind, ...(name ? { name } : {}), text, id: chunkId(file, start, end, text) })
   }
