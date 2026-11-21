@@ -275,6 +275,14 @@ it('rejects configured memory limits above their hard ceilings', () => {
   expect(() => new RetrievalRank(new Context(), { root, maxPreparedChunks: 100_001 })).toThrow(RetrievalRankConfigError)
 })
 
+it('rejects excessive line counts before allocating the line array', () => {
+  const dir = join(root, 'src/bounded-line-read')
+  mkdirSync(dir, { recursive: true })
+  writeFileSync(join(dir, 'many.txt'), 'one\ntwo\nthree\n')
+  expect(readProjectFile('src/bounded-line-read/many.txt', realpathSync(root), 100, 2))
+    .toEqual({ ok: false, reason: 'too_many_lines' })
+})
+
 const okRes = (r: RankResult) => {
   if (!r.ok) throw new Error(`expected ok, got ${r.error.kind}: ${r.error.detail}`)
   return r
