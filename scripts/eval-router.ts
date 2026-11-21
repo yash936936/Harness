@@ -3,7 +3,7 @@
  *   npx tsx scripts/eval-router.ts                       (rules vs worker; worker = qwen2.5-coder:3b-instruct via Ollama)
  *   HARNESS_ROUTER_WORKER=qwen2.5-coder:7b-instruct npx tsx scripts/eval-router.ts
  *   HARNESS_ROUTER_CMD="python needle_wrapper.py" HARNESS_ROUTER_FILES="models/needle2/needle2.cact" npx tsx scripts/eval-router.ts
- * HARNESS_ROUTER_CMD is YOUR Needle wrapper speaking the stdio contract in src/bundles/router/backends.ts (one JSON line in,
+ * HARNESS_ROUTER_CMD is YOUR Needle wrapper speaking the stdio contract in scripts/router-command-backend.ts (one JSON line in,
  * one JSON line out). This repo does not ship it: how Cactus loads a .cact file is unverified (D-050).
  * HARNESS_STANDIN=1 self-tests the script with a fake worker (NOT a measurement). Prints one verdict per class per backend;
  * a class goes into `router.owned` only on `OWNS`. Paste the whole output back, do not summarise it.
@@ -13,7 +13,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { bootProfileCoding } from '../src/profiles/profile-coding.js'
 import { MockProvider, OllamaProvider } from '../src/bundles/model-adapter/index.js'
-import { CommandBackend, DECISION_CLASSES, RulesBackend, SUITE, WorkerBackend, evaluateClass, suiteSha256, verdict, type RouterBackend } from '../src/bundles/router/index.js'
+import { DECISION_CLASSES, RulesBackend, SUITE, WorkerBackend, evaluateClass, suiteSha256, verdict, type RouterBackend } from '../src/bundles/router/index.js'
+import { CommandBackend } from './router-command-backend.js'
 
 const STAND_IN = process.env['HARNESS_STANDIN'] === '1'
 const root = realpathSync(mkdtempSync(join(tmpdir(), 'harness-eval-router-')))

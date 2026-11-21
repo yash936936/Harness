@@ -22,6 +22,7 @@ The profile installs the router as `ctx.router`. Agent-loop may consult it for t
 - Routing quality depends on backend/model output and the available evaluation suite.
 - A routing score is not a policy approval.
 - The router does not own tool execution or side-effect authorization.
+- The runtime bundle exports only in-process routing backends. The host-executable CommandBackend is isolated under scripts/router-command-backend.ts and is used only by the explicit router evaluation script; profiles must never import it.
 - See D-006 and the router evaluation notes in `docs/status.md`.
 
 ---

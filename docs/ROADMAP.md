@@ -16,7 +16,7 @@ Main baseline: `d0c2639a834841e70002a3e32f1b5068ac15d2ef` (PR #165 merged). Post
 **Still open**
 1. Phase 3: interruption during the source append itself; cross-process session-log/cache recovery; large-file and metadata-scan memory bounds; full semantic reindex/recovery stress; remaining source audit.
 2. Phase 4: SQLite-backed workspace session metadata and ownership/fencing integration; task-scoped lifecycle; provider-enforced operation/path/expiry capabilities and revocation; byte-level secret-safe snapshot transfer; bounded result collection; hash-based conflict detection and governed apply; crash recovery and cleanup.
-3. D-110/D-117: built-in profile paths are restricted, but generic `CommandBackend`, `Subprocess`, retrieval bundles, Crabbox source, scripts, desktop paths, and downstream direct construction still need a repository-wide reachability audit.
+3. D-110/D-117: built-in profile paths are restricted and the host-executable CommandBackend has been moved out of the runtime router bundle into an evaluation-only script. Generic Subprocess, retrieval bundles, Crabbox source, other scripts, desktop paths, and downstream direct construction still need a repository-wide reachability audit.
 4. Final acceptance: migration safety, crash recovery, full compatibility and cross-platform matrix, documentation consistency, and live Vercel acceptance.
 5. Live Vercel acceptance is owner-run and requires explicit project egress authorization and credentials. The CI job named `acceptance gates NOT RUN` is informational only and is never counted as live acceptance.
 

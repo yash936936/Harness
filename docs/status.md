@@ -2,6 +2,12 @@
 
 > This file is a dated implementation history, not the active project status. Use [STATE.md](STATE.md) for verified current state and [ROADMAP.md](ROADMAP.md) for the active completion order.
 
+## 2026-11-21 router host process boundary
+
+- Moved CommandBackend and its process/hash helpers from src/bundles/router/backends.ts into scripts/router-command-backend.ts.
+- scripts/eval-router.ts and the dedicated router tests import the evaluation-only adapter directly. The runtime router bundle no longer exports a host-executable backend.
+- Added a regression test asserting CommandBackend is absent from the runtime router export surface.
+- This does not close the full D-110/D-117 audit: the generic Subprocess service, local retrieval bundles, Crabbox source, other scripts, desktop paths, and downstream construction still need reachability review.
 ## 2026-11-16 shared budget enforcement integrated (PR #130)
 
 - Main baseline: `0e2e38d5ea9e5b40d74422abccda4d9173c00b33`. PR #129 merged the SQLite budget reservation store after its initial Windows CI failure exposed concurrent read handles blocking atomic replacement. The fix makes existing-file readers share the cross-process lock; the full matrix passed on the corrected head.

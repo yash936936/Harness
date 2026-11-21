@@ -5,7 +5,9 @@ import { tmpdir } from 'node:os'
 import { createHash } from 'node:crypto'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { CommandBackend, RulesBackend, Router, WorkerBackend, SUITE, SUITE_SHA256, evaluateClass, suiteSha256, verdict, type Candidate, type ClassResult, type DecisionClass, type RouterBackend } from '../src/bundles/router/index.js'
+import { RulesBackend, Router, WorkerBackend, SUITE, SUITE_SHA256, evaluateClass, suiteSha256, verdict, type Candidate, type ClassResult, type DecisionClass, type RouterBackend } from '../src/bundles/router/index.js'
+import { CommandBackend } from '../scripts/router-command-backend.js'
+import * as routerRuntimeBundle from '../src/bundles/router/index.js'
 import { bootProfileCoding } from '../src/profiles/profile-coding.js'
 import { NEEDLE_PIN, ROUTER_BINDING } from '../src/bundles/model-store/index.js'
 
@@ -34,6 +36,10 @@ async function mk(cfg: ConstructorParameters<typeof Router>[1] = {}) {
   await ctx.plugin(Router, cfg)
   return ctx
 }
+
+it('does not expose a host executable backend from the runtime bundle', () => {
+  expect('CommandBackend' in routerRuntimeBundle).toBe(false)
+})
 
 describe('frozen suite', () => {
   it('is frozen: contents match the pinned hash, 15 cases per class', () => {
