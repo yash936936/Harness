@@ -451,107 +451,107 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
     }
     const sandbox = await this.getSandbox(session, true, command.signal)
     try {
-    const user = sandbox.asUser(WORKSPACE_USER)
-    const root = posix.join(user.homeDir, 'workspace')
-    const workspaceRelative = command.cwd === 'workspace' ? '.' : command.cwd.slice('workspace/'.length)
-    const cwd = posix.resolve(root, workspaceRelative)
-    const relative = posix.relative(root, cwd)
-    if (relative === '..' || relative.startsWith('../') || posix.isAbsolute(relative)) {
-      throw new Error('vercel-workspace: command working directory escapes the workspace')
-    }
-    const realCwd = await sandbox.fs.realpath(cwd, { signal: command.signal })
-    const realRelative = posix.relative(root, realCwd)
-    if (realRelative === '..' || realRelative.startsWith('../') || posix.isAbsolute(realRelative)) {
-      throw new Error('vercel-workspace: command working directory resolves outside the workspace')
-    }
-
-    const capture = new CombinedTextCapture(command.maxOutputBytes)
-    let remoteCommand: VercelWorkspaceCommand | undefined
-    let timedOut = false
-    let killRequested = false
-    let terminationFailure: unknown
-    const remainingSessionMs = Date.parse(session.expiresAt) - this.now()
-    if (!Number.isFinite(remainingSessionMs) || command.timeoutMs > remainingSessionMs) {
-      throw new RangeError('vercel-workspace: command timeout exceeds remaining workspace session lifetime')
-    }
-    await this.assertEgress(session.projectId)
-    await sandbox.update({
-      networkPolicy: 'deny-all',
-      timeout: Math.min(Math.max(this.sandboxTimeoutMs, command.timeoutMs), MAX_SANDBOX_TIMEOUT_MS, remainingSessionMs),
-    })
-    const timeoutController = new AbortController()
-    const executionSignal = command.signal ? AbortSignal.any([command.signal, timeoutController.signal]) : timeoutController.signal
-    const deadline = setTimeout(() => {
-      timedOut = true
-      timeoutController.abort(new Error('workspace command timed out'))
-      if (remoteCommand && !killRequested) {
-        killRequested = true
-        void remoteCommand.kill('SIGTERM').catch((error) => { terminationFailure = error })
+      const user = sandbox.asUser(WORKSPACE_USER)
+      const root = posix.join(user.homeDir, 'workspace')
+      const workspaceRelative = command.cwd === 'workspace' ? '.' : command.cwd.slice('workspace/'.length)
+      const cwd = posix.resolve(root, workspaceRelative)
+      const relative = posix.relative(root, cwd)
+      if (relative === '..' || relative.startsWith('../') || posix.isAbsolute(relative)) {
+        throw new Error('vercel-workspace: command working directory escapes the workspace')
       }
-    }, command.timeoutMs)
-    try {
-      remoteCommand = await user.runCommand({
-        cmd: command.command,
-        args: [...command.args],
-        cwd,
-        timeoutMs: command.timeoutMs,
-        signal: executionSignal,
-        detached: true,
+      const realCwd = await sandbox.fs.realpath(cwd, { signal: command.signal })
+      const realRelative = posix.relative(root, realCwd)
+      if (realRelative === '..' || realRelative.startsWith('../') || posix.isAbsolute(realRelative)) {
+        throw new Error('vercel-workspace: command working directory resolves outside the workspace')
+      }
+  
+      const capture = new CombinedTextCapture(command.maxOutputBytes)
+      let remoteCommand: VercelWorkspaceCommand | undefined
+      let timedOut = false
+      let killRequested = false
+      let terminationFailure: unknown
+      const remainingSessionMs = Date.parse(session.expiresAt) - this.now()
+      if (!Number.isFinite(remainingSessionMs) || command.timeoutMs > remainingSessionMs) {
+        throw new RangeError('vercel-workspace: command timeout exceeds remaining workspace session lifetime')
+      }
+      await this.assertEgress(session.projectId)
+      await sandbox.update({
+        networkPolicy: 'deny-all',
+        timeout: Math.min(Math.max(this.sandboxTimeoutMs, command.timeoutMs), MAX_SANDBOX_TIMEOUT_MS, remainingSessionMs),
       })
-      if (timedOut && !killRequested) {
-        killRequested = true
-        try { await remoteCommand.kill('SIGTERM') }
-        catch (error) { terminationFailure = error }
-      }
-      let waitSettled = false
-      const wait = raceAbort(remoteCommand.wait({ signal: executionSignal }), executionSignal)
-        .finally(() => { waitSettled = true })
-      const consume = async () => {
-        for await (const log of remoteCommand!.logs({ signal: executionSignal })) {
-          executionSignal.throwIfAborted()
-          capture.write(log.stream, log.data)
-          if (capture.truncated && !killRequested && !waitSettled) {
-            killRequested = true
-            try { await remoteCommand!.kill('SIGTERM') }
-            catch (error) {
-              terminationFailure = error
-              if (!waitSettled) throw error
+      const timeoutController = new AbortController()
+      const executionSignal = command.signal ? AbortSignal.any([command.signal, timeoutController.signal]) : timeoutController.signal
+      const deadline = setTimeout(() => {
+        timedOut = true
+        timeoutController.abort(new Error('workspace command timed out'))
+        if (remoteCommand && !killRequested) {
+          killRequested = true
+          void remoteCommand.kill('SIGTERM').catch((error) => { terminationFailure = error })
+        }
+      }, command.timeoutMs)
+      try {
+        remoteCommand = await user.runCommand({
+          cmd: command.command,
+          args: [...command.args],
+          cwd,
+          timeoutMs: command.timeoutMs,
+          signal: executionSignal,
+          detached: true,
+        })
+        if (timedOut && !killRequested) {
+          killRequested = true
+          try { await remoteCommand.kill('SIGTERM') }
+          catch (error) { terminationFailure = error }
+        }
+        let waitSettled = false
+        const wait = raceAbort(remoteCommand.wait({ signal: executionSignal }), executionSignal)
+          .finally(() => { waitSettled = true })
+        const consume = async () => {
+          for await (const log of remoteCommand!.logs({ signal: executionSignal })) {
+            executionSignal.throwIfAborted()
+            capture.write(log.stream, log.data)
+            if (capture.truncated && !killRequested && !waitSettled) {
+              killRequested = true
+              try { await remoteCommand!.kill('SIGTERM') }
+              catch (error) {
+                terminationFailure = error
+                if (!waitSettled) throw error
+              }
             }
           }
         }
-      }
-      const [result] = await Promise.all([wait, consume()])
-      if (terminationFailure) throw new Error(`vercel-workspace: timed-out command termination was not confirmed (${detail(terminationFailure)})`)
-      const captured = finalizeCapture(capture.result(), (value) => this.egress.redact(value), command.maxOutputBytes)
-      return {
-        exitCode: timedOut ? null : result.exitCode,
-        ...captured,
-        timedOut,
-        aborted: false,
-      }
-    } catch (error) {
-      if (remoteCommand && !killRequested) {
-        try { await remoteCommand.kill('SIGTERM') }
-        catch (killError) {
-          throw new Error(`vercel-workspace: command failed (${detail(error)}); remote termination was not confirmed (${detail(killError)})`)
+        const [result] = await Promise.all([wait, consume()])
+        if (terminationFailure) throw new Error(`vercel-workspace: timed-out command termination was not confirmed (${detail(terminationFailure)})`)
+        const captured = finalizeCapture(capture.result(), (value) => this.egress.redact(value), command.maxOutputBytes)
+        return {
+          exitCode: timedOut ? null : result.exitCode,
+          ...captured,
+          timedOut,
+          aborted: false,
         }
+      } catch (error) {
+        if (remoteCommand && !killRequested) {
+          try { await remoteCommand.kill('SIGTERM') }
+          catch (killError) {
+            throw new Error(`vercel-workspace: command failed (${detail(error)}); remote termination was not confirmed (${detail(killError)})`)
+          }
+        }
+        if (terminationFailure) throw new Error(`vercel-workspace: remote command termination was not confirmed (${detail(terminationFailure)})`)
+        if (command.signal?.aborted) {
+          if (!remoteCommand) throw new Error(`vercel-workspace: abort occurred before a remote command handle was returned; termination cannot be confirmed (${detail(error)})`)
+          const captured = finalizeCapture(capture.result(), (value) => this.egress.redact(value), command.maxOutputBytes)
+          return { exitCode: null, ...captured, timedOut: false, aborted: true }
+        }
+        if (timedOut || executionSignal.aborted || /timeout|timed out|deadline/i.test(detail(error))) {
+          if (!remoteCommand) throw new Error(`vercel-workspace: timeout occurred before a remote command handle was returned; termination cannot be confirmed (${detail(error)})`)
+          const captured = finalizeCapture(capture.result(), (value) => this.egress.redact(value), command.maxOutputBytes)
+          return { exitCode: null, ...captured, timedOut: true, aborted: false }
+        }
+        throw error
+      } finally {
+        clearTimeout(deadline)
       }
-      if (terminationFailure) throw new Error(`vercel-workspace: remote command termination was not confirmed (${detail(terminationFailure)})`)
-      if (command.signal?.aborted) {
-        if (!remoteCommand) throw new Error(`vercel-workspace: abort occurred before a remote command handle was returned; termination cannot be confirmed (${detail(error)})`)
-        const captured = finalizeCapture(capture.result(), (value) => this.egress.redact(value), command.maxOutputBytes)
-        return { exitCode: null, ...captured, timedOut: false, aborted: true }
-      }
-      if (timedOut || executionSignal.aborted || /timeout|timed out|deadline/i.test(detail(error))) {
-        if (!remoteCommand) throw new Error(`vercel-workspace: timeout occurred before a remote command handle was returned; termination cannot be confirmed (${detail(error)})`)
-        const captured = finalizeCapture(capture.result(), (value) => this.egress.redact(value), command.maxOutputBytes)
-        return { exitCode: null, ...captured, timedOut: true, aborted: false }
-      }
-      throw error
-    } finally {
-      clearTimeout(deadline)
-    }
-    } finally {
+      } finally {
       try { await this.stopSandbox(sandbox, session.projectId) }
       catch (stopError) { throw new Error(`vercel-workspace: sandbox stop/snapshot was not confirmed (${detail(stopError)})`) }
     }
