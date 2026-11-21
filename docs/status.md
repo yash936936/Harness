@@ -17,6 +17,13 @@
 - Fake-client tests cover lifecycle, egress, scope-tag mismatch, capability path/revocation, stale fencing, output caps, timeout, secret redaction, and cleanup failure. Mandatory Ubuntu/Windows Node 20/22 PR CI passed.
 - This is not live Vercel acceptance. Provider-validated recovery/adoption, restart recovery, byte transfer, secret/symlink-safe source enumeration, conflict-safe apply, and CLI registration remain open. COMMAND_TOOL remains disabled.
 
+## 2026-11-21 bounded semantic sidecar metadata (PR #180)
+
+- Rebuild now writes only the active semantic facts to the disposable index sidecar, preserving insertion order and source byte ranges.
+- Normal updates/deletions compact the sidecar when it exceeds max(64 KiB, active fact count × 256 bytes).
+- The authoritative append-only semantic event log is never truncated or rewritten.
+- Added tests for 1,200 replacements of one fact and for delete/reinsert ordering after a sidecar rebuild; both verify that history remains intact while the sidecar contains only live facts.
+
 ## 2026-11-21 shared secret-path policy for workspace transfer (PR #178)
 
 - Moved the existing model-facing secret-path matcher into src/architecture/secret-paths.ts and reused it from both tools-local and workspace transfer validation.
