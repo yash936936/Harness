@@ -17,6 +17,12 @@
 - Fake-client tests cover lifecycle, egress, scope-tag mismatch, capability path/revocation, stale fencing, output caps, timeout, secret redaction, and cleanup failure. Mandatory Ubuntu/Windows Node 20/22 PR CI passed.
 - This is not live Vercel acceptance. Provider-validated recovery/adoption, restart recovery, byte transfer, secret/symlink-safe source enumeration, conflict-safe apply, and CLI registration remain open. COMMAND_TOOL remains disabled.
 
+## 2026-11-21 Vercel isolated workspace home validation (PR #192)
+
+- Require the SDK-created `harness` user's home directory to be exactly `/home/harness`.
+- Revalidate the same boundary after reattaching to a persistent sandbox, before resolving command working directories.
+- Add fake-client tests for malicious home paths at creation and reattachment; unexpected paths fail closed.
+
 ## 2026-11-21 Vercel workspace snapshot lifetime bounds (PR #190)
 
 - `snapshotExpirationMs` now has a hard maximum of seven days.
@@ -48,7 +54,7 @@
 - Added regression tests for hard ceilings, source/list/chunk budgets, line-count rejection, and no vector-store open on preparation-limit failures.
 - This bounds retrieval-rank preparation only. Semantic reindex metadata scans, other prepared chunk lists, and measured large-store/large-file memory remain open.
 
-## 2026-11-21 shared secret-path policy for workspace transfer (PR #178)
+## 2026-11-21 shared secret-path policy for workspace transfer (PR #179)
 
 - Moved the existing model-facing secret-path matcher into src/architecture/secret-paths.ts and reused it from both tools-local and workspace transfer validation.
 - Workspace transfer paths now reject .env variants, SSH/AWS credential paths, private keys/certificates, credential/service-account files, secrets manifests, and Harness/Git/dependency internals (.harness, .git, node_modules).
