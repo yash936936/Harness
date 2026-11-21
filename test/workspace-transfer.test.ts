@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import type { WorkspaceSnapshotEntry, WorkspaceSnapshotManifest, WorkspaceTransferLimits } from '../src/architecture/contracts.js'
-import { canonicalWorkspacePath, validateWorkspaceSnapshotManifest, validateWorkspaceTransferLimits, workspaceManifestSha256 } from '../src/bundles/app-core/workspace-transfer.js'
+import { canonicalWorkspacePath, validateWorkspaceSnapshotManifest, validateWorkspaceTransferFile, validateWorkspaceTransferFiles, validateWorkspaceTransferLimits, workspaceManifestSha256 } from '../src/bundles/app-core/workspace-transfer.js'
 
 const limits: WorkspaceTransferLimits = { maxFiles: 10, maxFileBytes: 1_024, maxTotalBytes: 4_096, chunkBytes: 256 }
 const contentHash = createHash('sha256').update('hello').digest('hex')
@@ -37,9 +37,9 @@ describe('workspace transfer validation', () => {
   })
   it('rejects traversal, unsorted entries, case collisions, and file-directory collisions', () => {
     const mutations: Array<(m: { entries: WorkspaceSnapshotEntry[] }) => void> = [
-      (m) => { m.entries[1] = { ...m.entries[1]!, path: '../outside' } },
+      (m) => { m.entries[0] = { path: '../outside', kind: 'directory', sizeBytes: 0 } },
       (m) => { m.entries.reverse() },
-      (m) => { m.entries[0] = { path: 'SRC', kind: 'directory', sizeBytes: 0 } },
+      (m) => { m.entries[0] = { path: 'SRC', kind: 'directory', sizeBytes: 0 }; m.entries[1] = { path: 'src', kind: 'directory', sizeBytes: 0 } },
       (m) => { m.entries.push({ path: 'src/index.ts/child', kind: 'directory', sizeBytes: 0 }) },
     ]
     for (const mutate of mutations) {
@@ -71,3 +71,47 @@ describe('workspace transfer validation', () => {
     expect(() => validateWorkspaceSnapshotManifest(manifest(), { ...limits, maxFiles: 1 })).toThrow(/entry count/)
   })
 })
+
+describe('workspace byte stream validation', () => {
+  async function* chunks(parts: Uint8Array[]) {
+    let offset = 0
+    for (const bytes of parts) {
+      yield { offset, bytes }
+      offset += bytes.byteLength
+    }
+  }
+  function file(path: string, value: string, chunkBytes = 256) {
+    const bytes = new TextEncoder().encode(value)
+    const parts = Array.from({ length: Math.ceil(bytes.byteLength / chunkBytes) }, (_, i) => bytes.slice(i * chunkBytes, (i + 1) * chunkBytes))
+    return {
+      path,
+      sizeBytes: bytes.byteLength,
+      sha256: createHash('sha256').update(bytes).digest('hex'),
+      chunks: chunks(parts),
+    }
+  }
+  it('validates file content incrementally and accepts empty files', async () => {
+    await expect(validateWorkspaceTransferFile(file('a.txt', 'hello'), limits)).resolves.toBeUndefined()
+    await expect(validateWorkspaceTransferFile(file('empty.txt', ''), limits)).resolves.toBeUndefined()
+  })
+  it('rejects non-contiguous offsets, oversized chunks, truncation, and digest mismatch', async () => {
+    const valid = file('a.txt', 'hello')
+    await expect(validateWorkspaceTransferFile({ ...valid, chunks: (async function* () { yield { offset: 1, bytes: new TextEncoder().encode('hello') } })() }, limits)).rejects.toThrow(/contiguous offsets/)
+    await expect(validateWorkspaceTransferFile({ ...valid, chunks: (async function* () { yield { offset: 0, bytes: new Uint8Array(257) } })() }, limits)).rejects.toThrow(/chunk size/)
+    await expect(validateWorkspaceTransferFile({ ...valid, chunks: (async function* () { yield { offset: 0, bytes: new TextEncoder().encode('he') } })() }, limits)).rejects.toThrow(/byte count/)
+    await expect(validateWorkspaceTransferFile({ ...valid, sha256: '0'.repeat(64) }, limits)).rejects.toThrow(/SHA-256 mismatch/)
+  })
+  it('validates a sorted multi-file stream and enforces count and aggregate limits', async () => {
+    const files = [file('a.txt', 'hello'), file('b.txt', 'world')]
+    await expect(validateWorkspaceTransferFiles(chunksAsFiles(files), limits)).resolves.toEqual({ fileCount: 2, totalBytes: 10 })
+    await expect(validateWorkspaceTransferFiles(chunksAsFiles(files), { ...limits, maxFiles: 1 })).rejects.toThrow(/file count/)
+    await expect(validateWorkspaceTransferFiles(chunksAsFiles(files), { ...limits, maxTotalBytes: 8, maxFileBytes: 8, chunkBytes: 8 })).rejects.toThrow(/aggregate streamed bytes/)
+  })
+  it('rejects duplicate and unsorted file paths', async () => {
+    await expect(validateWorkspaceTransferFiles(chunksAsFiles([file('b.txt', 'b'), file('a.txt', 'a')]), limits)).rejects.toThrow(/sorted/)
+    await expect(validateWorkspaceTransferFiles(chunksAsFiles([file('a.txt', 'a'), file('a.txt', 'b')]), limits)).rejects.toThrow(/sorted/)
+  })
+})
+async function* chunksAsFiles(files: ReturnType<typeof file>[]) {
+  for (const entry of files) yield entry
+}
