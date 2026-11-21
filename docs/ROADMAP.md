@@ -54,7 +54,7 @@ Main baseline at the time of this snapshot: `2a2a60315a1e6db8b448c9c7d48a460c5bf
 - Phase 4 has SQLite fenced session/capability storage, WorkspaceRuntime, and VercelWorkspaceSessionProvider. Task-scoped persistent execution and fencing are implemented; provider-validated recovery, secure byte transfer, conflict-safe result synchronization, and live acceptance remain open.
 - D-110/D-117/D-118 remain binding. Host command fallback, Docker/WSL/Crabbox, automatic provider selection, and coding-profile `run_command` exposure remain prohibited.
 - Vercel fake-client output capture is tested. Live SDK buffering, remote termination, and end-to-end Vercel acceptance remain unverified and require explicit egress authorization and credentials.
-- The full file-by-file and cross-folder audit is incomplete. The repository currently contains 424 tracked files; the 2026-11-07 file manifest is historical, not current coverage evidence.
+- The full file-by-file and cross-folder audit is incomplete. The Git tree at `a6e7dfe164140a5ed91bae05032f87894bc2fe16` (2026-11-21) contains 375 tracked files before the three unused documentation-migration scripts in this PR are removed, leaving 372 files: 113 `src/`, 81 `test/`, 67 `docs/`, 52 `app/`, 43 `scripts/`, and 16 root/config files. This inventory does not establish audit coverage.
 
 ### Single execution order
 
