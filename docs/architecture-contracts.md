@@ -302,6 +302,10 @@ This proves recovery from the specific interruption window after the source appe
 
 A dedicated child process opens the authoritative `semantic.events.jsonl` in append mode, writes and syncs only the prefix `{"op":"put","fact":`, then exits with code 23 before completing the record. The parent boots a fresh semantic service instance, appends a valid fact, and verifies that recovery removes only the incomplete tail while preserving the committed event and the new append. This distinguishes a process interruption during source-record writing from PR #161's crash window after a complete durable append but before sidecar publication. The test has been added; its PR-head CI result is pending.
 
+### Cross-process session-log tail cursor invalidation
+
+PR #174 adds a regression test that warms a JsonlStore instance's lastSeq cursor after sequence 1, appends sequence 2 from a separate Node process through the normal SessionLog path and shared file lock, then verifies the original process detects the external append and allocates sequence 3. The final log contains exactly [1, 2, 3]. PR-head CI is required on Ubuntu and Windows with Node 20.19 and 22.12.
+
 ## Approved deployment and operating policy
 
 The four D-119 owner decisions are approved and binding for the initial implementation:
