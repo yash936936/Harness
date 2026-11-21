@@ -631,16 +631,16 @@ describe('semantic tier (3.3): the index is derived and recoverable', () => {
 
     const eventPath = join(dir, 'mem', 'semantic.events.jsonl')
     const indexPath = join(dir, 'mem', 'semantic.index.jsonl')
-    const durableEvents = (await readFile(eventPath, 'utf8')).trimEnd().split('\\n')
+    const durableEvents = (await readFile(eventPath, 'utf8')).trimEnd().split('\n')
     expect(durableEvents).toHaveLength(6)
     await rm(indexPath, { force: true })
 
     const recovered = await boot(opts)
     expect((await recovered.ctx.memorySemantic.list()).map((fact) => fact.id)).toEqual(['c', 'd'])
-    const compacted = (await readFile(indexPath, 'utf8')).trimEnd().split('\\n').map((line) => JSON.parse(line))
+    const compacted = (await readFile(indexPath, 'utf8')).trimEnd().split('\n').map((line) => JSON.parse(line))
     expect(compacted.map((entry) => entry.id)).toEqual(['c', 'd'])
     expect(compacted.every((entry) => entry.deleted !== true)).toBe(true)
-    expect((await readFile(eventPath, 'utf8')).trimEnd().split('\\n')).toHaveLength(6)
+    expect((await readFile(eventPath, 'utf8')).trimEnd().split('\n')).toHaveLength(6)
   })
 
   it('rebuilds the semantic ID and text index after missing or corrupt sidecar data', async () => {
