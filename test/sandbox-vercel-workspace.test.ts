@@ -83,6 +83,7 @@ async function setup(
     assertAllowedHost(host) { if (host !== 'vercel.com') throw new Error('host not allowlisted') },
     redact(text) { return text },
   },
+  providerOptions: { snapshotExpirationMs?: number } = {},
 ) {
   const dir = await mkdtemp(join(tmpdir(), 'vercel-workspace-'))
   dirs.push(dir)
@@ -98,6 +99,7 @@ async function setup(
     leases,
     ownerId: 'owner-1',
     now,
+    ...providerOptions,
   })
   const runtime = new WorkspaceRuntime({
     projectId: 'project-1',
@@ -115,6 +117,20 @@ async function setup(
 }
 
 describe('Vercel task-scoped workspace provider', () => {
+  it('caps snapshot expiry and requires it to cover the workspace TTL', async () => {
+    await expect(setup({}, undefined, { snapshotExpirationMs: 7 * 24 * 60 * 60 * 1_000 + 1 }))
+      .rejects.toThrow(/snapshotExpirationMs must be from 1000 ms to 7 days/)
+
+    const { fake, runtime } = await setup({}, undefined, { snapshotExpirationMs: 60_000 })
+    await expect(runtime.open({
+      taskId: 'task-snapshot-expiry',
+      sessionId: 'session-snapshot-expiry',
+      idempotencyKey: 'open-snapshot-expiry',
+      ttlMs: 120_000,
+    })).rejects.toThrow(/snapshot expiration must cover the requested workspace TTL/)
+    expect(fake.calls.some((call) => Array.isArray(call) && call[0] === 'create')).toBe(false)
+  })
+
   it('deletes the persistent sandbox when isolated-user initialization fails', async () => {
     const { fake, runtime } = await setup({ createUserFails: true })
     await expect(runtime.open({

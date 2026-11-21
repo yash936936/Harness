@@ -439,9 +439,7 @@ export type WorkspaceApplyResult =
 
 export interface WorkspaceTransferProvider {
   /** Creates metadata only. File bytes are read separately through readSnapshotFile. */
-  createSnapshot(input: {
-    readonly projectId: ProjectId
-    readonly taskId: TaskId
+  createSnapshot(input: WorkspaceTransferScope & {
     readonly limits: WorkspaceTransferLimits
   }): Promise<WorkspaceSnapshotManifest>
   /** Streams one file in monotonically increasing, contiguous, bounded chunks. */

@@ -2,12 +2,10 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { performance } from 'node:perf_hooks'
-import { Context } from 'cordis'
+import { Context, Service } from 'cordis'
 import { Embeddings, HashingEmbeddingProvider } from '../src/bundles/embeddings/index.js'
-import { RetrievalGrep } from '../src/bundles/retrieval-grep/index.js'
 import { RetrievalRank } from '../src/bundles/retrieval-rank/index.js'
 import { RetrievalTreesitter } from '../src/bundles/retrieval-treesitter/index.js'
-import { Subprocess } from '../src/bundles/subprocess/index.js'
 import { LanceVectorStore } from '../src/bundles/vectorstore-lancedb/index.js'
 
 const SAMPLES = 3
@@ -15,6 +13,20 @@ const ORDINARY_FILES = 30
 const FUNCTIONS_PER_FILE = 40
 const LARGE_FILE_FUNCTIONS = 540
 const INDEX_GROUP_CHUNKS = 512
+
+class FixtureRetrievalGrep extends Service {
+  constructor(ctx: Context) {
+    super(ctx, 'retrievalGrep')
+  }
+
+  async listFiles() {
+    return { ok: true as const, files: [], truncated: false }
+  }
+
+  async search() {
+    return { ok: true as const, results: [], truncated: false }
+  }
+}
 
 function percentile(values: number[], p: number): number {
   const sorted = [...values].sort((a, b) => a - b)
@@ -71,8 +83,9 @@ async function runSample(root: string, sample: number) {
   const observe = () => { peakRss = Math.max(peakRss, process.memoryUsage().rss) }
   const monitor = setInterval(observe, 5)
   try {
-    fibers.push(await ctx.plugin(Subprocess))
-    fibers.push(await ctx.plugin(RetrievalGrep, { root: project }))
+    // indexFiles receives the deterministic fixture list directly. A stub retrievalGrep
+    // satisfies the service dependency without launching a host subprocess under D-117.
+    fibers.push(await ctx.plugin(FixtureRetrievalGrep))
     fibers.push(await ctx.plugin(RetrievalTreesitter, { maxSymbols: 2000 }))
     fibers.push(await ctx.plugin(Embeddings, { maxBatchSize: 512 }))
     const inner = new HashingEmbeddingProvider({ dimensions: 64 })
@@ -157,7 +170,7 @@ try {
       indexedChunks: samples.map((s) => s.chunks),
       samples,
     },
-    interpretation: 'The current indexFiles implementation prepares all readable files and their chunks before embedding groups. indexGroupChunks bounds each embedding group, not total prepared chunk memory. This benchmark captures current behavior and does not claim bounded-memory indexing.',
+    interpretation: 'PR #177 adds hard ceilings for raw file count, aggregate source bytes, per-file bytes/lines/chunks, total prepared chunks, and prepared UTF-8 chunk bytes. This benchmark measures a small 31-file/1,740-chunk fixture using a direct fixture file list and no host subprocess. It does not characterize near-limit peak memory or large-store behavior.',
   }
   const output = JSON.stringify(report, null, 2)
   console.log(output)
