@@ -308,8 +308,14 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
   }
 
   private async getSandbox(session: WorkspaceSession, resume: boolean, signal?: AbortSignal): Promise<VercelWorkspaceSandbox> {
+    const client = await this.getClient()
     await this.assertEgress(session.projectId)
-    const sandbox = await (await this.getClient()).get({ name: session.workspaceId, resume, signal })
+    // Inspect ownership tags without resuming an untrusted or misidentified sandbox.
+    const inspected = await client.get({ name: session.workspaceId, resume: false, signal })
+    this.assertSandboxScope(inspected, session)
+    if (!resume) return inspected
+    await this.assertEgress(session.projectId)
+    const sandbox = await client.get({ name: session.workspaceId, resume: true, signal })
     this.assertSandboxScope(sandbox, session)
     // Reassert the restrictive policy on every reattachment before guest commands run.
     try {
