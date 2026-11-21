@@ -298,6 +298,10 @@ The test writes one committed fact through `MemorySemantic`, then appends a seco
 
 This proves recovery from the specific interruption window after the source append and before sidecar publication. It does not prove recovery from a torn/partial source append or process restart during session-log writes.
 
+### Semantic source append interrupted mid-record: pending CI
+
+A dedicated child process opens the authoritative `semantic.events.jsonl` in append mode, writes and syncs only the prefix `{"op":"put","fact":`, then exits with code 23 before completing the record. The parent boots a fresh semantic service instance, appends a valid fact, and verifies that recovery removes only the incomplete tail while preserving the committed event and the new append. This distinguishes a process interruption during source-record writing from PR #161's crash window after a complete durable append but before sidecar publication. The test has been added; its PR-head CI result is pending.
+
 ## Approved deployment and operating policy
 
 The four D-119 owner decisions are approved and binding for the initial implementation:
