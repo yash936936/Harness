@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { WorkspaceSnapshotEntry, WorkspaceSnapshotManifest, WorkspaceTransferFile, WorkspaceTransferLimits } from '../src/architecture/contracts.js'
 import { canonicalWorkspacePath, validateWorkspaceSnapshotManifest, validateWorkspaceTransferFile, validateWorkspaceTransferFiles, validateWorkspaceTransferLimits, validateWorkspaceSnapshotFiles, workspaceManifestSha256 } from '../src/bundles/app-core/workspace-transfer.js'
 
-const limits: WorkspaceTransferLimits = { maxFiles: 10, maxFileBytes: 1_024, maxTotalBytes: 4_096, chunkBytes: 256 }
+const limits: WorkspaceTransferLimits = { maxFiles: 10, maxEntries: 20, maxFileBytes: 1_024, maxTotalBytes: 4_096, chunkBytes: 256 }
 const contentHash = createHash('sha256').update('hello').digest('hex')
 type MutableManifest = { -readonly [K in keyof WorkspaceSnapshotManifest]: K extends 'entries' ? WorkspaceSnapshotEntry[] : WorkspaceSnapshotManifest[K] }
 function manifest(): WorkspaceSnapshotManifest {
@@ -32,6 +32,7 @@ describe('workspace transfer validation', () => {
   it('requires positive safe limits and bounded chunks', () => {
     expect(() => validateWorkspaceTransferLimits(limits)).not.toThrow()
     expect(() => validateWorkspaceTransferLimits({} as WorkspaceTransferLimits)).toThrow(/maxFiles must be a positive safe integer/)
+    expect(() => validateWorkspaceTransferLimits({ ...limits, maxEntries: 9 })).toThrow(/maxEntries must be at least maxFiles/)
     expect(() => validateWorkspaceTransferLimits({ ...limits, chunkBytes: 0 })).toThrow(/positive safe integer/)
     expect(() => validateWorkspaceTransferLimits({ ...limits, maxFileBytes: Number.MAX_SAFE_INTEGER + 1 })).toThrow(/positive safe integer/)
     expect(() => validateWorkspaceTransferLimits({ ...limits, chunkBytes: 2_048 })).toThrow(/chunkBytes exceeds/)
@@ -71,8 +72,9 @@ describe('workspace transfer validation', () => {
     const withSecondFileBase = manifest()
     const withSecondFile = { ...withSecondFileBase, entries: [...withSecondFileBase.entries, { path: 'z.ts', kind: 'file' as const, sizeBytes: 1, sha256: contentHash }], totalBytes: 6 }
     const secondFileManifest = { ...withSecondFile, manifestSha256: workspaceManifestSha256(withSecondFile) }
-    expect(() => validateWorkspaceSnapshotManifest(secondFileManifest, { ...limits, maxFiles: 1 })).toThrow(/entry count/)
-    expect(() => validateWorkspaceSnapshotManifest(manifest(), { ...limits, maxFiles: 1 })).toThrow(/entry count/)
+    expect(() => validateWorkspaceSnapshotManifest(secondFileManifest, { ...limits, maxFiles: 1 })).toThrow(/file count/)
+    expect(() => validateWorkspaceSnapshotManifest(manifest(), { ...limits, maxFiles: 1 })).not.toThrow()
+    expect(() => validateWorkspaceSnapshotManifest(manifest(), { ...limits, maxEntries: 1 })).toThrow(/entry count/)
   })
 })
 
