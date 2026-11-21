@@ -97,7 +97,7 @@ export class RetrievalRank extends Service {
     this.maxPreparedChunks = config.maxPreparedChunks ?? 25_000
     this.maxPreparedBytes = config.maxPreparedBytes ?? 128 * 1024 * 1024
     this.maxChunksPerFile = config.maxChunksPerFile ?? 5_000
-    this.chunkOpts = { windowLines: config.windowLines ?? 40, maxChunkLines: config.maxChunkLines ?? 80, maxChunkChars: config.maxChunkChars ?? 6000, maxChunks: this.maxChunksPerFile }
+    this.chunkOpts = { windowLines: config.windowLines ?? 40, maxChunkLines: config.maxChunkLines ?? 80, maxChunkChars: config.maxChunkChars ?? 6000, maxChunks: this.maxChunksPerFile, maxSourceBytes: this.maxFileBytes, maxLines: this.maxLinesPerFile }
     this.nameBoost = config.nameBoost ?? 2
     this.bm25Params = config.bm25 ?? { k1: 1.2, b: 0.75 }
     this.maxCandidateChunks = config.maxCandidateChunks ?? 3000
