@@ -67,7 +67,7 @@ describe('workspace transfer validation', () => {
     const withSecondFileBase = manifest()
     const withSecondFile = { ...withSecondFileBase, entries: [...withSecondFileBase.entries, { path: 'z.ts', kind: 'file' as const, sizeBytes: 1, sha256: contentHash }], totalBytes: 6 }
     const secondFileManifest = { ...withSecondFile, manifestSha256: workspaceManifestSha256(withSecondFile) }
-    expect(() => validateWorkspaceSnapshotManifest(secondFileManifest, { ...limits, maxFiles: 1 })).toThrow(/file count/)
-    expect(() => validateWorkspaceSnapshotManifest(manifest(), { ...limits, maxFiles: 1 })).not.toThrow()
+    expect(() => validateWorkspaceSnapshotManifest(secondFileManifest, { ...limits, maxFiles: 1 })).toThrow(/entry count/)
+    expect(() => validateWorkspaceSnapshotManifest(manifest(), { ...limits, maxFiles: 1 })).toThrow(/entry count/)
   })
 })
