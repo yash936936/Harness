@@ -77,6 +77,10 @@ async function setup(options: Parameters<typeof fakeClient>[0] = {}) {
   const fake = fakeClient(options)
   const provider = new VercelWorkspaceSessionProvider({
     client: fake.client,
+    egress: {
+      async status() { return { projectId: 'project-1', consented: true } },
+      assertAllowedHost(host) { if (host !== 'vercel.com') throw new Error('host not allowlisted') },
+    },
     sessions,
     leases,
     ownerId: 'owner-1',
@@ -98,6 +102,36 @@ async function setup(options: Parameters<typeof fakeClient>[0] = {}) {
 }
 
 describe('Vercel task-scoped workspace provider', () => {
+  it('blocks remote creation without project consent or the exact Vercel host allowlist', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'vercel-egress-'))
+    dirs.push(dir)
+    const databasePath = join(dir, 'workspace.sqlite')
+    const now = () => Date.parse('2026-11-21T00:00:00.000Z')
+    const leases = new SQLiteLeaseStore(databasePath, { now, maxLeaseTtlMs: 300_000 })
+    const sessions = new SQLiteWorkspaceStore(databasePath, { now })
+    const fake = fakeClient()
+    const provider = new VercelWorkspaceSessionProvider({
+      client: fake.client,
+      egress: {
+        async status() { return { projectId: 'project-1', consented: false } },
+        assertAllowedHost() { throw new Error('must not be called without consent') },
+      },
+      sessions,
+      leases,
+      ownerId: 'owner-1',
+      now,
+    })
+    const runtime = new WorkspaceRuntime({
+      projectId: 'project-1', ownerId: 'owner-1', provider, sessions, leases, now,
+      maxSessionTtlMs: 300_000, maxCommandTimeoutMs: 10_000, maxOutputBytes: 1_024, maxCapabilityTtlMs: 60_000,
+    })
+
+    await expect(runtime.open({ taskId: 'task-egress', sessionId: 'session-egress', idempotencyKey: 'open-egress', ttlMs: 120_000 }))
+      .rejects.toThrow(/remote egress consent is required/)
+    expect(fake.calls.some((call) => Array.isArray(call) && call[0] === 'create')).toBe(false)
+    expect(fake.calls.some((call) => Array.isArray(call) && call[0] === 'get')).toBe(false)
+  })
+
   it('creates persistent deny-all sandboxes and executes as an isolated user', async () => {
     const { fake, runtime } = await setup()
     const session = await runtime.open({ taskId: 'task-1', sessionId: 'session-1', idempotencyKey: 'open-1', ttlMs: 120_000 })
