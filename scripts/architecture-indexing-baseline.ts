@@ -157,7 +157,7 @@ try {
       indexedChunks: samples.map((s) => s.chunks),
       samples,
     },
-    interpretation: 'The current indexFiles implementation prepares all readable files and their chunks before embedding groups. indexGroupChunks bounds each embedding group, not total prepared chunk memory. This benchmark captures current behavior and does not claim bounded-memory indexing.',
+    interpretation: 'PR #177 adds hard ceilings for raw file count, aggregate source bytes, per-file bytes/lines/chunks, total prepared chunks, and prepared UTF-8 chunk bytes. This benchmark measures a small 31-file/1,740-chunk fixture and does not characterize near-limit peak memory or large-store behavior.',
   }
   const output = JSON.stringify(report, null, 2)
   console.log(output)
