@@ -465,7 +465,7 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
       if (terminationFailure) throw new Error(`vercel-workspace: timed-out command termination was not confirmed (${detail(terminationFailure)})`)
       const captured = capture.result()
       return {
-        exitCode: result.exitCode,
+        exitCode: timedOut ? null : result.exitCode,
         ...captured,
         timedOut,
         aborted: false,
