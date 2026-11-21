@@ -222,6 +222,43 @@ export class SemanticFactStore {
     return index
   }
 
+  /** Keep the disposable sidecar proportional to active facts, not update history. */
+  private async compactSidecar(index: SemanticIndex): Promise<void> {
+    const temporary = this.indexFile + '.' + process.pid + '.' + randomUUID() + '.tmp'
+    await assertNoSymlinkParents(this.indexFile)
+    const handle = await open(temporary, 'wx', 0o600)
+    try {
+      let outputOffset = 0
+      for (const id of index.orderedIds) {
+        const entry = index.byId.get(id)
+        if (!entry) continue
+        const bytes = Buffer.from(JSON.stringify(entry) + '\n', 'utf8')
+        let written = 0
+        while (written < bytes.length) {
+          const result = await handle.write(bytes, written, bytes.length - written, outputOffset + written)
+          if (result.bytesWritten < 1) throw new MemoryError('memory: could not compact semantic index sidecar')
+          written += result.bytesWritten
+        }
+        outputOffset += bytes.length
+      }
+      await handle.sync()
+    } catch (error) {
+      await handle.close().catch(() => {})
+      await unlink(temporary).catch(() => {})
+      throw error
+    }
+    await handle.close().catch(() => {})
+    try {
+      await assertNoSymlinkParents(this.indexFile)
+      await rename(temporary, this.indexFile)
+    } catch (error) {
+      await unlink(temporary).catch(() => {})
+      throw error
+    }
+    index.indexBytes = await this.fileSize(this.indexFile)
+    await this.writeManifest({ version: 1, sourceBytes: index.sourceBytes, indexBytes: index.indexBytes })
+  }
+
   private async writeManifest(manifest: SemanticManifest): Promise<void> {
     const temporary = `${this.manifestFile}.${process.pid}.${randomUUID()}.tmp`
     await assertNoSymlinkParents(this.manifestFile)
@@ -291,7 +328,8 @@ export class SemanticFactStore {
     index.sourceBytes += Buffer.byteLength(line, 'utf8')
     index.indexBytes = await this.fileSize(this.indexFile)
     this.apply(index, entry)
-    await this.writeManifest({ version: 1, sourceBytes: index.sourceBytes, indexBytes: index.indexBytes })
+    if (index.indexBytes > Math.max(64 * 1024, index.byId.size * 256)) await this.compactSidecar(index)
+    else await this.writeManifest({ version: 1, sourceBytes: index.sourceBytes, indexBytes: index.indexBytes })
     this.cache = index
     return { fact: stored, created: true }
   }
@@ -324,7 +362,8 @@ export class SemanticFactStore {
     index.sourceBytes += Buffer.byteLength(line, 'utf8')
     index.indexBytes = await this.fileSize(this.indexFile)
     this.apply(index, entry)
-    await this.writeManifest({ version: 1, sourceBytes: index.sourceBytes, indexBytes: index.indexBytes })
+    if (index.indexBytes > Math.max(64 * 1024, index.byId.size * 256)) await this.compactSidecar(index)
+    else await this.writeManifest({ version: 1, sourceBytes: index.sourceBytes, indexBytes: index.indexBytes })
     this.cache = index
     return previous
   }
