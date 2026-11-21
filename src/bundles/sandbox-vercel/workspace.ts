@@ -221,7 +221,7 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
 
   constructor(options: VercelWorkspaceProviderOptions) {
     if (!options.sessions || !options.leases || !options.egress) throw new TypeError('vercel-workspace: session store, lease store, and egress gate are required')
-    if (typeof options.ownerId !== 'string' || !options.ownerId.trim() || options.ownerId.length > 256) {
+    if (typeof options.ownerId !== 'string' || !options.ownerId.trim() || options.ownerId !== options.ownerId.trim() || options.ownerId.length > 256) {
       throw new TypeError('vercel-workspace: ownerId is required')
     }
     this.sessions = options.sessions
@@ -516,6 +516,7 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
     readonly leaseId: string
     readonly fencingToken: number
   }): Promise<{ readonly confirmed: boolean; readonly detail?: string }> {
+    if (typeof input.reason !== 'string' || !input.reason.trim() || input.reason.length > 512) throw new TypeError('vercel-workspace: invalid close reason')
     const session = await this.assertSession(input.workspaceId, ['creating', 'closing', 'failed', 'unknown'])
     if (input.ownerId !== this.ownerId || session.leaseId !== input.leaseId ||
         session.fencingToken !== input.fencingToken) {
