@@ -1,3 +1,13 @@
+# Status log
+
+## 2026-11-21 persistent Vercel task-workspace provider (PR #172 pending)
+
+- Added VercelWorkspaceSessionProvider alongside the existing one-shot sandbox adapter. It creates persistent Vercel sandboxes with deny-all networking, a dedicated unprivileged Linux user, hashed scope tags, and the latest snapshot retention policy.
+- The provider requires project-matched egress consent and the exact vercel.com allowlist before remote create/get/delete operations. It rechecks SQLite session ownership, capability scope/revocation, and the current lease fencing token before guest execution.
+- Commands use argv, a canonical workspace-relative working directory with a realpath containment check, a combined output-byte cap, and bounded timeout/cancellation handling. Close deletes orphan snapshots and reports unconfirmed cleanup without releasing the lease.
+- Fake-client tests cover lifecycle, project egress, scope-tag mismatch, capability path/revocation, stale fencing, output caps, timeout, and cleanup failure.
+- This is not live Vercel acceptance. The provider does not implement byte-level workspace transfer, source enumeration, conflict-safe apply, provider-validated lease-expiry recovery, or restart adoption. COMMAND_TOOL remains disabled.
+
 # Historical status log
 
 > This file is a dated implementation history, not the active project status. Use [STATE.md](STATE.md) for verified current state and [ROADMAP.md](ROADMAP.md) for the active completion order.
