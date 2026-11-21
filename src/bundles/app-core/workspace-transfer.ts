@@ -17,7 +17,8 @@ export function canonicalWorkspacePath(value: string): string | undefined {
 
 export function validateWorkspaceTransferLimits(limits: WorkspaceTransferLimits): void {
   if (!limits || typeof limits !== 'object') throw new TypeError('workspace transfer: limits are required')
-  for (const [name, value] of Object.entries(limits)) {
+  for (const name of ['maxFiles', 'maxFileBytes', 'maxTotalBytes', 'chunkBytes'] as const) {
+    const value = limits[name]
     if (!Number.isSafeInteger(value) || value <= 0) throw new RangeError(`workspace transfer: ${name} must be a positive safe integer`)
   }
   if (limits.chunkBytes > limits.maxFileBytes || limits.chunkBytes > limits.maxTotalBytes) {
@@ -69,6 +70,7 @@ export function validateWorkspaceSnapshotManifest(manifest: WorkspaceSnapshotMan
   let previousPath: string | undefined
   const seen = new Map<string, WorkspaceSnapshotEntry['kind']>()
   for (const entry of manifest.entries) {
+    if (!entry || typeof entry !== 'object') throw new TypeError('workspace transfer: manifest entry must be an object')
     const path = canonicalWorkspacePath(entry.path)
     if (!path || path !== entry.path) throw new TypeError('workspace transfer: manifest contains a non-canonical path')
     if (previousPath !== undefined && previousPath >= path) throw new TypeError('workspace transfer: manifest paths must be unique and lexicographically sorted')
