@@ -81,7 +81,7 @@ describe('workspace transfer validation', () => {
     const secondFileManifest = { ...withSecondFile, manifestSha256: workspaceManifestSha256(withSecondFile) }
     expect(() => validateWorkspaceSnapshotManifest(secondFileManifest, { ...limits, maxFiles: 1 })).toThrow(/file count/)
     expect(() => validateWorkspaceSnapshotManifest(manifest(), { ...limits, maxFiles: 1 })).not.toThrow()
-    expect(() => validateWorkspaceSnapshotManifest(manifest(), { ...limits, maxEntries: 1 })).toThrow(/entry count/)
+    expect(() => validateWorkspaceSnapshotManifest(manifest(), { ...limits, maxFiles: 1, maxEntries: 1 })).toThrow(/entry count/)
   })
 })
 
@@ -115,10 +115,10 @@ describe('workspace byte stream validation', () => {
     await expect(validateWorkspaceTransferFile({ ...valid, sha256: '0'.repeat(64) }, limits)).rejects.toThrow(/SHA-256 mismatch/)
   })
   it('validates a sorted multi-file stream and enforces count and aggregate limits', async () => {
-    const files = [file('a.txt', 'hello'), file('b.txt', 'world')]
-    await expect(validateWorkspaceTransferFiles(chunksAsFiles(files), limits)).resolves.toEqual({ fileCount: 2, totalBytes: 10 })
-    await expect(validateWorkspaceTransferFiles(chunksAsFiles(files), { ...limits, maxFiles: 1 })).rejects.toThrow(/file count/)
-    await expect(validateWorkspaceTransferFiles(chunksAsFiles(files), { ...limits, maxTotalBytes: 8, maxFileBytes: 8, chunkBytes: 8 })).rejects.toThrow(/aggregate streamed bytes/)
+    const files = () => [file('a.txt', 'hello'), file('b.txt', 'world')]
+    await expect(validateWorkspaceTransferFiles(chunksAsFiles(files()), limits)).resolves.toEqual({ fileCount: 2, totalBytes: 10 })
+    await expect(validateWorkspaceTransferFiles(chunksAsFiles(files()), { ...limits, maxFiles: 1 })).rejects.toThrow(/file count/)
+    await expect(validateWorkspaceTransferFiles(chunksAsFiles(files()), { ...limits, maxTotalBytes: 8, maxFileBytes: 8, chunkBytes: 8 })).rejects.toThrow(/aggregate streamed bytes/)
   })
   it('rejects duplicate, case-folded, unsorted, and file-directory-colliding paths', async () => {
     await expect(validateWorkspaceTransferFiles(chunksAsFiles([file('b.txt', 'b'), file('a.txt', 'a')]), limits)).rejects.toThrow(/sorted/)
