@@ -33,11 +33,26 @@ export function isWorkspaceTransferPathAllowed(value: string): boolean {
   return true
 }
 
+const MAX_TRANSFER_FILES = 50_000
+const MAX_TRANSFER_ENTRIES = 100_000
+const MAX_TRANSFER_FILE_BYTES = 64 * 1024 * 1024
+const MAX_TRANSFER_TOTAL_BYTES = 512 * 1024 * 1024
+const MAX_TRANSFER_CHUNK_BYTES = 1024 * 1024
+
 export function validateWorkspaceTransferLimits(limits: WorkspaceTransferLimits): void {
   if (!limits || typeof limits !== 'object') throw new TypeError('workspace transfer: limits are required')
-  for (const name of ['maxFiles', 'maxEntries', 'maxFileBytes', 'maxTotalBytes', 'chunkBytes'] as const) {
+  const hardCaps = {
+    maxFiles: MAX_TRANSFER_FILES,
+    maxEntries: MAX_TRANSFER_ENTRIES,
+    maxFileBytes: MAX_TRANSFER_FILE_BYTES,
+    maxTotalBytes: MAX_TRANSFER_TOTAL_BYTES,
+    chunkBytes: MAX_TRANSFER_CHUNK_BYTES,
+  } as const
+  for (const name of Object.keys(hardCaps) as (keyof typeof hardCaps)[]) {
     const value = limits[name]
-    if (!Number.isSafeInteger(value) || value <= 0) throw new RangeError(`workspace transfer: ${name} must be a positive safe integer`)
+    if (!Number.isSafeInteger(value) || value <= 0 || value > hardCaps[name]) {
+      throw new RangeError(`workspace transfer: ${name} must be between 1 and ${hardCaps[name]}`)
+    }
   }
   if (limits.maxEntries < limits.maxFiles) throw new RangeError('workspace transfer: maxEntries must be at least maxFiles')
   if (limits.chunkBytes > limits.maxFileBytes || limits.chunkBytes > limits.maxTotalBytes) {
@@ -98,6 +113,12 @@ export function validateWorkspaceSnapshotManifest(manifest: WorkspaceSnapshotMan
     previousPath = path
     const folded = path.toLocaleLowerCase('en-US')
     if (seen.has(folded)) throw new TypeError('workspace transfer: case-insensitive path collision')
+    const segments = folded.split('/')
+    let ancestor = ''
+    for (let index = 0; index < segments.length - 1; index += 1) {
+      ancestor = ancestor ? `${ancestor}/${segments[index]}` : segments[index]!
+      if (seen.get(ancestor) === 'file') throw new TypeError('workspace transfer: file path is also used as a directory')
+    }
     seen.set(folded, entry.kind)
     if (entry.mode !== undefined && (!Number.isSafeInteger(entry.mode) || entry.mode < 0 || entry.mode > 0o777)) {
       throw new TypeError('workspace transfer: invalid file mode')
@@ -114,12 +135,6 @@ export function validateWorkspaceSnapshotManifest(manifest: WorkspaceSnapshotMan
     if (fileCount > limits.maxFiles) throw new RangeError('workspace transfer: manifest file count exceeds its limit')
     totalBytes += entry.sizeBytes
     if (!Number.isSafeInteger(totalBytes) || totalBytes > limits.maxTotalBytes) throw new RangeError('workspace transfer: aggregate file size exceeds its limit')
-  }
-  for (const [path, kind] of seen) {
-    if (kind !== 'file') continue
-    for (const candidate of seen.keys()) {
-      if (candidate.startsWith(path + '/')) throw new TypeError('workspace transfer: file path is also used as a directory')
-    }
   }
   if (totalBytes !== manifest.totalBytes) throw new TypeError('workspace transfer: totalBytes does not match file entries')
   if (typeof manifest.manifestSha256 !== 'string' || !SHA256.test(manifest.manifestSha256) ||
@@ -180,11 +195,6 @@ export async function validateWorkspaceTransferFiles(
     const segments = foldedPath.split('/')
     for (let index = 1; index < segments.length; index += 1) {
       if (seenPaths.has(segments.slice(0, index).join('/'))) {
-        throw new TypeError('workspace transfer: file path is also used as a directory')
-      }
-    }
-    for (const existing of seenPaths) {
-      if (existing.startsWith(foldedPath + '/')) {
         throw new TypeError('workspace transfer: file path is also used as a directory')
       }
     }

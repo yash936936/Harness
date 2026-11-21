@@ -23,6 +23,14 @@ function mutableManifest(): MutableManifest {
 }
 
 describe('workspace transfer validation', () => {
+  it('enforces hard ceilings even when callers request larger transfer budgets', () => {
+    expect(() => validateWorkspaceTransferLimits({ ...limits, maxFiles: 50_001 })).toThrow(/maxFiles/)
+    expect(() => validateWorkspaceTransferLimits({ ...limits, maxEntries: 100_001 })).toThrow(/maxEntries/)
+    expect(() => validateWorkspaceTransferLimits({ ...limits, maxFileBytes: 64 * 1024 * 1024 + 1 })).toThrow(/maxFileBytes/)
+    expect(() => validateWorkspaceTransferLimits({ ...limits, maxTotalBytes: 512 * 1024 * 1024 + 1 })).toThrow(/maxTotalBytes/)
+    expect(() => validateWorkspaceTransferLimits({ ...limits, chunkBytes: 1024 * 1024 + 1 })).toThrow(/chunkBytes/)
+  })
+
   it('accepts canonical relative paths and rejects traversal and ambiguous paths', () => {
     expect(canonicalWorkspacePath('src/index.ts')).toBe('src/index.ts')
     for (const path of ['', '../secret', 'src/../secret', '/etc/passwd', 'C:/secret', 'src\\secret', 'src//file', 'src/./file', 'CON', 'src/name.', 'src/name ', 'src/a:b', '.env', '.env.local', 'src/.env.production', 'src/id_rsa', 'src/.aws/credentials', 'credentials.json', 'service-account.json', 'secrets.yaml', '.git/config', '.harness/state.json', 'node_modules/pkg/index.js', 'src/é'.normalize('NFD')]) {
@@ -38,9 +46,9 @@ describe('workspace transfer validation', () => {
   })
   it('requires positive safe limits and bounded chunks', () => {
     expect(() => validateWorkspaceTransferLimits(limits)).not.toThrow()
-    expect(() => validateWorkspaceTransferLimits({} as WorkspaceTransferLimits)).toThrow(/maxFiles must be a positive safe integer/)
+    expect(() => validateWorkspaceTransferLimits({} as WorkspaceTransferLimits)).toThrow(/maxFiles must be between 1 and/)
     expect(() => validateWorkspaceTransferLimits({ ...limits, maxEntries: 9 })).toThrow(/maxEntries must be at least maxFiles/)
-    expect(() => validateWorkspaceTransferLimits({ ...limits, chunkBytes: 0 })).toThrow(/positive safe integer/)
+    expect(() => validateWorkspaceTransferLimits({ ...limits, chunkBytes: 0 })).toThrow(/must be between 1 and/)
     expect(() => validateWorkspaceTransferLimits({ ...limits, maxFileBytes: Number.MAX_SAFE_INTEGER + 1 })).toThrow(/positive safe integer/)
     expect(() => validateWorkspaceTransferLimits({ ...limits, chunkBytes: 2_048 })).toThrow(/chunkBytes exceeds/)
     expect(() => validateWorkspaceTransferLimits({ ...limits, maxFileBytes: 8_192 })).toThrow(/maxFileBytes exceeds/)
