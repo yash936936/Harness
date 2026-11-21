@@ -390,15 +390,93 @@ export interface WorkspaceChangeSet {
   readonly totalBytes: number
 }
 
+/**
+ * Transfer limits are mandatory at every boundary. Providers must reject invalid,
+ * non-finite, zero, or over-policy limits before reading or writing any bytes.
+ */
+export interface WorkspaceTransferLimits {
+  readonly maxFiles: number
+  readonly maxFileBytes: number
+  readonly maxTotalBytes: number
+  readonly chunkBytes: number
+}
+
+/** A single bounded chunk. Providers must not buffer an entire file to yield it. */
+export interface WorkspaceTransferChunk {
+  readonly offset: number
+  readonly bytes: Uint8Array
+}
+
+/** File content is streamed; callers must verify the declared size and SHA-256. */
+export interface WorkspaceTransferFile {
+  readonly path: string
+  readonly sizeBytes: number
+  readonly sha256: string
+  readonly chunks: AsyncIterable<WorkspaceTransferChunk>
+}
+
+export interface WorkspaceTransferScope {
+  readonly workspaceId: ResourceId
+  readonly projectId: ProjectId
+  readonly taskId: TaskId
+  readonly sessionId: SessionId
+  readonly capability: WorkspaceCapability
+  readonly fencingToken: number
+}
+
+export interface WorkspaceApplyRequest {
+  readonly scope: WorkspaceTransferScope
+  readonly snapshotId: ResourceId
+  /** Changes must be sorted by canonical path and contain no duplicate paths. */
+  readonly changes: readonly WorkspaceChange[]
+  readonly files: AsyncIterable<WorkspaceTransferFile>
+  readonly maxFiles: number
+  readonly maxTotalBytes: number
+}
+
+export type WorkspaceApplyResult =
+  | { readonly applied: true; readonly appliedPaths: readonly string[] }
+  | { readonly applied: false; readonly reason: 'conflict' | 'invalid-manifest' | 'limit-exceeded' | 'unauthorized' | 'stale-fence'; readonly paths?: readonly string[] }
+
 export interface WorkspaceTransferProvider {
+  /** Creates metadata only. File bytes are read separately through readSnapshotFile. */
   createSnapshot(input: {
     readonly projectId: ProjectId
     readonly taskId: TaskId
     readonly maxFiles: number
-    readonly maxBytes: number
+    readonly maxTotalBytes: number
   }): Promise<WorkspaceSnapshotManifest>
-  uploadSnapshot(workspaceId: ResourceId, manifest: WorkspaceSnapshotManifest): Promise<void>
-  collectChanges(workspaceId: ResourceId, snapshotId: ResourceId, maxBytes: number): Promise<WorkspaceChangeSet>
+  /** Streams one file in monotonically increasing, contiguous, bounded chunks. */
+  readSnapshotFile(input: WorkspaceTransferScope & {
+    readonly snapshotId: ResourceId
+    readonly path: string
+    readonly maxBytes: number
+    readonly chunkBytes: number
+  }): Promise<WorkspaceTransferFile>
+  /** Uploads only validated manifest entries; implementations must verify size and digest while streaming. */
+  uploadSnapshot(input: WorkspaceTransferScope & {
+    readonly manifest: WorkspaceSnapshotManifest
+    readonly files: AsyncIterable<WorkspaceTransferFile>
+    readonly limits: WorkspaceTransferLimits
+  }): Promise<void>
+  /** Returns metadata only. Changed file bytes are read separately through readChangeFile. */
+  collectChanges(input: WorkspaceTransferScope & {
+    readonly snapshotId: ResourceId
+    readonly maxFiles: number
+    readonly maxTotalBytes: number
+  }): Promise<WorkspaceChangeSet>
+  readChangeFile(input: WorkspaceTransferScope & {
+    readonly snapshotId: ResourceId
+    readonly path: string
+    readonly maxBytes: number
+    readonly chunkBytes: number
+  }): Promise<WorkspaceTransferFile>
+  /**
+   * Applies a complete change set atomically. The provider must recheck capability,
+   * path policy, and fencing immediately before commit, compare base hashes, and
+   * apply no paths when any conflict or validation failure exists.
+   */
+  applyChanges(input: WorkspaceApplyRequest): Promise<WorkspaceApplyResult>
 }
 
 /* ----------------------------------------------------------- schema safety */
