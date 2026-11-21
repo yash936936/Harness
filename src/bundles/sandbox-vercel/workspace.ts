@@ -259,8 +259,8 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
     if (!Number.isSafeInteger(this.sandboxTimeoutMs) || this.sandboxTimeoutMs < 1_000 || this.sandboxTimeoutMs > MAX_SANDBOX_TIMEOUT_MS) {
       throw new RangeError('vercel-workspace: sandboxTimeoutMs must be from 1000 ms to 45 minutes')
     }
-    if (!Number.isSafeInteger(this.snapshotExpirationMs) || this.snapshotExpirationMs < 1_000) {
-      throw new RangeError('vercel-workspace: snapshotExpirationMs must be a positive safe integer')
+    if (!Number.isSafeInteger(this.snapshotExpirationMs) || this.snapshotExpirationMs < 1_000 || this.snapshotExpirationMs > MAX_WORKSPACE_TTL_MS) {
+      throw new RangeError('vercel-workspace: snapshotExpirationMs must be from 1000 ms to 7 days')
     }
     if (options.client) this.client = options.client
   }
@@ -336,6 +336,9 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
     if (input.provider !== this.name || input.ownerId !== this.ownerId ||
         !Number.isSafeInteger(input.ttlMs) || input.ttlMs < 1_000 || input.ttlMs > MAX_WORKSPACE_TTL_MS) {
       throw new TypeError('vercel-workspace: invalid workspace creation scope')
+    }
+    if (input.ttlMs > this.snapshotExpirationMs) {
+      throw new RangeError('vercel-workspace: snapshot expiration must cover the requested workspace TTL')
     }
     input.signal?.throwIfAborted()
     const session = await this.sessions.getSession(input.workspaceId)
