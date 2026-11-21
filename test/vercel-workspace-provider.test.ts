@@ -1,0 +1,226 @@
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, describe, expect, it } from 'vitest'
+import { SQLiteLeaseStore, SQLiteWorkspaceStore, WorkspaceRuntime } from '../src/bundles/app-core/index.js'
+import {
+  VercelWorkspaceSessionProvider,
+  type VercelWorkspaceClient,
+  type VercelWorkspaceCommand,
+  type VercelWorkspaceSandbox,
+  type VercelWorkspaceUser,
+} from '../src/bundles/sandbox-vercel/index.js'
+
+const dirs: string[] = []
+afterEach(async () => {
+  while (dirs.length) await rm(dirs.pop()!, { recursive: true, force: true })
+})
+
+function fakeClient(options: { createUserFails?: boolean; realpath?: (path: string) => string } = {}) {
+  const calls: unknown[] = []
+  let sandbox: VercelWorkspaceSandbox | undefined
+  const user: VercelWorkspaceUser = {
+    homeDir: '/home/harness',
+    async mkDir(path) { calls.push(['mkdir', path]) },
+    async runCommand(request) {
+      calls.push(['run', request])
+      const command: VercelWorkspaceCommand = {
+        async *logs() {
+          yield { stream: 'stdout', data: 'ok' }
+          yield { stream: 'stderr', data: 'warn' }
+        },
+        async wait() { return { exitCode: 0 } },
+        async kill(signal) { calls.push(['kill', signal]) },
+      }
+      return command
+    },
+  }
+  const client: VercelWorkspaceClient = {
+    async create(request) {
+      calls.push(['create', request])
+      sandbox = {
+        name: request.name,
+        tags: request.tags,
+        async createUser(name) {
+          calls.push(['createUser', name])
+          if (options.createUserFails) throw new Error('user creation failed')
+          return user
+        },
+        asUser(name) {
+          calls.push(['asUser', name])
+          return user
+        },
+        async update(value) { calls.push(['update', value]) },
+        async delete(value) { calls.push(['delete', value]) },
+        fs: {
+          async realpath(path) { return options.realpath ? options.realpath(path) : path },
+        },
+      }
+      return sandbox
+    },
+    async get(request) {
+      calls.push(['get', request])
+      if (!sandbox) throw Object.assign(new Error('not found'), { status: 404 })
+      return sandbox
+    },
+  }
+  return { client, calls }
+}
+
+async function setup(options: Parameters<typeof fakeClient>[0] = {}) {
+  const dir = await mkdtemp(join(tmpdir(), 'vercel-workspace-'))
+  dirs.push(dir)
+  const databasePath = join(dir, 'workspace.sqlite')
+  const now = () => Date.parse('2026-11-21T00:00:00.000Z')
+  const leases = new SQLiteLeaseStore(databasePath, { now, maxLeaseTtlMs: 300_000 })
+  const sessions = new SQLiteWorkspaceStore(databasePath, { now })
+  const fake = fakeClient(options)
+  const provider = new VercelWorkspaceSessionProvider({
+    client: fake.client,
+    sessions,
+    leases,
+    ownerId: 'owner-1',
+    now,
+  })
+  const runtime = new WorkspaceRuntime({
+    projectId: 'project-1',
+    ownerId: 'owner-1',
+    provider,
+    sessions,
+    leases,
+    now,
+    maxSessionTtlMs: 300_000,
+    maxCommandTimeoutMs: 10_000,
+    maxOutputBytes: 1_024,
+    maxCapabilityTtlMs: 60_000,
+  })
+  return { fake, provider, runtime, sessions, leases }
+}
+
+describe('Vercel task-scoped workspace provider', () => {
+  it('creates persistent deny-all sandboxes and executes as an isolated user', async () => {
+    const { fake, runtime } = await setup()
+    const session = await runtime.open({ taskId: 'task-1', sessionId: 'session-1', idempotencyKey: 'open-1', ttlMs: 120_000 })
+    expect(session).toMatchObject({ provider: 'vercel', ownerId: 'owner-1', state: 'ready' })
+
+    const capability = await runtime.issueCapability({
+      workspaceId: session.workspaceId,
+      operations: ['execute'],
+      pathPrefixes: ['src'],
+      ttlMs: 30_000,
+    })
+    const result = await runtime.execute(session.workspaceId, capability, {
+      command: 'node',
+      args: ['--version'],
+      cwd: 'src',
+      timeoutMs: 2_000,
+      maxOutputBytes: 100,
+    })
+
+    expect(result).toEqual({
+      exitCode: 0,
+      stdout: 'ok',
+      stderr: 'warn',
+      stdoutBytes: 2,
+      stderrBytes: 4,
+      truncated: false,
+      timedOut: false,
+      aborted: false,
+    })
+    const create = fake.calls.find((call) => Array.isArray(call) && call[0] === 'create') as [string, Record<string, unknown>]
+    expect(create[1]).toMatchObject({
+      name: session.workspaceId,
+      persistent: true,
+      networkPolicy: 'deny-all',
+      keepLastSnapshots: { count: 1, deleteEvicted: true },
+    })
+    expect(create[1]).not.toHaveProperty('env')
+    expect(fake.calls).toContainEqual(['createUser', 'harness'])
+    const run = fake.calls.find((call) => Array.isArray(call) && call[0] === 'run') as [string, { cmd: string; args: string[]; cwd: string }]
+    expect(run[1]).toMatchObject({ cmd: 'node', args: ['--version'], cwd: '/home/harness/workspace/src' })
+    expect(fake.calls).toContainEqual(['update', { networkPolicy: 'deny-all' }])
+
+    const closed = await runtime.close(session.workspaceId, 'test complete')
+    expect(closed.confirmed).toBe(true)
+    expect(fake.calls).toContainEqual(['delete', { deleteOrphanSnapshots: true }])
+  })
+
+  it('rechecks capability path prefixes inside the provider, not only in the runtime', async () => {
+    const { fake, provider, runtime, sessions } = await setup()
+    const session = await runtime.open({ taskId: 'task-2', sessionId: 'session-2', idempotencyKey: 'open-2', ttlMs: 120_000 })
+    const capability = await runtime.issueCapability({
+      workspaceId: session.workspaceId,
+      operations: ['execute'],
+      pathPrefixes: ['src'],
+      ttlMs: 30_000,
+    })
+    await sessions.transitionSession({
+      workspaceId: session.workspaceId,
+      ownerId: session.ownerId,
+      leaseId: session.leaseId!,
+      fencingToken: session.fencingToken!,
+      expectedState: 'ready',
+      nextState: 'running',
+    })
+
+    await expect(provider.execute(session.workspaceId, capability, {
+      command: 'node', args: [], cwd: 'other', timeoutMs: 1_000, maxOutputBytes: 100,
+    })).rejects.toThrow(/command capability denied/)
+    expect(fake.calls.some((call) => Array.isArray(call) && call[0] === 'run')).toBe(false)
+    await runtime.close(session.workspaceId, 'test cleanup')
+  })
+
+  it('rejects a sandbox whose durable scope tags do not match the SQLite session', async () => {
+    const { fake, provider, runtime, sessions } = await setup()
+    const session = await runtime.open({ taskId: 'task-3', sessionId: 'session-3', idempotencyKey: 'open-3', ttlMs: 120_000 })
+    const capability = await runtime.issueCapability({
+      workspaceId: session.workspaceId,
+      operations: ['execute'],
+      pathPrefixes: ['src'],
+      ttlMs: 30_000,
+    })
+    await sessions.transitionSession({
+      workspaceId: session.workspaceId,
+      ownerId: session.ownerId,
+      leaseId: session.leaseId!,
+      fencingToken: session.fencingToken!,
+      expectedState: 'ready',
+      nextState: 'running',
+    })
+    const create = fake.calls.find((call) => Array.isArray(call) && call[0] === 'create') as [string, { name: string; tags: Record<string, string> }]
+    create[1].tags.harness_scope = 'wrong-scope'
+
+    await expect(provider.execute(session.workspaceId, capability, {
+      command: 'node', args: [], cwd: 'src', timeoutMs: 1_000, maxOutputBytes: 100,
+    })).rejects.toThrow(/remote sandbox identity/)
+    expect(fake.calls.some((call) => Array.isArray(call) && call[0] === 'run')).toBe(false)
+    await runtime.close(session.workspaceId, 'test cleanup')
+  })
+
+  it('rejects a real path that escapes the isolated workspace root', async () => {
+    const { fake, provider, runtime, sessions } = await setup({
+      realpath: (path) => path.endsWith('/src') ? '/etc' : path,
+    })
+    const session = await runtime.open({ taskId: 'task-4', sessionId: 'session-4', idempotencyKey: 'open-4', ttlMs: 120_000 })
+    const capability = await runtime.issueCapability({
+      workspaceId: session.workspaceId,
+      operations: ['execute'],
+      pathPrefixes: ['src'],
+      ttlMs: 30_000,
+    })
+    await sessions.transitionSession({
+      workspaceId: session.workspaceId,
+      ownerId: session.ownerId,
+      leaseId: session.leaseId!,
+      fencingToken: session.fencingToken!,
+      expectedState: 'ready',
+      nextState: 'running',
+    })
+
+    await expect(provider.execute(session.workspaceId, capability, {
+      command: 'node', args: [], cwd: 'src', timeoutMs: 1_000, maxOutputBytes: 100,
+    })).rejects.toThrow(/resolves outside the workspace/)
+    expect(fake.calls.some((call) => Array.isArray(call) && call[0] === 'run')).toBe(false)
+    await runtime.close(session.workspaceId, 'test cleanup')
+  })
+})
