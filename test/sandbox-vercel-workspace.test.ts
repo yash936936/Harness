@@ -74,7 +74,13 @@ function fakeClient(options: { createUserFails?: boolean; realpath?: (path: stri
   return { client, calls }
 }
 
-async function setup(options: Parameters<typeof fakeClient>[0] = {}) {
+async function setup(
+  options: Parameters<typeof fakeClient>[0] = {},
+  egress: { status(): Promise<{ projectId: string; consented: boolean }>; assertAllowedHost(host: string): void } = {
+    async status() { return { projectId: 'project-1', consented: true } },
+    assertAllowedHost(host) { if (host !== 'vercel.com') throw new Error('host not allowlisted') },
+  },
+) {
   const dir = await mkdtemp(join(tmpdir(), 'vercel-workspace-'))
   dirs.push(dir)
   const databasePath = join(dir, 'workspace.sqlite')
@@ -84,10 +90,7 @@ async function setup(options: Parameters<typeof fakeClient>[0] = {}) {
   const fake = fakeClient(options)
   const provider = new VercelWorkspaceSessionProvider({
     client: fake.client,
-    egress: {
-      async status() { return { projectId: 'project-1', consented: true } },
-      assertAllowedHost(host) { if (host !== 'vercel.com') throw new Error('host not allowlisted') },
-    },
+    egress,
     sessions,
     leases,
     ownerId: 'owner-1',
@@ -135,6 +138,18 @@ describe('Vercel task-scoped workspace provider', () => {
 
     await expect(runtime.open({ taskId: 'task-egress', sessionId: 'session-egress', idempotencyKey: 'open-egress', ttlMs: 120_000 }))
       .rejects.toThrow(/remote egress consent is required/)
+    expect(fake.calls.some((call) => Array.isArray(call) && call[0] === 'create')).toBe(false)
+    expect(fake.calls.some((call) => Array.isArray(call) && call[0] === 'get')).toBe(false)
+  })
+
+  it('blocks remote creation when the exact Vercel host is not allowlisted', async () => {
+    const { fake, runtime } = await setup({}, {
+      async status() { return { projectId: 'project-1', consented: true } },
+      assertAllowedHost() { throw new Error('Vercel host not allowlisted') },
+    })
+    await expect(runtime.open({
+      taskId: 'task-host', sessionId: 'session-host', idempotencyKey: 'open-host', ttlMs: 120_000,
+    })).rejects.toThrow(/Vercel host not allowlisted/)
     expect(fake.calls.some((call) => Array.isArray(call) && call[0] === 'create')).toBe(false)
     expect(fake.calls.some((call) => Array.isArray(call) && call[0] === 'get')).toBe(false)
   })
