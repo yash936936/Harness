@@ -19,7 +19,7 @@
 1. Finish the post-merge main CI run #44832920650.
 2. Complete Phase 3 recovery from interruption during source append itself, cross-process session-log/cache recovery, and memory-bound evidence.
 3. Finish the repository-wide D-110/D-117 subprocess and indirect execution audit.
-4. Implement the production Vercel workspace provider, provider-validated recovery/adoption, provider-enforced capabilities, byte transfer, conflict handling, and recovery.
+4. Complete Vercel provider-validated recovery/adoption, restart recovery, bounded byte transfer, provider-side transfer enforcement, conflict-safe apply, and cleanup when remote egress consent is revoked. PR #172 adds the persistent session provider and fenced command execution.
 5. Complete the file-by-file audit and reconcile every active status document.
 6. Run final migration, cross-platform, security, performance, documentation, and owner-authorized Vercel acceptance.
 
