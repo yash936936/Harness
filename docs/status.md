@@ -1,16 +1,21 @@
-# Status log
-
-## 2026-11-21 persistent Vercel task-workspace provider (PR #172 pending)
-
-- Added VercelWorkspaceSessionProvider alongside the existing one-shot sandbox adapter. It creates persistent Vercel sandboxes with deny-all networking, a dedicated unprivileged Linux user, hashed scope tags, and the latest snapshot retention policy.
-- The provider requires project-matched egress consent and the exact vercel.com allowlist before remote create/get/delete operations. It rechecks SQLite session ownership, capability scope/revocation, and the current lease fencing token before guest execution.
-- Commands use argv, a canonical workspace-relative working directory with a realpath containment check, a combined output-byte cap, secret redaction, and bounded timeout/cancellation handling. Registered secrets are redacted, and truncated output is suppressed entirely to avoid partial-secret disclosure. Sandbox.snapshot() must return status=created after initialization and every command; it captures the filesystem and stops the VM, so processes do not survive between calls. Close confirms sandbox deletion and requests asynchronous orphan-snapshot deletion; unconfirmed cleanup retains the lease.
-- Fake-client tests cover lifecycle, project egress, scope-tag mismatch, capability path/revocation, stale fencing, output caps, timeout, and cleanup failure.
-- This is not live Vercel acceptance. The provider does not implement byte-level workspace transfer, source enumeration, conflict-safe apply, provider-validated lease-expiry recovery, or restart adoption. COMMAND_TOOL remains disabled.
-
 # Historical status log
 
 > This file is a dated implementation history, not the active project status. Use [STATE.md](STATE.md) for verified current state and [ROADMAP.md](ROADMAP.md) for the active completion order.
+
+## 2026-11-21 router host process boundary
+
+- Moved CommandBackend and its process/hash helpers from src/bundles/router/backends.ts into scripts/router-command-backend.ts.
+- scripts/eval-router.ts and the dedicated router tests import the evaluation-only adapter directly. The runtime router bundle no longer exports a host-executable backend.
+- Added a regression test asserting CommandBackend is absent from the runtime router export surface.
+- This does not close the full D-110/D-117 audit: the generic Subprocess service, local retrieval bundles, Crabbox source, other scripts, desktop paths, and downstream construction still need reachability review.
+## 2026-11-21 persistent Vercel workspace session provider (PR #172)
+
+- Added VercelWorkspaceSessionProvider alongside the one-shot Vercel adapter. It creates persistent Vercel sandboxes with deny-all networking, a dedicated unprivileged Linux user, hashed scope tags, and bounded snapshot retention.
+- Remote create/get/snapshot/delete operations require project-matched egress consent and the exact vercel.com allowlist. Execution rechecks SQLite session ownership, capability scope/revocation, and the current lease fencing token.
+- Commands use argv, a canonical workspace-relative working directory with realpath containment checks, a combined output-byte cap, registered-secret redaction, and bounded timeout/cancellation handling. Truncated output is suppressed entirely to avoid partial-secret disclosure.
+- Sandbox.snapshot() must return status=created after initialization and every command. This captures the filesystem and stops the VM between calls, so guest processes do not survive while workspace files persist. Close confirms sandbox deletion and requests asynchronous orphan-snapshot deletion.
+- Fake-client tests cover lifecycle, egress, scope-tag mismatch, capability path/revocation, stale fencing, output caps, timeout, secret redaction, and cleanup failure. Mandatory Ubuntu/Windows Node 20/22 PR CI passed.
+- This is not live Vercel acceptance. Provider-validated recovery/adoption, restart recovery, byte transfer, secret/symlink-safe source enumeration, conflict-safe apply, and CLI registration remain open. COMMAND_TOOL remains disabled.
 
 ## 2026-11-16 shared budget enforcement integrated (PR #130)
 
