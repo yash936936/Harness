@@ -159,7 +159,7 @@ function canonicalRelativePath(value: string): boolean {
 }
 
 function canonicalWorkspacePath(value: string): boolean {
-  return value === 'workspace' || (value.startsWith('workspace/') && canonicalRelativePath(value.slice('workspace/'.length)))
+  return value === '.' || canonicalRelativePath(value)
 }
 
 function scopeDigest(session: Pick<WorkspaceSession,
@@ -405,7 +405,7 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
     const allowed = new Set<WorkspaceOperation>(['list', 'read', 'write', 'execute', 'collect'])
     if (input.operations.some((operation) => !allowed.has(operation)) ||
         new Set(input.operations).size !== input.operations.length ||
-        input.pathPrefixes.some((path) => path !== '' && !canonicalWorkspacePath(path)) ||
+        input.pathPrefixes.some((path) => path !== '' && !canonicalRelativePath(path)) ||
         new Set(input.pathPrefixes).size !== input.pathPrefixes.length) {
       throw new TypeError('vercel-workspace: invalid capability operations or paths')
     }
@@ -444,7 +444,7 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
       sessionId: session.sessionId,
       workspaceId,
       operation: 'execute',
-      path: command.cwd,
+      path: command.cwd === '.' ? '' : command.cwd,
       now: this.now(),
     })
     if (!allowed) throw new Error('vercel-workspace: command capability denied')
@@ -459,8 +459,7 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
     try {
       const user = sandbox.asUser(WORKSPACE_USER)
       const root = posix.join(user.homeDir, 'workspace')
-      const workspaceRelative = command.cwd === 'workspace' ? '.' : command.cwd.slice('workspace/'.length)
-      const cwd = posix.resolve(root, workspaceRelative)
+      const cwd = posix.resolve(root, command.cwd)
       const relative = posix.relative(root, cwd)
       if (relative === '..' || relative.startsWith('../') || posix.isAbsolute(relative)) {
         throw new Error('vercel-workspace: command working directory escapes the workspace')
