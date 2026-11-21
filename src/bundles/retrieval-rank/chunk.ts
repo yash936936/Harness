@@ -23,9 +23,11 @@ export interface ChunkOptions {
   maxChunkChars: number
   /** Maximum chunks emitted from one file. Default 5000. */
   maxChunks?: number
+  /** Maximum UTF-8 bytes retained across emitted chunk text. Default 64 MiB. */
+  maxBytes?: number
 }
 
-export const DEFAULT_CHUNK_OPTIONS: ChunkOptions = { windowLines: 40, maxChunkLines: 80, maxChunkChars: 6000, maxChunks: 5000 }
+export const DEFAULT_CHUNK_OPTIONS: ChunkOptions = { windowLines: 40, maxChunkLines: 80, maxChunkChars: 6000, maxChunks: 5000, maxBytes: 64 * 1024 * 1024 }
 
 export class ChunkLimitError extends Error {
   override name = 'ChunkLimitError'
@@ -58,13 +60,17 @@ export function chunkSource(file: string, source: string, symbols: readonly Code
   const total = source === '' ? 0 : lines.length
   const out: Chunk[] = []
   const seen = new Set<string>()
+  let totalChunkBytes = 0
 
   const add = (start: number, end: number, kind: Chunk['kind'], name?: string): void => {
     const key = `${start}-${end}`
     if (seen.has(key)) return
     const text = sliceChunkText(lines, start, end, opts.maxChunkChars)
     if (text.trim() === '') return
-    if (out.length >= (opts.maxChunks ?? 5000)) throw new ChunkLimitError(`retrieval-rank: file ${file} exceeds the per-file chunk limit`)
+    if (out.length >= (opts.maxChunks ?? 5000)) throw new ChunkLimitError(`retrieval-rank: file ${file} exceeds the per-file chunk count limit`)
+    const chunkBytes = Buffer.byteLength(text, 'utf8')
+    if (totalChunkBytes + chunkBytes > (opts.maxBytes ?? 64 * 1024 * 1024)) throw new ChunkLimitError(`retrieval-rank: file ${file} exceeds the chunk text byte limit`)
+    totalChunkBytes += chunkBytes
     seen.add(key)
     out.push({ file, startLine: start, endLine: end, kind, ...(name ? { name } : {}), text, id: chunkId(file, start, end, text) })
   }
