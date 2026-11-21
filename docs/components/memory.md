@@ -15,8 +15,8 @@ Composes the episodic and hot memory tiers behind `ctx.memory`. It records one l
 - `path` selects persistent episodic and hot-tier storage. Without it, memory remains in process.
 - `maxFieldChars` bounds stored episode fields; `hotTokenCap` bounds the rendered hot tier.
 - `maxPendingEpisodeWrites` bounds outstanding writes to persistent episodic storage, including the active write. It defaults to 1024 and must be a positive safe integer.
-- `MemorySemantic` accepts `maxPendingOperations` to bound serialized semantic mutations and reads per service instance. It defaults to 256 outstanding operations and must be a positive safe integer.
-- `MemorySemantic` accepts `reindexBatchSize` to bound facts embedded and vector-upserted per reindex batch. It defaults to 64 and must be a positive safe integer.
+- `MemorySemantic` accepts `maxPendingOperations` to bound serialized semantic mutations and reads per service instance. It defaults to 256 outstanding operations and is hard-capped at 4096.
+- `MemorySemantic` accepts `reindexBatchSize` to bound facts embedded and vector-upserted per reindex batch. It defaults to 64 and is hard-capped at 1000.
 - Persistent and in-memory semantic stores enforce an active searchable-fact quota (`maxFacts`, default 10000) and a serialized per-fact byte cap (`maxFactBytes`, default 8192). At the active-fact cap, new IDs are rejected; replacing an existing ID remains allowed. These quotas never auto-delete durable history.
 - Persistent semantic facts use append-only `semantic.events.jsonl` plus rebuildable `semantic.index.jsonl` and `semantic.index.meta.json`. A validated legacy `semantic.json` array is imported once and retained unchanged as a backup. ID lookup, text deduplication, and semantic query hit hydration use indexed byte ranges.
 - `deriveLessons` defaults to false. When enabled, lessons are templated only from harness facts in the session log, never model or file text.
