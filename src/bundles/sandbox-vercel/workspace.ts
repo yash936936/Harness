@@ -15,10 +15,11 @@ import type {
 
 const PROVIDER_TAG = 'harness-workspace-v1'
 const WORKSPACE_USER = 'harness'
-const MAX_SESSION_COMMAND_TIMEOUT_MS = 60 * 60 * 1_000
+const MAX_SESSION_COMMAND_TIMEOUT_MS = 45 * 60 * 1_000
 const MAX_WORKSPACE_TTL_MS = 7 * 24 * 60 * 60 * 1_000
 const MAX_CAPABILITY_TTL_MS = 60 * 60 * 1_000
 const MAX_COMMAND_OUTPUT_BYTES = 64 * 1024 * 1024
+const MAX_SANDBOX_TIMEOUT_MS = 45 * 60 * 1_000
 const DEFAULT_SANDBOX_TIMEOUT_MS = 15 * 60 * 1_000
 const DEFAULT_SNAPSHOT_EXPIRATION_MS = 7 * 24 * 60 * 60 * 1_000
 
@@ -46,7 +47,7 @@ export interface VercelWorkspaceSandbox {
   readonly tags?: Record<string, string>
   createUser(username: string, options?: { signal?: AbortSignal }): Promise<VercelWorkspaceUser>
   asUser(username: string): VercelWorkspaceUser
-  update(options: { networkPolicy: 'deny-all' }): Promise<void>
+  update(options: { networkPolicy: 'deny-all'; timeout?: number }): Promise<void>
   delete(options?: { deleteOrphanSnapshots?: boolean }): Promise<void>
   fs: {
     realpath(path: string, options?: { signal?: AbortSignal }): Promise<string>
@@ -251,8 +252,8 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
     this.now = options.now ?? Date.now
     this.sandboxTimeoutMs = options.sandboxTimeoutMs ?? DEFAULT_SANDBOX_TIMEOUT_MS
     this.snapshotExpirationMs = options.snapshotExpirationMs ?? DEFAULT_SNAPSHOT_EXPIRATION_MS
-    if (!Number.isSafeInteger(this.sandboxTimeoutMs) || this.sandboxTimeoutMs < 1_000 || this.sandboxTimeoutMs > MAX_SESSION_COMMAND_TIMEOUT_MS) {
-      throw new RangeError('vercel-workspace: sandboxTimeoutMs must be from 1000 ms to 1 hour')
+    if (!Number.isSafeInteger(this.sandboxTimeoutMs) || this.sandboxTimeoutMs < 1_000 || this.sandboxTimeoutMs > MAX_SANDBOX_TIMEOUT_MS) {
+      throw new RangeError('vercel-workspace: sandboxTimeoutMs must be from 1000 ms to 45 minutes')
     }
     if (!Number.isSafeInteger(this.snapshotExpirationMs) || this.snapshotExpirationMs < 1_000) {
       throw new RangeError('vercel-workspace: snapshotExpirationMs must be a positive safe integer')
@@ -452,7 +453,15 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
     let timedOut = false
     let killRequested = false
     let terminationFailure: unknown
+    const remainingSessionMs = Date.parse(session.expiresAt) - this.now()
+    if (!Number.isFinite(remainingSessionMs) || command.timeoutMs > remainingSessionMs) {
+      throw new RangeError('vercel-workspace: command timeout exceeds remaining workspace session lifetime')
+    }
     await this.assertEgress(session.projectId)
+    await sandbox.update({
+      networkPolicy: 'deny-all',
+      timeout: Math.min(Math.max(this.sandboxTimeoutMs, command.timeoutMs), MAX_SANDBOX_TIMEOUT_MS, remainingSessionMs),
+    })
     const timeoutController = new AbortController()
     const executionSignal = command.signal ? AbortSignal.any([command.signal, timeoutController.signal]) : timeoutController.signal
     const deadline = setTimeout(() => {
