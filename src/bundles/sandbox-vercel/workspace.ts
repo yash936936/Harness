@@ -464,7 +464,7 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
       if (realRelative === '..' || realRelative.startsWith('../') || posix.isAbsolute(realRelative)) {
         throw new Error('vercel-workspace: command working directory resolves outside the workspace')
       }
-  
+
       const capture = new CombinedTextCapture(command.maxOutputBytes)
       let remoteCommand: VercelWorkspaceCommand | undefined
       let timedOut = false
