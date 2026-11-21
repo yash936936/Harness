@@ -240,7 +240,7 @@ describe('Vercel task-scoped workspace provider', () => {
   })
 
   it('does not report a timeout as handled when remote termination is unconfirmed', async () => {
-    const { runtime } = await setup({ waitMs: 20, killFails: true })
+    const { runtime, sessions } = await setup({ waitMs: 20, killFails: true })
     const session = await runtime.open({ taskId: 'task-timeout-fail', sessionId: 'session-timeout-fail', idempotencyKey: 'open-timeout-fail', ttlMs: 120_000 })
     const capability = await runtime.issueCapability({
       workspaceId: session.workspaceId, operations: ['execute'], pathPrefixes: ['src'], ttlMs: 30_000,
@@ -248,7 +248,7 @@ describe('Vercel task-scoped workspace provider', () => {
     await expect(runtime.execute(session.workspaceId, capability, {
       command: 'node', args: [], cwd: 'src', timeoutMs: 1, maxOutputBytes: 100,
     })).rejects.toThrow(/termination was not confirmed/)
-    const unknown = await runtime['sessions'].getSession(session.workspaceId)
+    const unknown = await sessions.getSession(session.workspaceId)
     expect(unknown?.state).toBe('unknown')
   })
 
