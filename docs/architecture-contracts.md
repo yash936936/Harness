@@ -306,6 +306,10 @@ A dedicated child process opens the authoritative `semantic.events.jsonl` in app
 
 PR #174 adds a regression test that warms a JsonlStore instance's lastSeq cursor after sequence 1, appends sequence 2 from a separate Node process through the normal SessionLog path and shared file lock, then verifies the original process detects the external append and allocates sequence 3. The final log contains exactly [1, 2, 3]. PR-head CI is required on Ubuntu and Windows with Node 20.19 and 22.12.
 
+### Bounded retrieval-rank index preparation
+
+PR #176 adds hard ceilings to retrieval-rank indexing: 20,000 raw paths, 128 MiB source bytes, 25,000 prepared chunks, 128 MiB prepared UTF-8 chunk text, 5,000 chunks per file, 1 MiB per file, and 100,000 lines per file by default. Configurable ceilings cannot exceed 50,000 paths, 512 MiB source/prepared bytes, 100,000 chunks, 20,000 chunks per file, 16 MiB per file, or 250,000 lines. Chunk generation enforces both per-file count and byte budgets as it emits chunks. Truncated ripgrep file listings and over-budget indexing return a limit error before vector-store mutation; excessive line counts are rejected before splitting into a line array. These limits bound retrieval-rank preparation, not semantic reindex metadata scans or all process-wide memory.
+
 ## Approved deployment and operating policy
 
 The four D-119 owner decisions are approved and binding for the initial implementation:
