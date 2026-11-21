@@ -17,6 +17,10 @@ function manifest(): WorkspaceSnapshotManifest {
   }
   return { ...base, manifestSha256: workspaceManifestSha256(base), createdAt: '2026-11-21T00:00:00.000Z' }
 }
+function mutableManifest(): MutableManifest {
+  const original = manifest()
+  return { ...original, entries: [...original.entries] } as unknown as MutableManifest
+}
 
 describe('workspace transfer validation', () => {
   it('accepts canonical relative paths and rejects traversal and ambiguous paths', () => {
@@ -52,15 +56,14 @@ describe('workspace transfer validation', () => {
     }
   })
   it('rejects digest, byte-total, file-size, and file-count mismatches', () => {
-    const badHash = manifest()
+    const badHash = mutableManifest()
     badHash.manifestSha256 = '0'.repeat(64)
     expect(() => validateWorkspaceSnapshotManifest(badHash, limits)).toThrow(/SHA-256 mismatch/)
-    const badTotal = manifest()
+    const badTotal = mutableManifest()
     badTotal.totalBytes = 6
     badTotal.manifestSha256 = workspaceManifestSha256(badTotal)
     expect(() => validateWorkspaceSnapshotManifest(badTotal, limits)).toThrow(/totalBytes does not match/)
-    const tooLargeBase = manifest()
-    const tooLarge = { ...tooLargeBase, entries: [...tooLargeBase.entries] } as unknown as WorkspaceSnapshotManifest & { entries: WorkspaceSnapshotEntry[] }
+    const tooLarge = mutableManifest()
     tooLarge.entries[1] = { path: 'src/index.ts', kind: 'file', sizeBytes: 2_048, sha256: contentHash }
     tooLarge.totalBytes = 2_048
     tooLarge.manifestSha256 = workspaceManifestSha256(tooLarge)
