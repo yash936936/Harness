@@ -17,7 +17,13 @@
 - Fake-client tests cover lifecycle, egress, scope-tag mismatch, capability path/revocation, stale fencing, output caps, timeout, secret redaction, and cleanup failure. Mandatory Ubuntu/Windows Node 20/22 PR CI passed.
 - This is not live Vercel acceptance. Provider-validated recovery/adoption, restart recovery, byte transfer, secret/symlink-safe source enumeration, conflict-safe apply, and CLI registration remain open. COMMAND_TOOL remains disabled.
 
-## 2026-11-21 shared secret-path policy for workspace transfer (PR #178)
+## 2026-11-21 semantic queue and reindex batch ceilings (PR #182)
+
+- `maxPendingOperations` now has a hard maximum of 4096, bounding queued semantic work even when callers override the default.
+- `reindexBatchSize` now has a hard maximum of 1000, bounding each embedding/vector-upsert batch.
+- Added configuration regression tests for values above both ceilings and synchronized component docs.
+
+## 2026-11-21 shared secret-path policy for workspace transfer (PR #179)
 
 - Moved the existing model-facing secret-path matcher into src/architecture/secret-paths.ts and reused it from both tools-local and workspace transfer validation.
 - Workspace transfer paths now reject .env variants, SSH/AWS credential paths, private keys/certificates, credential/service-account files, secrets manifests, and Harness/Git/dependency internals (.harness, .git, node_modules).

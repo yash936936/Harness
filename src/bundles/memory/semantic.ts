@@ -57,12 +57,12 @@ export class MemorySemantic extends Service {
     super(ctx, 'memorySemantic')
     this.store = new SemanticFactStore(config.path)
     this.maxPendingOperations = config.maxPendingOperations ?? 256
-    if (!Number.isSafeInteger(this.maxPendingOperations) || this.maxPendingOperations < 1) {
-      throw new MemoryError('memory: semantic maxPendingOperations must be a positive safe integer')
+    if (!Number.isSafeInteger(this.maxPendingOperations) || this.maxPendingOperations < 1 || this.maxPendingOperations > 4_096) {
+      throw new MemoryError('memory: semantic maxPendingOperations must be a positive safe integer no greater than 4096')
     }
     this.reindexBatchSize = config.reindexBatchSize ?? 64
-    if (!Number.isSafeInteger(this.reindexBatchSize) || this.reindexBatchSize < 1) {
-      throw new MemoryError('memory: semantic reindexBatchSize must be a positive safe integer')
+    if (!Number.isSafeInteger(this.reindexBatchSize) || this.reindexBatchSize < 1 || this.reindexBatchSize > 1_000) {
+      throw new MemoryError('memory: semantic reindexBatchSize must be a positive safe integer no greater than 1000')
     }
     this.collectionName = config.collection ?? 'memory-semantic'
     this.maxText = config.maxTextChars ?? 1000
