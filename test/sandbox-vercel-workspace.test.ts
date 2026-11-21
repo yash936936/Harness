@@ -16,7 +16,7 @@ afterEach(async () => {
   while (dirs.length) await rm(dirs.pop()!, { recursive: true, force: true })
 })
 
-function fakeClient(options: { createUserFails?: boolean; realpath?: (path: string) => string } = {}) {
+function fakeClient(options: { createUserFails?: boolean; realpath?: (path: string) => string; stdout?: string; stderr?: string; waitMs?: number; killFails?: boolean } = {}) {
   const calls: unknown[] = []
   let sandbox: VercelWorkspaceSandbox | undefined
   const user: VercelWorkspaceUser = {
@@ -26,11 +26,17 @@ function fakeClient(options: { createUserFails?: boolean; realpath?: (path: stri
       calls.push(['run', request])
       const command: VercelWorkspaceCommand = {
         async *logs() {
-          yield { stream: 'stdout', data: 'ok' }
-          yield { stream: 'stderr', data: 'warn' }
+          yield { stream: 'stdout', data: options.stdout ?? 'ok' }
+          yield { stream: 'stderr', data: options.stderr ?? 'warn' }
         },
-        async wait() { return { exitCode: 0 } },
-        async kill(signal) { calls.push(['kill', signal]) },
+        async wait() {
+          if (options.waitMs) await new Promise((resolve) => setTimeout(resolve, options.waitMs))
+          return { exitCode: 0 }
+        },
+        async kill(signal) {
+          calls.push(['kill', signal])
+          if (options.killFails) throw new Error('kill refused')
+        },
       }
       return command
     },
@@ -177,6 +183,34 @@ describe('Vercel task-scoped workspace provider', () => {
     const closed = await runtime.close(session.workspaceId, 'test complete')
     expect(closed.confirmed).toBe(true)
     expect(fake.calls).toContainEqual(['delete', { deleteOrphanSnapshots: true }])
+  })
+
+  it('kills the remote command when combined stdout and stderr exceed the byte cap', async () => {
+    const { fake, runtime } = await setup({ stdout: 'abcdef', stderr: 'warning' })
+    const session = await runtime.open({ taskId: 'task-output', sessionId: 'session-output', idempotencyKey: 'open-output', ttlMs: 120_000 })
+    const capability = await runtime.issueCapability({
+      workspaceId: session.workspaceId, operations: ['execute'], pathPrefixes: ['src'], ttlMs: 30_000,
+    })
+    const result = await runtime.execute(session.workspaceId, capability, {
+      command: 'node', args: [], cwd: 'src', timeoutMs: 1_000, maxOutputBytes: 4,
+    })
+    expect(result).toMatchObject({ stdout: 'abcd\\n[output truncated by Vercel workspace provider]', stdoutBytes: 4, stderrBytes: 0, truncated: true })
+    expect(fake.calls).toContainEqual(['kill', 'SIGTERM'])
+    await runtime.close(session.workspaceId, 'test complete')
+  })
+
+  it('reports command timeout only after the remote command is terminated', async () => {
+    const { fake, runtime } = await setup({ waitMs: 20 })
+    const session = await runtime.open({ taskId: 'task-timeout', sessionId: 'session-timeout', idempotencyKey: 'open-timeout', ttlMs: 120_000 })
+    const capability = await runtime.issueCapability({
+      workspaceId: session.workspaceId, operations: ['execute'], pathPrefixes: ['src'], ttlMs: 30_000,
+    })
+    const result = await runtime.execute(session.workspaceId, capability, {
+      command: 'node', args: [], cwd: 'src', timeoutMs: 1, maxOutputBytes: 100,
+    })
+    expect(result).toMatchObject({ exitCode: null, timedOut: true, aborted: false })
+    expect(fake.calls).toContainEqual(['kill', 'SIGTERM'])
+    await runtime.close(session.workspaceId, 'test complete')
   })
 
   it('rechecks capability path prefixes inside the provider, not only in the runtime', async () => {
