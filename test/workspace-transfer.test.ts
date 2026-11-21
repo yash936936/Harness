@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import type { WorkspaceSnapshotEntry, WorkspaceSnapshotManifest, WorkspaceTransferFile, WorkspaceTransferLimits } from '../src/architecture/contracts.js'
-import { canonicalWorkspacePath, validateWorkspaceSnapshotManifest, validateWorkspaceTransferFile, validateWorkspaceTransferFiles, validateWorkspaceTransferLimits, validateWorkspaceSnapshotFiles, workspaceManifestSha256 } from '../src/bundles/app-core/workspace-transfer.js'
+import { canonicalWorkspacePath, isWorkspaceTransferPathAllowed, validateWorkspaceSnapshotManifest, validateWorkspaceTransferFile, validateWorkspaceTransferFiles, validateWorkspaceTransferLimits, validateWorkspaceSnapshotFiles, workspaceManifestSha256 } from '../src/bundles/app-core/workspace-transfer.js'
 
 const limits: WorkspaceTransferLimits = { maxFiles: 10, maxEntries: 20, maxFileBytes: 1_024, maxTotalBytes: 4_096, chunkBytes: 256 }
 const contentHash = createHash('sha256').update('hello').digest('hex')
@@ -28,6 +28,13 @@ describe('workspace transfer validation', () => {
     for (const path of ['', '../secret', 'src/../secret', '/etc/passwd', 'C:/secret', 'src\\secret', 'src//file', 'src/./file', 'CON', 'src/name.', 'src/name ', 'src/a:b', 'src/é'.normalize('NFD')]) {
       expect(canonicalWorkspacePath(path)).toBeUndefined()
     }
+  })
+  it('blocks common secret stores and private-key files from transfer', () => {
+    for (const path of ['.env', '.env.production', '.ssh/id_ed25519', '.aws/credentials', '.git/config', 'secrets/token.json', 'certs/server.pem', 'keys/private.key', 'config/.npmrc']) {
+      expect(isWorkspaceTransferPathAllowed(path)).toBe(false)
+    }
+    expect(isWorkspaceTransferPathAllowed('src/index.ts')).toBe(true)
+    expect(isWorkspaceTransferPathAllowed('.env.example')).toBe(false)
   })
   it('requires positive safe limits and bounded chunks', () => {
     expect(() => validateWorkspaceTransferLimits(limits)).not.toThrow()
