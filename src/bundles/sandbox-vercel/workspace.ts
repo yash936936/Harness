@@ -426,11 +426,12 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
     let remoteCommand: VercelWorkspaceCommand | undefined
     let timedOut = false
     let killRequested = false
+    let terminationFailure: unknown
     const deadline = setTimeout(() => {
       timedOut = true
       if (remoteCommand && !killRequested) {
         killRequested = true
-        void remoteCommand.kill('SIGTERM').catch(() => {})
+        void remoteCommand.kill('SIGTERM').catch((error) => { terminationFailure = error })
       }
     }, command.timeoutMs)
     try {
@@ -461,6 +462,7 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
         }
       }
       const [result] = await Promise.all([wait, consume()])
+      if (terminationFailure) throw new Error(`vercel-workspace: timed-out command termination was not confirmed (${detail(terminationFailure)})`)
       const captured = capture.result()
       return {
         exitCode: result.exitCode,
@@ -472,12 +474,17 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
       if (remoteCommand && !killRequested) {
         try { await remoteCommand.kill('SIGTERM') }
         catch (killError) {
-          if (!command.signal?.aborted) throw new Error(`vercel-workspace: command failed (${detail(error)}); remote termination was not confirmed (${detail(killError)})`)
+          throw new Error(`vercel-workspace: command failed (${detail(error)}); remote termination was not confirmed (${detail(killError)})`)
         }
       }
       if (command.signal?.aborted) {
         const captured = capture.result()
         return { exitCode: null, ...captured, timedOut: false, aborted: true }
+      }
+      if (timedOut || /timeout|timed out|deadline/i.test(detail(error))) {
+        if (terminationFailure) throw new Error(`vercel-workspace: timed-out command termination was not confirmed (${detail(terminationFailure)})`)
+        const captured = capture.result()
+        return { exitCode: null, ...captured, timedOut: true, aborted: false }
       }
       throw error
     } finally {
