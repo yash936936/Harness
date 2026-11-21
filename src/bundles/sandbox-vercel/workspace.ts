@@ -70,6 +70,7 @@ export interface VercelWorkspaceClient {
 export interface VercelWorkspaceEgressGate {
   status(): Promise<{ readonly projectId: string; readonly consented: boolean }>
   assertAllowedHost(host: string): void
+  redact(text: string): string
 }
 
 export interface VercelWorkspaceProviderOptions {
@@ -123,14 +124,29 @@ class CombinedTextCapture {
   }
 
   result(): Capture {
-    const marker = this.truncated ? '\n[output truncated by Vercel workspace provider]' : ''
     return {
-      stdout: this.stdout + (this.truncated && this.stdoutBytes >= this.stderrBytes ? marker : ''),
-      stderr: this.stderr + (this.truncated && this.stdoutBytes < this.stderrBytes ? marker : ''),
+      stdout: this.stdout,
+      stderr: this.stderr,
       stdoutBytes: this.stdoutBytes,
       stderrBytes: this.stderrBytes,
       truncated: this.truncated,
     }
+  }
+}
+
+function finalizeCapture(capture: Capture, redact: (text: string) => string, limit: number): Capture {
+  const bounded = new CombinedTextCapture(limit)
+  bounded.write('stdout', redact(capture.stdout))
+  bounded.write('stderr', redact(capture.stderr))
+  const result = bounded.result()
+  const truncated = capture.truncated || result.truncated
+  const marker = truncated ? '\n[output truncated by Vercel workspace provider]' : ''
+  return {
+    stdout: result.stdout + (truncated && result.stdoutBytes >= result.stderrBytes ? marker : ''),
+    stderr: result.stderr + (truncated && result.stdoutBytes < result.stderrBytes ? marker : ''),
+    stdoutBytes: result.stdoutBytes,
+    stderrBytes: result.stderrBytes,
+    truncated,
   }
 }
 
@@ -469,7 +485,7 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
       }
       const [result] = await Promise.all([wait, consume()])
       if (terminationFailure) throw new Error(`vercel-workspace: timed-out command termination was not confirmed (${detail(terminationFailure)})`)
-      const captured = capture.result()
+      const captured = finalizeCapture(capture.result(), (value) => this.egress.redact(value), command.maxOutputBytes)
       return {
         exitCode: timedOut ? null : result.exitCode,
         ...captured,
@@ -486,12 +502,12 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
       if (terminationFailure) throw new Error(`vercel-workspace: remote command termination was not confirmed (${detail(terminationFailure)})`)
       if (command.signal?.aborted) {
         if (!remoteCommand) throw new Error(`vercel-workspace: abort occurred before a remote command handle was returned; termination cannot be confirmed (${detail(error)})`)
-        const captured = capture.result()
+        const captured = finalizeCapture(capture.result(), (value) => this.egress.redact(value), command.maxOutputBytes)
         return { exitCode: null, ...captured, timedOut: false, aborted: true }
       }
       if (timedOut || executionSignal.aborted || /timeout|timed out|deadline/i.test(detail(error))) {
         if (!remoteCommand) throw new Error(`vercel-workspace: timeout occurred before a remote command handle was returned; termination cannot be confirmed (${detail(error)})`)
-        const captured = capture.result()
+        const captured = finalizeCapture(capture.result(), (value) => this.egress.redact(value), command.maxOutputBytes)
         return { exitCode: null, ...captured, timedOut: true, aborted: false }
       }
       throw error
