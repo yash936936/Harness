@@ -7,7 +7,7 @@
 - PR #161 merged the source-append/index-update crash-window test: a fresh service rebuilds the sidecar after an event append that did not reach the index/manifest. PR-head CI #44833502733 passed. This does not cover interruption during the source append itself.
 - PR #157 published semantic page benchmark evidence. Cold index rebuild p50/p95 4,310.982/4,404.561 ms; warm 50-row page p50/p95 19.953/25.641 ms (49,999), 18.225/25.586 ms (89,999), and 17.867/20.190 ms (99,899); sampled RSS delta 25,427,968/26,869,760 bytes. Measurement caveats are in `docs/architecture-contracts.md`.
 - PR #159 removes host `Subprocess` from both built-in profiles and disables host-backed retrieval/router configuration in `profile-coding`. Generic subprocess and retrieval bundles remain exported, so this is not the complete repository-wide D-110/D-117 audit.
-- Phase 4 now has a durable SQLite session/capability store (PR #163) and a backend-neutral lease/session runtime (PR #165). The runtime has no production Vercel provider, provider-validated recovery, provider-side OS enforcement, byte transfer, snapshot manifests, conflict-safe apply, or crash recovery. Live Vercel acceptance remains open.
+- Phase 4 has a durable SQLite session/capability store (PR #163), backend-neutral WorkspaceRuntime (PR #165), and a persistent Vercel session provider (PR #172, pending CI). The provider checks project egress, deny-all networking, per-workspace Linux-user execution, durable scope tags, SQLite capability/revocation, and lease fencing. Provider-validated recovery/adoption, byte transfer, source enumeration, snapshot manifests, conflict-safe apply, and crash recovery remain open. Live Vercel acceptance remains open.
 - The complete file-by-file/cross-folder audit remains incomplete; the 108-file scan and 424-file historical count below are triage evidence only.
 
 
@@ -16,7 +16,7 @@
 - Neither `profile-coding` nor `profile-minimal` registers the host `Subprocess` service. Both reject attempts to configure host subprocess execution; `profile-coding` also rejects `router.needle` and host-backed `retrieval.grep`, `retrieval.rank`, and `retrieval.tools`. It no longer constructs `CommandBackend`, `RetrievalGrep`, or `RetrievalRank`. Tree-sitter parsing remains available without launching a host process.
 - Regression coverage: `test/router.test.ts` verifies a configured host executable is rejected; `test/profile-coding.test.ts` and `test/profile-minimal.test.ts` verify the host `Subprocess` service is absent and its configuration is rejected.
 - The generic `CommandBackend`, `Subprocess`, and retrieval bundles remain exported for explicit non-profile consumers and still contain host-process execution paths. Crabbox imports `Subprocess` but remains held under D-110 and is not registered by either built-in profile. These changes close the built-in profile paths only; they do not close the repository-wide host-execution audit. Trace direct construction by downstream applications and all other subprocess consumers before declaring D-117 complete.
-- The cloud-only Vercel workspace path remains unavailable until Phase 4 transfer, result synchronization, lifecycle, and policy integration pass.
+- The cloud-only Vercel workspace path remains unavailable to the coding CLI until Phase 4 transfer, result synchronization, provider recovery, lifecycle cleanup, and policy acceptance pass. PR #172 implements the session provider but does not register it in the CLI.
 
 
 ## Historical audit continuation baseline (PR #156 merge)
