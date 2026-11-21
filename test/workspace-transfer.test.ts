@@ -39,7 +39,7 @@ describe('workspace transfer validation', () => {
     const mutations: Array<(m: { entries: WorkspaceSnapshotEntry[] }) => void> = [
       (m) => { m.entries[1] = { ...m.entries[1]!, path: '../outside' } },
       (m) => { m.entries.reverse() },
-      (m) => { m.entries.push({ path: 'SRC', kind: 'directory', sizeBytes: 0 }) },
+      (m) => { m.entries[0] = { path: 'SRC', kind: 'directory', sizeBytes: 0 } },
       (m) => { m.entries.push({ path: 'src/index.ts/child', kind: 'directory', sizeBytes: 0 }) },
     ]
     for (const mutate of mutations) {
