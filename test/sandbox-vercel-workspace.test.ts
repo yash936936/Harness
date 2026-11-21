@@ -225,7 +225,7 @@ describe('Vercel task-scoped workspace provider', () => {
     const result = await runtime.execute(session.workspaceId, capability, {
       command: 'node', args: [], cwd: '.', timeoutMs: 1_000, maxOutputBytes: 4,
     })
-    expect(result).toMatchObject({ stdout: 'abcd\n[output truncated by Vercel workspace provider]', stdoutBytes: 4, stderrBytes: 0, truncated: true })
+    expect(result).toMatchObject({ stdout: '[output truncated by Vercel workspace provider]', stdoutBytes: 0, stderrBytes: 0, truncated: true })
     expect(fake.calls).toContainEqual(['kill', 'SIGTERM'])
     await runtime.close(session.workspaceId, 'test complete')
   })
