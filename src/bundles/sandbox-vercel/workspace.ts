@@ -145,7 +145,7 @@ function finalizeCapture(capture: Capture, redact: (text: string) => string, lim
   if (truncated) {
     // Do not return a tail that may contain only a prefix of a registered secret.
     return {
-      stdout: '[output truncated by Vercel workspace provider]',
+      stdout: '',
       stderr: '',
       stdoutBytes: 0,
       stderrBytes: 0,
