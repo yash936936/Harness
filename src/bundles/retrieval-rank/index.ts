@@ -159,9 +159,9 @@ export class RetrievalRank extends Service {
     return readProjectFile(rel, realRoot, this.maxFileBytes, this.maxLinesPerFile)
   }
 
-  private async chunksOf(rel: string, file: Extract<FileRead, { ok: true }>, maxBytes = this.maxPreparedBytes): Promise<Chunk[]> {
+  private async chunksOf(rel: string, file: Extract<FileRead, { ok: true }>, maxBytes = this.maxPreparedBytes, maxChunks = this.maxChunksPerFile): Promise<Chunk[]> {
     const parsed = await this.ctx.retrievalParse.parse(file.text, { filename: rel })
-    return chunkSource(rel, file.text, parsed.ok ? parsed.file.symbols : undefined, { ...this.chunkOpts, maxBytes })
+    return chunkSource(rel, file.text, parsed.ok ? parsed.file.symbols : undefined, { ...this.chunkOpts, maxBytes, maxChunks: Math.min(this.maxChunksPerFile, maxChunks) })
   }
 
   /* --------------------------------------------------------------- search */
@@ -393,7 +393,7 @@ export class RetrievalRank extends Service {
       totalSourceBytes += Buffer.byteLength(f.text, 'utf8')
       if (!Number.isSafeInteger(totalSourceBytes) || totalSourceBytes > this.maxIndexBytes) return { ok: false, error: { kind: 'limit', detail: `source bytes exceed maxIndexBytes (${this.maxIndexBytes})` } }
       let chunks: Chunk[]
-      try { chunks = await this.chunksOf(rel, f, this.maxPreparedBytes - totalPreparedBytes) }
+      try { chunks = await this.chunksOf(rel, f, this.maxPreparedBytes - totalPreparedBytes, Math.max(1, this.maxPreparedChunks - totalPreparedChunks)) }
       catch (error) {
         if (error instanceof ChunkLimitError) return { ok: false, error: { kind: 'limit', detail: error.message } }
         throw error
