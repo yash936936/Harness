@@ -24,8 +24,20 @@ export interface RetrievalRankConfig {
    * text); calibrate it with `scripts/smoke-phase2.ts`.
    */
   minVectorScore?: number
-  /** Files larger than this are skipped. Default 1000000 bytes. */
+  /** Files larger than this are skipped. Default 1000000 bytes; hard maximum 16 MiB. */
   maxFileBytes?: number
+  /** Files with more lines than this are skipped before allocating the line array. Default 100000; hard maximum 250000. */
+  maxLinesPerFile?: number
+  /** Maximum raw file paths accepted by one indexing operation. Default 20000. */
+  maxIndexFiles?: number
+  /** Maximum total source bytes prepared by one indexing operation. Default 128 MiB. */
+  maxIndexBytes?: number
+  /** Maximum total chunks retained while preparing one indexing operation. Default 25000. */
+  maxPreparedChunks?: number
+  /** Maximum UTF-8 bytes retained in prepared chunk text. Default 128 MiB. */
+  maxPreparedBytes?: number
+  /** Maximum chunks produced from one file before it is rejected. Default 5000. */
+  maxChunksPerFile?: number
   /** Window size for code outside symbols, in lines. Default 40. */
   windowLines?: number
   /** Longer symbols are split into windows of this many lines. Default 80. */
@@ -114,7 +126,7 @@ export interface IndexOptions {
 
 export interface IndexSkip {
   file: string
-  reason: 'binary' | 'too_large' | 'unreadable' | 'outside_root' | 'not_a_file' | 'invalid_path' | 'secret' | 'excluded'
+  reason: 'binary' | 'too_large' | 'too_many_lines' | 'unreadable' | 'outside_root' | 'not_a_file' | 'invalid_path' | 'secret' | 'excluded'
 }
 
 export type IndexResult =
@@ -130,7 +142,7 @@ export type IndexResult =
       reusedChunks: number
       skipped: IndexSkip[]
     }
-  | { ok: false; error: { kind: 'unavailable' | 'input' | 'embeddings' | 'vectorstore' | 'outside_root' | 'path_not_found' | 'grep_failed'; detail: string } }
+  | { ok: false; error: { kind: 'unavailable' | 'input' | 'limit' | 'embeddings' | 'vectorstore' | 'outside_root' | 'path_not_found' | 'grep_failed'; detail: string } }
 
 /** Programmer error (bad config), not a ranking outcome. */
 export class RetrievalRankConfigError extends Error {
