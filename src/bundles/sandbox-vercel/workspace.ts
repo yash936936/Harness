@@ -180,6 +180,14 @@ function scopeDigest(session: Pick<WorkspaceSession,
   }), 'utf8').digest('hex')
 }
 
+function assertWorkspaceUserHome(user: VercelWorkspaceUser): VercelWorkspaceUser {
+  const expected = posix.join('/home', WORKSPACE_USER)
+  if (user.homeDir !== expected) {
+    throw new Error('vercel-workspace: SDK returned an unexpected isolated workspace user home')
+  }
+  return user
+}
+
 function notFound(error: unknown): boolean {
   const value = error as { status?: number; statusCode?: number; code?: string; name?: string }
   return value?.status === 404 || value?.statusCode === 404 || value?.code === 'NOT_FOUND' || value?.name === 'NotFoundError'
@@ -369,8 +377,7 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
       await this.assertEgress(input.projectId)
       await sandbox.update({ networkPolicy: 'deny-all' })
       await this.assertEgress(input.projectId)
-      const user = await sandbox.createUser(WORKSPACE_USER, { signal: input.signal })
-      if (!user.homeDir.startsWith('/') || user.homeDir.includes('\0')) throw new Error('vercel-workspace: SDK returned an invalid isolated user home')
+      const user = assertWorkspaceUserHome(await sandbox.createUser(WORKSPACE_USER, { signal: input.signal }))
       await this.assertEgress(input.projectId)
       await user.mkDir('workspace', { signal: input.signal })
       input.signal?.throwIfAborted()
@@ -460,7 +467,7 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
     }
     const sandbox = await this.getSandbox(session, true, command.signal)
     try {
-      const user = sandbox.asUser(WORKSPACE_USER)
+      const user = assertWorkspaceUserHome(sandbox.asUser(WORKSPACE_USER))
       const root = posix.join(user.homeDir, 'workspace')
       const cwd = posix.resolve(root, command.cwd)
       const relative = posix.relative(root, cwd)
