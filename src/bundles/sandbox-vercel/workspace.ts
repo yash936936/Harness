@@ -427,8 +427,11 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
     let timedOut = false
     let killRequested = false
     let terminationFailure: unknown
+    const timeoutController = new AbortController()
+    const executionSignal = command.signal ? AbortSignal.any([command.signal, timeoutController.signal]) : timeoutController.signal
     const deadline = setTimeout(() => {
       timedOut = true
+      timeoutController.abort(new Error('workspace command timed out'))
       if (remoteCommand && !killRequested) {
         killRequested = true
         void remoteCommand.kill('SIGTERM').catch((error) => { terminationFailure = error })
@@ -440,7 +443,7 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
         args: [...command.args],
         cwd,
         timeoutMs: command.timeoutMs,
-        signal: command.signal,
+        signal: executionSignal,
         detached: true,
       })
       if (timedOut && !killRequested) {
@@ -448,11 +451,11 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
         await remoteCommand.kill('SIGTERM').catch(() => {})
       }
       let waitSettled = false
-      const wait = raceAbort(remoteCommand.wait({ signal: command.signal }), command.signal)
+      const wait = raceAbort(remoteCommand.wait({ signal: executionSignal }), executionSignal)
         .finally(() => { waitSettled = true })
       const consume = async () => {
-        for await (const log of remoteCommand!.logs({ signal: command.signal })) {
-          command.signal?.throwIfAborted()
+        for await (const log of remoteCommand!.logs({ signal: executionSignal })) {
+          executionSignal.throwIfAborted()
           capture.write(log.stream, log.data)
           if (capture.truncated && !killRequested && !waitSettled) {
             killRequested = true
@@ -481,7 +484,7 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
         const captured = capture.result()
         return { exitCode: null, ...captured, timedOut: false, aborted: true }
       }
-      if (timedOut || /timeout|timed out|deadline/i.test(detail(error))) {
+      if (timedOut || executionSignal.aborted || /timeout|timed out|deadline/i.test(detail(error))) {
         if (terminationFailure) throw new Error(`vercel-workspace: timed-out command termination was not confirmed (${detail(terminationFailure)})`)
         const captured = capture.result()
         return { exitCode: null, ...captured, timedOut: true, aborted: false }
