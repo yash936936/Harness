@@ -17,6 +17,12 @@
 - Fake-client tests cover lifecycle, egress, scope-tag mismatch, capability path/revocation, stale fencing, output caps, timeout, secret redaction, and cleanup failure. Mandatory Ubuntu/Windows Node 20/22 PR CI passed.
 - This is not live Vercel acceptance. Provider-validated recovery/adoption, restart recovery, byte transfer, secret/symlink-safe source enumeration, conflict-safe apply, and CLI registration remain open. COMMAND_TOOL remains disabled.
 
+## 2026-11-21 shared secret-path policy for workspace transfer (PR #178)
+
+- Moved the existing model-facing secret-path matcher into src/architecture/secret-paths.ts and reused it from both tools-local and workspace transfer validation.
+- Workspace transfer paths now reject .env variants, SSH/AWS credential paths, private keys/certificates, credential/service-account files, secrets manifests, and Harness/Git/dependency internals (.harness, .git, node_modules).
+- Added manifest path regression cases. This is a local validation guard; provider-side enumeration must still reject symlinks and special files before producing a manifest.
+
 ## 2026-11-16 shared budget enforcement integrated (PR #130)
 
 - Main baseline: `0e2e38d5ea9e5b40d74422abccda4d9173c00b33`. PR #129 merged the SQLite budget reservation store after its initial Windows CI failure exposed concurrent read handles blocking atomic replacement. The fix makes existing-file readers share the cross-process lock; the full matrix passed on the corrected head.
