@@ -5,6 +5,7 @@ import { isAbsolute, relative, resolve, sep } from 'node:path'
 import { Context, Service } from 'cordis'
 import {
   chunkSource,
+  ChunkLimitError,
   sliceChunkText,
   textHash,
   type Chunk,
@@ -25,7 +26,7 @@ import {
 } from './types.js'
 
 export * from './types.js'
-export { chunkSource, sliceChunkText, looksBinary, type Chunk } from './chunk.js'
+export { chunkSource, sliceChunkText, looksBinary, ChunkLimitError, type Chunk } from './chunk.js'
 export { bm25, queryTerms, tokenize } from './text.js'
 
 declare module 'cordis' {
@@ -56,6 +57,12 @@ export class RetrievalRank extends Service {
   private readonly vectorTopK: number
   private readonly minVectorScore: number | undefined
   private readonly maxFileBytes: number
+  private readonly maxLinesPerFile: number
+  private readonly maxIndexFiles: number
+  private readonly maxIndexBytes: number
+  private readonly maxPreparedChunks: number
+  private readonly maxPreparedBytes: number
+  private readonly maxChunksPerFile: number
   private readonly chunkOpts: ChunkOptions
   private readonly nameBoost: number
   private readonly bm25Params: { k1: number; b: number }
@@ -84,7 +91,13 @@ export class RetrievalRank extends Service {
     this.vectorTopK = config.vectorTopK ?? 50
     this.minVectorScore = config.minVectorScore
     this.maxFileBytes = config.maxFileBytes ?? 1_000_000
-    this.chunkOpts = { windowLines: config.windowLines ?? 40, maxChunkLines: config.maxChunkLines ?? 80, maxChunkChars: config.maxChunkChars ?? 6000 }
+    this.maxLinesPerFile = config.maxLinesPerFile ?? 100_000
+    this.maxIndexFiles = config.maxIndexFiles ?? 20_000
+    this.maxIndexBytes = config.maxIndexBytes ?? 128 * 1024 * 1024
+    this.maxPreparedChunks = config.maxPreparedChunks ?? 25_000
+    this.maxPreparedBytes = config.maxPreparedBytes ?? 128 * 1024 * 1024
+    this.maxChunksPerFile = config.maxChunksPerFile ?? 5_000
+    this.chunkOpts = { windowLines: config.windowLines ?? 40, maxChunkLines: config.maxChunkLines ?? 80, maxChunkChars: config.maxChunkChars ?? 6000, maxChunks: this.maxChunksPerFile }
     this.nameBoost = config.nameBoost ?? 2
     this.bm25Params = config.bm25 ?? { k1: 1.2, b: 0.75 }
     this.maxCandidateChunks = config.maxCandidateChunks ?? 3000
@@ -94,9 +107,27 @@ export class RetrievalRank extends Service {
     if (typeof this.collectionOwner !== 'string' || !this.collectionOwner.trim() || this.collectionOwner.length > 256 || this.collectionOwner.includes('\0')) throw new RetrievalRankConfigError('retrieval-rank: collectionOwner must be a non-empty string of at most 256 characters without NUL')
     if (!(this.weight >= 0 && this.weight <= 1)) throw new RetrievalRankConfigError('retrieval-rank: weight must be between 0 and 1')
     if (this.minVectorScore !== undefined && !(this.minVectorScore >= -1 && this.minVectorScore <= 1)) throw new RetrievalRankConfigError('retrieval-rank: minVectorScore must be between -1 and 1')
-    for (const [n, v] of [['k', this.k], ['rrfK', this.rrfK], ['vectorTopK', this.vectorTopK], ['windowLines', this.chunkOpts.windowLines], ['maxChunkLines', this.chunkOpts.maxChunkLines], ['indexGroupChunks', this.indexGroupChunks], ['maxFileBytes', this.maxFileBytes], ['maxCandidateChunks', this.maxCandidateChunks], ['maxHitChars', this.maxHitChars], ['maxChunkChars', this.chunkOpts.maxChunkChars]] as const) {
+    for (const [n, v] of [['k', this.k], ['rrfK', this.rrfK], ['vectorTopK', this.vectorTopK], ['windowLines', this.chunkOpts.windowLines], ['maxChunkLines', this.chunkOpts.maxChunkLines], ['indexGroupChunks', this.indexGroupChunks], ['maxFileBytes', this.maxFileBytes], ['maxCandidateChunks', this.maxCandidateChunks], ['maxHitChars', this.maxHitChars], ['maxChunkChars', this.chunkOpts.maxChunkChars], ['maxLinesPerFile', this.maxLinesPerFile], ['maxIndexFiles', this.maxIndexFiles], ['maxIndexBytes', this.maxIndexBytes], ['maxPreparedChunks', this.maxPreparedChunks], ['maxPreparedBytes', this.maxPreparedBytes], ['maxChunksPerFile', this.maxChunksPerFile]] as const) {
       if (!Number.isSafeInteger(v) || v < 1) throw new RetrievalRankConfigError(`retrieval-rank: ${n} must be a positive integer`)
     }
+    const hardCaps: ReadonlyArray<readonly [string, number, number]> = [
+      ['maxFileBytes', this.maxFileBytes, 16 * 1024 * 1024],
+      ['maxLinesPerFile', this.maxLinesPerFile, 250_000],
+      ['maxIndexFiles', this.maxIndexFiles, 50_000],
+      ['maxIndexBytes', this.maxIndexBytes, 512 * 1024 * 1024],
+      ['maxPreparedChunks', this.maxPreparedChunks, 100_000],
+      ['maxPreparedBytes', this.maxPreparedBytes, 512 * 1024 * 1024],
+      ['maxChunksPerFile', this.maxChunksPerFile, 20_000],
+      ['indexGroupChunks', this.indexGroupChunks, 2_048],
+      ['windowLines', this.chunkOpts.windowLines, 10_000],
+      ['maxChunkLines', this.chunkOpts.maxChunkLines, 10_000],
+      ['maxChunkChars', this.chunkOpts.maxChunkChars, 65_536],
+      ['maxCandidateChunks', this.maxCandidateChunks, 50_000],
+      ['maxHitChars', this.maxHitChars, 65_536],
+      ['vectorTopK', this.vectorTopK, 1_000],
+      ['k', this.k, 100],
+    ]
+    for (const [name, value, max] of hardCaps) if (value > max) throw new RetrievalRankConfigError(`retrieval-rank: ${name} must not exceed ${max}`)
     if (!Number.isSafeInteger(this.nameBoost) || this.nameBoost < 0) throw new RetrievalRankConfigError('retrieval-rank: nameBoost must be finite and non-negative')
     if (!Number.isFinite(this.bm25Params.k1) || this.bm25Params.k1 <= 0 || !Number.isFinite(this.bm25Params.b) || this.bm25Params.b < 0 || this.bm25Params.b > 1) throw new RetrievalRankConfigError('retrieval-rank: BM25 k1 must be positive and b must be between 0 and 1')
   }
@@ -124,7 +155,7 @@ export class RetrievalRank extends Service {
   }
 
   private readFileUncached(rel: string, realRoot: string): FileRead {
-    return readProjectFile(rel, realRoot, this.maxFileBytes)
+    return readProjectFile(rel, realRoot, this.maxFileBytes, this.maxLinesPerFile)
   }
 
   private async chunksOf(rel: string, file: Extract<FileRead, { ok: true }>): Promise<Chunk[]> {
@@ -198,7 +229,13 @@ export class RetrievalRank extends Service {
             stats.skippedFiles++
             continue
           }
-          for (const c of await this.chunksOf(r.file, f)) {
+          let fileChunks: Chunk[]
+          try { fileChunks = await this.chunksOf(r.file, f) }
+          catch (error) {
+            if (error instanceof ChunkLimitError) { stats.skippedFiles++; continue }
+            throw error
+          }
+          for (const c of fileChunks) {
             if (chunks.size >= this.maxCandidateChunks) break
             chunks.set(keyOf(c), c)
           }
@@ -334,21 +371,37 @@ export class RetrievalRank extends Service {
     const vs = this.ctx.get('vectorstore')
     if (!emb || !vs) return { ok: false, error: { kind: 'unavailable', detail: `${!emb ? 'embeddings' : 'vectorstore'} is not available, so there is nothing to index into` } }
     if (!Array.isArray(files)) return { ok: false, error: { kind: 'input', detail: 'files must be an array of paths' } }
+    if (files.length > this.maxIndexFiles) return { ok: false, error: { kind: 'limit', detail: `file list exceeds maxIndexFiles (${this.maxIndexFiles})` } }
     const realRoot = this.realRoot()
     if (!realRoot) return { ok: false, error: { kind: 'path_not_found', detail: 'root does not exist' } }
 
     const skipped: IndexSkip[] = []
     const prepared: Array<{ file: string; chunks: Chunk[] }> = []
+    let totalSourceBytes = 0
+    let totalPreparedChunks = 0
+    let totalPreparedBytes = 0
     const gone: string[] = [] // previously indexed files that can no longer be read: drop their chunks
     for (const rel of new Set(files)) {
       opts.signal?.throwIfAborted()
       const f = this.readFile(rel, realRoot)
       if (!f.ok) {
         skipped.push({ file: String(rel), reason: f.reason })
-        if (f.reason === 'unreadable' || f.reason === 'not_a_file' || f.reason === 'binary' || f.reason === 'too_large' || f.reason === 'secret' || f.reason === 'excluded') gone.push(rel)
+        if (f.reason === 'unreadable' || f.reason === 'not_a_file' || f.reason === 'binary' || f.reason === 'too_large' || f.reason === 'too_many_lines' || f.reason === 'secret' || f.reason === 'excluded') gone.push(rel)
         continue
       }
-      prepared.push({ file: rel, chunks: await this.chunksOf(rel, f) })
+      totalSourceBytes += Buffer.byteLength(f.text, 'utf8')
+      if (!Number.isSafeInteger(totalSourceBytes) || totalSourceBytes > this.maxIndexBytes) return { ok: false, error: { kind: 'limit', detail: `source bytes exceed maxIndexBytes (${this.maxIndexBytes})` } }
+      let chunks: Chunk[]
+      try { chunks = await this.chunksOf(rel, f) }
+      catch (error) {
+        if (error instanceof ChunkLimitError) return { ok: false, error: { kind: 'limit', detail: error.message } }
+        throw error
+      }
+      totalPreparedChunks += chunks.length
+      totalPreparedBytes += chunks.reduce((sum, chunk) => sum + Buffer.byteLength(chunk.text, 'utf8'), 0)
+      if (!Number.isSafeInteger(totalPreparedChunks) || totalPreparedChunks > this.maxPreparedChunks) return { ok: false, error: { kind: 'limit', detail: `prepared chunks exceed maxPreparedChunks (${this.maxPreparedChunks})` } }
+      if (!Number.isSafeInteger(totalPreparedBytes) || totalPreparedBytes > this.maxPreparedBytes) return { ok: false, error: { kind: 'limit', detail: `prepared text exceeds maxPreparedBytes (${this.maxPreparedBytes})` } }
+      prepared.push({ file: rel, chunks })
     }
     const totalChunks = prepared.reduce((n, p) => n + p.chunks.length, 0)
     let doneChunks = 0
@@ -471,15 +524,17 @@ export class RetrievalRank extends Service {
       const kind = l.error.kind === 'outside_root' || l.error.kind === 'path_not_found' ? l.error.kind : 'grep_failed'
       return { ok: false, error: { kind, detail: l.error.detail ?? l.error.kind } }
     }
+    if (l.truncated) return { ok: false, error: { kind: 'limit', detail: 'retrieval-grep file listing was truncated; narrow the index path or raise its file/output limits' } }
     opts.signal?.throwIfAborted()
     return this.indexFiles(l.files, opts)
   }
 
   /** Remove everything indexed for these files (for example after deleting them). */
-  async unindexFiles(files: readonly string[]): Promise<{ ok: true; removed: number } | { ok: false; error: { kind: 'unavailable' | 'vectorstore' | 'input'; detail: string } }> {
+  async unindexFiles(files: readonly string[]): Promise<{ ok: true; removed: number } | { ok: false; error: { kind: 'unavailable' | 'vectorstore' | 'input' | 'limit'; detail: string } }> {
     const emb = this.ctx.get('embeddings')
     const vs = this.ctx.get('vectorstore')
     if (!emb || !vs) return { ok: false, error: { kind: 'unavailable', detail: 'embeddings or vectorstore is not available' } }
+    if (!Array.isArray(files) || files.length > this.maxIndexFiles) return { ok: false, error: { kind: 'limit', detail: `file list exceeds maxIndexFiles (${this.maxIndexFiles})` } }
     const info = await this.fingerprintOf(emb)
     if ('error' in info) return { ok: false, error: { kind: 'unavailable', detail: info.error } }
     const o = await vs.open(this.collectionName, { fingerprint: info.fingerprint, dimensions: info.dimensions, owner: `retrieval-rank:${this.root}` })
