@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import type { WorkspaceSnapshotManifest, WorkspaceSnapshotEntry, WorkspaceTransferLimits } from '../../architecture/contracts.js'
+import type { WorkspaceSnapshotManifest, WorkspaceSnapshotEntry, WorkspaceTransferFile, WorkspaceTransferLimits } from '../../architecture/contracts.js'
 
 const SHA256 = /^[a-f0-9]{64}$/
 const WINDOWS_RESERVED = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i
@@ -99,4 +99,58 @@ export function validateWorkspaceSnapshotManifest(manifest: WorkspaceSnapshotMan
   if (totalBytes !== manifest.totalBytes) throw new TypeError('workspace transfer: totalBytes does not match file entries')
   if (typeof manifest.manifestSha256 !== 'string' || !SHA256.test(manifest.manifestSha256) ||
       workspaceManifestSha256(manifest) !== manifest.manifestSha256) throw new TypeError('workspace transfer: manifest SHA-256 mismatch')
+}
+
+/** Stream-validate one file without buffering its contents in memory. */
+export async function validateWorkspaceTransferFile(file: WorkspaceTransferFile, limits: WorkspaceTransferLimits): Promise<void> {
+  validateWorkspaceTransferLimits(limits)
+  if (!file || canonicalWorkspacePath(file.path) !== file.path) throw new TypeError('workspace transfer: file path is not canonical')
+  if (!Number.isSafeInteger(file.sizeBytes) || file.sizeBytes < 0 || file.sizeBytes > limits.maxFileBytes) {
+    throw new RangeError('workspace transfer: declared file size exceeds its limit')
+  }
+  if (typeof file.sha256 !== 'string' || !SHA256.test(file.sha256)) throw new TypeError('workspace transfer: invalid file SHA-256')
+  if (!file.chunks || typeof file.chunks[Symbol.asyncIterator] !== 'function') throw new TypeError('workspace transfer: chunks must be an async iterable')
+  const digest = createHash('sha256')
+  let offset = 0
+  for await (const chunk of file.chunks) {
+    if (!chunk || !Number.isSafeInteger(chunk.offset) || chunk.offset !== offset) {
+      throw new TypeError('workspace transfer: chunks must have contiguous offsets')
+    }
+    if (!(chunk.bytes instanceof Uint8Array) || chunk.bytes.byteLength === 0 || chunk.bytes.byteLength > limits.chunkBytes) {
+      throw new RangeError('workspace transfer: chunk size is empty or exceeds its limit')
+    }
+    offset += chunk.bytes.byteLength
+    if (!Number.isSafeInteger(offset) || offset > file.sizeBytes || offset > limits.maxFileBytes) {
+      throw new RangeError('workspace transfer: streamed bytes exceed the declared file size')
+    }
+    digest.update(chunk.bytes)
+  }
+  if (offset !== file.sizeBytes) throw new TypeError('workspace transfer: streamed byte count does not match the declared file size')
+  if (digest.digest('hex') !== file.sha256) throw new TypeError('workspace transfer: streamed file SHA-256 mismatch')
+}
+
+/** Validate a file stream sequentially, enforcing path order and aggregate limits. */
+export async function validateWorkspaceTransferFiles(
+  files: AsyncIterable<WorkspaceTransferFile>,
+  limits: WorkspaceTransferLimits,
+): Promise<{ readonly fileCount: number; readonly totalBytes: number }> {
+  validateWorkspaceTransferLimits(limits)
+  if (!files || typeof files[Symbol.asyncIterator] !== 'function') throw new TypeError('workspace transfer: files must be an async iterable')
+  let fileCount = 0
+  let totalBytes = 0
+  let previousPath: string | undefined
+  for await (const file of files) {
+    fileCount += 1
+    if (fileCount > limits.maxFiles) throw new RangeError('workspace transfer: file count exceeds its limit')
+    if (previousPath !== undefined && previousPath >= file.path) {
+      throw new TypeError('workspace transfer: file paths must be unique and lexicographically sorted')
+    }
+    previousPath = file.path
+    await validateWorkspaceTransferFile(file, limits)
+    totalBytes += file.sizeBytes
+    if (!Number.isSafeInteger(totalBytes) || totalBytes > limits.maxTotalBytes) {
+      throw new RangeError('workspace transfer: aggregate streamed bytes exceed their limit')
+    }
+  }
+  return { fileCount, totalBytes }
 }
