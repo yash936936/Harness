@@ -65,6 +65,25 @@ describe('BUG-07: concurrent processes on one session log', () => {
     expect(events.map((event) => [event.seq, event.type])).toEqual([[1, 'before-crash'], [2, 'after-restart']])
   }, 20_000)
 
+  it('invalidates a warmed lastSeq cursor after another process appends', async () => {
+    const dir = tmp()
+    const store = new JsonlStore(dir)
+    await store.withLock('shared', async () => {
+      expect(await store.lastSeq('shared')).toBe(0)
+      await store.append({ seq: 1, ts: 'parent-1', sessionId: 'shared', type: 'parent-before', data: null })
+      expect(await store.lastSeq('shared')).toBe(1)
+    })
+
+    await worker(dir, 'shared', 1, 'external')
+
+    await store.withLock('shared', async () => {
+      const seq = await store.lastSeq('shared')
+      expect(seq).toBe(2)
+      await store.append({ seq: seq + 1, ts: 'parent-3', sessionId: 'shared', type: 'parent-after', data: null })
+    })
+    expect(seqsOf(dir, 'shared')).toEqual([1, 2, 3])
+  }, 20_000)
+
   it('reuses a validated tail and invalidates it after same-size external mutation', async () => {
     const dir = tmp()
     const store = new JsonlStore(dir)
