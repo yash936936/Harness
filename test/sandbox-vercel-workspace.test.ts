@@ -279,7 +279,7 @@ describe('Vercel task-scoped workspace provider', () => {
     const capability = await runtime.issueCapability({
       workspaceId: session.workspaceId,
       operations: ['execute'],
-      pathPrefixes: ['workspace'],
+      pathPrefixes: ['workspace/src'],
       ttlMs: 30_000,
     })
     await sessions.transitionSession({
