@@ -42,7 +42,7 @@ export function isInside(root: string, target: string): boolean {
   return rel !== '..' && !rel.startsWith('..' + sep)
 }
 
-export function readProjectFile(rel: string, realRoot: string, maxFileBytes: number): FileRead {
+export function readProjectFile(rel: string, realRoot: string, maxFileBytes: number, maxLines = 100_000): FileRead {
   if (typeof rel !== 'string' || rel === '' || rel.includes('\0') || isAbsolute(rel)) return { ok: false, reason: 'invalid_path' }
   const candidate = resolve(realRoot, rel)
   let real: string
@@ -87,6 +87,11 @@ export function readProjectFile(rel: string, realRoot: string, maxFileBytes: num
       if (!buf) return { ok: false, reason: 'too_large' }
       if (looksBinary(buf)) return { ok: false, reason: 'binary' }
       const text = buf.toString('utf8')
+      let lineCount = 1
+      for (let i = 0; i < text.length; i++) {
+        if (text.charCodeAt(i) === 10) lineCount++
+        if (lineCount > maxLines) return { ok: false, reason: 'too_many_lines' }
+      }
       return { ok: true, text, lines: splitLines(text) }
     } finally {
       closeSync(fd)
