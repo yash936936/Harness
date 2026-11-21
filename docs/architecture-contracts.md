@@ -298,6 +298,10 @@ The test writes one committed fact through `MemorySemantic`, then appends a seco
 
 This proves recovery from the specific interruption window after the source append and before sidecar publication. It does not prove recovery from a torn/partial source append or process restart during session-log writes.
 
+### Cross-process session-log tail cursor invalidation: pending CI
+
+The regression test warms a `JsonlStore` instance's `lastSeq` tail cursor after appending sequence 1. A separate Node process then appends sequence 2 through the normal `SessionLog` path and shared file lock. The original store instance must detect the changed file metadata, rebuild its tail sequence, and append sequence 3. The final log must contain exactly `[1, 2, 3]`. This exercises the process-local cursor's invalidation against a real independent writer; PR-head CI is pending.
+
 ## Approved deployment and operating policy
 
 The four D-119 owner decisions are approved and binding for the initial implementation:
