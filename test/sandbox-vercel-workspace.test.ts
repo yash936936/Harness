@@ -77,9 +77,10 @@ function fakeClient(options: { createUserFails?: boolean; realpath?: (path: stri
 
 async function setup(
   options: Parameters<typeof fakeClient>[0] = {},
-  egress: { status(): Promise<{ projectId: string; consented: boolean }>; assertAllowedHost(host: string): void } = {
+  egress: { status(): Promise<{ projectId: string; consented: boolean }>; assertAllowedHost(host: string): void; redact(text: string): string } = {
     async status() { return { projectId: 'project-1', consented: true } },
     assertAllowedHost(host) { if (host !== 'vercel.com') throw new Error('host not allowlisted') },
+    redact(text) { return text },
   },
 ) {
   const dir = await mkdtemp(join(tmpdir(), 'vercel-workspace-'))
@@ -135,6 +136,7 @@ describe('Vercel task-scoped workspace provider', () => {
       egress: {
         async status() { return { projectId: 'project-1', consented: false } },
         assertAllowedHost() { throw new Error('must not be called without consent') },
+        redact(text) { return text },
       },
       sessions,
       leases,
@@ -156,6 +158,7 @@ describe('Vercel task-scoped workspace provider', () => {
     const { fake, runtime } = await setup({}, {
       async status() { return { projectId: 'project-1', consented: true } },
       assertAllowedHost() { throw new Error('Vercel host not allowlisted') },
+      redact(text) { return text },
     })
     await expect(runtime.open({
       taskId: 'task-host', sessionId: 'session-host', idempotencyKey: 'open-host', ttlMs: 120_000,
@@ -222,6 +225,24 @@ describe('Vercel task-scoped workspace provider', () => {
     })
     expect(result).toMatchObject({ stdout: 'abcd\n[output truncated by Vercel workspace provider]', stdoutBytes: 4, stderrBytes: 0, truncated: true })
     expect(fake.calls).toContainEqual(['kill', 'SIGTERM'])
+    await runtime.close(session.workspaceId, 'test complete')
+  })
+
+  it('redacts registered secret values before returning command output', async () => {
+    const { runtime } = await setup({ stdout: 'token=known-secret' }, {
+      async status() { return { projectId: 'project-1', consented: true } },
+      assertAllowedHost(host) { if (host !== 'vercel.com') throw new Error('host not allowlisted') },
+      redact(text) { return text.replaceAll('known-secret', '[redacted:fixture]') },
+    })
+    const session = await runtime.open({ taskId: 'task-redact', sessionId: 'session-redact', idempotencyKey: 'open-redact', ttlMs: 120_000 })
+    const capability = await runtime.issueCapability({
+      workspaceId: session.workspaceId, operations: ['execute'], pathPrefixes: ['src'], ttlMs: 30_000,
+    })
+    const result = await runtime.execute(session.workspaceId, capability, {
+      command: 'node', args: [], cwd: 'src', timeoutMs: 1_000, maxOutputBytes: 100,
+    })
+    expect(result.stdout).toBe('token=[redacted:fixture]')
+    expect(result.stdout).not.toContain('known-secret')
     await runtime.close(session.workspaceId, 'test complete')
   })
 
