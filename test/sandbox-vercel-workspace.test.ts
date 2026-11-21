@@ -19,6 +19,7 @@ afterEach(async () => {
 function fakeClient(options: { createUserFails?: boolean; realpath?: (path: string) => string; stdout?: string; stderr?: string; waitMs?: number; killFails?: boolean } = {}) {
   const calls: unknown[] = []
   let sandbox: VercelWorkspaceSandbox | undefined
+  let deleted = false
   const user: VercelWorkspaceUser = {
     homeDir: '/home/harness',
     async mkDir(path) { calls.push(['mkdir', path]) },
@@ -57,7 +58,7 @@ function fakeClient(options: { createUserFails?: boolean; realpath?: (path: stri
           return user
         },
         async update(value) { calls.push(['update', value]) },
-        async delete(value) { calls.push(['delete', value]) },
+        async delete(value) { calls.push(['delete', value]); deleted = true },
         fs: {
           async realpath(path) { return options.realpath ? options.realpath(path) : path },
         },
@@ -67,7 +68,7 @@ function fakeClient(options: { createUserFails?: boolean; realpath?: (path: stri
     },
     async get(request) {
       calls.push(['get', request])
-      if (!sandbox) throw Object.assign(new Error('not found'), { status: 404 })
+      if (!sandbox || deleted) throw Object.assign(new Error('not found'), { status: 404 })
       return sandbox
     },
   }
@@ -112,6 +113,15 @@ async function setup(
 }
 
 describe('Vercel task-scoped workspace provider', () => {
+  it('deletes the persistent sandbox when isolated-user initialization fails', async () => {
+    const { fake, runtime } = await setup({ createUserFails: true })
+    await expect(runtime.open({
+      taskId: 'task-create-fail', sessionId: 'session-create-fail', idempotencyKey: 'open-create-fail', ttlMs: 120_000,
+    })).rejects.toThrow(/user creation failed/)
+    expect(fake.calls).toContainEqual(['delete', { deleteOrphanSnapshots: true }])
+    expect(fake.calls.filter((call) => Array.isArray(call) && call[0] === 'delete')).toHaveLength(1)
+  })
+
   it('blocks remote creation without project consent or the exact Vercel host allowlist', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'vercel-egress-'))
     dirs.push(dir)
