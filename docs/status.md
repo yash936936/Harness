@@ -17,6 +17,12 @@
 - Fake-client tests cover lifecycle, egress, scope-tag mismatch, capability path/revocation, stale fencing, output caps, timeout, secret redaction, and cleanup failure. Mandatory Ubuntu/Windows Node 20/22 PR CI passed.
 - This is not live Vercel acceptance. Provider-validated recovery/adoption, restart recovery, byte transfer, secret/symlink-safe source enumeration, conflict-safe apply, and CLI registration remain open. COMMAND_TOOL remains disabled.
 
+## 2026-11-21 Vercel workspace snapshot lifetime bounds (PR #188)
+
+- `snapshotExpirationMs` now has a hard maximum of seven days.
+- Workspace creation rejects a TTL longer than the configured snapshot expiration, preventing a session record from outliving its durable provider snapshot.
+- Added regression coverage for the hard ceiling and TTL mismatch; synchronized the Vercel component guide.
+
 ## 2026-11-21 semantic queue and reindex batch ceilings (PR #182)
 
 - `maxPendingOperations` now has a hard maximum of 4096, bounding queued semantic work even when callers override the default.
