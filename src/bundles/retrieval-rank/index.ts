@@ -123,6 +123,7 @@ export class RetrievalRank extends Service {
       ['maxChunkLines', this.chunkOpts.maxChunkLines, 10_000],
       ['maxChunkChars', this.chunkOpts.maxChunkChars, 65_536],
       ['maxCandidateChunks', this.maxCandidateChunks, 50_000],
+      ['nameBoost', this.nameBoost, 100],
       ['maxHitChars', this.maxHitChars, 65_536],
       ['vectorTopK', this.vectorTopK, 1_000],
       ['k', this.k, 100],
