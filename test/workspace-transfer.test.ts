@@ -10,7 +10,7 @@ function manifest(): WorkspaceSnapshotManifest {
   const base = {
     formatVersion: 1 as const, snapshotId: 'snapshot-1', projectId: 'project-1', taskId: 'task-1',
     entries: [
-      { path: 'src', kind: 'directory' as const, sizeBytes: 0 },
+      { path: 'src', kind: 'directory' as const, sizeBytes: 0 as const },
       { path: 'src/index.ts', kind: 'file' as const, sizeBytes: 5, sha256: contentHash },
     ],
     totalBytes: 5,
