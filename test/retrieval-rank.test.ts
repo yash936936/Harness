@@ -271,6 +271,8 @@ it('rejects configured memory limits above their hard ceilings', () => {
   expect(() => new RetrievalRank(new Context(), { root, maxFileBytes: 16 * 1024 * 1024 + 1 })).toThrow(RetrievalRankConfigError)
   expect(() => new RetrievalRank(new Context(), { root, maxLinesPerFile: 250_001 })).toThrow(RetrievalRankConfigError)
   expect(() => new RetrievalRank(new Context(), { root, maxIndexFiles: 50_001 })).toThrow(RetrievalRankConfigError)
+  expect(() => new RetrievalRank(new Context(), { root, maxIndexBytes: 512 * 1024 * 1024 + 1 })).toThrow(RetrievalRankConfigError)
+  expect(() => new RetrievalRank(new Context(), { root, maxChunksPerFile: 20_001 })).toThrow(RetrievalRankConfigError)
   expect(() => new RetrievalRank(new Context(), { root, maxPreparedBytes: 512 * 1024 * 1024 + 1 })).toThrow(RetrievalRankConfigError)
   expect(() => new RetrievalRank(new Context(), { root, maxPreparedChunks: 100_001 })).toThrow(RetrievalRankConfigError)
 })
