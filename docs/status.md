@@ -8,7 +8,7 @@
 - scripts/eval-router.ts and the dedicated router tests import the evaluation-only adapter directly. The runtime router bundle no longer exports a host-executable backend.
 - Added a regression test asserting CommandBackend is absent from the runtime router export surface.
 - This does not close the full D-110/D-117 audit: the generic Subprocess service, local retrieval bundles, Crabbox source, other scripts, desktop paths, and downstream construction still need reachability review.
-## 2026-11-21 persistent Vercel workspace session provider (PR #172)
+## 2026-11-21 persistent Vercel workspace session provider (PR #175)
 
 - Added VercelWorkspaceSessionProvider alongside the one-shot Vercel adapter. It creates persistent Vercel sandboxes with deny-all networking, a dedicated unprivileged Linux user, hashed scope tags, and bounded snapshot retention.
 - Remote create/get/snapshot/delete operations require project-matched egress consent and the exact vercel.com allowlist. Execution rechecks SQLite session ownership, capability scope/revocation, and the current lease fencing token.
