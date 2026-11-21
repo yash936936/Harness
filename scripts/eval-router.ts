@@ -13,7 +13,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { bootProfileCoding } from '../src/profiles/profile-coding.js'
 import { MockProvider, OllamaProvider } from '../src/bundles/model-adapter/index.js'
-import { CommandBackend, DECISION_CLASSES, RulesBackend, SUITE, WorkerBackend, evaluateClass, suiteSha256, verdict, type RouterBackend } from '../src/bundles/router/index.js'
+import { DECISION_CLASSES, RulesBackend, SUITE, WorkerBackend, evaluateClass, suiteSha256, verdict, type RouterBackend } from '../src/bundles/router/index.js'
+import { CommandBackend } from './router-command-backend.js'
 
 const STAND_IN = process.env['HARNESS_STANDIN'] === '1'
 const root = realpathSync(mkdtempSync(join(tmpdir(), 'harness-eval-router-')))
