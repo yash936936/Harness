@@ -254,6 +254,46 @@ describe('Vercel task-scoped workspace provider', () => {
     await runtime.close(session.workspaceId, 'test cleanup')
   })
 
+  it('rechecks durable revocation and rejects a revoked capability inside the provider', async () => {
+    const { fake, provider, runtime, sessions } = await setup()
+    const session = await runtime.open({ taskId: 'task-revoked', sessionId: 'session-revoked', idempotencyKey: 'open-revoked', ttlMs: 120_000 })
+    const capability = await runtime.issueCapability({
+      workspaceId: session.workspaceId, operations: ['execute'], pathPrefixes: ['src'], ttlMs: 30_000,
+    })
+    await runtime.revokeCapability(capability.capabilityId, 'test revocation')
+    await sessions.transitionSession({
+      workspaceId: session.workspaceId, ownerId: session.ownerId, leaseId: session.leaseId!,
+      fencingToken: session.fencingToken!, expectedState: 'ready', nextState: 'running',
+    })
+    await expect(provider.execute(session.workspaceId, capability, {
+      command: 'node', args: [], cwd: 'src', timeoutMs: 1_000, maxOutputBytes: 100,
+    })).rejects.toThrow(/command capability denied/)
+    expect(fake.calls.some((call) => Array.isArray(call) && call[0] === 'run')).toBe(false)
+    await runtime.close(session.workspaceId, 'test cleanup')
+  })
+
+  it('rejects a stale lease fence before contacting the Vercel sandbox', async () => {
+    const { fake, provider, runtime, sessions, leases } = await setup()
+    const session = await runtime.open({ taskId: 'task-fence', sessionId: 'session-fence', idempotencyKey: 'open-fence', ttlMs: 120_000 })
+    const capability = await runtime.issueCapability({
+      workspaceId: session.workspaceId, operations: ['execute'], pathPrefixes: ['src'], ttlMs: 30_000,
+    })
+    await sessions.transitionSession({
+      workspaceId: session.workspaceId, ownerId: session.ownerId, leaseId: session.leaseId!,
+      fencingToken: session.fencingToken!, expectedState: 'ready', nextState: 'running',
+    })
+    await leases.release(session.leaseId!, session.ownerId, session.fencingToken!)
+    const next = await leases.acquire({
+      projectId: session.projectId, resourceType: 'workspace', resourceId: session.workspaceId,
+      ownerId: 'new-owner', idempotencyKey: 'new-owner-attempt', ttlMs: 120_000,
+    })
+    expect(next.acquired).toBe(true)
+    await expect(provider.execute(session.workspaceId, capability, {
+      command: 'node', args: [], cwd: 'src', timeoutMs: 1_000, maxOutputBytes: 100,
+    })).rejects.toThrow(/lease fencing token is stale/)
+    expect(fake.calls.some((call) => Array.isArray(call) && call[0] === 'run')).toBe(false)
+  })
+
   it('rejects a sandbox whose durable scope tags do not match the SQLite session', async () => {
     const { fake, provider, runtime, sessions } = await setup()
     const session = await runtime.open({ taskId: 'task-3', sessionId: 'session-3', idempotencyKey: 'open-3', ttlMs: 120_000 })
@@ -279,6 +319,7 @@ describe('Vercel task-scoped workspace provider', () => {
     })).rejects.toThrow(/remote sandbox identity/)
     expect(fake.calls.some((call) => Array.isArray(call) && call[0] === 'run')).toBe(false)
     await runtime.close(session.workspaceId, 'test cleanup')
+    expect(fake.calls.some((call) => Array.isArray(call) && call[0] === 'delete')).toBe(false)
   })
 
   it('rejects a real path that escapes the isolated workspace root', async () => {
