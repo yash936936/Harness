@@ -17,6 +17,14 @@
 - Fake-client tests cover lifecycle, egress, scope-tag mismatch, capability path/revocation, stale fencing, output caps, timeout, secret redaction, and cleanup failure. Mandatory Ubuntu/Windows Node 20/22 PR CI passed.
 - This is not live Vercel acceptance. Provider-validated recovery/adoption, restart recovery, byte transfer, secret/symlink-safe source enumeration, conflict-safe apply, and CLI registration remain open. COMMAND_TOOL remains disabled.
 
+## 2026-11-21 bounded retrieval-rank index preparation (PR #177)
+
+- Added configurable and hard-capped limits for raw file paths, total source bytes, line count, per-file chunk count, total prepared chunks, and prepared UTF-8 chunk bytes.
+- Chunk generation enforces count and byte budgets incrementally rather than building unbounded chunk arrays first.
+- retrieval-rank rejects truncated ripgrep file listings and over-budget index batches before vector-store mutation. Excessive line counts are rejected before creating the line array; search skips files exceeding per-file chunk limits.
+- Added regression tests for hard ceilings, source/list/chunk budgets, line-count rejection, and no vector-store open on preparation-limit failures.
+- This bounds retrieval-rank preparation only. Semantic reindex metadata scans, other prepared chunk lists, and measured large-store/large-file memory remain open.
+
 ## 2026-11-16 shared budget enforcement integrated (PR #130)
 
 - Main baseline: `0e2e38d5ea9e5b40d74422abccda4d9173c00b33`. PR #129 merged the SQLite budget reservation store after its initial Windows CI failure exposed concurrent read handles blocking atomic replacement. The fix makes existing-file readers share the cross-process lock; the full matrix passed on the corrected head.

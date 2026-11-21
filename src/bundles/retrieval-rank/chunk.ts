@@ -21,9 +21,21 @@ export interface ChunkOptions {
   maxChunkLines: number
   /** Hard cap on a chunk's text. Default 6000 characters. */
   maxChunkChars: number
+  /** Maximum chunks emitted from one file. Default 5000. */
+  maxChunks?: number
+  /** Maximum UTF-8 bytes retained across emitted chunk text. Default 64 MiB. */
+  maxBytes?: number
+  /** Maximum UTF-8 source bytes checked before splitting into lines. Default 16 MiB. */
+  maxSourceBytes?: number
+  /** Maximum source lines checked before allocating the line array. Default 100000. */
+  maxLines?: number
 }
 
-export const DEFAULT_CHUNK_OPTIONS: ChunkOptions = { windowLines: 40, maxChunkLines: 80, maxChunkChars: 6000 }
+export const DEFAULT_CHUNK_OPTIONS: ChunkOptions = { windowLines: 40, maxChunkLines: 80, maxChunkChars: 6000, maxChunks: 5000, maxBytes: 64 * 1024 * 1024, maxSourceBytes: 16 * 1024 * 1024, maxLines: 100_000 }
+
+export class ChunkLimitError extends Error {
+  override name = 'ChunkLimitError'
+}
 
 export function splitLines(source: string): string[] {
   return source.split(/\r?\n/)
@@ -48,16 +60,41 @@ export function chunkId(file: string, start: number, end: number, text: string):
  * whole files in languages without a grammar). Whitespace-only windows are dropped.
  */
 export function chunkSource(file: string, source: string, symbols: readonly CodeSymbol[] | undefined, opts: ChunkOptions = DEFAULT_CHUNK_OPTIONS): Chunk[] {
+  const limits: ReadonlyArray<readonly [string, number, number]> = [
+    ['windowLines', opts.windowLines, 10_000],
+    ['maxChunkLines', opts.maxChunkLines, 10_000],
+    ['maxChunkChars', opts.maxChunkChars, 65_536],
+    ['maxChunks', opts.maxChunks ?? 5_000, 20_000],
+  ]
+  for (const [name, value, max] of limits) {
+    if (!Number.isSafeInteger(value) || value < 1 || value > max) throw new RangeError(`retrieval-rank: ${name} must be between 1 and ${max}`)
+  }
+  const maxSourceBytes = opts.maxSourceBytes ?? 16 * 1024 * 1024
+  if (!Number.isSafeInteger(maxSourceBytes) || maxSourceBytes < 1 || maxSourceBytes > 16 * 1024 * 1024) throw new RangeError('retrieval-rank: maxSourceBytes must be between 1 and 16777216')
+  const maxLines = opts.maxLines ?? 100_000
+  if (!Number.isSafeInteger(maxLines) || maxLines < 1 || maxLines > 250_000) throw new RangeError('retrieval-rank: maxLines must be between 1 and 250000')
+  if (Buffer.byteLength(source, 'utf8') > maxSourceBytes) throw new ChunkLimitError(`retrieval-rank: file ${file} exceeds the source byte limit`)
+  let sourceLines = 1
+  for (let i = 0; i < source.length; i++) if (source.charCodeAt(i) === 10 && ++sourceLines > maxLines) throw new ChunkLimitError(`retrieval-rank: file ${file} exceeds the source line limit`)
+  const maxBytes = opts.maxBytes ?? 64 * 1024 * 1024
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 0 || maxBytes > 512 * 1024 * 1024) {
+    throw new RangeError('retrieval-rank: maxBytes must be between 0 and 536870912')
+  }
   const lines = splitLines(source)
   const total = source === '' ? 0 : lines.length
   const out: Chunk[] = []
   const seen = new Set<string>()
+  let totalChunkBytes = 0
 
   const add = (start: number, end: number, kind: Chunk['kind'], name?: string): void => {
     const key = `${start}-${end}`
     if (seen.has(key)) return
     const text = sliceChunkText(lines, start, end, opts.maxChunkChars)
     if (text.trim() === '') return
+    if (out.length >= (opts.maxChunks ?? 5000)) throw new ChunkLimitError(`retrieval-rank: file ${file} exceeds the per-file chunk count limit`)
+    const chunkBytes = Buffer.byteLength(text, 'utf8')
+    if (totalChunkBytes + chunkBytes > (opts.maxBytes ?? 64 * 1024 * 1024)) throw new ChunkLimitError(`retrieval-rank: file ${file} exceeds the chunk text byte limit`)
+    totalChunkBytes += chunkBytes
     seen.add(key)
     out.push({ file, startLine: start, endLine: end, kind, ...(name ? { name } : {}), text, id: chunkId(file, start, end, text) })
   }
