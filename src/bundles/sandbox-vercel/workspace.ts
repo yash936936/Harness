@@ -302,6 +302,7 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
     const sandbox = await (await this.getClient()).get({ name: session.workspaceId, resume, signal })
     this.assertSandboxScope(sandbox, session)
     // Reassert the restrictive policy on every reattachment before guest commands run.
+    await this.assertEgress(session.projectId)
     await sandbox.update({ networkPolicy: 'deny-all' })
     return sandbox
   }
@@ -340,14 +341,18 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
     })
     try {
       this.assertSandboxScope(sandbox, session)
+      await this.assertEgress(input.projectId)
       await sandbox.update({ networkPolicy: 'deny-all' })
+      await this.assertEgress(input.projectId)
       const user = await sandbox.createUser(WORKSPACE_USER, { signal: input.signal })
       if (!user.homeDir.startsWith('/') || user.homeDir.includes('\0')) throw new Error('vercel-workspace: SDK returned an invalid isolated user home')
+      await this.assertEgress(input.projectId)
       await user.mkDir('workspace', { signal: input.signal })
       input.signal?.throwIfAborted()
       return { ...session, state: 'ready' }
     } catch (error) {
       try {
+        await this.assertEgress(input.projectId)
         await sandbox.delete({ deleteOrphanSnapshots: true })
       } catch (cleanupError) {
         throw new Error(`vercel-workspace: creation failed (${detail(error)}); sandbox cleanup was not confirmed (${detail(cleanupError)})`)
@@ -447,6 +452,7 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
     let timedOut = false
     let killRequested = false
     let terminationFailure: unknown
+    await this.assertEgress(session.projectId)
     const timeoutController = new AbortController()
     const executionSignal = command.signal ? AbortSignal.any([command.signal, timeoutController.signal]) : timeoutController.signal
     const deadline = setTimeout(() => {
@@ -557,6 +563,7 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
       return { confirmed: false, detail: detail(error) }
     }
     try {
+      await this.assertEgress(session.projectId)
       await sandbox.delete({ deleteOrphanSnapshots: true })
       return { confirmed: true }
     } catch (error) {
