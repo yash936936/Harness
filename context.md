@@ -15,7 +15,7 @@ The target is a governed coding agent that uses cloud-hosted model inference and
 - D-110 keeps Docker/WSL/Crabbox S0 permanently held. S1 remains deferred.
 - D-117 authorizes cloud-only command execution. No host execution, local subprocess fallback, or automatic local provider selection.
 - D-118 selects Vercel Sandbox as the first cloud provider.
-- The Vercel adapter exists and has fake-client tests, but it is not yet integrated with the coding profile or CLI. It runs in an empty sandbox; workspace transfer and safe result synchronization are missing. `COMMAND_TOOL` must remain disabled.
+- The one-shot Vercel adapter and a new persistent VercelWorkspaceSessionProvider both have fake-client tests, but neither is integrated with the coding profile or CLI. The workspace provider covers task-scoped session creation, fenced capability-checked command execution, and sandbox cleanup only. Byte transfer, conflict-safe result synchronization, provider-validated recovery, and live Vercel acceptance remain open. COMMAND_TOOL must remain disabled.
 - Model egress and sandbox egress require separate project consent and host allowlists. Sandbox network access is deny-by-default.
 - D-116 D3 and D-109 remain the evaluation rule: three sessions are qualitative; scoring requires at least 10 genuine sessions, owner-authored good/bad labels, and a committed hash before scorer output.
 - D-115 keeps this a sample/research prototype, with no distribution or release artifact.
