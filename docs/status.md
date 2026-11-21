@@ -24,7 +24,7 @@
 - The authoritative append-only semantic event log is never truncated or rewritten.
 - Added tests for 1,200 replacements of one fact and for delete/reinsert ordering after a sidecar rebuild; both verify that history remains intact while the sidecar contains only live facts.
 
-## 2026-11-21 shared secret-path policy for workspace transfer (PR #178)
+## 2026-11-21 shared secret-path policy for workspace transfer (PR #179)
 
 - Moved the existing model-facing secret-path matcher into src/architecture/secret-paths.ts and reused it from both tools-local and workspace transfer validation.
 - Workspace transfer paths now reject .env variants, SSH/AWS credential paths, private keys/certificates, credential/service-account files, secrets manifests, and Harness/Git/dependency internals (.harness, .git, node_modules).
