@@ -358,30 +358,27 @@ export interface WorkspaceSessionProvider {
   }): Promise<{ readonly confirmed: boolean; readonly detail?: string }>
 }
 
-export interface WorkspaceSnapshotEntry {
-  readonly path: string
-  readonly kind: 'file' | 'directory'
-  readonly sizeBytes: number
-  readonly sha256?: string
-  readonly mode?: number
-}
+export type WorkspaceSnapshotEntry =
+  | { readonly path: string; readonly kind: 'file'; readonly sizeBytes: number; readonly sha256: string; readonly mode?: number }
+  | { readonly path: string; readonly kind: 'directory'; readonly sizeBytes: 0; readonly mode?: number }
 
 export interface WorkspaceSnapshotManifest {
+  readonly formatVersion: 1
   readonly snapshotId: ResourceId
   readonly projectId: ProjectId
   readonly taskId: TaskId
+  /** Unique, canonical, lexicographically sorted paths; no symlinks or special files. */
   readonly entries: readonly WorkspaceSnapshotEntry[]
   readonly totalBytes: number
+  /** SHA-256 of the canonical manifest payload, excluding this field and createdAt. */
+  readonly manifestSha256: string
   readonly createdAt: string
 }
 
-export interface WorkspaceChange {
-  readonly path: string
-  readonly operation: 'create' | 'modify' | 'delete'
-  readonly baseSha256?: string
-  readonly resultSha256?: string
-  readonly sizeBytes: number
-}
+export type WorkspaceChange =
+  | { readonly path: string; readonly operation: 'create'; readonly resultSha256: string; readonly sizeBytes: number }
+  | { readonly path: string; readonly operation: 'modify'; readonly baseSha256: string; readonly resultSha256: string; readonly sizeBytes: number }
+  | { readonly path: string; readonly operation: 'delete'; readonly baseSha256: string; readonly sizeBytes: 0 }
 
 export interface WorkspaceChangeSet {
   readonly workspaceId: ResourceId
@@ -430,8 +427,7 @@ export interface WorkspaceApplyRequest {
   /** Changes must be sorted by canonical path and contain no duplicate paths. */
   readonly changes: readonly WorkspaceChange[]
   readonly files: AsyncIterable<WorkspaceTransferFile>
-  readonly maxFiles: number
-  readonly maxTotalBytes: number
+  readonly limits: WorkspaceTransferLimits
 }
 
 export type WorkspaceApplyResult =
@@ -443,8 +439,7 @@ export interface WorkspaceTransferProvider {
   createSnapshot(input: {
     readonly projectId: ProjectId
     readonly taskId: TaskId
-    readonly maxFiles: number
-    readonly maxTotalBytes: number
+    readonly limits: WorkspaceTransferLimits
   }): Promise<WorkspaceSnapshotManifest>
   /** Streams one file in monotonically increasing, contiguous, bounded chunks. */
   readSnapshotFile(input: WorkspaceTransferScope & {
@@ -462,8 +457,7 @@ export interface WorkspaceTransferProvider {
   /** Returns metadata only. Changed file bytes are read separately through readChangeFile. */
   collectChanges(input: WorkspaceTransferScope & {
     readonly snapshotId: ResourceId
-    readonly maxFiles: number
-    readonly maxTotalBytes: number
+    readonly limits: WorkspaceTransferLimits
   }): Promise<WorkspaceChangeSet>
   readChangeFile(input: WorkspaceTransferScope & {
     readonly snapshotId: ResourceId
