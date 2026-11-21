@@ -4,6 +4,9 @@ import type { WorkspaceSnapshotManifest, WorkspaceSnapshotEntry, WorkspaceTransf
 const SHA256 = /^[a-f0-9]{64}$/
 const WINDOWS_RESERVED = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i
 const FORBIDDEN_SEGMENT = /[<>:"|?*\u0000-\u001f\u007f]/
+const BLOCKED_DIRECTORIES = new Set(['.git', '.hg', '.svn', '.ssh', '.aws', '.azure', '.gcloud', '.kube', '.secrets', 'secrets'])
+const BLOCKED_FILES = new Set(['.npmrc', '.pypirc', '.netrc', '.git-credentials', 'credentials', 'credentials.json', 'service-account.json', 'id_rsa', 'id_ed25519', 'id_ecdsa', 'id_dsa'])
+const PRIVATE_KEY_EXTENSION = /\.(?:pem|key|p12|pfx|jks|keystore)$/i
 
 /** Canonical project-relative path accepted by every transfer boundary. */
 export function canonicalWorkspacePath(value: string): string | undefined {
