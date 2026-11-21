@@ -15,11 +15,11 @@ The coding profile installs `retrievalGrep` and `retrievalParse` before `retriev
 - `root` is required, absolute, and must match the root used by `retrievalGrep`.
 - `weight` is between 0 and 1. A missing embedding or vector-store service, or a semantic failure, degrades search to BM25.
 - `minVectorScore`, when set, is between -1 and 1. It filters vector hits only.
-- File reads are bounded by `maxFileBytes`, reject binary content, symlink/path escapes, `.git`, `node_modules`, and secret paths.
+- File reads are bounded by `maxFileBytes` (default 1 MB, hard maximum 16 MiB) and `maxLinesPerFile` (default 100,000, hard maximum 250,000). Excessive line counts are rejected before allocating the line array. Binary content, symlink/path escapes, `.git`, `node_modules`, and secret paths are rejected.
 - Open file descriptors are checked against the resolved path identity before bounded reads. Indexed vector chunks are revalidated against current file content hashes before being returned.
-- Candidate count, chunk size, hit text, result count, and index batch size have explicit limits.
+- Candidate count, chunk size/count per file, hit text, result count, and index batch size have explicit hard ceilings. One indexing call is bounded by `maxIndexFiles` (20,000 default), `maxIndexBytes` (128 MiB), `maxPreparedChunks` (25,000), and `maxPreparedBytes` (128 MiB); hard ceilings are enforced even when callers override defaults.
 - Retrieval indexes own a collection under the canonical project root; memory semantic indexing cannot reset or reuse that collection.
-- Complete `indexFiles` calls are serialized per retrieval service. A file's new chunks are written before obsolete chunk ids are deleted, so embedding or upsert failures preserve the prior valid index.
+- `indexProject` fails closed when ripgrep reports a truncated file listing. `indexFiles` rejects over-limit file lists and total source/prepared-memory budgets before opening or mutating the vector store. Complete `indexFiles` calls are serialized per retrieval service. A file's new chunks are written before obsolete chunk ids are deleted, so embedding or upsert failures preserve the prior valid index.
 - When indexing skips a file that was previously indexed, failure to delete its stale vector records is returned as a `vectorstore` error. Cleanup failure is never reported as a successful index result.
 - index.ts owns the retrieval service lifecycle and orchestration. BM25/tokenization, chunk construction, and bounded file access live in text.ts, chunk.ts, and file-access.ts; index maintenance stays with the service because it shares collection identity, embedding fingerprints, stale-content checks, and search semantics.
 
@@ -28,6 +28,8 @@ The coding profile installs `retrievalGrep` and `retrievalParse` before `retriev
 - Semantic ranking depends on the configured embedding and vector-store providers. Failures degrade to lexical ranking rather than proving semantic retrieval works.
 - Vector results can be stale; stale content is dropped after a fresh file/hash check.
 - This service is retrieval, not a security boundary for arbitrary model instructions. Tool authorization remains in policy gates and tool execution remains separately scoped.
+- Files above `maxChunksPerFile` are rejected during chunk generation; search skips them and increments `skippedFiles`. Files above the line limit are reported as `too_many_lines` and removed from the index if they were previously indexed.
+- When an index-wide byte, file, chunk, or listing limit is reached, indexing returns `error.kind = 'limit'` and leaves the prior vector index unchanged.
 - Live embedding/provider acceptance is separate from unit tests and CI.
 
 ---
