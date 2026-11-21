@@ -22,7 +22,7 @@ The target is a governed coding agent that uses cloud-hosted model inference and
 - D-116 D3 and D-109 remain the evaluation rule: three sessions are qualitative; scoring requires at least 10 genuine sessions, owner-authored good/bad labels, and a committed hash before scorer output.
 - D-115 keeps this a sample/research prototype, with no distribution or release artifact.
 
-The current proposed audit cleanup removes three unreferenced one-off documentation migration scripts. The Git tree after that cleanup contains 372 tracked files; this is an inventory count, not proof of complete file review.
+PR #187 removed three unreferenced one-off documentation migration scripts. The current Git tree contains 372 tracked files; this is an inventory count, not proof of complete file review.
 
 ## Source of truth
 
