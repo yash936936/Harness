@@ -38,7 +38,7 @@
 - D-110/D-117/D-118 remain binding. The coding profile must not expose `run_command`; no host fallback, Docker/WSL/Crabbox, or implicit sandbox provider selection is allowed.
 - Adapter-side Vercel output limits and fake-client tests exist. Live SDK buffering, remote termination, and end-to-end provider acceptance remain unverified and require explicit authorization and credentials.
 - The CI workflow requires every mandatory verification job through `ci-pass`. The separate `acceptance gates NOT run by CI` job is informational and does not count as provider acceptance.
-- The current Git tree contains 424 tracked files. The complete file-by-file and cross-folder audit is not finished. The 2026-11-07 file manifest is a historical inventory, not current review evidence.
+- The current Git tree at `7a88ce2269987eaeeeab592a0637b539c97bd7f1` contains 372 tracked files after PR #187 removed three unreferenced documentation-migration scripts. The complete file-by-file and cross-folder audit is not finished. The 2026-11-07 file manifest is a historical inventory, not current review evidence.
 - D-119 remains binding: one SQLite DB per project, supported local filesystems only, durable history retained indefinitely by default, and workspace resume only after lease expiry, explicit ownership acquisition, and provider-validated recovery.
 
 ## Historical SQLite Phase 2 snapshot (superseded by the unified status above)
