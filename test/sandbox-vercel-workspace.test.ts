@@ -212,7 +212,7 @@ describe('Vercel task-scoped workspace provider', () => {
   })
 
   it('kills the remote command when combined stdout and stderr exceed the byte cap', async () => {
-    const { fake, runtime } = await setup({ stdout: 'abcdef', stderr: 'warning' })
+    const { fake, runtime } = await setup({ stdout: 'abcdef', stderr: 'warning', waitMs: 20 })
     const session = await runtime.open({ taskId: 'task-output', sessionId: 'session-output', idempotencyKey: 'open-output', ttlMs: 120_000 })
     const capability = await runtime.issueCapability({
       workspaceId: session.workspaceId, operations: ['execute'], pathPrefixes: ['src'], ttlMs: 30_000,
