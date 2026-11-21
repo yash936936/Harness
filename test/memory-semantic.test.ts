@@ -618,6 +618,31 @@ describe('semantic tier (3.3): the index is derived and recoverable', () => {
     await expect(c.ctx.memorySemantic.add({ text: 'new', why: WHY })).rejects.toThrow(/corrupt semantic event log/)
     expect(await readFile(join(dir, 'mem', 'semantic.events.jsonl'), 'utf8')).toBe('{ nope\n')
   })
+  it('compacts a rebuilt semantic sidecar to live facts while retaining append-only history', async () => {
+    const dir = await tmp()
+    const opts = { dbPath: join(dir, 'db'), sem: { path: join(dir, 'mem') } }
+    const first = await boot(opts)
+    await first.ctx.memorySemantic.add({ id: 'a', text: 'fact a', why: WHY })
+    await first.ctx.memorySemantic.add({ id: 'b', text: 'fact b', why: WHY })
+    await first.ctx.memorySemantic.add({ id: 'c', text: 'fact c', why: WHY })
+    expect(await first.ctx.memorySemantic.remove('b')).toBe(true)
+    await first.ctx.memorySemantic.add({ id: 'd', text: 'fact d', why: WHY })
+    expect(await first.ctx.memorySemantic.remove('a')).toBe(true)
+
+    const eventPath = join(dir, 'mem', 'semantic.events.jsonl')
+    const indexPath = join(dir, 'mem', 'semantic.index.jsonl')
+    const durableEvents = (await readFile(eventPath, 'utf8')).trimEnd().split('\\n')
+    expect(durableEvents).toHaveLength(6)
+    await rm(indexPath, { force: true })
+
+    const recovered = await boot(opts)
+    expect((await recovered.ctx.memorySemantic.list()).map((fact) => fact.id)).toEqual(['c', 'd'])
+    const compacted = (await readFile(indexPath, 'utf8')).trimEnd().split('\\n').map((line) => JSON.parse(line))
+    expect(compacted.map((entry) => entry.id)).toEqual(['c', 'd'])
+    expect(compacted.every((entry) => entry.deleted !== true)).toBe(true)
+    expect((await readFile(eventPath, 'utf8')).trimEnd().split('\\n')).toHaveLength(6)
+  })
+
   it('rebuilds the semantic ID and text index after missing or corrupt sidecar data', async () => {
     const dir = await tmp()
     const opts = { dbPath: join(dir, 'db'), sem: { path: join(dir, 'mem') } }
