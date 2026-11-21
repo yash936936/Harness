@@ -44,7 +44,7 @@ function fakeClient(options: { createUserFails?: boolean; realpath?: (path: stri
   const client: VercelWorkspaceClient = {
     async create(request) {
       calls.push(['create', request])
-      sandbox = {
+      const created: VercelWorkspaceSandbox = {
         name: request.name,
         tags: request.tags,
         async createUser(name) {
@@ -62,7 +62,8 @@ function fakeClient(options: { createUserFails?: boolean; realpath?: (path: stri
           async realpath(path) { return options.realpath ? options.realpath(path) : path },
         },
       }
-      return sandbox
+      sandbox = created
+      return created
     },
     async get(request) {
       calls.push(['get', request])
