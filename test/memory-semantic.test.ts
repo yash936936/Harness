@@ -1,4 +1,5 @@
 import { Context } from 'cordis'
+import { spawnSync } from 'node:child_process'
 import { mkdtemp, rm, writeFile, readFile, appendFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -202,13 +203,22 @@ describe('semantic tier configuration and persisted data validation', () => {
     expect(history).toContain('quota-two')
   })
 
-  it('recovers a torn final semantic event without losing committed facts', async () => {
+  it('recovers when a child process exits after writing only a prefix of a semantic event', async () => {
     const dir = await tmp()
     const opts = { sem: { path: dir }, dbPath: join(dir, 'db') }
     const first = await boot(opts)
     await first.ctx.memorySemantic.add({ id: 'committed', text: 'committed fact', why: WHY })
+
+    const worker = join(process.cwd(), 'test', 'fixtures', 'semantic-partial-append-worker.ts')
+    const crashed = spawnSync(process.execPath, ['--import', 'tsx', worker, dir], {
+      encoding: 'utf8',
+      timeout: 15_000,
+    })
+    expect(crashed.error).toBeUndefined()
+    expect(crashed.status).toBe(23)
+
     const eventPath = join(dir, 'semantic.events.jsonl')
-    await writeFile(eventPath, (await readFile(eventPath, 'utf8')) + '{"op":"put","fact":', 'utf8')
+    expect(await readFile(eventPath, 'utf8')).toContain('{"op":"put","fact":')
 
     const restarted = await boot(opts)
     await restarted.ctx.memorySemantic.add({ id: 'after-recovery', text: 'after recovery fact', why: WHY })
