@@ -184,6 +184,32 @@ export class SemanticFactStore {
       await unlink(temporary).catch(() => {})
       if (error?.code !== 'ENOENT') throw error
     }
+    // The event log is the durable history. The sidecar is only a
+    // rebuildable projection, so persist live entries only. This keeps warm
+    // startup metadata proportional to the active-fact quota rather than the
+    // number of historical put/delete events.
+    try {
+      await handle.truncate(0)
+      let outputOffset = 0
+      for (const id of index.orderedIds) {
+        const entry = index.byId.get(id)
+        if (!entry) continue
+        const bytes = Buffer.from(JSON.stringify(entry) + '\n', 'utf8')
+        let written = 0
+        while (written < bytes.length) {
+          const result = await handle.write(bytes, written, bytes.length - written, outputOffset + written)
+          if (result.bytesWritten < 1) throw new MemoryError('memory: could not compact semantic index sidecar')
+          written += result.bytesWritten
+        }
+        outputOffset += bytes.length
+      }
+      await handle.truncate(outputOffset)
+      await handle.sync()
+    } catch (error) {
+      await handle.close().catch(() => {})
+      await unlink(temporary).catch(() => {})
+      throw error
+    }
     await handle.close().catch(() => {})
     try {
       await assertNoSymlinkParents(this.indexFile)
