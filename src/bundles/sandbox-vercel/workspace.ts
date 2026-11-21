@@ -1,3 +1,4 @@
+/** Persistent, task-scoped Vercel Sandbox workspace session provider. */
 import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import { posix } from 'node:path'
 import type {
