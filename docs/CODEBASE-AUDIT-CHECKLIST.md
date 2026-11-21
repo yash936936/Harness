@@ -2,13 +2,13 @@
 
 ## 2026-11-21 latest main and verified closeout
 
-- Current main: `d0c2639a834841e70002a3e32f1b5068ac15d2ef`, PR #165 merged. PR-head CI #44836850401 passed all mandatory jobs; post-merge main CI #44837164572 is running.
+- Current main snapshot: `44b4308212e536967c9559614e8eac7042b1388e` (2026-11-21). PR #175 (persistent Vercel workspace sessions), #177 (bounded retrieval-rank indexing), and #179 (shared secret-path policy) are merged. PR #177 CI #44853981942 passed; PR #179 CI #44912904815 and post-merge main CI #44913294549 passed all mandatory jobs.
 - PR #158 merged cross-process semantic acceptance: four writers, 200 facts, 50 deletions from another process, stale cursor rejection, 150 live facts after sidecar rebuild, and delete/reinsert ordering. PR-head CI #44831362470 and post-merge main CI #44831864535 passed.
 - PR #161 merged the source-append/index-update crash-window test: a fresh service rebuilds the sidecar after an event append that did not reach the index/manifest. PR-head CI #44833502733 passed. This does not cover interruption during the source append itself.
 - PR #157 published semantic page benchmark evidence. Cold index rebuild p50/p95 4,310.982/4,404.561 ms; warm 50-row page p50/p95 19.953/25.641 ms (49,999), 18.225/25.586 ms (89,999), and 17.867/20.190 ms (99,899); sampled RSS delta 25,427,968/26,869,760 bytes. Measurement caveats are in `docs/architecture-contracts.md`.
 - PR #159 removes host `Subprocess` from both built-in profiles and disables host-backed retrieval/router configuration in `profile-coding`. Generic subprocess and retrieval bundles remain exported, so this is not the complete repository-wide D-110/D-117 audit.
 - Phase 4 has a durable SQLite session/capability store (PR #163), backend-neutral WorkspaceRuntime (PR #165), and persistent VercelWorkspaceSessionProvider (PR #175). The provider checks project egress, deny-all networking, dedicated Linux-user execution, durable scope tags, SQLite capability/revocation, and lease fencing. It snapshots and stops the VM after initialization and each command, redacts registered secrets, and suppresses truncated output. Provider-validated recovery/adoption, source enumeration, byte transfer, provider-side file enforcement, conflict-safe apply, and crash recovery remain open. Live Vercel acceptance remains owner-run.
-- The complete file-by-file/cross-folder audit remains incomplete; the 108-file scan and 424-file historical count below are triage evidence only.
+- The current Git tree contains 375 tracked files at `44b4308212e536967c9559614e8eac7042b1388e`: 113 under `src/`, 81 under `test/`, 67 under `docs/`, 52 under `app/`, 46 under `scripts/`, and 16 root/config files. This is an inventory snapshot, not audit coverage. The 108-file scan and 424-file count below are historical triage evidence only; the full file-by-file/cross-folder audit remains incomplete.
 
 
 ## 2026-11-21 D-117 router executable path update
