@@ -1,5 +1,6 @@
 import { existsSync, realpathSync, statSync } from 'node:fs'
 import { dirname, isAbsolute, join, relative, resolve, sep, basename } from 'node:path'
+import { isSecretPath } from '../../architecture/secret-paths.js'
 
 /** True if `target` is `root` or lies under it. Both must already be real, absolute paths. */
 export function isInside(root: string, target: string): boolean {
@@ -58,7 +59,6 @@ export function isGitInternal(rel: string): boolean {
   return rel === '.git' || rel.startsWith('.git/') || rel.includes('/.git/') || rel.endsWith('/.git')
 }
 
-import { isSecretPath } from '../../architecture/secret-paths.js'
 export { isSecretPath }
 
 /** Identity of a directory at one moment: its real path plus device and inode. */
