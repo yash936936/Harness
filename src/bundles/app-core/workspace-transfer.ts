@@ -162,3 +162,29 @@ export async function validateWorkspaceTransferFiles(
   }
   return { fileCount, totalBytes }
 }
+
+/** Require the streamed file set to match the manifest exactly, including size and digest. */
+export async function validateWorkspaceSnapshotFiles(
+  files: AsyncIterable<WorkspaceTransferFile>,
+  manifest: WorkspaceSnapshotManifest,
+  limits: WorkspaceTransferLimits,
+): Promise<{ readonly fileCount: number; readonly totalBytes: number }> {
+  validateWorkspaceSnapshotManifest(manifest, limits)
+  if (!files || typeof files[Symbol.asyncIterator] !== 'function') throw new TypeError('workspace transfer: files must be an async iterable')
+  const expected = manifest.entries.filter((entry): entry is Extract<WorkspaceSnapshotEntry, { readonly kind: 'file' }> => entry.kind === 'file')
+  let fileCount = 0
+  let totalBytes = 0
+  for await (const file of files) {
+    const entry = expected[fileCount]
+    if (!entry || file.path !== entry.path || file.sizeBytes !== entry.sizeBytes || file.sha256 !== entry.sha256) {
+      throw new TypeError('workspace transfer: streamed files do not match the snapshot manifest')
+    }
+    await validateWorkspaceTransferFile(file, limits)
+    fileCount += 1
+    totalBytes += file.sizeBytes
+  }
+  if (fileCount !== expected.length || totalBytes !== manifest.totalBytes) {
+    throw new TypeError('workspace transfer: streamed file set is incomplete')
+  }
+  return { fileCount, totalBytes }
+}
