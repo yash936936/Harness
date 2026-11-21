@@ -172,7 +172,6 @@ export class SemanticFactStore {
         if (event.op === 'put' && validFact(event.fact)) entry = { id: event.fact.id, offset, length, textKey: textKey(event.fact.text) }
         else if (event.op === 'delete' && typeof event.id === 'string' && event.id) entry = { id: event.id, offset, length, deleted: true }
         else throw new MemoryError(`memory: invalid semantic event at line ${lineNumber}; refusing to rebuild its index`)
-        await handle.write(JSON.stringify(entry) + '\n')
         this.apply(index, entry)
         validFinalRecordWithoutNewline = !item.newline
         offset += length + (item.newline ? 1 : 0)
