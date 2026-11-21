@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import type { WorkspaceSnapshotEntry, WorkspaceSnapshotManifest, WorkspaceTransferLimits } from '../src/architecture/contracts.js'
-import { canonicalWorkspacePath, validateWorkspaceSnapshotManifest, validateWorkspaceTransferFile, validateWorkspaceTransferFiles, validateWorkspaceTransferLimits, workspaceManifestSha256 } from '../src/bundles/app-core/workspace-transfer.js'
+import { canonicalWorkspacePath, validateWorkspaceSnapshotManifest, validateWorkspaceTransferFile, validateWorkspaceTransferFiles, validateWorkspaceTransferLimits, validateWorkspaceSnapshotFiles, workspaceManifestSha256 } from '../src/bundles/app-core/workspace-transfer.js'
 
 const limits: WorkspaceTransferLimits = { maxFiles: 10, maxFileBytes: 1_024, maxTotalBytes: 4_096, chunkBytes: 256 }
 const contentHash = createHash('sha256').update('hello').digest('hex')
@@ -120,3 +120,17 @@ describe('workspace byte stream validation', () => {
 async function* chunksAsFiles(files: ReturnType<typeof file>[]) {
   for (const entry of files) yield entry
 }
+
+describe('workspace snapshot file-set validation', () => {
+  async function* files(entries: ReturnType<typeof file>[]) {
+    for (const entry of entries) yield entry
+  }
+  it('requires exact manifest paths, sizes, hashes, and complete byte coverage', async () => {
+    const expected = file('src/index.ts', 'hello')
+    const snapshot = manifest()
+    await expect(validateWorkspaceSnapshotFiles(files([expected]), snapshot, limits)).resolves.toEqual({ fileCount: 1, totalBytes: 5 })
+    await expect(validateWorkspaceSnapshotFiles(files([]), snapshot, limits)).rejects.toThrow(/incomplete/)
+    await expect(validateWorkspaceSnapshotFiles(files([file('src/other.ts', 'hello')]), snapshot, limits)).rejects.toThrow(/do not match/)
+    await expect(validateWorkspaceSnapshotFiles(files([file('src/index.ts', 'wrong')]), snapshot, limits)).rejects.toThrow(/do not match/)
+  })
+})
