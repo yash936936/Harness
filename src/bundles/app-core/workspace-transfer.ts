@@ -15,6 +15,18 @@ export function canonicalWorkspacePath(value: string): string | undefined {
   return value
 }
 
+/** Reject common credential stores and private-key material from workspace transfer. */
+export function isWorkspaceTransferPathAllowed(value: string): boolean {
+  const canonical = canonicalWorkspacePath(value)
+  if (!canonical) return false
+  const segments = canonical.split('/').map((segment) => segment.toLocaleLowerCase('en-US'))
+  const basename = segments[segments.length - 1]!
+  if (segments.some((segment) => BLOCKED_DIRECTORIES.has(segment))) return false
+  if (BLOCKED_FILES.has(basename) || PRIVATE_KEY_EXTENSION.test(basename)) return false
+  if (basename === '.env' || basename.startsWith('.env.')) return false
+  return true
+}
+
 export function validateWorkspaceTransferLimits(limits: WorkspaceTransferLimits): void {
   if (!limits || typeof limits !== 'object') throw new TypeError('workspace transfer: limits are required')
   for (const name of ['maxFiles', 'maxEntries', 'maxFileBytes', 'maxTotalBytes', 'chunkBytes'] as const) {
@@ -75,6 +87,7 @@ export function validateWorkspaceSnapshotManifest(manifest: WorkspaceSnapshotMan
     if (!entry || typeof entry !== 'object') throw new TypeError('workspace transfer: manifest entry must be an object')
     const path = canonicalWorkspacePath(entry.path)
     if (!path || path !== entry.path) throw new TypeError('workspace transfer: manifest contains a non-canonical path')
+    if (!isWorkspaceTransferPathAllowed(path)) throw new TypeError('workspace transfer: manifest contains a blocked secret-bearing path')
     if (previousPath !== undefined && previousPath >= path) throw new TypeError('workspace transfer: manifest paths must be unique and lexicographically sorted')
     previousPath = path
     const folded = path.toLocaleLowerCase('en-US')
@@ -111,6 +124,7 @@ export function validateWorkspaceSnapshotManifest(manifest: WorkspaceSnapshotMan
 export async function validateWorkspaceTransferFile(file: WorkspaceTransferFile, limits: WorkspaceTransferLimits): Promise<void> {
   validateWorkspaceTransferLimits(limits)
   if (!file || canonicalWorkspacePath(file.path) !== file.path) throw new TypeError('workspace transfer: file path is not canonical')
+  if (!isWorkspaceTransferPathAllowed(file.path)) throw new TypeError('workspace transfer: file path is blocked by secret-path policy')
   if (!Number.isSafeInteger(file.sizeBytes) || file.sizeBytes < 0 || file.sizeBytes > limits.maxFileBytes) {
     throw new RangeError('workspace transfer: declared file size exceeds its limit')
   }
@@ -151,6 +165,7 @@ export async function validateWorkspaceTransferFiles(
     if (fileCount > limits.maxFiles) throw new RangeError('workspace transfer: file count exceeds its limit')
     const path = canonicalWorkspacePath(file.path)
     if (!path || path !== file.path) throw new TypeError('workspace transfer: file path is not canonical')
+    if (!isWorkspaceTransferPathAllowed(path)) throw new TypeError('workspace transfer: file path is blocked by secret-path policy')
     if (previousPath !== undefined && previousPath >= path) {
       throw new TypeError('workspace transfer: file paths must be unique and lexicographically sorted')
     }
