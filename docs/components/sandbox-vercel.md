@@ -15,7 +15,7 @@ A host integration registers `VercelSandboxProvider` with `ctx.sandbox` for one-
 - The one-shot provider requests `persistent: false`; task workspaces request `persistent: true`. Both use `networkPolicy: 'deny-all'`.
 - The workspace provider requires a project-matched egress status with consent and calls `assertAllowedHost('vercel.com')` before remote create/get/delete operations.
 - Task workspaces use a dedicated `harness` Linux user, persistent sandbox tags containing a SHA-256 scope digest, and a private home directory. Commands use argv and a canonical workspace-relative cwd; realpath must remain under the workspace root.
-- Provider execution rechecks the SQLite capability token, operation, path prefix, expiry, session binding, and current lease fencing token. Raw capability tokens are not sent to Vercel or persisted in plaintext.
+- Provider execution rechecks the SQLite capability token, operation, path prefix, expiry, session binding, and current lease fencing token. Registered egress secrets are redacted from returned command output. Raw capability tokens are not sent to Vercel or persisted in plaintext.
 - Workspace command output has one combined byte cap. Persistent sandbox snapshots retain only the latest snapshot; confirmed close requests delete orphan snapshots.
 - The one-shot adapter starts an empty sandbox. The workspace session provider does not yet implement snapshot byte transfer or governed result application.
 ## Known limits
