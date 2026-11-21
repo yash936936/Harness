@@ -460,7 +460,10 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
           if (capture.truncated && !killRequested && !waitSettled) {
             killRequested = true
             try { await remoteCommand!.kill('SIGTERM') }
-            catch (error) { if (!waitSettled) throw error }
+            catch (error) {
+              terminationFailure = error
+              if (!waitSettled) throw error
+            }
           }
         }
       }
@@ -480,12 +483,14 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
           throw new Error(`vercel-workspace: command failed (${detail(error)}); remote termination was not confirmed (${detail(killError)})`)
         }
       }
+      if (terminationFailure) throw new Error(`vercel-workspace: remote command termination was not confirmed (${detail(terminationFailure)})`)
       if (command.signal?.aborted) {
+        if (!remoteCommand) throw new Error(`vercel-workspace: abort occurred before a remote command handle was returned; termination cannot be confirmed (${detail(error)})`)
         const captured = capture.result()
         return { exitCode: null, ...captured, timedOut: false, aborted: true }
       }
       if (timedOut || executionSignal.aborted || /timeout|timed out|deadline/i.test(detail(error))) {
-        if (terminationFailure) throw new Error(`vercel-workspace: timed-out command termination was not confirmed (${detail(terminationFailure)})`)
+        if (!remoteCommand) throw new Error(`vercel-workspace: timeout occurred before a remote command handle was returned; termination cannot be confirmed (${detail(error)})`)
         const captured = capture.result()
         return { exitCode: null, ...captured, timedOut: true, aborted: false }
       }
