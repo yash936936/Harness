@@ -27,6 +27,7 @@ describe('workspace transfer validation', () => {
   })
   it('requires positive safe limits and bounded chunks', () => {
     expect(() => validateWorkspaceTransferLimits(limits)).not.toThrow()
+    expect(() => validateWorkspaceTransferLimits({} as WorkspaceTransferLimits)).toThrow(/maxFiles must be a positive safe integer/)
     expect(() => validateWorkspaceTransferLimits({ ...limits, chunkBytes: 0 })).toThrow(/positive safe integer/)
     expect(() => validateWorkspaceTransferLimits({ ...limits, maxFileBytes: Number.MAX_SAFE_INTEGER + 1 })).toThrow(/positive safe integer/)
     expect(() => validateWorkspaceTransferLimits({ ...limits, chunkBytes: 2_048 })).toThrow(/chunkBytes exceeds/)
