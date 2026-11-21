@@ -175,13 +175,13 @@ describe('Vercel task-scoped workspace provider', () => {
     const capability = await runtime.issueCapability({
       workspaceId: session.workspaceId,
       operations: ['execute'],
-      pathPrefixes: ['src'],
+      pathPrefixes: ['workspace'],
       ttlMs: 30_000,
     })
     const result = await runtime.execute(session.workspaceId, capability, {
       command: 'node',
       args: ['--version'],
-      cwd: 'src',
+      cwd: 'workspace',
       timeoutMs: 2_000,
       maxOutputBytes: 100,
     })
@@ -206,7 +206,7 @@ describe('Vercel task-scoped workspace provider', () => {
     expect(create[1]).not.toHaveProperty('env')
     expect(fake.calls).toContainEqual(['createUser', 'harness'])
     const run = fake.calls.find((call) => Array.isArray(call) && call[0] === 'run') as [string, { cmd: string; args: string[]; cwd: string }]
-    expect(run[1]).toMatchObject({ cmd: 'node', args: ['--version'], cwd: '/home/harness/workspace/src' })
+    expect(run[1]).toMatchObject({ cmd: 'node', args: ['--version'], cwd: '/home/harness/workspace' })
     expect(fake.calls).toContainEqual(['update', { networkPolicy: 'deny-all' }])
 
     const closed = await runtime.close(session.workspaceId, 'test complete')
@@ -218,10 +218,10 @@ describe('Vercel task-scoped workspace provider', () => {
     const { fake, runtime } = await setup({ stdout: 'abcdef', stderr: 'warning', waitMs: 20 })
     const session = await runtime.open({ taskId: 'task-output', sessionId: 'session-output', idempotencyKey: 'open-output', ttlMs: 120_000 })
     const capability = await runtime.issueCapability({
-      workspaceId: session.workspaceId, operations: ['execute'], pathPrefixes: ['src'], ttlMs: 30_000,
+      workspaceId: session.workspaceId, operations: ['execute'], pathPrefixes: ['workspace'], ttlMs: 30_000,
     })
     const result = await runtime.execute(session.workspaceId, capability, {
-      command: 'node', args: [], cwd: 'src', timeoutMs: 1_000, maxOutputBytes: 4,
+      command: 'node', args: [], cwd: 'workspace', timeoutMs: 1_000, maxOutputBytes: 4,
     })
     expect(result).toMatchObject({ stdout: 'abcd\n[output truncated by Vercel workspace provider]', stdoutBytes: 4, stderrBytes: 0, truncated: true })
     expect(fake.calls).toContainEqual(['kill', 'SIGTERM'])
@@ -236,10 +236,10 @@ describe('Vercel task-scoped workspace provider', () => {
     })
     const session = await runtime.open({ taskId: 'task-redact', sessionId: 'session-redact', idempotencyKey: 'open-redact', ttlMs: 120_000 })
     const capability = await runtime.issueCapability({
-      workspaceId: session.workspaceId, operations: ['execute'], pathPrefixes: ['src'], ttlMs: 30_000,
+      workspaceId: session.workspaceId, operations: ['execute'], pathPrefixes: ['workspace'], ttlMs: 30_000,
     })
     const result = await runtime.execute(session.workspaceId, capability, {
-      command: 'node', args: [], cwd: 'src', timeoutMs: 1_000, maxOutputBytes: 100,
+      command: 'node', args: [], cwd: 'workspace', timeoutMs: 1_000, maxOutputBytes: 100,
     })
     expect(result.stdout).toBe('token=[redacted:fixture]')
     expect(result.stdout).not.toContain('known-secret')
@@ -250,10 +250,10 @@ describe('Vercel task-scoped workspace provider', () => {
     const { fake, runtime } = await setup({ waitMs: 20 })
     const session = await runtime.open({ taskId: 'task-timeout', sessionId: 'session-timeout', idempotencyKey: 'open-timeout', ttlMs: 120_000 })
     const capability = await runtime.issueCapability({
-      workspaceId: session.workspaceId, operations: ['execute'], pathPrefixes: ['src'], ttlMs: 30_000,
+      workspaceId: session.workspaceId, operations: ['execute'], pathPrefixes: ['workspace'], ttlMs: 30_000,
     })
     const result = await runtime.execute(session.workspaceId, capability, {
-      command: 'node', args: [], cwd: 'src', timeoutMs: 1, maxOutputBytes: 100,
+      command: 'node', args: [], cwd: 'workspace', timeoutMs: 1, maxOutputBytes: 100,
     })
     expect(result).toMatchObject({ exitCode: null, timedOut: true, aborted: false })
     expect(fake.calls).toContainEqual(['kill', 'SIGTERM'])
@@ -264,10 +264,10 @@ describe('Vercel task-scoped workspace provider', () => {
     const { runtime, sessions } = await setup({ waitMs: 20, killFails: true })
     const session = await runtime.open({ taskId: 'task-timeout-fail', sessionId: 'session-timeout-fail', idempotencyKey: 'open-timeout-fail', ttlMs: 120_000 })
     const capability = await runtime.issueCapability({
-      workspaceId: session.workspaceId, operations: ['execute'], pathPrefixes: ['src'], ttlMs: 30_000,
+      workspaceId: session.workspaceId, operations: ['execute'], pathPrefixes: ['workspace'], ttlMs: 30_000,
     })
     await expect(runtime.execute(session.workspaceId, capability, {
-      command: 'node', args: [], cwd: 'src', timeoutMs: 1, maxOutputBytes: 100,
+      command: 'node', args: [], cwd: 'workspace', timeoutMs: 1, maxOutputBytes: 100,
     })).rejects.toThrow(/termination was not confirmed/)
     const unknown = await sessions.getSession(session.workspaceId)
     expect(unknown?.state).toBe('unknown')
@@ -279,7 +279,7 @@ describe('Vercel task-scoped workspace provider', () => {
     const capability = await runtime.issueCapability({
       workspaceId: session.workspaceId,
       operations: ['execute'],
-      pathPrefixes: ['src'],
+      pathPrefixes: ['workspace'],
       ttlMs: 30_000,
     })
     await sessions.transitionSession({
@@ -292,7 +292,7 @@ describe('Vercel task-scoped workspace provider', () => {
     })
 
     await expect(provider.execute(session.workspaceId, capability, {
-      command: 'node', args: [], cwd: 'other', timeoutMs: 1_000, maxOutputBytes: 100,
+      command: 'node', args: [], cwd: 'workspace/other', timeoutMs: 1_000, maxOutputBytes: 100,
     })).rejects.toThrow(/command capability denied/)
     expect(fake.calls.some((call) => Array.isArray(call) && call[0] === 'run')).toBe(false)
     await runtime.close(session.workspaceId, 'test cleanup')
@@ -302,7 +302,7 @@ describe('Vercel task-scoped workspace provider', () => {
     const { fake, provider, runtime, sessions } = await setup()
     const session = await runtime.open({ taskId: 'task-revoked', sessionId: 'session-revoked', idempotencyKey: 'open-revoked', ttlMs: 120_000 })
     const capability = await runtime.issueCapability({
-      workspaceId: session.workspaceId, operations: ['execute'], pathPrefixes: ['src'], ttlMs: 30_000,
+      workspaceId: session.workspaceId, operations: ['execute'], pathPrefixes: ['workspace'], ttlMs: 30_000,
     })
     await runtime.revokeCapability(capability.capabilityId, 'test revocation')
     await sessions.transitionSession({
@@ -310,7 +310,7 @@ describe('Vercel task-scoped workspace provider', () => {
       fencingToken: session.fencingToken!, expectedState: 'ready', nextState: 'running',
     })
     await expect(provider.execute(session.workspaceId, capability, {
-      command: 'node', args: [], cwd: 'src', timeoutMs: 1_000, maxOutputBytes: 100,
+      command: 'node', args: [], cwd: 'workspace', timeoutMs: 1_000, maxOutputBytes: 100,
     })).rejects.toThrow(/command capability denied/)
     expect(fake.calls.some((call) => Array.isArray(call) && call[0] === 'run')).toBe(false)
     await runtime.close(session.workspaceId, 'test cleanup')
@@ -320,7 +320,7 @@ describe('Vercel task-scoped workspace provider', () => {
     const { fake, provider, runtime, sessions, leases } = await setup()
     const session = await runtime.open({ taskId: 'task-fence', sessionId: 'session-fence', idempotencyKey: 'open-fence', ttlMs: 120_000 })
     const capability = await runtime.issueCapability({
-      workspaceId: session.workspaceId, operations: ['execute'], pathPrefixes: ['src'], ttlMs: 30_000,
+      workspaceId: session.workspaceId, operations: ['execute'], pathPrefixes: ['workspace'], ttlMs: 30_000,
     })
     await sessions.transitionSession({
       workspaceId: session.workspaceId, ownerId: session.ownerId, leaseId: session.leaseId!,
@@ -333,7 +333,7 @@ describe('Vercel task-scoped workspace provider', () => {
     })
     expect(next.acquired).toBe(true)
     await expect(provider.execute(session.workspaceId, capability, {
-      command: 'node', args: [], cwd: 'src', timeoutMs: 1_000, maxOutputBytes: 100,
+      command: 'node', args: [], cwd: 'workspace', timeoutMs: 1_000, maxOutputBytes: 100,
     })).rejects.toThrow(/lease fencing token is stale/)
     expect(fake.calls.some((call) => Array.isArray(call) && call[0] === 'run')).toBe(false)
   })
@@ -344,7 +344,7 @@ describe('Vercel task-scoped workspace provider', () => {
     const capability = await runtime.issueCapability({
       workspaceId: session.workspaceId,
       operations: ['execute'],
-      pathPrefixes: ['src'],
+      pathPrefixes: ['workspace'],
       ttlMs: 30_000,
     })
     await sessions.transitionSession({
@@ -359,7 +359,7 @@ describe('Vercel task-scoped workspace provider', () => {
     create[1].tags.harness_scope = 'wrong-scope'
 
     await expect(provider.execute(session.workspaceId, capability, {
-      command: 'node', args: [], cwd: 'src', timeoutMs: 1_000, maxOutputBytes: 100,
+      command: 'node', args: [], cwd: 'workspace', timeoutMs: 1_000, maxOutputBytes: 100,
     })).rejects.toThrow(/remote sandbox identity/)
     expect(fake.calls.some((call) => Array.isArray(call) && call[0] === 'run')).toBe(false)
     await runtime.close(session.workspaceId, 'test cleanup')
@@ -374,7 +374,7 @@ describe('Vercel task-scoped workspace provider', () => {
     const capability = await runtime.issueCapability({
       workspaceId: session.workspaceId,
       operations: ['execute'],
-      pathPrefixes: ['src'],
+      pathPrefixes: ['workspace/src'],
       ttlMs: 30_000,
     })
     await sessions.transitionSession({
@@ -387,7 +387,7 @@ describe('Vercel task-scoped workspace provider', () => {
     })
 
     await expect(provider.execute(session.workspaceId, capability, {
-      command: 'node', args: [], cwd: 'src', timeoutMs: 1_000, maxOutputBytes: 100,
+      command: 'node', args: [], cwd: 'workspace/src', timeoutMs: 1_000, maxOutputBytes: 100,
     })).rejects.toThrow(/resolves outside the workspace/)
     expect(fake.calls.some((call) => Array.isArray(call) && call[0] === 'run')).toBe(false)
     await runtime.close(session.workspaceId, 'test cleanup')
