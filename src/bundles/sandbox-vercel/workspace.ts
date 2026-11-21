@@ -15,6 +15,9 @@ import type {
 const PROVIDER_TAG = 'harness-workspace-v1'
 const WORKSPACE_USER = 'harness'
 const MAX_SESSION_COMMAND_TIMEOUT_MS = 60 * 60 * 1_000
+const MAX_WORKSPACE_TTL_MS = 7 * 24 * 60 * 60 * 1_000
+const MAX_CAPABILITY_TTL_MS = 60 * 60 * 1_000
+const MAX_COMMAND_OUTPUT_BYTES = 64 * 1024 * 1024
 const DEFAULT_SANDBOX_TIMEOUT_MS = 15 * 60 * 1_000
 const DEFAULT_SNAPSHOT_EXPIRATION_MS = 7 * 24 * 60 * 60 * 1_000
 
@@ -63,7 +66,14 @@ export interface VercelWorkspaceClient {
   get(options: { name: string; resume: boolean; signal?: AbortSignal }): Promise<VercelWorkspaceSandbox>
 }
 
+export interface VercelWorkspaceEgressGate {
+  status(): Promise<{ readonly projectId: string; readonly consented: boolean }>
+  assertAllowedHost(host: string): void
+}
+
 export interface VercelWorkspaceProviderOptions {
+  /** Project-scoped consent and exact host allowlist gate. */
+  readonly egress: VercelWorkspaceEgressGate
   /** Injected SDK client for tests or controlled integrations. */
   readonly client?: VercelWorkspaceClient
   readonly sessions: WorkspaceSessionStore
@@ -201,6 +211,7 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
   private readonly sessions: WorkspaceSessionStore
   private readonly leases: LeaseStore
   private readonly ownerId: string
+  private readonly egress: VercelWorkspaceEgressGate
   private readonly now: () => number
   private readonly sandboxTimeoutMs: number
   private readonly snapshotExpirationMs: number
@@ -208,13 +219,14 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
   private clientPromise?: Promise<VercelWorkspaceClient>
 
   constructor(options: VercelWorkspaceProviderOptions) {
-    if (!options.sessions || !options.leases) throw new TypeError('vercel-workspace: session and lease stores are required')
+    if (!options.sessions || !options.leases || !options.egress) throw new TypeError('vercel-workspace: session store, lease store, and egress gate are required')
     if (typeof options.ownerId !== 'string' || !options.ownerId.trim() || options.ownerId.length > 256) {
       throw new TypeError('vercel-workspace: ownerId is required')
     }
     this.sessions = options.sessions
     this.leases = options.leases
     this.ownerId = options.ownerId
+    this.egress = options.egress
     this.now = options.now ?? Date.now
     this.sandboxTimeoutMs = options.sandboxTimeoutMs ?? DEFAULT_SANDBOX_TIMEOUT_MS
     this.snapshotExpirationMs = options.snapshotExpirationMs ?? DEFAULT_SNAPSHOT_EXPIRATION_MS
@@ -249,6 +261,14 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
     return session
   }
 
+  private async assertEgress(projectId: string): Promise<void> {
+    const status = await this.egress.status()
+    if (status.projectId !== projectId || status.consented !== true) {
+      throw new Error('vercel-workspace: project-scoped remote egress consent is required')
+    }
+    this.egress.assertAllowedHost('vercel.com')
+  }
+
   private assertSandboxScope(sandbox: VercelWorkspaceSandbox, session: WorkspaceSession): void {
     if (sandbox.name !== session.workspaceId || sandbox.tags?.['harness_provider'] !== PROVIDER_TAG ||
         sandbox.tags?.['harness_scope'] !== scopeDigest(session)) {
@@ -257,6 +277,7 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
   }
 
   private async getSandbox(session: WorkspaceSession, resume: boolean, signal?: AbortSignal): Promise<VercelWorkspaceSandbox> {
+    await this.assertEgress(session.projectId)
     const sandbox = await (await this.getClient()).get({ name: session.workspaceId, resume, signal })
     this.assertSandboxScope(sandbox, session)
     // Reassert the restrictive policy on every reattachment before guest commands run.
@@ -266,7 +287,7 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
 
   async create(input: CreateWorkspaceSessionInput): Promise<WorkspaceSession> {
     if (input.provider !== this.name || input.ownerId !== this.ownerId ||
-        !Number.isSafeInteger(input.ttlMs) || input.ttlMs < 1_000) {
+        !Number.isSafeInteger(input.ttlMs) || input.ttlMs < 1_000 || input.ttlMs > MAX_CAPABILITY_TTL_MS || input.ttlMs > MAX_WORKSPACE_TTL_MS) {
       throw new TypeError('vercel-workspace: invalid workspace creation scope')
     }
     input.signal?.throwIfAborted()
@@ -284,6 +305,7 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
       harness_provider: PROVIDER_TAG,
       harness_scope: scopeDigest(session),
     }
+    await this.assertEgress(input.projectId)
     const client = await this.getClient()
     const sandbox = await client.create({
       name: input.workspaceId,
@@ -378,7 +400,7 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
     })
     if (!allowed) throw new Error('vercel-workspace: command capability denied')
     if (!Number.isSafeInteger(command.timeoutMs) || command.timeoutMs < 1 || command.timeoutMs > MAX_SESSION_COMMAND_TIMEOUT_MS ||
-        !Number.isSafeInteger(command.maxOutputBytes) || command.maxOutputBytes < 1 ||
+        !Number.isSafeInteger(command.maxOutputBytes) || command.maxOutputBytes < 1 || command.maxOutputBytes > MAX_COMMAND_OUTPUT_BYTES ||
         typeof command.command !== 'string' || !command.command.trim() || command.command.includes('\0') ||
         !Array.isArray(command.args) || command.args.length > 256 ||
         command.args.some((arg) => typeof arg !== 'string' || arg.includes('\0') || arg.length > 8_192)) {
@@ -485,6 +507,7 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
     }
     let sandbox: VercelWorkspaceSandbox
     try {
+      await this.assertEgress(session.projectId)
       sandbox = await (await this.getClient()).get({ name: input.workspaceId, resume: false })
     } catch (error) {
       if (notFound(error)) return { confirmed: true, detail: 'remote sandbox was already absent' }
