@@ -2,7 +2,7 @@
 
 ## 2026-11-21 unified completion loop: current status
 
-Main baseline: `df4e945a653b336e58fab280e5f1096ebd1ce9fd` (PR #168 merged). PRs #169-172 are open implementation/test slices; their CI evidence is tracked on the PR heads.
+Main baseline: `d0c2639a834841e70002a3e32f1b5068ac15d2ef` (PR #165 merged). Post-merge main CI run #44837164572 is in progress; PR-head CI #44836850401 passed all mandatory jobs.
 
 **Completed and verified**
 - PR #156: semantic insertion-order/tombstone fix; post-merge CI #44827470725 passed.
@@ -15,12 +15,12 @@ Main baseline: `df4e945a653b336e58fab280e5f1096ebd1ce9fd` (PR #168 merged). PRs 
 
 **Still open**
 1. Phase 3: interruption during the source append itself; cross-process session-log/cache recovery; large-file and metadata-scan memory bounds; full semantic reindex/recovery stress; remaining source audit.
-2. Phase 4: provider-validated recovery/adoption after lease expiry; restart recovery; byte-level secret-safe snapshot transfer; bounded result collection; hash-based conflict detection and governed apply; cleanup when remote egress consent is revoked. PR #172 adds the persistent Vercel session lifecycle and fenced command provider, but not transfer or recovery.
-3. D-110/D-117: built-in profile paths are restricted, but generic `CommandBackend`, `Subprocess`, retrieval bundles, Crabbox source, scripts, desktop paths, and downstream direct construction still need a repository-wide reachability audit.
+2. Phase 4: SQLite-backed workspace session metadata and ownership/fencing integration; task-scoped lifecycle; provider-enforced operation/path/expiry capabilities and revocation; byte-level secret-safe snapshot transfer; bounded result collection; hash-based conflict detection and governed apply; crash recovery and cleanup.
+3. D-110/D-117: built-in profile paths are restricted and the host-executable CommandBackend has been moved out of the runtime router bundle into an evaluation-only script. Generic Subprocess, retrieval bundles, Crabbox source, other scripts, desktop paths, and downstream direct construction still need a repository-wide reachability audit.
 4. Final acceptance: migration safety, crash recovery, full compatibility and cross-platform matrix, documentation consistency, and live Vercel acceptance.
 5. Live Vercel acceptance is owner-run and requires explicit project egress authorization and credentials. The CI job named `acceptance gates NOT RUN` is informational only and is never counted as live acceptance.
 
-**Execution order:** finish mandatory CI for the open Phase 3/4 slices; complete Phase 3 memory-bound evidence; finish the host-execution source trace; complete Phase 4 provider recovery and secure transfer/result synchronization; reconcile all docs; then run owner-authorized live acceptance. Do not enable COMMAND_TOOL before transfer, result synchronization, recovery, lifecycle cleanup, and policy gates pass.
+**Execution order:** finish mandatory post-merge CI; complete Phase 3 recovery and memory-bound evidence; finish the host-execution source trace; implement Phase 4 in secure vertical slices; reconcile all docs; then run final acceptance. Do not enable `COMMAND_TOOL` before Phase 4 transfer, result synchronization, lifecycle, and policy gates pass.
 
 ## Historical execution snapshots
 
@@ -51,7 +51,7 @@ Main baseline at the time of this snapshot: `2a2a60315a1e6db8b448c9c7d48a460c5bf
 - Phase 3 has bounded session-log tail reads, indexed episodic identity and keyset pages, append-only semantic events, rebuildable semantic indexes, quotas, cursor invalidation, and checkpointed paged reindex. Phase 3 remains open for concurrent/deletion-heavy scale tests, recovery and cross-process cache-invalidation evidence, and the full audit.
 - CI run #44826849470 recorded current 100k episodic, 1,740-chunk indexing, and 2,000-fact semantic reindex measurements. Results and caveats are recorded in [architecture-contracts.md](architecture-contracts.md).
 - CI run #44828389243's architecture job executed the 100k-event semantic page benchmark: 4,310.982 ms p50 cold index rebuild; warm 50-record pages p50/p95 19.953/25.641 ms (cursor 49,999), 18.225/25.586 ms (89,999), and 17.867/20.190 ms (99,899); sampled RSS delta p50/p95 25,427,968/26,869,760 bytes. The 100k-event fixture included 25k deletions and one reinsertion. Full CI for the latest docs commit is still required.
-- Phase 4 has SQLite fenced session/capability storage, WorkspaceRuntime, and a persistent Vercel session provider. Provider-validated recovery, byte transfer, snapshot manifests, conflict-safe result synchronization, and live acceptance remain open.
+- Phase 4 has SQLite fenced session/capability storage, WorkspaceRuntime, and VercelWorkspaceSessionProvider. Task-scoped persistent execution and fencing are implemented; provider-validated recovery, secure byte transfer, conflict-safe result synchronization, and live acceptance remain open.
 - D-110/D-117/D-118 remain binding. Host command fallback, Docker/WSL/Crabbox, automatic provider selection, and coding-profile `run_command` exposure remain prohibited.
 - Vercel fake-client output capture is tested. Live SDK buffering, remote termination, and end-to-end Vercel acceptance remain unverified and require explicit egress authorization and credentials.
 - The full file-by-file and cross-folder audit is incomplete. The repository currently contains 424 tracked files; the 2026-11-07 file manifest is historical, not current coverage evidence.
@@ -61,7 +61,7 @@ Main baseline at the time of this snapshot: `2a2a60315a1e6db8b448c9c7d48a460c5bf
 1. Complete semantic stress evidence: exercise concurrent writers, cursor invalidation across processes, interrupted writes, sidecar rebuild, tombstone compaction, and reindex recovery against large stores. The 100k-event baseline is now recorded in architecture-contracts.md.
 2. Stress semantic storage: test cursor invalidation, index rebuild, concurrent writers, deletion/reinsertion, interrupted writes, large event logs, and memory bounds.
 3. Complete the D-110/D-117 security trace: follow every command execution route from CLI/profile/tool registration through provider dispatch; prove no host fallback or implicit provider selection is reachable.
-4. Implement Phase 4 runtime in bounded vertical slices: SQLite lease/fencing integration, task-scoped session lifecycle, operation/path/expiry capabilities, revocation, snapshot manifests, safe transfer, conflict handling, cancellation, and cleanup/recovery.
+4. Complete Phase 4 in bounded vertical slices: provider-validated lease-expiry recovery and restart adoption; deterministic snapshot manifests; secret/symlink/special-file-safe source enumeration; bounded byte transfer; conflict-safe governed apply; cancellation and confirmed cleanup.
 5. Strengthen CI acceptance reporting: preserve mandatory-job aggregation and make informational not-run gates impossible to confuse with passed acceptance. Keep live provider gates explicitly owner-run.
 6. Finish the file-by-file audit: all current source, tests, scripts, desktop code, generated files, docs, and cross-folder flows. Record evidence, severity, regression tests, and dispositions in the checklist.
 7. Reconcile roadmap, state, contracts, audit register, and generated docs from verified implementation and test evidence.
@@ -71,7 +71,7 @@ Main baseline at the time of this snapshot: `2a2a60315a1e6db8b448c9c7d48a460c5bf
 
 - Phase 2: implemented; retain passing cross-process and migration evidence.
 - Phase 3: open until concurrent/deletion-heavy scale tests, recovery and cross-process cursor-invalidation evidence, and audit evidence pass. The semantic-page benchmark is recorded.
-- Phase 4: partially implemented; runtime and Vercel session lifecycle exist, while recovery, secure transfer, result synchronization, and acceptance remain open.
+- Phase 4: partially implemented; SQLite session/capability storage, WorkspaceRuntime, and the persistent Vercel session provider exist. Recovery, transfer, result synchronization, and acceptance remain open.
 - Phase 5: adapter-side bounded capture implemented; live SDK and remote termination acceptance open.
 - Phase 6: open until the full audit and cross-subsystem acceptance pass.
 - Phase 7: blocked on approved live-provider access, credentials, and secret-safe workspace transfer.
