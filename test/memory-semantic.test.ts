@@ -12,6 +12,7 @@ import { AgentLoop } from '../src/bundles/agent-loop/index.js'
 import { Embeddings, EmbeddingProviderError, HashingEmbeddingProvider, type EmbeddingProvider, type EmbeddingsConfig } from '../src/bundles/embeddings/index.js'
 import { LanceVectorStore } from '../src/bundles/vectorstore-lancedb/index.js'
 import { Memory, MemoryError, MemorySemantic, type SemanticConfig } from '../src/bundles/memory/index.js'
+import { SemanticFactStore } from '../src/bundles/memory/semantic-store.js'
 
 // The first use of the vector store loads LanceDB's native module, which takes seconds on a cold machine
 // (the owner's first Windows run timed out at the 5 s default). Same setting as the other LanceDB test files.
@@ -618,6 +619,61 @@ describe('semantic tier (3.3): the index is derived and recoverable', () => {
     await expect(c.ctx.memorySemantic.add({ text: 'new', why: WHY })).rejects.toThrow(/corrupt semantic event log/)
     expect(await readFile(join(dir, 'mem', 'semantic.events.jsonl'), 'utf8')).toBe('{ nope\n')
   })
+  it('compacts the live semantic sidecar after repeated updates without trimming durable history', async () => {
+    const dir = await tmp()
+    const store = new SemanticFactStore(join(dir, 'mem'))
+    await store.withLock(async () => {
+      for (let revision = 0; revision < 1_200; revision++) {
+        await store.put({
+          tier: 'semantic',
+          id: 'stable-id',
+          text: `revision ${revision}`,
+          why: WHY,
+          ts: '2026-11-21T00:00:00.000Z',
+        }, { maxFacts: 10, maxFactBytes: 8_192 })
+      }
+    })
+
+    const eventPath = join(dir, 'mem', 'semantic.events.jsonl')
+    const indexPath = join(dir, 'mem', 'semantic.index.jsonl')
+    expect((await readFile(eventPath, 'utf8')).trimEnd().split('\n')).toHaveLength(1_200)
+    const sidecar = (await readFile(indexPath, 'utf8')).trimEnd().split('\n').map((line) => JSON.parse(line))
+    expect(sidecar).toHaveLength(1)
+    expect(sidecar[0].id).toBe('stable-id')
+
+    const restarted = new SemanticFactStore(join(dir, 'mem'))
+    await restarted.withLock(async () => {
+      expect(await restarted.count()).toBe(1)
+      expect((await restarted.get('stable-id'))?.text).toBe('revision 1199')
+    })
+    expect((await readFile(eventPath, 'utf8')).trimEnd().split('\n')).toHaveLength(1_200)
+  })
+
+  it('compacts a rebuilt semantic sidecar to live facts while retaining append-only history', async () => {
+    const dir = await tmp()
+    const opts = { dbPath: join(dir, 'db'), sem: { path: join(dir, 'mem') } }
+    const first = await boot(opts)
+    await first.ctx.memorySemantic.add({ id: 'a', text: 'fact a', why: WHY })
+    await first.ctx.memorySemantic.add({ id: 'b', text: 'fact b', why: WHY })
+    await first.ctx.memorySemantic.add({ id: 'c', text: 'fact c', why: WHY })
+    expect(await first.ctx.memorySemantic.remove('b')).toBe(true)
+    await first.ctx.memorySemantic.add({ id: 'd', text: 'fact d', why: WHY })
+    expect(await first.ctx.memorySemantic.remove('a')).toBe(true)
+
+    const eventPath = join(dir, 'mem', 'semantic.events.jsonl')
+    const indexPath = join(dir, 'mem', 'semantic.index.jsonl')
+    const durableEvents = (await readFile(eventPath, 'utf8')).trimEnd().split('\n')
+    expect(durableEvents).toHaveLength(6)
+    await rm(indexPath, { force: true })
+
+    const recovered = await boot(opts)
+    expect((await recovered.ctx.memorySemantic.list()).map((fact) => fact.id)).toEqual(['c', 'd'])
+    const compacted = (await readFile(indexPath, 'utf8')).trimEnd().split('\n').map((line) => JSON.parse(line))
+    expect(compacted.map((entry) => entry.id)).toEqual(['c', 'd'])
+    expect(compacted.every((entry) => entry.deleted !== true)).toBe(true)
+    expect((await readFile(eventPath, 'utf8')).trimEnd().split('\n')).toHaveLength(6)
+  })
+
   it('rebuilds the semantic ID and text index after missing or corrupt sidecar data', async () => {
     const dir = await tmp()
     const opts = { dbPath: join(dir, 'db'), sem: { path: join(dir, 'mem') } }
