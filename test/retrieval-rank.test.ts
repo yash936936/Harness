@@ -9,6 +9,7 @@ import { RetrievalGrep } from '../src/bundles/retrieval-grep/index.js'
 import {
   bm25,
   chunkSource,
+  ChunkLimitError,
   looksBinary,
   queryTerms,
   RetrievalRank,
@@ -19,6 +20,7 @@ import {
   type RetrievalRankConfig,
 } from '../src/bundles/retrieval-rank/index.js'
 import { DEFAULT_CHUNK_OPTIONS } from '../src/bundles/retrieval-rank/chunk.js'
+import { readProjectFile } from '../src/bundles/retrieval-rank/file-access.js'
 import { RetrievalTreesitter } from '../src/bundles/retrieval-treesitter/index.js'
 import { Subprocess } from '../src/bundles/subprocess/index.js'
 import { LanceVectorStore } from '../src/bundles/vectorstore-lancedb/index.js'
@@ -169,6 +171,14 @@ describe('chunkSource', () => {
     const c = chunkSource('f.txt', src, undefined, opts)[0]!
     expect(c.text).toHaveLength(500)
     expect(sliceChunkText(src.split('\n'), c.startLine, c.endLine, 500)).toBe(c.text)
+  })
+
+  it('bounds per-file chunk count and UTF-8 chunk bytes while emitting', () => {
+    const source = lines(20)
+    expect(() => chunkSource('large.txt', source, undefined, { ...DEFAULT_CHUNK_OPTIONS, windowLines: 1, maxChunks: 2 }))
+      .toThrow(ChunkLimitError)
+    expect(() => chunkSource('large.txt', source, undefined, { ...DEFAULT_CHUNK_OPTIONS, windowLines: 1, maxChunks: 100, maxBytes: 10 }))
+      .toThrow(ChunkLimitError)
   })
 
   it('looksBinary spots a NUL in the first bytes only', () => {
