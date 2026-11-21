@@ -5,6 +5,7 @@ import { canonicalWorkspacePath, validateWorkspaceSnapshotManifest, validateWork
 
 const limits: WorkspaceTransferLimits = { maxFiles: 10, maxFileBytes: 1_024, maxTotalBytes: 4_096, chunkBytes: 256 }
 const contentHash = createHash('sha256').update('hello').digest('hex')
+type MutableManifest = { -readonly [K in keyof WorkspaceSnapshotManifest]: K extends 'entries' ? WorkspaceSnapshotEntry[] : WorkspaceSnapshotManifest[K] }
 function manifest(): WorkspaceSnapshotManifest {
   const base = {
     formatVersion: 1 as const, snapshotId: 'snapshot-1', projectId: 'project-1', taskId: 'task-1',
@@ -43,7 +44,7 @@ describe('workspace transfer validation', () => {
     ]
     for (const mutate of mutations) {
       const original = manifest()
-      const candidate = { ...original, entries: [...original.entries] } as unknown as WorkspaceSnapshotManifest & { entries: WorkspaceSnapshotEntry[] }
+      const candidate = { ...original, entries: [...original.entries] } as unknown as MutableManifest
       mutate(candidate)
       candidate.manifestSha256 = workspaceManifestSha256(candidate)
       expect(() => validateWorkspaceSnapshotManifest(candidate, limits)).toThrow()
@@ -63,6 +64,10 @@ describe('workspace transfer validation', () => {
     tooLarge.totalBytes = 2_048
     tooLarge.manifestSha256 = workspaceManifestSha256(tooLarge)
     expect(() => validateWorkspaceSnapshotManifest(tooLarge, limits)).toThrow(/invalid file size/)
-    expect(() => validateWorkspaceSnapshotManifest(manifest(), { ...limits, maxFiles: 1 })).toThrow(/file count/)
+    const withSecondFileBase = manifest()
+    const withSecondFile = { ...withSecondFileBase, entries: [...withSecondFileBase.entries, { path: 'z.ts', kind: 'file' as const, sizeBytes: 1, sha256: contentHash }], totalBytes: 6 }
+    const secondFileManifest = { ...withSecondFile, manifestSha256: workspaceManifestSha256(withSecondFile) }
+    expect(() => validateWorkspaceSnapshotManifest(secondFileManifest, { ...limits, maxFiles: 1 })).toThrow(/file count/)
+    expect(() => validateWorkspaceSnapshotManifest(manifest(), { ...limits, maxFiles: 1 })).not.toThrow()
   })
 })
