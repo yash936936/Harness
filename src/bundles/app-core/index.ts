@@ -15,6 +15,7 @@ import type { LLMProvider } from '../model-adapter/types.js'
 
 export * from './budgets.js'
 export * from './workspaces.js'
+export * from './workspace-transfer.js'
 export * from './workspace-runtime.js'
 export * from './credentials.js'
 export * from './consent-copy.js'
