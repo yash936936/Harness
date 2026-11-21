@@ -282,3 +282,4 @@ export class VercelSandboxProvider implements SandboxProvider {
     }
   }
 }
+export * from './workspace.js'
