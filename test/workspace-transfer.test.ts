@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
-import type { WorkspaceSnapshotEntry, WorkspaceSnapshotManifest, WorkspaceTransferLimits } from '../src/architecture/contracts.js'
+import type { WorkspaceSnapshotEntry, WorkspaceSnapshotManifest, WorkspaceTransferFile, WorkspaceTransferLimits } from '../src/architecture/contracts.js'
 import { canonicalWorkspacePath, validateWorkspaceSnapshotManifest, validateWorkspaceTransferFile, validateWorkspaceTransferFiles, validateWorkspaceTransferLimits, validateWorkspaceSnapshotFiles, workspaceManifestSha256 } from '../src/bundles/app-core/workspace-transfer.js'
 
 const limits: WorkspaceTransferLimits = { maxFiles: 10, maxFileBytes: 1_024, maxTotalBytes: 4_096, chunkBytes: 256 }
@@ -122,15 +122,21 @@ async function* chunksAsFiles(files: ReturnType<typeof file>[]) {
 }
 
 describe('workspace snapshot file-set validation', () => {
-  async function* files(entries: ReturnType<typeof file>[]) {
+  async function* chunks(bytes: Uint8Array) {
+    if (bytes.byteLength) yield { offset: 0, bytes }
+  }
+  function makeFile(path: string, content: string): WorkspaceTransferFile {
+    const bytes = new TextEncoder().encode(content)
+    return { path, sizeBytes: bytes.byteLength, sha256: createHash('sha256').update(bytes).digest('hex'), chunks: chunks(bytes) }
+  }
+  async function* files(entries: WorkspaceTransferFile[]) {
     for (const entry of entries) yield entry
   }
   it('requires exact manifest paths, sizes, hashes, and complete byte coverage', async () => {
-    const expected = file('src/index.ts', 'hello')
     const snapshot = manifest()
-    await expect(validateWorkspaceSnapshotFiles(files([expected]), snapshot, limits)).resolves.toEqual({ fileCount: 1, totalBytes: 5 })
+    await expect(validateWorkspaceSnapshotFiles(files([makeFile('src/index.ts', 'hello')]), snapshot, limits)).resolves.toEqual({ fileCount: 1, totalBytes: 5 })
     await expect(validateWorkspaceSnapshotFiles(files([]), snapshot, limits)).rejects.toThrow(/incomplete/)
-    await expect(validateWorkspaceSnapshotFiles(files([file('src/other.ts', 'hello')]), snapshot, limits)).rejects.toThrow(/do not match/)
-    await expect(validateWorkspaceSnapshotFiles(files([file('src/index.ts', 'wrong')]), snapshot, limits)).rejects.toThrow(/do not match/)
+    await expect(validateWorkspaceSnapshotFiles(files([makeFile('src/other.ts', 'hello')]), snapshot, limits)).rejects.toThrow(/do not match/)
+    await expect(validateWorkspaceSnapshotFiles(files([makeFile('src/index.ts', 'wrong')]), snapshot, limits)).rejects.toThrow(/do not match/)
   })
 })
