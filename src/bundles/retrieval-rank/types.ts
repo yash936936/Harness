@@ -88,7 +88,7 @@ export interface RankHit {
 export interface RankStats {
   candidateFiles: number
   candidateChunks: number
-  /** Files that could not be read or chunked (binary, too large, unreadable, outside the root). */
+  /** Files skipped because they were binary, too large, too many lines/chunks, unreadable, or outside the root. */
   skippedFiles: number
   /** Vector hits dropped because the file changed after indexing. */
   staleVectorHits: number
