@@ -181,7 +181,7 @@ describe('chunkSource', () => {
       .toThrow(ChunkLimitError)
     expect(() => chunkSource('large.txt', 'x'.repeat(20), undefined, { ...DEFAULT_CHUNK_OPTIONS, maxSourceBytes: 10 }))
       .toThrow(ChunkLimitError)
-    expect(() => chunkSource('many-lines.txt', 'one\\ntwo\\nthree', undefined, { ...DEFAULT_CHUNK_OPTIONS, maxLines: 2 }))
+    expect(() => chunkSource('many-lines.txt', 'one\ntwo\nthree', undefined, { ...DEFAULT_CHUNK_OPTIONS, maxLines: 2 }))
       .toThrow(ChunkLimitError)
   })
 
