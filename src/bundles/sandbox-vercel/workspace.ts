@@ -446,8 +446,13 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
         aborted: false,
       }
     } catch (error) {
+      if (remoteCommand && !killRequested) {
+        try { await remoteCommand.kill('SIGTERM') }
+        catch (killError) {
+          if (!command.signal?.aborted) throw new Error(`vercel-workspace: command failed (${detail(error)}); remote termination was not confirmed (${detail(killError)})`)
+        }
+      }
       if (command.signal?.aborted) {
-        if (remoteCommand && !killRequested) await remoteCommand.kill('SIGTERM').catch(() => {})
         const captured = capture.result()
         return { exitCode: null, ...captured, timedOut: false, aborted: true }
       }
@@ -473,7 +478,7 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
     readonly leaseId: string
     readonly fencingToken: number
   }): Promise<{ readonly confirmed: boolean; readonly detail?: string }> {
-    const session = await this.assertSession(input.workspaceId, ['closing'])
+    const session = await this.assertSession(input.workspaceId, ['creating', 'closing', 'failed', 'unknown'])
     if (input.ownerId !== this.ownerId || session.leaseId !== input.leaseId ||
         session.fencingToken !== input.fencingToken) {
       return { confirmed: false, detail: 'workspace owner or fencing token does not match' }
