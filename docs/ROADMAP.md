@@ -100,7 +100,7 @@ Complete the current security and reliability audit, then migrate Harness toward
 | P1 | AUD-039 | Add task-scoped workspace sessions, capability checks, lease ownership, safe transfer, result synchronization, and verified cleanup. |
 
 | P2 | AUD-014, AUD-025 | Queue/cache bounds are implemented. Add bounded searchable-memory quotas, paging, batched vector upserts, and resumable semantic reindexing without deleting durable history automatically. |
-| P2 | AUD-016 | Collection ownership and safer replacement are implemented in PR #113. Bound prepared chunks/vectors for large files; measure vector search and decide whether/when ANN is justified. |
+| P2 | AUD-016 | Collection ownership/replacement safety are implemented in PR #113; PR #177 hard-caps file/source/line/chunk/prepared-byte budgets. Measure peak memory near those ceilings and evaluate vector search/ANN before changing the exact-search default. |
 | P2 | AUD-023 | Vercel async log capture and bounded per-stream buffers are implemented on main. PR #126 merged SIGTERM at the cap and passed its full PR CI matrix. Live SDK internal-buffer and remote-termination acceptance remain open. Stale draft PR #123 was closed as superseded. |
 | P2 | Audit remainder | Finish the incomplete file-by-file audit, verify each status against code and tests, and correct stale or unsupported register claims. |
 
