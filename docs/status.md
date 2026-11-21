@@ -49,7 +49,7 @@
 - Added regression tests for hard ceilings, source/list/chunk budgets, line-count rejection, and no vector-store open on preparation-limit failures.
 - This bounds retrieval-rank preparation only. Semantic reindex metadata scans, other prepared chunk lists, and measured large-store/large-file memory remain open.
 
-## 2026-11-21 shared secret-path policy for workspace transfer (PR #178)
+## 2026-11-21 shared secret-path policy for workspace transfer (PR #179)
 
 - Moved the existing model-facing secret-path matcher into src/architecture/secret-paths.ts and reused it from both tools-local and workspace transfer validation.
 - Workspace transfer paths now reject .env variants, SSH/AWS credential paths, private keys/certificates, credential/service-account files, secrets manifests, and Harness/Git/dependency internals (.harness, .git, node_modules).
