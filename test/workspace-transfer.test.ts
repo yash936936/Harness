@@ -111,10 +111,11 @@ describe('workspace byte stream validation', () => {
     await expect(validateWorkspaceTransferFiles(chunksAsFiles(files), { ...limits, maxFiles: 1 })).rejects.toThrow(/file count/)
     await expect(validateWorkspaceTransferFiles(chunksAsFiles(files), { ...limits, maxTotalBytes: 8, maxFileBytes: 8, chunkBytes: 8 })).rejects.toThrow(/aggregate streamed bytes/)
   })
-  it('rejects duplicate, case-folded, and unsorted file paths', async () => {
+  it('rejects duplicate, case-folded, unsorted, and file-directory-colliding paths', async () => {
     await expect(validateWorkspaceTransferFiles(chunksAsFiles([file('b.txt', 'b'), file('a.txt', 'a')]), limits)).rejects.toThrow(/sorted/)
     await expect(validateWorkspaceTransferFiles(chunksAsFiles([file('a.txt', 'a'), file('a.txt', 'b')]), limits)).rejects.toThrow(/sorted/)
     await expect(validateWorkspaceTransferFiles(chunksAsFiles([file('A.txt', 'a'), file('a.txt', 'b')]), limits)).rejects.toThrow(/case-insensitive/)
+    await expect(validateWorkspaceTransferFiles(chunksAsFiles([file('a', 'a'), file('a/child', 'b')]), limits)).rejects.toThrow(/file path is also used as a directory/)
   })
 })
 async function* chunksAsFiles(files: WorkspaceTransferFile[]) {
