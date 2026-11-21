@@ -57,7 +57,7 @@ export function validateWorkspaceSnapshotManifest(manifest: WorkspaceSnapshotMan
   for (const [name, value] of Object.entries({ snapshotId: manifest.snapshotId, projectId: manifest.projectId, taskId: manifest.taskId })) {
     if (typeof value !== 'string' || value.trim().length === 0 || value.length > 256) throw new TypeError(`workspace transfer: invalid ${name}`)
   }
-  if (!Array.isArray(manifest.entries) || manifest.entries.length > limits.maxFiles) throw new RangeError('workspace transfer: manifest file count exceeds its limit')
+  if (!Array.isArray(manifest.entries)) throw new TypeError('workspace transfer: manifest entries must be an array')
   if (!Number.isSafeInteger(manifest.totalBytes) || manifest.totalBytes < 0 || manifest.totalBytes > limits.maxTotalBytes) {
     throw new RangeError('workspace transfer: manifest totalBytes exceeds its limit')
   }
@@ -66,6 +66,7 @@ export function validateWorkspaceSnapshotManifest(manifest: WorkspaceSnapshotMan
     throw new TypeError('workspace transfer: createdAt must be a canonical ISO timestamp')
   }
   let totalBytes = 0
+  let fileCount = 0
   let previousPath: string | undefined
   const seen = new Map<string, WorkspaceSnapshotEntry['kind']>()
   for (const entry of manifest.entries) {
@@ -83,6 +84,8 @@ export function validateWorkspaceSnapshotManifest(manifest: WorkspaceSnapshotMan
       if (entry.sizeBytes !== 0) throw new TypeError('workspace transfer: directory entries must have zero size')
       continue
     }
+    fileCount += 1
+    if (fileCount > limits.maxFiles) throw new RangeError('workspace transfer: manifest file count exceeds its limit')
     if (entry.kind !== 'file' || !Number.isSafeInteger(entry.sizeBytes) || entry.sizeBytes < 0 || entry.sizeBytes > limits.maxFileBytes) {
       throw new RangeError('workspace transfer: invalid file size')
     }
