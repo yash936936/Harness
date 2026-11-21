@@ -152,6 +152,17 @@ export async function validateWorkspaceTransferFiles(
     }
     const foldedPath = path.toLocaleLowerCase('en-US')
     if (seenPaths.has(foldedPath)) throw new TypeError('workspace transfer: case-insensitive file path collision')
+    const segments = foldedPath.split('/')
+    for (let index = 1; index < segments.length; index += 1) {
+      if (seenPaths.has(segments.slice(0, index).join('/'))) {
+        throw new TypeError('workspace transfer: file path is also used as a directory')
+      }
+    }
+    for (const existing of seenPaths) {
+      if (existing.startsWith(foldedPath + '/')) {
+        throw new TypeError('workspace transfer: file path is also used as a directory')
+      }
+    }
     previousPath = path
     seenPaths.add(foldedPath)
     await validateWorkspaceTransferFile(file, limits)
