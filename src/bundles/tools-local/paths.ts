@@ -1,5 +1,6 @@
 import { existsSync, realpathSync, statSync } from 'node:fs'
 import { dirname, isAbsolute, join, relative, resolve, sep, basename } from 'node:path'
+import { isSecretPath } from '../../architecture/secret-paths.js'
 
 /** True if `target` is `root` or lies under it. Both must already be real, absolute paths. */
 export function isInside(root: string, target: string): boolean {
@@ -58,30 +59,7 @@ export function isGitInternal(rel: string): boolean {
   return rel === '.git' || rel.startsWith('.git/') || rel.includes('/.git/') || rel.endsWith('/.git')
 }
 
-const SECRET_PATTERNS = [
-  /(^|\/)\.env[^/]*$/i,
-  /(^|\/)[^/]*\.env$/i,
-  /(^|\/)\.(aws|ssh|azure|docker|kube|gnupg)(?:\/|$)/i,
-  /(^|\/)\.config\/(gcloud|gh)(?:\/|$)/i,
-  /(^|\/)id_(rsa|dsa|ecdsa|ed25519)(?!\.pub)[^/]*$/i,
-  /(^|\/)\.(npmrc|netrc|pgpass|git-credentials|pypirc|terraformrc)$/i,
-  /(^|\/)\.cargo\/credentials(?:\.toml)?$/i,
-  /(^|\/)\.terraform\.d\/credentials\.tfrc\.json$/i,
-  /(^|\/)kubeconfig$/i,
-  /(^|\/)[^/]*\.(pem|key|p12|pfx|jks|keystore)$/i,
-  /(^|\/)credentials(?:\.json)?$/i,
-  /(^|\/)service[-_]account[^/]*\.json$/i,
-  /(^|\/)application_default_credentials\.json$/i,
-  /(^|\/)secrets?\.(ya?ml|json|toml)$/i,
-  /(^|\/)etc\/shadow$/i,
-  /(^|\/)proc\/(self|[0-9]+)\/environ$/i,
-]
-
-/** Likely-secret files are refused by the local read tool even when policy gates are disabled. */
-export function isSecretPath(rel: string): boolean {
-  const normalized = rel.replace(/\\/g, '/').toLowerCase()
-  return SECRET_PATTERNS.some((pattern) => pattern.test(normalized))
-}
+export { isSecretPath }
 
 /** Identity of a directory at one moment: its real path plus device and inode. */
 export interface DirIdentity {
