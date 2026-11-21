@@ -117,7 +117,7 @@ describe('workspace byte stream validation', () => {
     await expect(validateWorkspaceTransferFiles(chunksAsFiles([file('A.txt', 'a'), file('a.txt', 'b')]), limits)).rejects.toThrow(/case-insensitive/)
   })
 })
-async function* chunksAsFiles(files: ReturnType<typeof file>[]) {
+async function* chunksAsFiles(files: WorkspaceTransferFile[]) {
   for (const entry of files) yield entry
 }
 
