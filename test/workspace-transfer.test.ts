@@ -25,7 +25,7 @@ function mutableManifest(): MutableManifest {
 describe('workspace transfer validation', () => {
   it('accepts canonical relative paths and rejects traversal and ambiguous paths', () => {
     expect(canonicalWorkspacePath('src/index.ts')).toBe('src/index.ts')
-    for (const path of ['', '../secret', 'src/../secret', '/etc/passwd', 'C:/secret', 'src\\secret', 'src//file', 'src/./file', 'CON', 'src/name.', 'src/name ', 'src/a:b', 'src/é'.normalize('NFD')]) {
+    for (const path of ['', '../secret', 'src/../secret', '/etc/passwd', 'C:/secret', 'src\\secret', 'src//file', 'src/./file', 'CON', 'src/name.', 'src/name ', 'src/a:b', '.env', '.env.local', 'src/.env.production', 'src/id_rsa', 'src/.aws/credentials', 'credentials.json', 'service-account.json', 'secrets.yaml', '.git/config', '.harness/state.json', 'node_modules/pkg/index.js', 'src/é'.normalize('NFD')]) {
       expect(canonicalWorkspacePath(path)).toBeUndefined()
     }
   })
