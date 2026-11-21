@@ -48,6 +48,7 @@ export interface VercelWorkspaceSandbox {
   createUser(username: string, options?: { signal?: AbortSignal }): Promise<VercelWorkspaceUser>
   asUser(username: string): VercelWorkspaceUser
   update(options: { networkPolicy: 'deny-all'; timeout?: number }): Promise<void>
+  stop(): Promise<{ snapshot?: { status: 'created' | 'deleted' | 'failed' } }>
   delete(options?: { deleteOrphanSnapshots?: boolean }): Promise<void>
   fs: {
     realpath(path: string, options?: { signal?: AbortSignal }): Promise<string>
@@ -298,6 +299,14 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
     }
   }
 
+  private async stopSandbox(sandbox: VercelWorkspaceSandbox, projectId: string): Promise<void> {
+    await this.assertEgress(projectId)
+    const result = await sandbox.stop()
+    if (result.snapshot?.status !== 'created') {
+      throw new Error('vercel-workspace: sandbox stop did not confirm a durable snapshot')
+    }
+  }
+
   private async getSandbox(session: WorkspaceSession, resume: boolean, signal?: AbortSignal): Promise<VercelWorkspaceSandbox> {
     await this.assertEgress(session.projectId)
     const sandbox = await (await this.getClient()).get({ name: session.workspaceId, resume, signal })
@@ -350,6 +359,7 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
       await this.assertEgress(input.projectId)
       await user.mkDir('workspace', { signal: input.signal })
       input.signal?.throwIfAborted()
+      await this.stopSandbox(sandbox, input.projectId)
       return { ...session, state: 'ready' }
     } catch (error) {
       try {
@@ -449,6 +459,7 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
     }
 
     const capture = new CombinedTextCapture(command.maxOutputBytes)
+    let commandAttempted = false
     let remoteCommand: VercelWorkspaceCommand | undefined
     let timedOut = false
     let killRequested = false
@@ -473,6 +484,7 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
       }
     }, command.timeoutMs)
     try {
+      commandAttempted = true
       remoteCommand = await user.runCommand({
         cmd: command.command,
         args: [...command.args],
@@ -533,6 +545,10 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
       throw error
     } finally {
       clearTimeout(deadline)
+      if (commandAttempted) {
+        try { await this.stopSandbox(sandbox, session.projectId) }
+        catch (stopError) { throw new Error(`vercel-workspace: sandbox stop/snapshot was not confirmed (${detail(stopError)})`) }
+      }
     }
   }
 
