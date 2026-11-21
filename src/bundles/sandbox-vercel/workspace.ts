@@ -156,6 +156,10 @@ function canonicalRelativePath(value: string): boolean {
   return !value.split('/').some((part) => !part || part === '.' || part === '..')
 }
 
+function canonicalWorkspacePath(value: string): boolean {
+  return value === 'workspace' || (value.startsWith('workspace/') && canonicalRelativePath(value.slice('workspace/'.length)))
+}
+
 function scopeDigest(session: Pick<WorkspaceSession,
   'workspaceId' | 'projectId' | 'taskId' | 'sessionId' | 'ownerId' | 'leaseId' | 'fencingToken'
 >): string {
@@ -373,7 +377,7 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
     const allowed = new Set<WorkspaceOperation>(['list', 'read', 'write', 'execute', 'collect'])
     if (input.operations.some((operation) => !allowed.has(operation)) ||
         new Set(input.operations).size !== input.operations.length ||
-        input.pathPrefixes.some((path) => path !== '' && !canonicalRelativePath(path)) ||
+        input.pathPrefixes.some((path) => path !== '' && !canonicalWorkspacePath(path)) ||
         new Set(input.pathPrefixes).size !== input.pathPrefixes.length) {
       throw new TypeError('vercel-workspace: invalid capability operations or paths')
     }
@@ -402,7 +406,7 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
         capability.taskId !== session.taskId || capability.sessionId !== session.sessionId ||
         capability.fencingToken !== session.fencingToken || !capability.operations.includes('execute') ||
         !Number.isFinite(Date.parse(capability.expiresAt)) || Date.parse(capability.expiresAt) <= this.now() ||
-        !canonicalRelativePath(command.cwd)) {
+        !canonicalWorkspacePath(command.cwd)) {
       throw new Error('vercel-workspace: command capability or working directory is invalid')
     }
     const allowed = await this.sessions.authorizeCapability({
@@ -426,7 +430,8 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
     const sandbox = await this.getSandbox(session, true, command.signal)
     const user = sandbox.asUser(WORKSPACE_USER)
     const root = posix.join(user.homeDir, 'workspace')
-    const cwd = posix.resolve(root, command.cwd)
+    const workspaceRelative = command.cwd === 'workspace' ? '.' : command.cwd.slice('workspace/'.length)
+    const cwd = posix.resolve(root, workspaceRelative)
     const relative = posix.relative(root, cwd)
     if (relative === '..' || relative.startsWith('../') || posix.isAbsolute(relative)) {
       throw new Error('vercel-workspace: command working directory escapes the workspace')
