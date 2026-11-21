@@ -145,14 +145,16 @@ export async function validateWorkspaceTransferFiles(
   for await (const file of files) {
     fileCount += 1
     if (fileCount > limits.maxFiles) throw new RangeError('workspace transfer: file count exceeds its limit')
-    if (previousPath !== undefined && previousPath >= file.path) {
+    const path = canonicalWorkspacePath(file.path)
+    if (!path || path !== file.path) throw new TypeError('workspace transfer: file path is not canonical')
+    if (previousPath !== undefined && previousPath >= path) {
       throw new TypeError('workspace transfer: file paths must be unique and lexicographically sorted')
     }
-    previousPath = file.path
-    await validateWorkspaceTransferFile(file, limits)
-    const foldedPath = file.path.toLocaleLowerCase('en-US')
+    const foldedPath = path.toLocaleLowerCase('en-US')
     if (seenPaths.has(foldedPath)) throw new TypeError('workspace transfer: case-insensitive file path collision')
+    previousPath = path
     seenPaths.add(foldedPath)
+    await validateWorkspaceTransferFile(file, limits)
     totalBytes += file.sizeBytes
     if (!Number.isSafeInteger(totalBytes) || totalBytes > limits.maxTotalBytes) {
       throw new RangeError('workspace transfer: aggregate streamed bytes exceed their limit')
