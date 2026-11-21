@@ -142,14 +142,17 @@ function finalizeCapture(capture: Capture, redact: (text: string) => string, lim
   bounded.write('stderr', redact(capture.stderr))
   const result = bounded.result()
   const truncated = capture.truncated || result.truncated
-  const marker = truncated ? '\n[output truncated by Vercel workspace provider]' : ''
-  return {
-    stdout: result.stdout + (truncated && result.stdoutBytes >= result.stderrBytes ? marker : ''),
-    stderr: result.stderr + (truncated && result.stdoutBytes < result.stderrBytes ? marker : ''),
-    stdoutBytes: result.stdoutBytes,
-    stderrBytes: result.stderrBytes,
-    truncated,
+  if (truncated) {
+    // Do not return a tail that may contain only a prefix of a registered secret.
+    return {
+      stdout: '[output truncated by Vercel workspace provider]',
+      stderr: '',
+      stdoutBytes: 0,
+      stderrBytes: 0,
+      truncated: true,
+    }
   }
+  return result
 }
 
 function canonicalRelativePath(value: string): boolean {
