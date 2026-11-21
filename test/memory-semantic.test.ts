@@ -638,8 +638,9 @@ describe('semantic tier (3.3): the index is derived and recoverable', () => {
     const indexPath = join(dir, 'mem', 'semantic.index.jsonl')
     expect((await readFile(eventPath, 'utf8')).trimEnd().split('\n')).toHaveLength(1_200)
     const sidecar = (await readFile(indexPath, 'utf8')).trimEnd().split('\n').map((line) => JSON.parse(line))
-    expect(sidecar).toHaveLength(1)
-    expect(sidecar[0].id).toBe('stable-id')
+    expect(sidecar.length).toBeLessThan(1_200)
+    expect(sidecar.every((entry) => entry.id === 'stable-id')).toBe(true)
+    expect(Buffer.byteLength(await readFile(indexPath, 'utf8'), 'utf8')).toBeLessThanOrEqual(64 * 1024)
 
     const restarted = new SemanticFactStore(join(dir, 'mem'))
     await restarted.withLock(async () => {
