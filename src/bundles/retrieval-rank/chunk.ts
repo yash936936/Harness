@@ -56,6 +56,19 @@ export function chunkId(file: string, start: number, end: number, text: string):
  * whole files in languages without a grammar). Whitespace-only windows are dropped.
  */
 export function chunkSource(file: string, source: string, symbols: readonly CodeSymbol[] | undefined, opts: ChunkOptions = DEFAULT_CHUNK_OPTIONS): Chunk[] {
+  const limits: ReadonlyArray<readonly [string, number, number]> = [
+    ['windowLines', opts.windowLines, 10_000],
+    ['maxChunkLines', opts.maxChunkLines, 10_000],
+    ['maxChunkChars', opts.maxChunkChars, 65_536],
+    ['maxChunks', opts.maxChunks ?? 5_000, 20_000],
+  ]
+  for (const [name, value, max] of limits) {
+    if (!Number.isSafeInteger(value) || value < 1 || value > max) throw new RangeError(`retrieval-rank: ${name} must be between 1 and ${max}`)
+  }
+  const maxBytes = opts.maxBytes ?? 64 * 1024 * 1024
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 0 || maxBytes > 512 * 1024 * 1024) {
+    throw new RangeError('retrieval-rank: maxBytes must be between 0 and 536870912')
+  }
   const lines = splitLines(source)
   const total = source === '' ? 0 : lines.length
   const out: Chunk[] = []
