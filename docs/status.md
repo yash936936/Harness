@@ -22,6 +22,13 @@
 - Moved the existing model-facing secret-path matcher into src/architecture/secret-paths.ts and reused it from both tools-local and workspace transfer validation.
 - Workspace transfer paths now reject .env variants, SSH/AWS credential paths, private keys/certificates, credential/service-account files, secrets manifests, and Harness/Git/dependency internals (.harness, .git, node_modules).
 - Added manifest path regression cases. This is a local validation guard; provider-side enumeration must still reject symlinks and special files before producing a manifest.
+## 2026-11-21 bounded retrieval-rank index preparation (PR #177)
+
+- Added configurable and hard-capped limits for raw file paths, total source bytes, line count, per-file chunk count, total prepared chunks, and prepared UTF-8 chunk bytes.
+- Chunk generation enforces count and byte budgets incrementally rather than building unbounded chunk arrays first.
+- retrieval-rank rejects truncated ripgrep file listings and over-budget index batches before vector-store mutation. Excessive line counts are rejected before creating the line array; search skips files exceeding per-file chunk limits.
+- Added regression tests for hard ceilings, source/list/chunk budgets, line-count rejection, and no vector-store open on preparation-limit failures.
+- This bounds retrieval-rank preparation only. Semantic reindex metadata scans, other prepared chunk lists, and measured large-store/large-file memory remain open.
 
 ## 2026-11-16 shared budget enforcement integrated (PR #130)
 

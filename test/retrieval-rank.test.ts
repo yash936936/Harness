@@ -9,6 +9,7 @@ import { RetrievalGrep } from '../src/bundles/retrieval-grep/index.js'
 import {
   bm25,
   chunkSource,
+  ChunkLimitError,
   looksBinary,
   queryTerms,
   RetrievalRank,
@@ -19,6 +20,7 @@ import {
   type RetrievalRankConfig,
 } from '../src/bundles/retrieval-rank/index.js'
 import { DEFAULT_CHUNK_OPTIONS } from '../src/bundles/retrieval-rank/chunk.js'
+import { readProjectFile } from '../src/bundles/retrieval-rank/file-access.js'
 import { RetrievalTreesitter } from '../src/bundles/retrieval-treesitter/index.js'
 import { Subprocess } from '../src/bundles/subprocess/index.js'
 import { LanceVectorStore } from '../src/bundles/vectorstore-lancedb/index.js'
@@ -171,6 +173,18 @@ describe('chunkSource', () => {
     expect(sliceChunkText(src.split('\n'), c.startLine, c.endLine, 500)).toBe(c.text)
   })
 
+  it('bounds per-file chunk count and UTF-8 chunk bytes while emitting', () => {
+    const source = lines(20)
+    expect(() => chunkSource('large.txt', source, undefined, { ...DEFAULT_CHUNK_OPTIONS, windowLines: 1, maxChunks: 2 }))
+      .toThrow(ChunkLimitError)
+    expect(() => chunkSource('large.txt', source, undefined, { ...DEFAULT_CHUNK_OPTIONS, windowLines: 1, maxChunks: 100, maxBytes: 10 }))
+      .toThrow(ChunkLimitError)
+    expect(() => chunkSource('large.txt', 'x'.repeat(20), undefined, { ...DEFAULT_CHUNK_OPTIONS, maxSourceBytes: 10 }))
+      .toThrow(ChunkLimitError)
+    expect(() => chunkSource('many-lines.txt', 'one\ntwo\nthree', undefined, { ...DEFAULT_CHUNK_OPTIONS, maxLines: 2 }))
+      .toThrow(ChunkLimitError)
+  })
+
   it('looksBinary spots a NUL in the first bytes only', () => {
     expect(looksBinary(Buffer.from([65, 0, 66]))).toBe(true)
     expect(looksBinary(Buffer.from('plain text'))).toBe(false)
@@ -257,6 +271,24 @@ async function boot(o: Opts = {}) {
   await ctx.plugin(RetrievalRank, { root, ...o.config })
   return { ctx, rank: ctx.retrievalRank, dbFiber }
 }
+it('rejects configured memory limits above their hard ceilings', () => {
+  expect(() => new RetrievalRank(new Context(), { root, maxFileBytes: 16 * 1024 * 1024 + 1 })).toThrow(RetrievalRankConfigError)
+  expect(() => new RetrievalRank(new Context(), { root, maxLinesPerFile: 250_001 })).toThrow(RetrievalRankConfigError)
+  expect(() => new RetrievalRank(new Context(), { root, maxIndexFiles: 50_001 })).toThrow(RetrievalRankConfigError)
+  expect(() => new RetrievalRank(new Context(), { root, maxIndexBytes: 512 * 1024 * 1024 + 1 })).toThrow(RetrievalRankConfigError)
+  expect(() => new RetrievalRank(new Context(), { root, maxChunksPerFile: 20_001 })).toThrow(RetrievalRankConfigError)
+  expect(() => new RetrievalRank(new Context(), { root, maxPreparedBytes: 512 * 1024 * 1024 + 1 })).toThrow(RetrievalRankConfigError)
+  expect(() => new RetrievalRank(new Context(), { root, maxPreparedChunks: 100_001 })).toThrow(RetrievalRankConfigError)
+})
+
+it('rejects excessive line counts before allocating the line array', () => {
+  const dir = join(root, 'src/bounded-line-read')
+  mkdirSync(dir, { recursive: true })
+  writeFileSync(join(dir, 'many.txt'), 'one\ntwo\nthree\n')
+  expect(readProjectFile('src/bounded-line-read/many.txt', realpathSync(root), 100, 2))
+    .toEqual({ ok: false, reason: 'too_many_lines' })
+})
+
 const okRes = (r: RankResult) => {
   if (!r.ok) throw new Error(`expected ok, got ${r.error.kind}: ${r.error.detail}`)
   return r
@@ -643,6 +675,56 @@ describe.skipIf(!hasRg)('indexing', () => {
     if (!o.ok) throw new Error(o.error.detail)
     return o.collection
   }
+
+  it('rejects oversized file lists and source-byte totals before opening the vector store', async () => {
+    const b = await boot({ provider: new HashingEmbeddingProvider({ dimensions: 64 }), config: { maxIndexFiles: 1 } })
+    const open = vi.spyOn(b.ctx.vectorstore, 'open')
+    const tooMany = await b.rank.indexFiles(['src/config/parser.ts', 'src/net/client.ts'])
+    expect(tooMany).toMatchObject({ ok: false, error: { kind: 'limit' } })
+    expect(open).not.toHaveBeenCalled()
+    open.mockRestore()
+
+    const dir = join(root, 'src/bounded')
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, 'source.ts'), 'export const source = 123456789\n')
+    const limited = await boot({ provider: new HashingEmbeddingProvider({ dimensions: 64 }), config: { maxIndexBytes: 10, maxFileBytes: 100 } })
+    const openLimited = vi.spyOn(limited.ctx.vectorstore, 'open')
+    const sourceBytes = await limited.rank.indexFiles(['src/bounded/source.ts'])
+    expect(sourceBytes).toMatchObject({ ok: false, error: { kind: 'limit' } })
+    expect(openLimited).not.toHaveBeenCalled()
+    openLimited.mockRestore()
+  })
+
+  it('bounds total prepared chunks, per-file chunks, and prepared UTF-8 bytes before embedding', async () => {
+    const dir = join(root, 'src/prepared-limits')
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, 'chunks.ts'), 'line one\nline two\n')
+    const chunks = await boot({ provider: new HashingEmbeddingProvider({ dimensions: 64 }), config: { windowLines: 1, maxChunkLines: 1, maxChunksPerFile: 10, maxPreparedChunks: 1 } })
+    const chunksOpen = vi.spyOn(chunks.ctx.vectorstore, 'open')
+    expect(await chunks.rank.indexFiles(['src/prepared-limits/chunks.ts'])).toMatchObject({ ok: false, error: { kind: 'limit' } })
+    expect(chunksOpen).not.toHaveBeenCalled()
+    chunksOpen.mockRestore()
+
+    const perFile = await boot({ provider: new HashingEmbeddingProvider({ dimensions: 64 }), config: { windowLines: 1, maxChunksPerFile: 1 } })
+    expect(await perFile.rank.indexFiles(['src/prepared-limits/chunks.ts'])).toMatchObject({ ok: false, error: { kind: 'limit' } })
+
+    writeFileSync(join(dir, 'bytes.ts'), 'export const aLongChunk = true\n')
+    const bytes = await boot({ provider: new HashingEmbeddingProvider({ dimensions: 64 }), config: { maxPreparedBytes: 10, maxChunkChars: 100 } })
+    expect(await bytes.rank.indexFiles(['src/prepared-limits/bytes.ts'])).toMatchObject({ ok: false, error: { kind: 'limit' } })
+  })
+
+  it('skips files above the configured line count and rejects truncated project listings', async () => {
+    const dir = join(root, 'src/line-limits')
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, 'many-lines.ts'), 'one\ntwo\nthree\n')
+    const b = await boot({ provider: new HashingEmbeddingProvider({ dimensions: 64 }), config: { maxLinesPerFile: 2 } })
+    const indexed = await b.rank.indexFiles(['src/line-limits/many-lines.ts'])
+    expect(indexed).toMatchObject({ ok: true, files: 0, skipped: [{ file: 'src/line-limits/many-lines.ts', reason: 'too_many_lines' }] })
+
+    const noStore = await boot({ withStore: false })
+    vi.spyOn(noStore.ctx.retrievalGrep, 'listFiles').mockResolvedValue({ ok: true, files: [], truncated: true } as any)
+    expect(await noStore.rank.indexProject()).toMatchObject({ ok: false, error: { kind: 'limit' } })
+  })
 
   it('serializes concurrent indexing so an older slow embedding cannot overwrite a newer file version', async () => {
     const rel = 'src/atomic/latest.ts'
