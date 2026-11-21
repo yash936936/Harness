@@ -179,6 +179,10 @@ describe('chunkSource', () => {
       .toThrow(ChunkLimitError)
     expect(() => chunkSource('large.txt', source, undefined, { ...DEFAULT_CHUNK_OPTIONS, windowLines: 1, maxChunks: 100, maxBytes: 10 }))
       .toThrow(ChunkLimitError)
+    expect(() => chunkSource('large.txt', 'x'.repeat(20), undefined, { ...DEFAULT_CHUNK_OPTIONS, maxSourceBytes: 10 }))
+      .toThrow(ChunkLimitError)
+    expect(() => chunkSource('many-lines.txt', 'one\\ntwo\\nthree', undefined, { ...DEFAULT_CHUNK_OPTIONS, maxLines: 2 }))
+      .toThrow(ChunkLimitError)
   })
 
   it('looksBinary spots a NUL in the first bytes only', () => {
