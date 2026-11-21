@@ -287,7 +287,7 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
 
   async create(input: CreateWorkspaceSessionInput): Promise<WorkspaceSession> {
     if (input.provider !== this.name || input.ownerId !== this.ownerId ||
-        !Number.isSafeInteger(input.ttlMs) || input.ttlMs < 1_000 || input.ttlMs > MAX_CAPABILITY_TTL_MS || input.ttlMs > MAX_WORKSPACE_TTL_MS) {
+        !Number.isSafeInteger(input.ttlMs) || input.ttlMs < 1_000 || input.ttlMs > MAX_WORKSPACE_TTL_MS) {
       throw new TypeError('vercel-workspace: invalid workspace creation scope')
     }
     input.signal?.throwIfAborted()
@@ -348,7 +348,7 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
     const session = await this.assertSession(input.workspaceId, ['ready'])
     if (session.projectId !== input.projectId || session.taskId !== input.taskId ||
         session.sessionId !== input.sessionId || session.fencingToken !== input.fencingToken ||
-        !Number.isSafeInteger(input.ttlMs) || input.ttlMs < 1_000 ||
+        !Number.isSafeInteger(input.ttlMs) || input.ttlMs < 1_000 || input.ttlMs > MAX_CAPABILITY_TTL_MS ||
         !Array.isArray(input.operations) || input.operations.length === 0 ||
         !Array.isArray(input.pathPrefixes) || input.pathPrefixes.length > 128) {
       throw new TypeError('vercel-workspace: invalid capability scope')
