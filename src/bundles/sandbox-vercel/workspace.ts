@@ -363,7 +363,7 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
     }
     const expiresAtMs = this.now() + input.ttlMs
     const sessionExpiry = Date.parse(session.expiresAt)
-    if (!Number.isSafeInteger(expiresAtMs) || expiresAtMs > sessionExpiry) {
+    if (!Number.isSafeInteger(expiresAtMs) || !Number.isFinite(sessionExpiry) || expiresAtMs > sessionExpiry) {
       throw new RangeError('vercel-workspace: capability expiry exceeds session expiry')
     }
     return {
@@ -421,7 +421,6 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
       throw new Error('vercel-workspace: command working directory resolves outside the workspace')
     }
 
-    const startedAt = this.now()
     const capture = new CombinedTextCapture(command.maxOutputBytes)
     let remoteCommand: VercelWorkspaceCommand | undefined
     let timedOut = false
@@ -448,7 +447,8 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
       })
       if (timedOut && !killRequested) {
         killRequested = true
-        await remoteCommand.kill('SIGTERM').catch(() => {})
+        try { await remoteCommand.kill('SIGTERM') }
+        catch (error) { terminationFailure = error }
       }
       let waitSettled = false
       const wait = raceAbort(remoteCommand.wait({ signal: executionSignal }), executionSignal)
