@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
-import type { WorkspaceSnapshotManifest, WorkspaceTransferLimits } from '../src/architecture/contracts.js'
+import type { WorkspaceSnapshotEntry, WorkspaceSnapshotManifest, WorkspaceTransferLimits } from '../src/architecture/contracts.js'
 import { canonicalWorkspacePath, validateWorkspaceSnapshotManifest, validateWorkspaceTransferLimits, workspaceManifestSha256 } from '../src/bundles/app-core/workspace-transfer.js'
 
 const limits: WorkspaceTransferLimits = { maxFiles: 10, maxFileBytes: 1_024, maxTotalBytes: 4_096, chunkBytes: 256 }
@@ -35,14 +35,15 @@ describe('workspace transfer validation', () => {
     expect(() => validateWorkspaceSnapshotManifest(manifest(), limits)).not.toThrow()
   })
   it('rejects traversal, unsorted entries, case collisions, and file-directory collisions', () => {
-    const mutations = [
-      (m: WorkspaceSnapshotManifest) => { m.entries[1] = { ...m.entries[1]!, path: '../outside' } },
-      (m: WorkspaceSnapshotManifest) => { m.entries.reverse() },
-      (m: WorkspaceSnapshotManifest) => { m.entries.push({ path: 'SRC', kind: 'directory', sizeBytes: 0 }) },
-      (m: WorkspaceSnapshotManifest) => { m.entries.push({ path: 'src/index.ts/child', kind: 'directory', sizeBytes: 0 }) },
+    const mutations: Array<(m: { entries: WorkspaceSnapshotEntry[] }) => void> = [
+      (m) => { m.entries[1] = { ...m.entries[1]!, path: '../outside' } },
+      (m) => { m.entries.reverse() },
+      (m) => { m.entries.push({ path: 'SRC', kind: 'directory', sizeBytes: 0 }) },
+      (m) => { m.entries.push({ path: 'src/index.ts/child', kind: 'directory', sizeBytes: 0 }) },
     ]
     for (const mutate of mutations) {
-      const candidate = manifest()
+      const original = manifest()
+      const candidate = { ...original, entries: [...original.entries] } as unknown as WorkspaceSnapshotManifest & { entries: WorkspaceSnapshotEntry[] }
       mutate(candidate)
       candidate.manifestSha256 = workspaceManifestSha256(candidate)
       expect(() => validateWorkspaceSnapshotManifest(candidate, limits)).toThrow()
@@ -56,7 +57,8 @@ describe('workspace transfer validation', () => {
     badTotal.totalBytes = 6
     badTotal.manifestSha256 = workspaceManifestSha256(badTotal)
     expect(() => validateWorkspaceSnapshotManifest(badTotal, limits)).toThrow(/totalBytes does not match/)
-    const tooLarge = manifest()
+    const tooLargeBase = manifest()
+    const tooLarge = { ...tooLargeBase, entries: [...tooLargeBase.entries] } as unknown as WorkspaceSnapshotManifest & { entries: WorkspaceSnapshotEntry[] }
     tooLarge.entries[1] = { ...tooLarge.entries[1]!, sizeBytes: 2_048 }
     tooLarge.totalBytes = 2_048
     tooLarge.manifestSha256 = workspaceManifestSha256(tooLarge)
