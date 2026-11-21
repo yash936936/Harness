@@ -4,32 +4,30 @@
 
 ## Purpose
 
-Implements the Vercel Sandbox adapter behind the shared `SandboxProvider` interface. It creates a fresh remote sandbox, executes argv, bounds the command lifetime and output, and attempts deletion.
-
+Implements the one-shot Vercel Sandbox command adapter and a persistent, task-scoped workspace session provider. The workspace provider runs guest commands as a dedicated unprivileged Linux user and checks durable capability scope and lease fencing before remote execution.
 ## Route
 
-A host integration must construct and register `VercelSandboxProvider` with `ctx.sandbox`. The shared sandbox service checks project-scoped remote egress consent and the exact `vercel.com` control-plane host allowlist before contacting the provider. The governed coding CLI does not register this adapter and keeps `COMMAND_TOOL` filtered.
-
+A host integration registers `VercelSandboxProvider` with `ctx.sandbox` for one-shot commands. Task workspaces use `VercelWorkspaceSessionProvider` through `WorkspaceRuntime`, sharing the project's `SQLiteLeaseStore` and `SQLiteWorkspaceStore`. Both remote paths require project-scoped egress consent and the exact `vercel.com` host allowlist. The governed coding CLI does not register either provider and keeps `COMMAND_TOOL` filtered.
 ## Config and invariants
 
-- Target SDK: `@vercel/sandbox@3.9.1`; it is already present in the root package manifest and lockfile.
-- Required host credentials are `VERCEL_TOKEN`, `VERCEL_TEAM_ID`, and `VERCEL_PROJECT_ID`. Never pass them to the guest or log their values.
-- Each lease requests `persistent: false` and `networkPolicy: 'deny-all'`.
-- Commands are passed as `cmd` plus `args`; no shell command string is constructed.
-- Session timeout defaults to 10 minutes; output is bounded to 100 KB per stream by default.
-- Deletion is attempted in cleanup. A failed or unconfirmed delete means `released: false` and must fail the task.
-- The current adapter starts an empty sandbox. It does not upload the project or collect remote changes.
-
+- Target SDK: `@vercel/sandbox@3.9.1`; it is present in the root package manifest and lockfile.
+- Required host credentials are `VERCEL_TOKEN`, `VERCEL_TEAM_ID`, and `VERCEL_PROJECT_ID`. They stay in the host process and are never passed to guest commands.
+- The one-shot provider requests `persistent: false`; task workspaces request `persistent: true`. Both use `networkPolicy: 'deny-all'`.
+- The workspace provider requires a project-matched egress status with consent and calls `assertAllowedHost('vercel.com')` before remote create/get/delete operations.
+- Task workspaces use a dedicated `harness` Linux user, persistent sandbox tags containing a SHA-256 scope digest, and a private home directory. Commands use argv and a canonical workspace-relative cwd; realpath must remain under the workspace root.
+- Provider execution rechecks the SQLite capability token, operation, path prefix, expiry, session binding, and current lease fencing token. Registered egress secrets are redacted from returned command output. Raw capability tokens are not sent to Vercel or persisted in plaintext.
+- Workspace command output has one combined byte cap and registered egress secrets are redacted. If the cap is reached, captured output is suppressed entirely to avoid returning a partial secret. The provider calls Sandbox.snapshot() and requires status=created after initialization and every command. This captures the filesystem and stops the VM, so guest processes do not remain running between tool calls while workspace files persist. Only the latest snapshot is retained; close confirms sandbox deletion and requests asynchronous orphan-snapshot deletion.
+- The one-shot adapter starts an empty sandbox. The workspace session provider does not yet implement snapshot byte transfer or governed result application.
 ## Known limits
 
-- Workspace snapshot/upload/download, secret and sensitive-file exclusion, symlink/path defenses, transfer limits, conflict-safe result application, and lifecycle audit are incomplete.
-- Profile/CLI registration is intentionally absent. Keep `COMMAND_TOOL` disabled until those controls and tests pass.
-- When either output stream exceeds its cap, the adapter sends SIGTERM through `Command.kill()` and continues draining until the SDK iterator settles. PR #126's fake-client tests verify the request only. Live SDK internal buffering and remote process-tree termination remain unverified. Stale draft PR #123 was closed as superseded.
-- Fake-client tests prove adapter behavior against the fake only. Live SDK internal buffering and remote process termination remain unverified.
-- Live smoke is an empty-sandbox `true` command, not project acceptance.
-- Root package overrides pin `@vercel/cli-config`'s nested Zod to 4.6.7 and `guarded-fetch`'s nested undici to 7.30.2. Current dependency-audit status is established by the main CI run, not the historical audit-branch report.
-- S4 is open, cloud-only, and not passed. See [STATE.md](../STATE.md).
-
+- `VercelWorkspaceSessionProvider` implements task-scoped session lifecycle and fenced command execution only. It does not yet implement `WorkspaceTransferProvider`, bounded file-byte upload/collection, source enumeration, deterministic snapshot application, conflict detection, or atomic result synchronization.
+- Restart adoption after lease expiry and provider-validated recovery are not implemented. A remote sandbox can be reattached by name only when the durable session and current lease still validate.
+- The dedicated Linux user and private home provide task-level isolation inside the Vercel microVM; they are not a chroot or a per-path OS sandbox. Command capabilities constrain the working directory but do not constrain arbitrary file paths used by the command itself.
+- Fake-client tests verify adapter decisions only. No live Vercel sandbox acceptance has been run; live SDK buffering, remote lifecycle, network policy, and process termination still require authorized cloud acceptance.
+- Profile/CLI registration is intentionally absent. Keep `COMMAND_TOOL` disabled until secure transfer, conflict-safe sync, provider recovery, and policy integration pass.
+- The one-shot adapter's existing output-capture tests do not establish live SDK internal buffering or remote process-tree termination. Stale draft PR #123 was closed as superseded.
+- Root package overrides pin `@vercel/cli-config`'s nested Zod to 4.6.7 and `guarded-fetch`'s nested undici to 7.30.2. Current dependency-audit status is established by main CI, not the historical audit-branch report.
+- S4 remains open and cloud-only. See [STATE.md](../STATE.md).
 <!-- BEGIN GENERATED: do not edit between markers -->
 
 ### Files and exports
@@ -37,10 +35,11 @@ A host integration must construct and register `VercelSandboxProvider` with `ctx
 | File | Exports | Responsibility (first header-comment line) |
 |---|---|---|
 | `src/bundles/sandbox-vercel/index.ts` | `VercelSandboxCommand`, `VercelSandboxHandle`, `VercelSandboxClient`, `VercelSandboxConfig`, `VercelSandboxProvider` | Vercel Sandbox remote provider adapter. |
+| `src/bundles/sandbox-vercel/workspace.ts` | `VercelWorkspaceCommand`, `VercelWorkspaceUser`, `VercelWorkspaceSandbox`, `VercelWorkspaceClient`, `VercelWorkspaceEgressGate`, `VercelWorkspaceProviderOptions`, `VercelWorkspaceSessionProvider` | Persistent, task-scoped Vercel Sandbox workspace session provider. |
 
-**Imports other areas:** `sandbox`
+**Imports other areas:** `architecture`, `sandbox`
 
-**Tests:** `test/sandbox-vercel.test.ts`
+**Tests:** `test/sandbox-vercel-workspace.test.ts`, `test/sandbox-vercel.test.ts`
 
 <!-- END GENERATED -->
 
