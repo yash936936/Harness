@@ -141,6 +141,7 @@ export async function validateWorkspaceTransferFiles(
   let fileCount = 0
   let totalBytes = 0
   let previousPath: string | undefined
+  const seenPaths = new Set<string>()
   for await (const file of files) {
     fileCount += 1
     if (fileCount > limits.maxFiles) throw new RangeError('workspace transfer: file count exceeds its limit')
@@ -149,6 +150,9 @@ export async function validateWorkspaceTransferFiles(
     }
     previousPath = file.path
     await validateWorkspaceTransferFile(file, limits)
+    const foldedPath = file.path.toLocaleLowerCase('en-US')
+    if (seenPaths.has(foldedPath)) throw new TypeError('workspace transfer: case-insensitive file path collision')
+    seenPaths.add(foldedPath)
     totalBytes += file.sizeBytes
     if (!Number.isSafeInteger(totalBytes) || totalBytes > limits.maxTotalBytes) {
       throw new RangeError('workspace transfer: aggregate streamed bytes exceed their limit')
