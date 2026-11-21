@@ -291,16 +291,20 @@ PR-head CI #44835272986 passed the new tests on Ubuntu and Windows with Node 20.
 
 `WorkspaceRuntime` composes `SQLiteLeaseStore` and `SQLiteWorkspaceStore` over one per-project SQLite database. It creates deterministic task/session workspace IDs under an acquired lease, persists the creating state before provider creation, validates the provider's owner/lease/fencing/expiry response, and only then transitions to ready. Concurrent idempotent opens do not start duplicate provider creation. Capability issuance binds project/task/session/workspace and fencing token; execution checks the current lease and stored capability before calling the provider, and enforces command timeout/output bounds. Provider create/close calls receive the lease fence. Local capability revocation happens before provider revocation. Unconfirmed cleanup leaves the lease active and the session unknown rather than releasing ownership.
 
-PR-head CI #44836850401 passed on Ubuntu and Windows with Node 20.19 and 22.12. The orchestrator deliberately refuses to reopen an existing session without provider-validated recovery. No production Vercel provider, provider-side OS/path enforcement, file-byte transfer, snapshot manifest, conflict-safe apply, or provider recovery implementation is included yet.
+PR-head CI #44836850401 passed on Ubuntu and Windows with Node 20.19 and 22.12. The orchestrator deliberately refuses to reopen an existing session without provider-validated recovery. The follow-up transfer-validation layer now rejects non-canonical/traversing and platform-ambiguous paths plus common credential stores and private-key filenames, applies separate file-count and total-manifest-entry quotas, bounds per-file/chunk/aggregate bytes, verifies deterministic ordering and case-fold/file-directory collisions, validates each streamed file incrementally, checks that streamed files exactly match the manifest, and verifies per-file plus canonical manifest SHA-256 digests. These are provider-independent validators only: no provider currently enumerates workspace files, streams bytes, or applies results. Production Vercel integration, provider-side enforcement, actual transfer, secret/symlink exclusion at source enumeration, conflict-safe apply, and recovery remain open.
 ### Semantic append crash-window recovery: PR #161
 
 The test writes one committed fact through `MemorySemantic`, then appends a second valid `put` event directly to the authoritative `semantic.events.jsonl` without updating the derived index or manifest. A newly booted service instance must detect the source/index revision mismatch, rebuild the sidecar, and return both facts. PR-head CI run #44833502733 passed on Ubuntu and Windows with Node 20.19 and 22.12.
 
 This proves recovery from the specific interruption window after the source append and before sidecar publication. It does not prove recovery from a torn/partial source append or process restart during session-log writes.
 
-### Cross-process session-log tail cursor invalidation: pending CI
+### Semantic source append interrupted mid-record: pending CI
 
-The regression test warms a `JsonlStore` instance's `lastSeq` tail cursor after appending sequence 1. A separate Node process then appends sequence 2 through the normal `SessionLog` path and shared file lock. The original store instance must detect the changed file metadata, rebuild its tail sequence, and append sequence 3. The final log must contain exactly `[1, 2, 3]`. This exercises the process-local cursor's invalidation against a real independent writer; PR-head CI is pending.
+A dedicated child process opens the authoritative `semantic.events.jsonl` in append mode, writes and syncs only the prefix `{"op":"put","fact":`, then exits with code 23 before completing the record. The parent boots a fresh semantic service instance, appends a valid fact, and verifies that recovery removes only the incomplete tail while preserving the committed event and the new append. This distinguishes a process interruption during source-record writing from PR #161's crash window after a complete durable append but before sidecar publication. The test has been added; its PR-head CI result is pending.
+
+### Cross-process session-log tail cursor invalidation
+
+PR #171 adds a regression test that warms a JsonlStore instance's lastSeq cursor after sequence 1, appends sequence 2 from a separate Node process through the normal SessionLog path and shared file lock, then verifies the original process detects the external append and allocates sequence 3. The final log contains exactly [1, 2, 3]. PR-head CI passed on Ubuntu and Windows with Node 20.19 and 22.12.
 
 ## Approved deployment and operating policy
 
