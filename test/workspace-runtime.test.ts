@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import type {
   CreateWorkspaceSessionInput,
+  RecoverWorkspaceSessionInput,
   WorkspaceCapability,
   WorkspaceCommand,
   WorkspaceCommandResult,
@@ -22,6 +23,8 @@ afterEach(async () => {
 class FakeWorkspaceProvider implements WorkspaceSessionProvider {
   readonly name = 'fake-workspace'
   createCalls = 0
+  readonly recoverCalls: RecoverWorkspaceSessionInput[] = []
+  recoverFailure?: Error
   closeCalls = 0
   lastCloseFence?: number
   readonly revoked: string[] = []
@@ -48,6 +51,11 @@ class FakeWorkspaceProvider implements WorkspaceSessionProvider {
       createdAt: new Date(NOW).toISOString(),
       expiresAt: new Date(NOW + input.ttlMs).toISOString(),
     }
+  }
+
+  async recover(input: RecoverWorkspaceSessionInput): Promise<void> {
+    this.recoverCalls.push(input)
+    if (this.recoverFailure) throw this.recoverFailure
   }
 
   async issueCapability(input: {
@@ -89,21 +97,26 @@ class FakeWorkspaceProvider implements WorkspaceSessionProvider {
   }
 }
 
-async function fixture(provider = new FakeWorkspaceProvider()) {
+async function fixture(
+  provider = new FakeWorkspaceProvider(),
+  clock: { value: number } = { value: NOW },
+  ownerId = 'owner-runtime',
+) {
   const directory = await mkdtemp(join(tmpdir(), 'harness-workspace-runtime-'))
   directories.push(directory)
   const databasePath = join(directory, 'shared.sqlite')
-  const leases = new SQLiteLeaseStore(databasePath, { now: () => NOW })
-  const sessions = new SQLiteWorkspaceStore(databasePath, { now: () => NOW })
+  const now = () => clock.value
+  const leases = new SQLiteLeaseStore(databasePath, { now })
+  const sessions = new SQLiteWorkspaceStore(databasePath, { now })
   const runtime = new WorkspaceRuntime({
     projectId: 'project-runtime',
-    ownerId: 'owner-runtime',
+    ownerId,
     leases,
     sessions,
     provider,
-    now: () => NOW,
+    now,
   })
-  return { provider, leases, sessions, runtime }
+  return { provider, leases, sessions, runtime, clock }
 }
 
 const openInput = { taskId: 'task-runtime', sessionId: 'session-runtime', idempotencyKey: 'open-runtime-1', ttlMs: 60_000 }
@@ -175,6 +188,64 @@ describe('WorkspaceRuntime', () => {
     const session = await first
     expect(session.state).toBe('ready')
     expect(provider.createCalls).toBe(1)
+  })
+
+  it('recovers only after lease expiry and retries provider rebinding with the same fence', async () => {
+    const provider = new FakeWorkspaceProvider()
+    const clock = { value: NOW }
+    const { leases, sessions, runtime } = await fixture(provider, clock)
+    const session = await runtime.open(openInput)
+    const capability = await runtime.issueCapability({
+      workspaceId: session.workspaceId,
+      operations: ['execute'],
+      pathPrefixes: [''],
+      ttlMs: 30_000,
+    })
+    const recoveringRuntime = new WorkspaceRuntime({
+      projectId: 'project-runtime',
+      ownerId: 'owner-recovery',
+      leases,
+      sessions,
+      provider,
+      now: () => clock.value,
+    })
+
+    await expect(recoveringRuntime.recover({
+      taskId: session.taskId, sessionId: session.sessionId, ttlMs: 60_000,
+    })).rejects.toThrow(/prior workspace lease has not expired/)
+    expect(provider.recoverCalls).toHaveLength(0)
+
+    clock.value = NOW + 60_001
+    provider.recoverFailure = new Error('temporary remote tag update failure')
+    await expect(recoveringRuntime.recover({
+      taskId: session.taskId, sessionId: session.sessionId, ttlMs: 60_000,
+    })).rejects.toThrow(/temporary remote tag update failure/)
+    expect(await sessions.getSession(session.workspaceId)).toMatchObject({
+      ownerId: 'owner-runtime', leaseId: session.leaseId, fencingToken: 1,
+    })
+
+    provider.recoverFailure = undefined
+    const adopted = await recoveringRuntime.recover({
+      taskId: session.taskId, sessionId: session.sessionId, ttlMs: 60_000,
+    })
+    expect(adopted).toMatchObject({ state: 'ready', ownerId: 'owner-recovery', fencingToken: 2 })
+    expect(provider.recoverCalls).toHaveLength(2)
+    expect(provider.recoverCalls[1]).toMatchObject({
+      ownerId: 'owner-recovery',
+      leaseId: provider.recoverCalls[0]!.leaseId,
+      fencingToken: provider.recoverCalls[0]!.fencingToken,
+    })
+    expect(await sessions.authorizeCapability({
+      token: capability.token,
+      projectId: session.projectId,
+      taskId: session.taskId,
+      sessionId: session.sessionId,
+      workspaceId: session.workspaceId,
+      operation: 'execute',
+      path: '',
+      now: clock.value,
+    })).toBe(false)
+    expect(await leases.isCurrent(adopted.leaseId!, 'owner-recovery', adopted.fencingToken!)).toBe(true)
   })
 
   it('keeps the lease when provider cleanup is not confirmed', async () => {
