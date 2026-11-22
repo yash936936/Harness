@@ -11,6 +11,7 @@ import type {
   WorkspaceSession,
   WorkspaceSessionProvider,
   WorkspaceSessionStore,
+  RecoverWorkspaceSessionInput,
 } from '../../architecture/contracts.js'
 
 const PROVIDER_TAG = 'harness-workspace-v1'
@@ -47,7 +48,7 @@ export interface VercelWorkspaceSandbox {
   readonly tags?: Record<string, string>
   createUser(username: string, options?: { signal?: AbortSignal }): Promise<VercelWorkspaceUser>
   asUser(username: string): VercelWorkspaceUser
-  update(options: { networkPolicy: 'deny-all'; timeout?: number }): Promise<void>
+  update(options: { networkPolicy: 'deny-all'; timeout?: number; tags?: Record<string, string> }): Promise<void>
   snapshot(options: { expiration: number }): Promise<{ status: 'created' | 'deleted' | 'failed' }>
   delete(options?: { deleteOrphanSnapshots?: boolean }): Promise<void>
   fs: {
@@ -165,7 +166,18 @@ function canonicalWorkspacePath(value: string): boolean {
   return value === '.' || canonicalRelativePath(value)
 }
 
-function scopeDigest(session: Pick<WorkspaceSession,
+function scopeDigest(session: Pick<WorkspaceSession, 'workspaceId' | 'projectId' | 'taskId' | 'sessionId'>): string {
+  return createHash('sha256').update(JSON.stringify({
+    version: 2,
+    workspaceId: session.workspaceId,
+    projectId: session.projectId,
+    taskId: session.taskId,
+    sessionId: session.sessionId,
+  }), 'utf8').digest('hex')
+}
+
+/** Version-one tags included the owner fence in the scope hash. */
+function legacyScopeDigest(session: Pick<WorkspaceSession,
   'workspaceId' | 'projectId' | 'taskId' | 'sessionId' | 'ownerId' | 'leaseId' | 'fencingToken'
 >): string {
   return createHash('sha256').update(JSON.stringify({
@@ -178,6 +190,17 @@ function scopeDigest(session: Pick<WorkspaceSession,
     leaseId: session.leaseId,
     fencingToken: session.fencingToken,
   }), 'utf8').digest('hex')
+}
+
+function scopeTags(session: WorkspaceSession): Record<string, string> {
+  if (!session.leaseId || !Number.isSafeInteger(session.fencingToken)) throw new Error('vercel-workspace: cannot tag a session without a lease fence')
+  return {
+    harness_provider: PROVIDER_TAG,
+    harness_scope: scopeDigest(session),
+    harness_owner: session.ownerId,
+    harness_lease: session.leaseId,
+    harness_fence: String(session.fencingToken),
+  }
 }
 
 function assertWorkspaceUserHome(user: VercelWorkspaceUser): VercelWorkspaceUser {
@@ -304,10 +327,40 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
   }
 
   private assertSandboxScope(sandbox: VercelWorkspaceSandbox, session: WorkspaceSession): void {
-    if (sandbox.name !== session.workspaceId || sandbox.tags?.['harness_provider'] !== PROVIDER_TAG ||
-        sandbox.tags?.['harness_scope'] !== scopeDigest(session)) {
+    const tags = sandbox.tags
+    const current = tags?.['harness_scope'] === scopeDigest(session) &&
+      tags['harness_owner'] === session.ownerId && tags['harness_lease'] === session.leaseId &&
+      tags['harness_fence'] === String(session.fencingToken)
+    const legacy = tags?.['harness_scope'] === legacyScopeDigest(session) &&
+      tags['harness_owner'] === undefined && tags['harness_lease'] === undefined && tags['harness_fence'] === undefined
+    if (sandbox.name !== session.workspaceId || tags?.['harness_provider'] !== PROVIDER_TAG || (!current && !legacy)) {
       throw new Error('vercel-workspace: remote sandbox identity does not match the durable workspace scope')
     }
+  }
+
+  private recoveryFence(sandbox: VercelWorkspaceSandbox, previous: WorkspaceSession, target: WorkspaceSession): number {
+    const tags = sandbox.tags
+    if (sandbox.name !== previous.workspaceId || tags?.['harness_provider'] !== PROVIDER_TAG) {
+      throw new Error('vercel-workspace: remote sandbox provider identity does not match the prior session')
+    }
+    if (tags['harness_scope'] === legacyScopeDigest(previous) &&
+        tags['harness_owner'] === undefined && tags['harness_lease'] === undefined && tags['harness_fence'] === undefined) {
+      return previous.fencingToken!
+    }
+    if (tags['harness_scope'] !== scopeDigest(previous)) {
+      throw new Error('vercel-workspace: remote sandbox stable scope does not match the prior session')
+    }
+    const fence = Number(tags['harness_fence'])
+    if (!Number.isSafeInteger(fence) || fence < previous.fencingToken! || fence > target.fencingToken! ||
+        typeof tags['harness_owner'] !== 'string' || !tags['harness_owner'] ||
+        typeof tags['harness_lease'] !== 'string' || !tags['harness_lease']) {
+      throw new Error('vercel-workspace: remote sandbox fence is outside the recoverable range')
+    }
+    if (fence === target.fencingToken &&
+        (tags['harness_owner'] !== target.ownerId || tags['harness_lease'] !== target.leaseId)) {
+      throw new Error('vercel-workspace: remote sandbox fence is already assigned to a different lease')
+    }
+    return fence
   }
 
   private async stopSandbox(sandbox: VercelWorkspaceSandbox, projectId: string): Promise<void> {
@@ -340,6 +393,54 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
     }
   }
 
+  async recover(input: RecoverWorkspaceSessionInput): Promise<void> {
+    const previous = input.previous
+    if (!previous || previous.provider !== this.name || !previous.leaseId ||
+        !Number.isSafeInteger(previous.fencingToken) || previous.fencingToken! < 1 ||
+        input.ownerId !== this.ownerId || !input.leaseId ||
+        !Number.isSafeInteger(input.fencingToken) || input.fencingToken <= previous.fencingToken! ||
+        typeof input.expiresAt !== 'string' || !Number.isFinite(Date.parse(input.expiresAt)) ||
+        new Date(Date.parse(input.expiresAt)).toISOString() !== input.expiresAt ||
+        Date.parse(input.expiresAt) <= this.now() ||
+        Date.parse(input.expiresAt) - this.now() > this.snapshotExpirationMs) {
+      throw new TypeError('vercel-workspace: invalid workspace recovery scope')
+    }
+    input.signal?.throwIfAborted()
+    if (await this.leases.isCurrent(previous.leaseId, previous.ownerId, previous.fencingToken!)) {
+      throw new Error('vercel-workspace: prior workspace lease is still current')
+    }
+    if (!await this.leases.isCurrent(input.leaseId, input.ownerId, input.fencingToken)) {
+      throw new Error('vercel-workspace: recovery lease fencing token is stale')
+    }
+    const target: WorkspaceSession = {
+      ...previous,
+      ownerId: input.ownerId,
+      leaseId: input.leaseId,
+      fencingToken: input.fencingToken,
+      state: 'ready',
+      expiresAt: input.expiresAt,
+    }
+    await this.assertEgress(previous.projectId)
+    const client = await this.getClient()
+    const inspected = await client.get({ name: previous.workspaceId, resume: false, signal: input.signal })
+    const inspectedFence = this.recoveryFence(inspected, previous, target)
+
+    await this.assertEgress(previous.projectId)
+    const sandbox = await client.get({ name: previous.workspaceId, resume: true, signal: input.signal })
+    const resumedFence = this.recoveryFence(sandbox, previous, target)
+    if (resumedFence !== inspectedFence) {
+      throw new Error('vercel-workspace: remote sandbox identity changed while resuming for recovery')
+    }
+    await this.assertEgress(previous.projectId)
+    await sandbox.update({ networkPolicy: 'deny-all', tags: scopeTags(target) })
+    const verified = await client.get({ name: previous.workspaceId, resume: false, signal: input.signal })
+    this.assertSandboxScope(verified, target)
+    await this.stopSandbox(sandbox, previous.projectId)
+    if (!await this.leases.isCurrent(input.leaseId, input.ownerId, input.fencingToken)) {
+      throw new Error('vercel-workspace: recovery lease expired during remote rebinding')
+    }
+  }
+
   async create(input: CreateWorkspaceSessionInput): Promise<WorkspaceSession> {
     if (input.provider !== this.name || input.ownerId !== this.ownerId ||
         !Number.isSafeInteger(input.ttlMs) || input.ttlMs < 1_000 || input.ttlMs > MAX_WORKSPACE_TTL_MS) {
@@ -359,10 +460,7 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
     if (!await this.leases.isCurrent(input.leaseId, input.ownerId, input.fencingToken)) {
       throw new Error('vercel-workspace: lease fencing token is stale before remote creation')
     }
-    const tags = {
-      harness_provider: PROVIDER_TAG,
-      harness_scope: scopeDigest(session),
-    }
+    const tags = scopeTags(session)
     await this.assertEgress(input.projectId)
     const client = await this.getClient()
     const sandbox = await client.create({

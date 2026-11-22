@@ -285,6 +285,16 @@ export interface WorkspaceSessionAdoption {
   readonly expiresAt: string
 }
 
+/** A new lease owner asks the provider to validate and rebind an expired remote session before SQLite adoption. */
+export interface RecoverWorkspaceSessionInput {
+  readonly previous: WorkspaceSession
+  readonly ownerId: string
+  readonly leaseId: ResourceId
+  readonly fencingToken: number
+  readonly expiresAt: string
+  readonly signal?: AbortSignal
+}
+
 /** Durable session and capability metadata. Raw bearer tokens are never persisted. */
 export interface WorkspaceSessionStore {
   /** Idempotently create one task-scoped session. Reusing a key with a different request is a conflict. */
@@ -337,6 +347,8 @@ export interface WorkspaceCommandResult {
 export interface WorkspaceSessionProvider {
   readonly name: string
   create(input: CreateWorkspaceSessionInput): Promise<WorkspaceSession>
+  /** Verify the durable remote identity and rotate its remote fence before the session store adopts it. Must be idempotent. */
+  recover(input: RecoverWorkspaceSessionInput): Promise<void>
   issueCapability(input: {
     readonly workspaceId: ResourceId
     readonly projectId: ProjectId
