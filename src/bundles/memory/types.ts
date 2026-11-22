@@ -196,13 +196,13 @@ export interface SemanticConfig {
   reindexBatchSize?: number
   /** Vector collection holding the search index. Default `memory-semantic`. */
   collection?: string
-  /** Default 1000 chars. */
+  /** Maximum semantic fact text length. Default 1000; hard maximum 8192 characters. */
   maxTextChars?: number
-  /** Default 500 chars. */
+  /** Maximum semantic fact rationale length. Default 500; hard maximum 4096 characters. */
   maxWhyChars?: number
-  /** Maximum active searchable semantic facts. New facts are rejected at the cap; history is never auto-deleted. Default 10000. */
+  /** Maximum active searchable semantic facts. Default 10000; hard maximum 100000. New facts are rejected at the cap; history is never auto-deleted. */
   maxFacts?: number
-  /** Maximum UTF-8 bytes for one serialized searchable fact. Default 8192. */
+  /** Maximum UTF-8 bytes for one serialized searchable fact. Default 8192; hard maximum 16384 bytes. */
   maxFactBytes?: number
   now?: () => Date
 }
