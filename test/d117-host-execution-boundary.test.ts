@@ -18,7 +18,7 @@ describe('D-117 host process execution boundary', () => {
     const imports = sourceFiles(sourceRoot).flatMap((path) => {
       const source = readFileSync(path, 'utf8')
       const hasProcessImport = /(?:from\s+|import\s*\(|require\s*\()\s*['"](?:node:)?child_process(?:\/[^'"]*)?['"]/.test(source)
-      return hasProcessImport ? [relative(sourceRoot, path).replaceAll('\\\\', '/')] : []
+      return hasProcessImport ? [relative(sourceRoot, path).replaceAll('\\', '/')] : []
     })
 
     expect(imports).toEqual(['bundles/subprocess/index.ts'])
@@ -29,7 +29,7 @@ describe('D-117 host process execution boundary', () => {
       const source = readFileSync(path, 'utf8')
       const importsSubprocess = /from\s+['"][^'"]*subprocess\/index\.js['"]/.test(source)
       return importsSubprocess && !path.endsWith('/bundles/subprocess/index.ts')
-        ? [relative(sourceRoot, path).replaceAll('\\\\', '/')]
+        ? [relative(sourceRoot, path).replaceAll('\\', '/')]
         : []
     })
 
