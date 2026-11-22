@@ -16,12 +16,12 @@ afterEach(async () => {
   while (dirs.length) await rm(dirs.pop()!, { recursive: true, force: true })
 })
 
-function fakeClient(options: { createUserFails?: boolean; realpath?: (path: string) => string; stdout?: string; stderr?: string; waitMs?: number; killFails?: boolean } = {}) {
+function fakeClient(options: { createUserFails?: boolean; homeDir?: string; asUserHomeDir?: string; realpath?: (path: string) => string; stdout?: string; stderr?: string; waitMs?: number; killFails?: boolean } = {}) {
   const calls: unknown[] = []
   let sandbox: VercelWorkspaceSandbox | undefined
   let deleted = false
   const user: VercelWorkspaceUser = {
-    homeDir: '/home/harness',
+    homeDir: options.homeDir ?? '/home/harness',
     async mkDir(path) { calls.push(['mkdir', path]) },
     async runCommand(request) {
       calls.push(['run', request])
@@ -51,7 +51,7 @@ function fakeClient(options: { createUserFails?: boolean; realpath?: (path: stri
         async createUser(name) {
           calls.push(['createUser', name])
           if (options.createUserFails) throw new Error('user creation failed')
-          return user
+          return options.asUserHomeDir ? { ...user, homeDir: options.asUserHomeDir } : user
         },
         asUser(name) {
           calls.push(['asUser', name])
@@ -129,6 +129,40 @@ describe('Vercel task-scoped workspace provider', () => {
       ttlMs: 120_000,
     })).rejects.toThrow(/snapshot expiration must cover the requested workspace TTL/)
     expect(fake.calls.some((call) => Array.isArray(call) && call[0] === 'create')).toBe(false)
+  })
+
+  it('rejects an unexpected home directory returned when creating the isolated user', async () => {
+    const { fake, runtime } = await setup({ homeDir: '/home/harness/../../etc' })
+    await expect(runtime.open({
+      taskId: 'task-home-create',
+      sessionId: 'session-home-create',
+      idempotencyKey: 'open-home-create',
+      ttlMs: 120_000,
+    })).rejects.toThrow(/unexpected isolated workspace user home/)
+    expect(fake.calls).toContainEqual(['delete', { deleteOrphanSnapshots: true }])
+  })
+
+  it('revalidates the isolated user home when reattaching to a sandbox', async () => {
+    const { runtime } = await setup({ asUserHomeDir: '/tmp/attacker-controlled' })
+    const session = await runtime.open({
+      taskId: 'task-home-resume',
+      sessionId: 'session-home-resume',
+      idempotencyKey: 'open-home-resume',
+      ttlMs: 120_000,
+    })
+    const capability = await runtime.issueCapability({
+      workspaceId: session.workspaceId,
+      operations: ['execute'],
+      pathPrefixes: [''],
+      ttlMs: 30_000,
+    })
+    await expect(runtime.execute(session.workspaceId, capability, {
+      command: 'node',
+      args: ['--version'],
+      cwd: '.',
+      timeoutMs: 2_000,
+      maxOutputBytes: 100,
+    })).rejects.toThrow(/unexpected isolated workspace user home/)
   })
 
   it('deletes the persistent sandbox when isolated-user initialization fails', async () => {
