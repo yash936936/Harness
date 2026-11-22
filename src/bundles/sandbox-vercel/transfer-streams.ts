@@ -79,7 +79,7 @@ export class WorkspaceFindRecordParser {
           }
           const entry: WorkspaceRemoteEntry = {
             path,
-            kind: kind as 'file' | 'directory',
+            kind: kind === 'f' ? 'file' : 'directory',
             sizeBytes: kind === 'd' ? 0 : Number(sizeText),
             mode: Number.parseInt(modeText!, 8),
           }

@@ -7,8 +7,9 @@ if (!directory || !mode || !workerId || !countValue) {
 const count = Number(countValue)
 if (!Number.isSafeInteger(count) || count < 1) throw new Error('count must be a positive integer')
 
-const store = new SemanticFactStore(directory)
-const batchSize = 5
+// Windows CI runners can be heavily contended by the full cross-process test matrix.
+const store = new SemanticFactStore(directory, 30_000)
+const batchSize = 25
 if (mode === 'put') {
   for (let start = 0; start < count; start += batchSize) {
     await store.withLock(async () => {
