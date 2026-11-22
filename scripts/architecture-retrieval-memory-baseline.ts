@@ -32,6 +32,7 @@ function createFixture(root: string): void {
   const block = Buffer.alloc(64 * 1024, 0x78)
   for (let offset = LINE_BYTES - 1; offset < block.length; offset += LINE_BYTES) block[offset] = 0x0a
   block.write(QUERY, 0, 'utf8')
+  block[QUERY.length] = 0x20 // Keep the query as a standalone token for BM25.
   try {
     for (let written = 0; written < SOURCE_BYTES; written += block.length) writeSync(fd, block)
   } finally {
