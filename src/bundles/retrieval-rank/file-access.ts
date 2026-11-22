@@ -2,10 +2,10 @@
 import { closeSync, constants as fsConstants, fstatSync, lstatSync, openSync, readSync, realpathSync, statSync } from 'node:fs'
 import { isAbsolute, relative, resolve, sep } from 'node:path'
 import { isGitInternal, isSecretPath } from '../tools-local/paths.js'
-import { looksBinary, splitLines } from './chunk.js'
+import { looksBinary } from './chunk.js'
 import type { IndexSkip } from './types.js'
 
-export type FileRead = { ok: true; text: string; lines: string[] } | { ok: false; reason: IndexSkip['reason'] }
+export type FileRead = { ok: true; text: string } | { ok: false; reason: IndexSkip['reason'] }
 
 function readBoundedFd(fd: number, maxBytes: number): Buffer | undefined {
   const chunks: Buffer[] = []
@@ -92,7 +92,7 @@ export function readProjectFile(rel: string, realRoot: string, maxFileBytes: num
         if (text.charCodeAt(i) === 10) lineCount++
         if (lineCount > maxLines) return { ok: false, reason: 'too_many_lines' }
       }
-      return { ok: true, text, lines: splitLines(text) }
+      return { ok: true, text }
     } finally {
       closeSync(fd)
     }
