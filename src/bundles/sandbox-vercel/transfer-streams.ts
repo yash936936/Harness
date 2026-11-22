@@ -18,7 +18,7 @@ export class WorkspaceFindRecordParser {
   private previousPath?: string\n  private readonly seenPaths = new Map<string, 'file' | 'directory'>()\n  private readonly pathSpellings = new Map<string, string>()
 
   constructor(private readonly maxEntries: number) {
-    if (!Number.isSafeInteger(maxEntries) || maxEntries < 1) {
+    if (!Number.isSafeInteger(maxEntries) || maxEntries < 1 || maxEntries > 100_000) {
       throw new RangeError('workspace transfer: maxEntries must be a positive safe integer')
     }
   }
