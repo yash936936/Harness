@@ -17,7 +17,7 @@
 - Fake-client tests cover lifecycle, egress, scope-tag mismatch, capability path/revocation, stale fencing, output caps, timeout, secret redaction, and cleanup failure. Mandatory Ubuntu/Windows Node 20/22 PR CI passed.
 - This is not live Vercel acceptance. Provider-validated recovery/adoption, restart recovery, byte transfer, secret/symlink-safe source enumeration, conflict-safe apply, and CLI registration remain open. COMMAND_TOOL remains disabled.
 
-## Vercel workspace home boundary (PR #194)
+## Vercel workspace home boundary (PR #195)
 
 - The SDK-created `harness` user's home directory must equal `/home/harness` exactly.
 - The provider rechecks this value after sandbox reattachment before resolving the workspace root or command working directory.
