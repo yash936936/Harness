@@ -307,7 +307,7 @@ it('returns bounded file text without allocating a duplicate line array', () => 
   const dir = join(root, 'src/bounded-line-read')
   mkdirSync(dir, { recursive: true })
   writeFileSync(join(dir, 'bounded.txt'), 'one\ntwo\nthree\n')
-  expect(readProjectFile('src/bounded-line-read/bounded.txt', realpathSync(root), 100, 3))
+  expect(readProjectFile('src/bounded-line-read/bounded.txt', realpathSync(root), 100, 4))
     .toEqual({ ok: true, text: 'one\ntwo\nthree\n' })
 })
 
