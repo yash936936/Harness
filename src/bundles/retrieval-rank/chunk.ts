@@ -48,19 +48,20 @@ export function sliceChunkTextFromSource(source: string, start: number, end: num
   let lineStart = 0
   let selected = false
   let output = ''
-  for (let index = 0; index <= source.length && lineNumber <= end; index += 1) {
-    if (index !== source.length && source.charCodeAt(index) !== 10) continue
+  while (lineNumber <= end) {
+    const newline = source.indexOf('\\n', lineStart)
+    const lineEnd = newline === -1 ? source.length : newline
     if (lineNumber >= start) {
-      let lineEnd = index
-      if (lineEnd > lineStart && source.charCodeAt(lineEnd - 1) === 13) lineEnd -= 1
-      if (selected) output += '\n'
+      const contentEnd = lineEnd > lineStart && source.charCodeAt(lineEnd - 1) === 13 ? lineEnd - 1 : lineEnd
+      if (selected) output += '\\n'
       selected = true
       const remaining = maxChars - output.length
-      if (remaining > 0) output += source.slice(lineStart, Math.min(lineEnd, lineStart + remaining))
+      if (remaining > 0) output += source.slice(lineStart, Math.min(contentEnd, lineStart + remaining))
       if (output.length >= maxChars) return output
     }
     lineNumber += 1
-    lineStart = index + 1
+    if (newline === -1) break
+    lineStart = newline + 1
   }
   return output
 }
