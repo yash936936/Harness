@@ -6,7 +6,7 @@ import { Context, Service } from 'cordis'
 import {
   chunkSource,
   ChunkLimitError,
-  sliceChunkText,
+  sliceChunkTextFromSource,
   textHash,
   type Chunk,
   type ChunkOptions,
@@ -318,7 +318,7 @@ export class RetrievalRank extends Service {
       if (!m || typeof m.file !== 'string' || typeof m.startLine !== 'number' || typeof m.endLine !== 'number' || typeof m.hash !== 'string') continue
       if (!inScope(m.file)) continue
       const f = this.readFile(m.file, realRoot, cache)
-      const text = f.ok ? sliceChunkText(f.lines, m.startLine, m.endLine, this.chunkOpts.maxChunkChars) : undefined
+      const text = f.ok ? sliceChunkTextFromSource(f.text, m.startLine, m.endLine, this.chunkOpts.maxChunkChars) : undefined
       if (text === undefined || textHash(text) !== m.hash) {
         stats.staleVectorHits++ // the file changed or vanished since it was indexed
         continue

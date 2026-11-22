@@ -19,7 +19,7 @@ import {
   type RankResult,
   type RetrievalRankConfig,
 } from '../src/bundles/retrieval-rank/index.js'
-import { DEFAULT_CHUNK_OPTIONS } from '../src/bundles/retrieval-rank/chunk.js'
+import { DEFAULT_CHUNK_OPTIONS, sliceChunkTextFromSource } from '../src/bundles/retrieval-rank/chunk.js'
 import { readProjectFile } from '../src/bundles/retrieval-rank/file-access.js'
 import { RetrievalTreesitter } from '../src/bundles/retrieval-treesitter/index.js'
 import { Subprocess } from '../src/bundles/subprocess/index.js'
@@ -173,6 +173,20 @@ describe('chunkSource', () => {
     expect(sliceChunkText(src.split('\n'), c.startLine, c.endLine, 500)).toBe(c.text)
   })
 
+  it('recreates chunk text from source without allocating the full line array', () => {
+    const sources = ['one\ntwo\nthree\n', 'one\r\ntwo\r\nthree', '\nempty\n\n', 'single-line']
+    for (const source of sources) {
+      const sourceLines = source.split(/\r?\n/)
+      for (let start = 1; start <= sourceLines.length + 1; start += 1) {
+        for (let end = start; end <= sourceLines.length + 1; end += 1) {
+          expect(sliceChunkTextFromSource(source, start, end, 500))
+            .toBe(sliceChunkText(sourceLines, start, end, 500))
+        }
+      }
+    }
+    expect(sliceChunkTextFromSource('x'.repeat(100_000), 1, 1, 12)).toBe('x'.repeat(12))
+  })
+
   it('bounds per-file chunk count and UTF-8 chunk bytes while emitting', () => {
     const source = lines(20)
     expect(() => chunkSource('large.txt', source, undefined, { ...DEFAULT_CHUNK_OPTIONS, windowLines: 1, maxChunks: 2 }))
@@ -287,6 +301,14 @@ it('rejects excessive line counts before allocating the line array', () => {
   writeFileSync(join(dir, 'many.txt'), 'one\ntwo\nthree\n')
   expect(readProjectFile('src/bounded-line-read/many.txt', realpathSync(root), 100, 2))
     .toEqual({ ok: false, reason: 'too_many_lines' })
+})
+
+it('returns bounded file text without allocating a duplicate line array', () => {
+  const dir = join(root, 'src/bounded-line-read')
+  mkdirSync(dir, { recursive: true })
+  writeFileSync(join(dir, 'bounded.txt'), 'one\ntwo\nthree\n')
+  expect(readProjectFile('src/bounded-line-read/bounded.txt', realpathSync(root), 100, 4))
+    .toEqual({ ok: true, text: 'one\ntwo\nthree\n' })
 })
 
 const okRes = (r: RankResult) => {
