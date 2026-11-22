@@ -406,6 +406,17 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
       throw new TypeError('vercel-workspace: invalid workspace recovery scope')
     }
     input.signal?.throwIfAborted()
+    if (['closing', 'closed', 'failed'].includes(previous.state)) {
+      throw new Error('vercel-workspace: terminal or closing sessions cannot be recovered')
+    }
+    const stored = await this.sessions.getSession(previous.workspaceId)
+    if (!stored || stored.workspaceId !== previous.workspaceId || stored.projectId !== previous.projectId ||
+        stored.taskId !== previous.taskId || stored.sessionId !== previous.sessionId ||
+        stored.provider !== previous.provider || stored.ownerId !== previous.ownerId ||
+        stored.leaseId !== previous.leaseId || stored.fencingToken !== previous.fencingToken ||
+        stored.state !== previous.state) {
+      throw new Error('vercel-workspace: recovery request does not match the current durable session record')
+    }
     if (await this.leases.isCurrent(previous.leaseId, previous.ownerId, previous.fencingToken!)) {
       throw new Error('vercel-workspace: prior workspace lease is still current')
     }
