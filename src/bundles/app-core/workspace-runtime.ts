@@ -11,12 +11,20 @@ import type {
   WorkspaceSessionStore,
   WorkspaceOperation,
   CreateWorkspaceSessionInput,
+  RecoverWorkspaceSessionInput,
 } from '../../architecture/contracts.js'
 
 export interface OpenWorkspaceInput {
   readonly taskId: string
   readonly sessionId: string
   readonly idempotencyKey: string
+  readonly ttlMs: number
+  readonly signal?: AbortSignal
+}
+
+export interface RecoverWorkspaceInput {
+  readonly taskId: string
+  readonly sessionId: string
   readonly ttlMs: number
   readonly signal?: AbortSignal
 }
@@ -288,6 +296,81 @@ export class WorkspaceRuntime {
       }
       throw error
     }
+  }
+
+  /**
+   * Rebind an expired task workspace to a new lease owner. The provider must
+   * validate the remote identity and rotate its fencing tags before SQLite
+   * adoption. A deterministic lease idempotency key makes retries safe if the
+   * process stops after remote rebinding but before the adoption transaction.
+   */
+  async recover(input: RecoverWorkspaceInput): Promise<WorkspaceSession> {
+    const taskId = required('taskId', input.taskId)
+    const sessionId = required('sessionId', input.sessionId)
+    if (!Number.isSafeInteger(input.ttlMs) || input.ttlMs < 1_000 || input.ttlMs > this.maxSessionTtlMs) {
+      throw new RangeError('workspace runtime: recovery TTL exceeds configured bounds')
+    }
+    if (input.signal?.aborted) throw input.signal.reason ?? new Error('workspace runtime: recovery aborted')
+
+    const previous = await this.sessions.getTaskSession(this.projectId, taskId, sessionId)
+    if (!previous || previous.provider !== this.provider.name) {
+      throw new Error('workspace runtime: no recoverable task session exists for this provider')
+    }
+    if (previous.ownerId === this.ownerId && previous.state === 'ready' && previous.leaseId &&
+        Number.isSafeInteger(previous.fencingToken) &&
+        await this.leases.isCurrent(previous.leaseId, this.ownerId, previous.fencingToken!)) {
+      return previous
+    }
+    if (!previous.leaseId || !Number.isSafeInteger(previous.fencingToken) || previous.fencingToken! < 1) {
+      throw new Error('workspace runtime: prior session has no valid lease fence')
+    }
+    if (['closing', 'closed', 'failed'].includes(previous.state)) {
+      throw new Error('workspace runtime: terminal or closing sessions cannot be recovered')
+    }
+    if (await this.leases.isCurrent(previous.leaseId, previous.ownerId, previous.fencingToken!)) {
+      throw new Error('workspace runtime: prior workspace lease has not expired')
+    }
+
+    const recoveryKey = createHash('sha256')
+      .update(JSON.stringify({ workspaceId: previous.workspaceId, previousLeaseId: previous.leaseId,
+        previousFence: previous.fencingToken, ownerId: this.ownerId }), 'utf8')
+      .digest('hex')
+    const decision = await this.leases.acquire({
+      projectId: this.projectId,
+      resourceType: 'workspace',
+      resourceId: previous.workspaceId,
+      ownerId: this.ownerId,
+      idempotencyKey: `workspace-recovery:${recoveryKey}`,
+      ttlMs: input.ttlMs,
+    })
+    if (!decision.acquired) throw new Error(`workspace runtime: recovery lease unavailable (${decision.reason})`)
+    const lease = decision.lease
+    if (lease.fencingToken <= previous.fencingToken!) {
+      throw new Error('workspace runtime: recovery lease did not advance the fencing token')
+    }
+
+    const recovery: RecoverWorkspaceSessionInput = {
+      previous,
+      ownerId: this.ownerId,
+      leaseId: lease.leaseId,
+      fencingToken: lease.fencingToken,
+      expiresAt: lease.expiresAt,
+      signal: input.signal,
+    }
+    await this.provider.recover(recovery)
+    if (!await this.leases.isCurrent(lease.leaseId, this.ownerId, lease.fencingToken)) {
+      throw new Error('workspace runtime: recovery lease expired during provider validation')
+    }
+    return this.sessions.adoptSession({
+      workspaceId: previous.workspaceId,
+      expectedOwnerId: previous.ownerId,
+      expectedLeaseId: previous.leaseId,
+      expectedFencingToken: previous.fencingToken!,
+      ownerId: this.ownerId,
+      leaseId: lease.leaseId,
+      fencingToken: lease.fencingToken,
+      expiresAt: lease.expiresAt,
+    })
   }
 
   async issueCapability(input: IssueWorkspaceCapabilityInput): Promise<WorkspaceCapability> {

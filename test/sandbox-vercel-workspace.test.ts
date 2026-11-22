@@ -45,9 +45,10 @@ function fakeClient(options: { createUserFails?: boolean; homeDir?: string; asUs
   const client: VercelWorkspaceClient = {
     async create(request) {
       calls.push(['create', request])
+      let tags = request.tags
       const created: VercelWorkspaceSandbox = {
         name: request.name,
-        tags: request.tags,
+        get tags() { return tags },
         async createUser(name) {
           calls.push(['createUser', name])
           if (options.createUserFails) throw new Error('user creation failed')
@@ -57,7 +58,7 @@ function fakeClient(options: { createUserFails?: boolean; homeDir?: string; asUs
           calls.push(['asUser', name])
           return options.asUserHomeDir ? { ...user, homeDir: options.asUserHomeDir } : user
         },
-        async update(value) { calls.push(['update', value]) },
+        async update(value) { calls.push(['update', value]); if (value.tags) tags = value.tags },
         async snapshot(value) { calls.push(['snapshot', value]); return { status: 'created' } },
         async delete(value) { calls.push(['delete', value]); deleted = true },
         fs: {
@@ -88,7 +89,8 @@ async function setup(
   const dir = await mkdtemp(join(tmpdir(), 'vercel-workspace-'))
   dirs.push(dir)
   const databasePath = join(dir, 'workspace.sqlite')
-  const now = () => Date.parse('2026-11-21T00:00:00.000Z')
+  const clock = { value: Date.parse('2026-11-21T00:00:00.000Z') }
+  const now = () => clock.value
   const leases = new SQLiteLeaseStore(databasePath, { now, maxLeaseTtlMs: 300_000 })
   const sessions = new SQLiteWorkspaceStore(databasePath, { now })
   const fake = fakeClient(options)
@@ -113,7 +115,7 @@ async function setup(
     maxOutputBytes: 1_024,
     maxCapabilityTtlMs: 60_000,
   })
-  return { fake, provider, runtime, sessions, leases }
+  return { fake, provider, runtime, sessions, leases, clock, egress }
 }
 
 describe('Vercel task-scoped workspace provider', () => {
@@ -163,6 +165,100 @@ describe('Vercel task-scoped workspace provider', () => {
       timeoutMs: 2_000,
       maxOutputBytes: 100,
     })).rejects.toThrow(/unexpected isolated workspace user home/)
+  })
+
+  it('validates the prior stable scope and rotates remote tags before SQLite workspace adoption', async () => {
+    const { fake, runtime, sessions, leases, clock, egress } = await setup()
+    const session = await runtime.open({
+      taskId: 'task-recover',
+      sessionId: 'session-recover',
+      idempotencyKey: 'open-recover',
+      ttlMs: 120_000,
+    })
+    const oldCapability = await runtime.issueCapability({
+      workspaceId: session.workspaceId,
+      operations: ['execute'],
+      pathPrefixes: [''],
+      ttlMs: 30_000,
+    })
+    clock.value += 120_001
+
+    const provider = new VercelWorkspaceSessionProvider({
+      client: fake.client,
+      egress,
+      sessions,
+      leases,
+      ownerId: 'owner-2',
+      now: () => clock.value,
+    })
+    const recoveringRuntime = new WorkspaceRuntime({
+      projectId: 'project-1',
+      ownerId: 'owner-2',
+      provider,
+      sessions,
+      leases,
+      now: () => clock.value,
+      maxSessionTtlMs: 300_000,
+      maxCommandTimeoutMs: 10_000,
+      maxOutputBytes: 1_024,
+      maxCapabilityTtlMs: 60_000,
+    })
+
+    const adopted = await recoveringRuntime.recover({
+      taskId: session.taskId,
+      sessionId: session.sessionId,
+      ttlMs: 120_000,
+    })
+    expect(adopted).toMatchObject({ state: 'ready', ownerId: 'owner-2', fencingToken: 2 })
+    const tagUpdate = fake.calls.find((call) =>
+      Array.isArray(call) && call[0] === 'update' && typeof call[1] === 'object' &&
+      call[1] !== null && 'tags' in call[1],
+    )
+    expect(tagUpdate).toBeDefined()
+    expect(fake.calls).toContainEqual(['snapshot', { expiration: 7 * 24 * 60 * 60 * 1_000 }])
+    expect(await sessions.authorizeCapability({
+      token: oldCapability.token,
+      projectId: session.projectId,
+      taskId: session.taskId,
+      sessionId: session.sessionId,
+      workspaceId: session.workspaceId,
+      operation: 'execute',
+      path: '',
+      now: clock.value,
+    })).toBe(false)
+
+    const capability = await recoveringRuntime.issueCapability({
+      workspaceId: adopted.workspaceId,
+      operations: ['execute'],
+      pathPrefixes: [''],
+      ttlMs: 30_000,
+    })
+    await expect(recoveringRuntime.execute(adopted.workspaceId, capability, {
+      command: 'node',
+      args: ['--version'],
+      cwd: '.',
+      timeoutMs: 2_000,
+      maxOutputBytes: 100,
+    })).resolves.toMatchObject({ exitCode: 0, stdout: 'ok' })
+  })
+
+  it('rejects recovery requests that do not match the durable session record before remote access', async () => {
+    const { fake, runtime, provider, clock } = await setup()
+    const session = await runtime.open({
+      taskId: 'task-recovery-scope',
+      sessionId: 'session-recovery-scope',
+      idempotencyKey: 'open-recovery-scope',
+      ttlMs: 60_000,
+    })
+    const forged = { ...session, taskId: 'different-task' }
+    await expect(provider.recover({
+      previous: forged,
+      ownerId: 'owner-1',
+      leaseId: 'untrusted-new-lease',
+      fencingToken: 2,
+      expiresAt: new Date(clock.value + 30_000).toISOString(),
+    })).rejects.toThrow(/does not match the current durable session record/)
+    expect(fake.calls.some((call) => Array.isArray(call) && call[0] === 'get')).toBe(false)
   })
 
   it('deletes the persistent sandbox when isolated-user initialization fails', async () => {
