@@ -49,11 +49,11 @@ export function sliceChunkTextFromSource(source: string, start: number, end: num
   let selected = false
   let output = ''
   while (lineNumber <= end) {
-    const newline = source.indexOf('\\n', lineStart)
+    const newline = source.indexOf('\n', lineStart)
     const lineEnd = newline === -1 ? source.length : newline
     if (lineNumber >= start) {
       const contentEnd = lineEnd > lineStart && source.charCodeAt(lineEnd - 1) === 13 ? lineEnd - 1 : lineEnd
-      if (selected) output += '\\n'
+      if (selected) output += '\n'
       selected = true
       const remaining = maxChars - output.length
       if (remaining > 0) output += source.slice(lineStart, Math.min(contentEnd, lineStart + remaining))
