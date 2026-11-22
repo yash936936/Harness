@@ -1,8 +1,8 @@
 import { SemanticFactStore } from '../../src/bundles/memory/semantic-store.js'
 
-const [directory, mode, workerId, countValue] = process.argv.slice(2)
+const [directory, mode, workerId, countValue, targetWorkerId = 'writer-0'] = process.argv.slice(2)
 if (!directory || !mode || !workerId || !countValue) {
-  throw new Error('expected directory, mode, worker id, and count')
+  throw new Error('expected directory, mode, worker id, count, and optional delete target')
 }
 const count = Number(countValue)
 if (!Number.isSafeInteger(count) || count < 1) throw new Error('count must be a positive integer')
@@ -21,7 +21,7 @@ if (mode === 'put') {
   }
 } else if (mode === 'delete') {
   for (let index = 0; index < count; index++) {
-    await store.withLock(() => store.delete(`writer-0-${index}`))
+    await store.withLock(() => store.delete(`${targetWorkerId}-${index}`))
   }
 } else {
   throw new Error(`unsupported semantic worker mode: ${mode}`)
