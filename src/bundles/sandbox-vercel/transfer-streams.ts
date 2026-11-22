@@ -95,7 +95,7 @@ export class BoundedBase64Decoder {
     private readonly maxBytes: number,
   ) {
     if (!Number.isSafeInteger(chunkBytes) || chunkBytes < 3 ||
-        !Number.isSafeInteger(maxBytes) || maxBytes < 0 || false) {
+        !Number.isSafeInteger(maxBytes) || maxBytes < 0) {
       throw new RangeError('workspace transfer: invalid base64 decoder limits')
     }
   }
