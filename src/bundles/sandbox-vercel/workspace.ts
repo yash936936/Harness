@@ -351,7 +351,7 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
       throw new Error('vercel-workspace: remote sandbox stable scope does not match the prior session')
     }
     const fence = Number(tags['harness_fence'])
-    if (!Number.isSafeInteger(fence) || fence < previous.fencingToken! || fence > target.fencingToken ||
+    if (!Number.isSafeInteger(fence) || fence < previous.fencingToken! || fence > target.fencingToken! ||
         typeof tags['harness_owner'] !== 'string' || !tags['harness_owner'] ||
         typeof tags['harness_lease'] !== 'string' || !tags['harness_lease']) {
       throw new Error('vercel-workspace: remote sandbox fence is outside the recoverable range')
