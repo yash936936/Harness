@@ -33,7 +33,7 @@ describe('bounded Vercel workspace transfer streams', () => {
     expect(() => parse(record('f', '1', '600', 'a') + record('f', '1', '600', 'b'), 1)).toThrow(/entry count/)
     expect(() => parse('f' + nul + '1')).toThrow(/truncated record/)
     expect(() => parse(record('f', '1', '600', 'b') + record('f', '1', '600', 'a'))).toThrow(/not unique and lexicographically sorted/)
-    expect(() => parse(record('f', '1', '600', 'A') + record('f', '1', '600', 'a/child'))).toThrow(/file path is also used as a directory/)
+    expect(() => parse(record('f', '1', '600', 'a') + record('f', '1', '600', 'a/child'))).toThrow(/file path is also used as a directory/)
     expect(() => parse(record('d', '0', '755', 'Src') + record('f', '1', '600', 'src/file'))).toThrow(/case-insensitive collision/)
   })
 
