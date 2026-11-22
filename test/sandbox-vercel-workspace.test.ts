@@ -242,6 +242,25 @@ describe('Vercel task-scoped workspace provider', () => {
     })).resolves.toMatchObject({ exitCode: 0, stdout: 'ok' })
   })
 
+  it('rejects recovery requests that do not match the durable session record before remote access', async () => {
+    const { fake, runtime, provider, clock } = await setup()
+    const session = await runtime.open({
+      taskId: 'task-recovery-scope',
+      sessionId: 'session-recovery-scope',
+      idempotencyKey: 'open-recovery-scope',
+      ttlMs: 60_000,
+    })
+    const forged = { ...session, taskId: 'different-task' }
+    await expect(provider.recover({
+      previous: forged,
+      ownerId: 'owner-1',
+      leaseId: 'untrusted-new-lease',
+      fencingToken: 2,
+      expiresAt: new Date(clock.value + 30_000).toISOString(),
+    })).rejects.toThrow(/does not match the current durable session record/)
+    expect(fake.calls.some((call) => Array.isArray(call) && call[0] === 'get')).toBe(false)
+  })
+
   it('deletes the persistent sandbox when isolated-user initialization fails', async () => {
     const { fake, runtime } = await setup({ createUserFails: true })
     await expect(runtime.open({
