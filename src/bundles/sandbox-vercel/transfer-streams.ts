@@ -38,7 +38,8 @@ export class WorkspaceFindRecordParser {
           if (kind !== 'f' && kind !== 'd') {
             throw new TypeError('workspace transfer: symlinks and special files are not transferable')
           }
-          if (!/^(0|[1-9][0-9]*)$/.test(sizeText!) || !Number.isSafeInteger(Number(sizeText))) {
+          if (!/^(0|[1-9][0-9]*)$/.test(sizeText!) || !Number.isSafeInteger(Number(sizeText)) ||
+              (kind === 'd' && sizeText !== '0')) {
             throw new TypeError('workspace transfer: invalid remote file size')
           }
           if (!/^[0-7]{3,4}$/.test(modeText!) || Number.parseInt(modeText!, 8) > 0o777) {
@@ -161,6 +162,11 @@ export class BoundedBase64Decoder {
 
   private emitDecoded(encoded: string, emit: (bytes: Uint8Array) => void): void {
     const bytes = Buffer.from(encoded, 'base64')
+    // Buffer's decoder is intentionally permissive. Require canonical base64 so
+    // non-zero pad bits and alternate malformed encodings cannot pass silently.
+    if (bytes.toString('base64') !== encoded) {
+      throw new TypeError('workspace transfer: remote base64 output is not canonical')
+    }
     if (bytes.byteLength > this.chunkBytes || this.totalBytes + bytes.byteLength > this.maxBytes) {
       throw new RangeError('workspace transfer: decoded bytes exceed the configured limit')
     }

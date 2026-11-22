@@ -35,6 +35,7 @@ describe('bounded Vercel workspace transfer streams', () => {
     }
     expect(() => parse(record('l', '1', '777', 'link'))).toThrow(/symlinks and special files/)
     expect(() => parse(record('f', '1', '4755', 'setuid'))).toThrow(/privileged remote file mode/)
+    expect(() => parse(record('d', '1', '755', 'directory'))).toThrow(/invalid remote file size/)
     expect(() => parse(record('f', '1', '600', '.env.local'))).toThrow(/remote path is not allowed/)
     expect(() => parse(record('f', '1', '600', 'a') + record('f', '1', '600', 'b'), 1)).toThrow(/entry count/)
     expect(() => parse('f' + nul + '1')).toThrow(/truncated record/)
@@ -73,5 +74,9 @@ describe('bounded Vercel workspace transfer streams', () => {
     const oversized = new BoundedBase64Decoder(12, 2)
     oversized.push('YWJj', () => {})
     expect(() => oversized.finish(() => {})).toThrow(/exceed the configured limit/)
+
+    const nonCanonical = new BoundedBase64Decoder(12, 100)
+    nonCanonical.push('YR==', () => {})
+    expect(() => nonCanonical.finish(() => {})).toThrow(/not canonical/)
   })
 })
