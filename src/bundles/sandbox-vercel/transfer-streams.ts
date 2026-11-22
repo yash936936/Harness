@@ -152,7 +152,9 @@ export class BoundedBase64Decoder {
     }
     if (final && this.pending.length > 0) {
       if (this.pending.length % 4 !== 0 || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(this.pending)) {
-        throw new TypeError('workspace transfer: remote base64 output has invalid final padding')
+        throw new TypeError(this.pending.length % 4 !== 0
+          ? 'workspace transfer: remote base64 output is truncated'
+          : 'workspace transfer: remote base64 output has invalid final padding')
       }
       const value = this.pending
       this.pending = ''

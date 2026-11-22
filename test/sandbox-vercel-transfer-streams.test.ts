@@ -15,7 +15,7 @@ describe('bounded Vercel workspace transfer streams', () => {
   it('parses NUL-delimited metadata across arbitrary log boundaries', () => {
     const parser = new WorkspaceFindRecordParser(3)
     const entries: unknown[] = []
-    const output = record('d', '4096', '755', 'src') +
+    const output = record('d', '0', '755', 'src') +
       record('f', '5', '644', 'src/a file.txt')
     for (let offset = 0; offset < output.length; offset += 3) {
       parser.push(output.slice(offset, offset + 3), (entry) => entries.push(entry))
