@@ -531,6 +531,27 @@ export const BUDGET_RESERVATION_MIGRATIONS: readonly SQLiteMigration[] = [{
     CREATE INDEX workspace_capabilities_active
       ON workspace_capabilities (workspace_id, revoked_at, expires_at);
   `,
+}, {
+  version: 7,
+  id: 'durable-workspace-snapshot-manifests',
+  sql: `
+    CREATE TABLE workspace_snapshots (
+      workspace_id TEXT NOT NULL,
+      snapshot_id TEXT NOT NULL,
+      project_id TEXT NOT NULL,
+      task_id TEXT NOT NULL,
+      owner_id TEXT NOT NULL,
+      lease_id TEXT NOT NULL,
+      fencing_token INTEGER NOT NULL CHECK (fencing_token > 0),
+      manifest_json TEXT NOT NULL,
+      manifest_sha256 TEXT NOT NULL CHECK (length(manifest_sha256) = 64),
+      total_bytes INTEGER NOT NULL CHECK (total_bytes >= 0),
+      created_at INTEGER NOT NULL,
+      PRIMARY KEY (workspace_id, snapshot_id)
+    );
+    CREATE INDEX workspace_snapshots_recent
+      ON workspace_snapshots (workspace_id, created_at DESC, snapshot_id);
+  `,
 }]
 
 /**

@@ -449,6 +449,29 @@ export type WorkspaceApplyResult =
   | { readonly applied: true; readonly appliedPaths: readonly string[] }
   | { readonly applied: false; readonly reason: 'conflict' | 'invalid-manifest' | 'limit-exceeded' | 'unauthorized' | 'stale-fence'; readonly paths?: readonly string[] }
 
+/** Durable association between a provider snapshot and its validated Harness manifest. */
+export interface WorkspaceSnapshotStore {
+  /** Save only for the exact current workspace fence; identical retries are idempotent. */
+  save(input: {
+    readonly workspaceId: ResourceId
+    readonly ownerId: string
+    readonly leaseId: ResourceId
+    readonly fencingToken: number
+    readonly manifest: WorkspaceSnapshotManifest
+    readonly limits: WorkspaceTransferLimits
+  }): Promise<void>
+  get(workspaceId: ResourceId, snapshotId: ResourceId): Promise<WorkspaceSnapshotManifest | undefined>
+  list(workspaceId: ResourceId, limit?: number): Promise<readonly WorkspaceSnapshotManifest[]>
+  /** Delete is fenced so a stale owner cannot remove recovery metadata. */
+  delete(input: {
+    readonly workspaceId: ResourceId
+    readonly snapshotId: ResourceId
+    readonly ownerId: string
+    readonly leaseId: ResourceId
+    readonly fencingToken: number
+  }): Promise<boolean>
+}
+
 export interface WorkspaceTransferProvider {
   /** Creates metadata only. File bytes are read separately through readSnapshotFile. */
   createSnapshot(input: WorkspaceTransferScope & {

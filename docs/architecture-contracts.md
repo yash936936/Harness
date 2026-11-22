@@ -8,6 +8,10 @@ PR #203 adds `WorkspaceRuntime.recover` and provider-side Vercel recovery. Recov
 
 New remote tags use an immutable digest of workspace/project/task/session identity plus separate owner, lease, and fence tags. Version-one tags remain accepted for existing sessions and are upgraded during recovery. If the process stops after remote tag rotation but before SQLite adoption, retrying with the same request reuses the same lease and fence; after that lease expires, the next owner can advance the fence again. Tests use the fake Vercel client and SQLite stores. They do not establish live Vercel behavior or egress acceptance.
 
+### Durable workspace snapshot metadata
+
+The workspace SQLite migration adds `workspace_snapshots`, keyed by workspace and provider snapshot ID. `SQLiteWorkspaceSnapshotStore` persists the exact validated Harness manifest, its serialized-record checksum, provider snapshot ID, and creating owner/lease/fence. Save and delete operations recheck the current ready/transferring session and active lease in the same SQLite transaction. Replaying the same snapshot ID with the same manifest and fence is idempotent; reusing it with different metadata is rejected. Reads verify both the stored JSON checksum and the canonical manifest payload digest. This stores metadata only; remote snapshot creation, bounded file reads, restore/upload, and atomic apply remain separate provider work.
+
 ### Workspace transfer validator bounds
 
 The local transfer validators enforce hard ceilings independent of caller configuration: 50,000 files, 100,000 manifest entries, 64 MiB per file, 512 MiB aggregate content, and 1 MiB per chunk. Manifest and streamed-file path-collision checks use sorted-path ancestor checks rather than pairwise scans, avoiding quadratic work at the maximum entry count. These checks validate metadata and streams; they do not replace provider-side no-follow filesystem enumeration or atomic result application.
