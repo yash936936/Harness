@@ -49,7 +49,7 @@ describe('workspace transfer validation', () => {
     expect(() => validateWorkspaceTransferLimits({} as WorkspaceTransferLimits)).toThrow(/maxFiles must be between 1 and/)
     expect(() => validateWorkspaceTransferLimits({ ...limits, maxEntries: 9 })).toThrow(/maxEntries must be at least maxFiles/)
     expect(() => validateWorkspaceTransferLimits({ ...limits, chunkBytes: 0 })).toThrow(/must be between 1 and/)
-    expect(() => validateWorkspaceTransferLimits({ ...limits, maxFileBytes: Number.MAX_SAFE_INTEGER + 1 })).toThrow(/positive safe integer/)
+    expect(() => validateWorkspaceTransferLimits({ ...limits, maxFileBytes: Number.MAX_SAFE_INTEGER + 1 })).toThrow(/maxFileBytes must be between 1 and/)
     expect(() => validateWorkspaceTransferLimits({ ...limits, chunkBytes: 2_048 })).toThrow(/chunkBytes exceeds/)
     expect(() => validateWorkspaceTransferLimits({ ...limits, maxFileBytes: 8_192 })).toThrow(/maxFileBytes exceeds/)
   })
