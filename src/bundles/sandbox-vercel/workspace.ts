@@ -401,7 +401,8 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
         !Number.isSafeInteger(input.fencingToken) || input.fencingToken <= previous.fencingToken! ||
         typeof input.expiresAt !== 'string' || !Number.isFinite(Date.parse(input.expiresAt)) ||
         new Date(Date.parse(input.expiresAt)).toISOString() !== input.expiresAt ||
-        Date.parse(input.expiresAt) <= this.now()) {
+        Date.parse(input.expiresAt) <= this.now() ||
+        Date.parse(input.expiresAt) - this.now() > this.snapshotExpirationMs) {
       throw new TypeError('vercel-workspace: invalid workspace recovery scope')
     }
     input.signal?.throwIfAborted()
