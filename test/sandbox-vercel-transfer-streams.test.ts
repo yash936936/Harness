@@ -6,6 +6,12 @@ const record = (kind: string, size: string, mode: string, path: string) =>
   [kind, size, mode, path, ''].join(nul)
 
 describe('bounded Vercel workspace transfer streams', () => {
+  it('enforces hard ceilings when constructing stream parsers', () => {
+    expect(() => new WorkspaceFindRecordParser(100_001)).toThrow(/maxEntries/)
+    expect(() => new BoundedBase64Decoder(1_048_577, 10)).toThrow(/invalid base64 decoder limits/)
+    expect(() => new BoundedBase64Decoder(3, 536_870_913)).toThrow(/invalid base64 decoder limits/)
+  })
+
   it('parses NUL-delimited metadata across arbitrary log boundaries', () => {
     const parser = new WorkspaceFindRecordParser(3)
     const entries: unknown[] = []
