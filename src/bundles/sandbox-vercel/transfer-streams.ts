@@ -15,7 +15,7 @@ export interface WorkspaceRemoteEntry {
 export class WorkspaceFindRecordParser {
   private field = ''
   private fields: string[] = []
-  private previousPath?: string\n  private readonly seenPaths = new Map<string, 'file' | 'directory'>()
+  private previousPath?: string\n  private readonly seenPaths = new Map<string, 'file' | 'directory'>()\n  private readonly pathSpellings = new Map<string, string>()
 
   constructor(private readonly maxEntries: number) {
     if (!Number.isSafeInteger(maxEntries) || maxEntries < 1) {
@@ -49,17 +49,24 @@ export class WorkspaceFindRecordParser {
           if (this.previousPath !== undefined && this.previousPath >= path) {
             throw new TypeError('workspace transfer: remote paths are not unique and lexicographically sorted')
           }
+          const segments = path.split('/')
+          let foldedPrefix = ''
+          let originalPrefix = ''
+          for (let index = 0; index < segments.length; index += 1) {
+            foldedPrefix = foldedPrefix ? `${foldedPrefix}/${segments[index]!.toLocaleLowerCase('en-US')}` : segments[index]!.toLocaleLowerCase('en-US')
+            originalPrefix = originalPrefix ? `${originalPrefix}/${segments[index]}` : segments[index]!
+            const previousSpelling = this.pathSpellings.get(foldedPrefix)
+            if (previousSpelling !== undefined && previousSpelling !== originalPrefix) {
+              throw new TypeError('workspace transfer: remote paths contain a case-insensitive collision')
+            }
+            this.pathSpellings.set(foldedPrefix, originalPrefix)
+            if (index < segments.length - 1 && this.seenPaths.get(foldedPrefix) === 'file') {
+              throw new TypeError('workspace transfer: a remote file path is also used as a directory')
+            }
+          }
           const folded = path.toLocaleLowerCase('en-US')
           if (this.seenPaths.has(folded)) {
             throw new TypeError('workspace transfer: remote paths contain a case-insensitive collision')
-          }
-          const segments = folded.split('/')
-          let ancestor = ''
-          for (let index = 0; index < segments.length - 1; index += 1) {
-            ancestor = ancestor ? `${ancestor}/${segments[index]}` : segments[index]!
-            if (this.seenPaths.get(ancestor) === 'file') {
-              throw new TypeError('workspace transfer: a remote file path is also used as a directory')
-            }
           }
           this.previousPath = path
           this.seenPaths.set(folded, kind === 'f' ? 'file' : 'directory')
