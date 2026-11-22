@@ -69,11 +69,14 @@ export class MemorySemantic extends Service {
     this.maxWhy = config.maxWhyChars ?? 500
     this.maxFacts = config.maxFacts ?? 10_000
     this.maxFactBytes = config.maxFactBytes ?? 8_192
-    if (!Number.isSafeInteger(this.maxFacts) || this.maxFacts < 1 || !Number.isSafeInteger(this.maxFactBytes) || this.maxFactBytes < 1) {
-      throw new MemoryError('memory: maxFacts and maxFactBytes must be positive safe integers')
+    if (!Number.isSafeInteger(this.maxFacts) || this.maxFacts < 1 ||
+        !Number.isSafeInteger(this.maxFactBytes) || this.maxFactBytes < 1 ||
+        this.maxFacts > 100_000 || this.maxFactBytes > 16_384) {
+      throw new MemoryError('memory: maxFacts and maxFactBytes must be positive safe integers no greater than 100000 facts and 16384 bytes per fact')
     }
-    if (!Number.isSafeInteger(this.maxText) || this.maxText < 1 || !Number.isSafeInteger(this.maxWhy) || this.maxWhy < 1) {
-      throw new MemoryError('memory: semantic maxTextChars and maxWhyChars must be positive safe integers')
+    if (!Number.isSafeInteger(this.maxText) || this.maxText < 1 || this.maxText > 8_192 ||
+        !Number.isSafeInteger(this.maxWhy) || this.maxWhy < 1 || this.maxWhy > 4_096) {
+      throw new MemoryError('memory: semantic maxTextChars and maxWhyChars must be positive safe integers no greater than 8192 and 4096')
     }
     this.now = config.now ?? (() => new Date())
   }
