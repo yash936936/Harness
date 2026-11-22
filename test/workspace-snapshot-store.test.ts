@@ -157,6 +157,28 @@ describe('SQLite workspace snapshot metadata', () => {
     await expect(state.snapshots.get('workspace-1', 'snapshot-1')).resolves.toBeUndefined()
   })
 
+  it('requires the session lease to remain active when saving snapshot metadata', async () => {
+    const state = await setup()
+    state.clock.value += 60_001
+    const next = await state.leases.acquire({
+      projectId: 'project-1',
+      resourceType: 'workspace',
+      resourceId: 'workspace-1',
+      ownerId: 'owner-2',
+      idempotencyKey: 'lease-recover-2',
+      ttlMs: 60_000,
+    })
+    expect(next.acquired).toBe(true)
+    await expect(state.snapshots.save({
+      workspaceId: 'workspace-1',
+      ownerId: 'owner-1',
+      leaseId: state.lease.leaseId,
+      fencingToken: state.lease.fencingToken,
+      manifest: manifest(),
+      limits,
+    })).rejects.toThrow(/current ready workspace fence/)
+  })
+
   it('rejects invalid manifests and out-of-range list limits before persistence', async () => {
     const state = await setup()
     const invalid = { ...manifest(), manifestSha256: '0'.repeat(64) }
