@@ -87,15 +87,17 @@ export class SQLiteWorkspaceSnapshotStore implements WorkspaceSnapshotStore {
     validateWorkspaceSnapshotManifest(input.manifest, input.limits)
     const manifest = input.manifest
     const createdAt = canonicalTime(manifest.createdAt)
-    if (createdAt > this.now()) throw new RangeError('workspace snapshot store: manifest timestamp is in the future')
+    const now = this.now()
+    if (!Number.isSafeInteger(now) || now < 0) throw new RangeError('workspace snapshot store: clock must return a non-negative safe integer')
+    if (createdAt > now) throw new RangeError('workspace snapshot store: manifest timestamp is in the future')
     const json = JSON.stringify(manifest)
     const manifestHash = createHash('sha256').update(json, 'utf8').digest('hex')
     await this.ready()
     await this.database.transaction((db) => {
-      const session = query(db, 'SELECT project_id, task_id, owner_id, lease_id, fencing_token, expires_at, state FROM workspace_sessions WHERE workspace_id = ?', [workspaceId])[0]
+      const session = query(db, `SELECT s.project_id, s.task_id, s.owner_id, s.lease_id, s.fencing_token, s.expires_at, s.state\n        FROM workspace_sessions s JOIN resource_leases l ON l.lease_id = s.lease_id\n        WHERE s.workspace_id = ? AND l.owner_id = s.owner_id AND l.fencing_token = s.fencing_token\n          AND l.state = 'active' AND l.expires_at > ?`, [workspaceId, now])[0]
       if (!session || String(session['project_id']) !== manifest.projectId || String(session['task_id']) !== manifest.taskId ||
           String(session['owner_id']) !== ownerId || String(session['lease_id']) !== leaseId ||
-          Number(session['fencing_token']) !== input.fencingToken || Number(session['expires_at']) <= this.now() ||
+          Number(session['fencing_token']) !== input.fencingToken || Number(session['expires_at']) <= now ||
           !['ready', 'transferring'].includes(String(session['state']))) {
         throw new Error('workspace snapshot store: manifest does not belong to the current ready workspace fence')
       }
@@ -162,9 +164,11 @@ export class SQLiteWorkspaceSnapshotStore implements WorkspaceSnapshotStore {
     const ownerId = required('ownerId', input.ownerId)
     const leaseId = required('leaseId', input.leaseId)
     positiveFence(input.fencingToken)
+    const now = this.now()
+    if (!Number.isSafeInteger(now) || now < 0) throw new RangeError('workspace snapshot store: clock must return a non-negative safe integer')
     await this.ready()
     return this.database.transaction((db) => {
-      const session = query(db, 'SELECT owner_id, lease_id, fencing_token, expires_at, state FROM workspace_sessions WHERE workspace_id = ?', [workspaceId])[0]
+      const session = query(db, `SELECT s.owner_id, s.lease_id, s.fencing_token, s.expires_at, s.state\n        FROM workspace_sessions s JOIN resource_leases l ON l.lease_id = s.lease_id\n        WHERE s.workspace_id = ? AND l.owner_id = s.owner_id AND l.fencing_token = s.fencing_token\n          AND l.state = 'active' AND l.expires_at > ?`, [workspaceId, now])[0]
       if (!session || String(session['owner_id']) !== ownerId || String(session['lease_id']) !== leaseId ||
           Number(session['fencing_token']) !== input.fencingToken || Number(session['expires_at']) <= this.now() ||
           !['ready', 'transferring'].includes(String(session['state']))) {
