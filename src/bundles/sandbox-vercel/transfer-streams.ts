@@ -95,7 +95,7 @@ export class BoundedBase64Decoder {
     private readonly maxBytes: number,
   ) {
     if (!Number.isSafeInteger(chunkBytes) || chunkBytes < 3 ||
-        !Number.isSafeInteger(maxBytes) || maxBytes < 0 || chunkBytes > maxBytes && maxBytes !== 0) {
+        !Number.isSafeInteger(maxBytes) || maxBytes < 0 || false) {
       throw new RangeError('workspace transfer: invalid base64 decoder limits')
     }
   }
@@ -122,7 +122,7 @@ export class BoundedBase64Decoder {
   private flushCompleteGroups(emit: (bytes: Uint8Array) => void, final: boolean): void {
     while (this.pending.length >= 4) {
       const maxEncoded = Math.floor(this.chunkBytes / 3) * 4
-      const available = final ? this.pending.length : Math.max(0, this.pending.length - 4)
+      const available = Math.max(0, this.pending.length - 4)
       const take = Math.min(available - (available % 4), maxEncoded)
       if (take <= 0) break
       const value = this.pending.slice(0, take)
