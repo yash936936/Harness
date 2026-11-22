@@ -1,11 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import { BoundedBase64Decoder, WorkspaceFindRecordParser } from '../src/bundles/sandbox-vercel/transfer-streams.js'
 
+const nul = String.fromCharCode(0)
+const record = (kind: string, size: string, mode: string, path: string) =>
+  [kind, size, mode, path, ''].join(nul)
+
 describe('bounded Vercel workspace transfer streams', () => {
   it('parses NUL-delimited metadata across arbitrary log boundaries', () => {
     const parser = new WorkspaceFindRecordParser(3)
     const entries: unknown[] = []
-    const output = 'd\04096\0755\0src\0f\05\0644\0src/a file.txt\0'
+    const output = record('d', '4096', '755', 'src') +
+      record('f', '5', '644', 'src/a file.txt')
     for (let offset = 0; offset < output.length; offset += 3) {
       parser.push(output.slice(offset, offset + 3), (entry) => entries.push(entry))
     }
@@ -22,12 +27,12 @@ describe('bounded Vercel workspace transfer streams', () => {
       parser.push(value, () => {})
       parser.finish()
     }
-    expect(() => parse('l\01\0777\0link\0')).toThrow(/symlinks and special files/)
-    expect(() => parse('f\01\04755\0setuid\0')).toThrow(/privileged remote file mode/)
-    expect(() => parse('f\01\0600\0.env.local\0')).toThrow(/remote path is not allowed/)
-    expect(() => parse('f\01\0600\0a\0f\01\0600\0b\0', 1)).toThrow(/entry count/)
-    expect(() => parse('f\01\0600\0a\0f\01')).toThrow(/truncated record/)
-    expect(() => parse('f\01\0600\0b\0f\01\0600\0a\0')).toThrow(/not unique and lexicographically sorted/)
+    expect(() => parse(record('l', '1', '777', 'link'))).toThrow(/symlinks and special files/)
+    expect(() => parse(record('f', '1', '4755', 'setuid'))).toThrow(/privileged remote file mode/)
+    expect(() => parse(record('f', '1', '600', '.env.local'))).toThrow(/remote path is not allowed/)
+    expect(() => parse(record('f', '1', '600', 'a') + record('f', '1', '600', 'b'), 1)).toThrow(/entry count/)
+    expect(() => parse('f' + nul + '1')).toThrow(/truncated record/)
+    expect(() => parse(record('f', '1', '600', 'b') + record('f', '1', '600', 'a'))).toThrow(/not unique and lexicographically sorted/)
   })
 
   it('decodes base64 incrementally into chunks no larger than the configured byte limit', () => {
