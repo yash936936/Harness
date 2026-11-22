@@ -170,7 +170,7 @@ export class SQLiteWorkspaceSnapshotStore implements WorkspaceSnapshotStore {
     return this.database.transaction((db) => {
       const session = query(db, `SELECT s.owner_id, s.lease_id, s.fencing_token, s.expires_at, s.state\n        FROM workspace_sessions s JOIN resource_leases l ON l.lease_id = s.lease_id\n        WHERE s.workspace_id = ? AND l.owner_id = s.owner_id AND l.fencing_token = s.fencing_token\n          AND l.state = 'active' AND l.expires_at > ?`, [workspaceId, now])[0]
       if (!session || String(session['owner_id']) !== ownerId || String(session['lease_id']) !== leaseId ||
-          Number(session['fencing_token']) !== input.fencingToken || Number(session['expires_at']) <= this.now() ||
+          Number(session['fencing_token']) !== input.fencingToken || Number(session['expires_at']) <= now ||
           !['ready', 'transferring'].includes(String(session['state']))) {
         throw new Error('workspace snapshot store: stale owner cannot delete snapshot metadata')
       }
