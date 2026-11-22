@@ -85,7 +85,9 @@ jobs:
           node-version: 22.12.0
           cache: npm
       - run: npm ci
-      - name: measure architecture hot paths, reservations, indexing, semantic reindex, and output capture
+      - name: install ripgrep for retrieval memory baseline
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+      - name: measure architecture hot paths, reservations, indexing, semantic reindex, retrieval memory, and output capture
         run: npm run bench:architecture
   not-run:
     name: acceptance gates NOT RUN (informational only)
