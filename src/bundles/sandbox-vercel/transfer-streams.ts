@@ -15,7 +15,9 @@ export interface WorkspaceRemoteEntry {
 export class WorkspaceFindRecordParser {
   private field = ''
   private fields: string[] = []
-  private previousPath?: string\n  private readonly seenPaths = new Map<string, 'file' | 'directory'>()\n  private readonly pathSpellings = new Map<string, string>()
+  private previousPath?: string
+  private readonly seenPaths = new Map<string, 'file' | 'directory'>()
+  private readonly pathSpellings = new Map<string, string>()
 
   constructor(private readonly maxEntries: number) {
     if (!Number.isSafeInteger(maxEntries) || maxEntries < 1 || maxEntries > 100_000) {
@@ -111,8 +113,8 @@ export class BoundedBase64Decoder {
     private readonly chunkBytes: number,
     private readonly maxBytes: number,
   ) {
-    if (!Number.isSafeInteger(chunkBytes) || chunkBytes < 3 ||
-        !Number.isSafeInteger(maxBytes) || maxBytes < 0) {
+    if (!Number.isSafeInteger(chunkBytes) || chunkBytes < 3 || chunkBytes > 1_048_576 ||
+        !Number.isSafeInteger(maxBytes) || maxBytes < 0 || maxBytes > 536_870_912) {
       throw new RangeError('workspace transfer: invalid base64 decoder limits')
     }
   }
