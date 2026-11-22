@@ -155,7 +155,7 @@ Ubuntu x64, Node v22.12.0, 4 CPUs. Three sequential samples in one process. The 
 
 Each sample indexed 31 files and 1,740 chunks and made 7 embedding calls. The elapsed timer covers `indexFiles` only; fixture creation, parser/WASM warmup, and LanceDB module loading are outside the timed interval. RSS sampling runs every 5 ms during setup and indexing, so it is process-wide, can miss short-lived peaks, and includes setup. Samples run sequentially in one process; retained heap from earlier samples can affect later RSS deltas. The maximum of three samples is not a statistically stable p95.
 
-This measures the current implementation, not bounded-memory indexing. `indexFiles` prepares all file chunks before embedding groups; `indexGroupChunks` bounds an embedding group, not total prepared memory. Hashing embeddings are deterministic local test infrastructure and provide no semantic-quality evidence.
+This is a pre-PR #177 baseline. PR #177 now rejects over-limit file lists, source bytes, file bytes/lines/chunks, total prepared chunks, and prepared UTF-8 chunk bytes before vector-store mutation. `indexFiles` still prepares all accepted file chunks before embedding groups; `indexGroupChunks` bounds an embedding group, not total prepared memory. This 31-file/1,740-chunk fixture does not measure peak memory near the configured ceilings or large-store behavior. Hashing embeddings are deterministic local test infrastructure and provide no semantic-quality evidence.
 
 ### Deterministic semantic reindex baseline: CI run #752
 
