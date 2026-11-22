@@ -41,6 +41,30 @@ export function splitLines(source: string): string[] {
   return source.split(/\r?\n/)
 }
 
+/** Recreate one bounded chunk directly from source without materializing every line. */
+export function sliceChunkTextFromSource(source: string, start: number, end: number, maxChars: number): string {
+  if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 1 || end < start || maxChars <= 0) return ''
+  let lineNumber = 1
+  let lineStart = 0
+  let selected = false
+  let output = ''
+  for (let index = 0; index <= source.length && lineNumber <= end; index += 1) {
+    if (index !== source.length && source.charCodeAt(index) !== 10) continue
+    if (lineNumber >= start) {
+      let lineEnd = index
+      if (lineEnd > lineStart && source.charCodeAt(lineEnd - 1) === 13) lineEnd -= 1
+      if (selected) output += '\\n'
+      selected = true
+      const remaining = maxChars - output.length
+      if (remaining > 0) output += source.slice(lineStart, Math.min(lineEnd, lineStart + remaining))
+      if (output.length >= maxChars) return output
+    }
+    lineNumber += 1
+    lineStart = index + 1
+  }
+  return output
+}
+
 /** The text of lines `start..end` (1-based, inclusive), exactly as a chunk stores it. */
 export function sliceChunkText(lines: readonly string[], start: number, end: number, maxChars: number): string {
   return lines.slice(start - 1, end).join('\n').slice(0, maxChars)
