@@ -6,7 +6,6 @@ import { Context, Service } from 'cordis'
 import {
   chunkSource,
   ChunkLimitError,
-  sliceChunkText,
   sliceChunkTextFromSource,
   textHash,
   type Chunk,
