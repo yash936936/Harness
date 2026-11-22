@@ -531,7 +531,7 @@ export const BUDGET_RESERVATION_MIGRATIONS: readonly SQLiteMigration[] = [{
     CREATE INDEX workspace_capabilities_active
       ON workspace_capabilities (workspace_id, revoked_at, expires_at);
   `,
-, {
+}, {
   version: 7,
   id: 'durable-workspace-snapshot-manifests',
   sql: `
