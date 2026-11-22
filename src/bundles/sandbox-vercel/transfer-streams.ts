@@ -15,7 +15,7 @@ export interface WorkspaceRemoteEntry {
 export class WorkspaceFindRecordParser {
   private field = ''
   private fields: string[] = []
-  private previousPath?: string
+  private previousPath?: string\n  private readonly seenPaths = new Map<string, 'file' | 'directory'>()
 
   constructor(private readonly maxEntries: number) {
     if (!Number.isSafeInteger(maxEntries) || maxEntries < 1) {
@@ -49,11 +49,21 @@ export class WorkspaceFindRecordParser {
           if (this.previousPath !== undefined && this.previousPath >= path) {
             throw new TypeError('workspace transfer: remote paths are not unique and lexicographically sorted')
           }
-          this.previousPath = path
-          if (this.previousPath && this.fields.length === 0 && this.previousPath) {
-            // Count entries independently from the pending field buffer.
-            this.entryCount += 1
+          const folded = path.toLocaleLowerCase('en-US')
+          if (this.seenPaths.has(folded)) {
+            throw new TypeError('workspace transfer: remote paths contain a case-insensitive collision')
           }
+          const segments = folded.split('/')
+          let ancestor = ''
+          for (let index = 0; index < segments.length - 1; index += 1) {
+            ancestor = ancestor ? `${ancestor}/${segments[index]}` : segments[index]!
+            if (this.seenPaths.get(ancestor) === 'file') {
+              throw new TypeError('workspace transfer: a remote file path is also used as a directory')
+            }
+          }
+          this.previousPath = path
+          this.seenPaths.set(folded, kind === 'f' ? 'file' : 'directory')
+          this.entryCount += 1
           if (this.entryCount > this.maxEntries) {
             throw new RangeError('workspace transfer: remote entry count exceeds its limit')
           }
