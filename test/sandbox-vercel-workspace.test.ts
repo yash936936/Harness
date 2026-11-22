@@ -51,11 +51,11 @@ function fakeClient(options: { createUserFails?: boolean; homeDir?: string; asUs
         async createUser(name) {
           calls.push(['createUser', name])
           if (options.createUserFails) throw new Error('user creation failed')
-          return options.asUserHomeDir ? { ...user, homeDir: options.asUserHomeDir } : user
+          return user
         },
         asUser(name) {
           calls.push(['asUser', name])
-          return user
+          return options.asUserHomeDir ? { ...user, homeDir: options.asUserHomeDir } : user
         },
         async update(value) { calls.push(['update', value]) },
         async snapshot(value) { calls.push(['snapshot', value]); return { status: 'created' } },
