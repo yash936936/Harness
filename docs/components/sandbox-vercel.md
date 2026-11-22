@@ -40,7 +40,7 @@ A host integration registers `VercelSandboxProvider` with `ctx.sandbox` for one-
 
 **Imports other areas:** `architecture`, `sandbox`
 
-**Tests:** `test/sandbox-vercel-transfer-streams.test.ts`, `test/sandbox-vercel-workspace.test.ts`, `test/sandbox-vercel.test.ts`
+**Tests:** `test/sandbox-vercel-workspace.test.ts`, `test/sandbox-vercel.test.ts`, `test/sandbox-vercel-transfer-streams.test.ts`
 
 <!-- END GENERATED -->
 
