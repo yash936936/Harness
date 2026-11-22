@@ -93,8 +93,7 @@ describe('SQLite workspace snapshot metadata', () => {
       manifest: value,
       limits,
     }
-    await state.snapshots.save(input)
-    await state.snapshots.save(input)
+    await Promise.all([state.snapshots.save(input), state.snapshots.save(input)])
     const reopened = new SQLiteWorkspaceSnapshotStore(state.databasePath, { now: () => state.clock.value })
     await expect(reopened.get('workspace-1', 'snapshot-1')).resolves.toEqual(value)
     await expect(reopened.list('workspace-1')).resolves.toEqual([value])
