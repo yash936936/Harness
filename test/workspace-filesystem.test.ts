@@ -121,7 +121,13 @@ describe('Vercel workspace filesystem enumeration', () => {
       { '/home/harness/workspace/a.txt': stat('file', 3), '/home/harness/workspace/b.txt': stat('file', 3) },
     )
     await expect(enumerateWorkspaceTree(files, '/home/harness/workspace', { ...limits, maxFileBytes: 5, maxTotalBytes: 5, chunkBytes: 3 })).rejects.toThrow(/quota/)
-    await expect(enumerateWorkspaceTree(files, '/home/harness/workspace', { ...limits, maxEntries: 1 })).rejects.toThrow(/entry count/)
+    const directories = filesystem(
+      { '/home/harness/workspace': ['a', 'b'] },
+      { '/home/harness/workspace/a': stat('directory'), '/home/harness/workspace/b': stat('directory') },
+    )
+    await expect(enumerateWorkspaceTree(directories, '/home/harness/workspace', {
+      ...limits, maxFiles: 1, maxEntries: 1,
+    })).rejects.toThrow(/entry count/)
   })
 
   it('honors cancellation during traversal', async () => {

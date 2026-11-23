@@ -64,6 +64,12 @@ export async function enumerateWorkspaceTree(
       throw new Error('vercel-workspace: provider returned an invalid directory entry')
     }
     names.sort((a, b) => a < b ? -1 : a > b ? 1 : 0)
+    const foldedNames = new Set<string>()
+    for (const name of names) {
+      const folded = name.toLocaleLowerCase('en-US')
+      if (foldedNames.has(folded)) throw new Error('vercel-workspace: provider returned duplicate or case-colliding names')
+      foldedNames.add(folded)
+    }
     for (const name of names) {
       signal?.throwIfAborted()
       const path = relativeDirectory ? `${relativeDirectory}/${name}` : name
