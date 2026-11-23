@@ -21,7 +21,7 @@ A host integration registers `VercelSandboxProvider` with `ctx.sandbox` for one-
 ## Known limits
 
 - `VercelWorkspaceSessionProvider` implements task-scoped session lifecycle and fenced command execution only. It does not yet implement `WorkspaceTransferProvider`, bounded file-byte upload/collection, source enumeration, deterministic snapshot application, conflict detection, or atomic result synchronization.
-- Restart adoption after lease expiry and provider-validated recovery are not implemented. A remote sandbox can be reattached by name only when the durable session and current lease still validate.
+- Restart adoption after lease expiry is implemented through provider-validated recovery, remote fence rotation, SQLite adoption, and old-capability revocation. Fake-client tests cover the recovery flow; live Vercel restart acceptance and reconciliation after uncertain remote tag/snapshot failures remain open.
 - The dedicated Linux user and private home provide task-level isolation inside the Vercel microVM; they are not a chroot or a per-path OS sandbox. Command capabilities constrain the working directory but do not constrain arbitrary file paths used by the command itself.
 - Fake-client tests verify adapter decisions only. No live Vercel sandbox acceptance has been run; live SDK buffering, remote lifecycle, network policy, and process termination still require authorized cloud acceptance.
 - Profile/CLI registration is intentionally absent. Keep `COMMAND_TOOL` disabled until secure transfer, conflict-safe sync, provider recovery, and policy integration pass.
