@@ -17,7 +17,7 @@ A host integration registers `VercelSandboxProvider` with `ctx.sandbox` for one-
 - Task workspaces use a dedicated `harness` Linux user whose SDK-reported home must equal `/home/harness` exactly at creation and reattachment. Persistent sandbox tags contain a SHA-256 scope digest. Commands use argv and a canonical workspace-relative cwd; realpath must remain under the workspace root.
 - Provider execution rechecks the SQLite capability token, operation, path prefix, expiry, session binding, and current lease fencing token. Registered egress secrets are redacted from returned command output. Raw capability tokens are not sent to Vercel or persisted in plaintext.
 - Workspace command output has one combined byte cap and registered egress secrets are redacted. If the cap is reached, captured output is suppressed entirely to avoid returning a partial secret. The provider calls Sandbox.snapshot() and requires status=created after initialization and every command. This captures the filesystem and stops the VM, so guest processes do not remain running between tool calls while workspace files persist. Only the latest snapshot is retained; close confirms sandbox deletion and requests asynchronous orphan-snapshot deletion.
-- The one-shot adapter starts an empty sandbox. The workspace session provider does not yet implement snapshot byte transfer or governed result application.
+- The one-shot adapter starts an empty sandbox. `enumerateWorkspaceTree` now provides bounded metadata-only traversal with symlink, special-file, secret-path, root-containment, collision, and quota checks. It is not yet wired into the provider and does not read file bytes, calculate hashes, or implement governed result application.
 ## Known limits
 
 - `VercelWorkspaceSessionProvider` implements task-scoped session lifecycle and fenced command execution only. It does not yet implement `WorkspaceTransferProvider`, bounded file-byte upload/collection, source enumeration, deterministic snapshot application, conflict detection, or atomic result synchronization.
@@ -36,6 +36,7 @@ A host integration registers `VercelSandboxProvider` with `ctx.sandbox` for one-
 |---|---|---|
 | `src/bundles/sandbox-vercel/index.ts` | `VercelSandboxCommand`, `VercelSandboxHandle`, `VercelSandboxClient`, `VercelSandboxConfig`, `VercelSandboxProvider` | Vercel Sandbox remote provider adapter. |
 | `src/bundles/sandbox-vercel/transfer-streams.ts` | `WorkspaceRemoteEntry`, `WorkspaceFindRecordParser`, `BoundedBase64Decoder` | **(no header comment)** |
+| `src/bundles/sandbox-vercel/workspace-filesystem.ts` | `VercelWorkspaceFileEntry`, `VercelWorkspaceFileStat`, `VercelWorkspaceFileSystem`, `WorkspaceTreeEntry`, `WorkspaceTreeEnumeration`, `enumerateWorkspaceTree` | **(no header comment)** |
 | `src/bundles/sandbox-vercel/workspace.ts` | `VercelWorkspaceCommand`, `VercelWorkspaceUser`, `VercelWorkspaceSandbox`, `VercelWorkspaceClient`, `VercelWorkspaceEgressGate`, `VercelWorkspaceProviderOptions`, `VercelWorkspaceSessionProvider` | Persistent, task-scoped Vercel Sandbox workspace session provider. |
 
 **Imports other areas:** `app-core`, `architecture`, `sandbox`
