@@ -24,7 +24,7 @@ A host integration registers `VercelSandboxProvider` with `ctx.sandbox` for one-
 - Restart adoption after lease expiry is implemented through provider-validated recovery, remote fence rotation, SQLite adoption, and old-capability revocation. Fake-client tests cover the recovery flow; live Vercel restart acceptance and reconciliation after uncertain remote tag/snapshot failures remain open.
 - The dedicated Linux user and private home provide task-level isolation inside the Vercel microVM; they are not a chroot or a per-path OS sandbox. Command capabilities constrain the working directory but do not constrain arbitrary file paths used by the command itself.
 - Fake-client tests verify adapter decisions only. No live Vercel sandbox acceptance has been run; live SDK buffering, remote lifecycle, network policy, and process termination still require authorized cloud acceptance.
-- Profile/CLI registration is intentionally absent. Keep `COMMAND_TOOL` disabled until secure transfer, conflict-safe sync, provider recovery, and policy integration pass.
+- Profile/CLI registration is intentionally absent. Keep `COMMAND_TOOL` disabled until secure transfer, conflict-safe sync, and policy integration pass.
 - The one-shot adapter's existing output-capture tests do not establish live SDK internal buffering or remote process-tree termination. Stale draft PR #123 was closed as superseded.
 - Root package overrides pin `@vercel/cli-config`'s nested Zod to 4.6.7 and `guarded-fetch`'s nested undici to 7.30.2. Current dependency-audit status is established by main CI, not the historical audit-branch report.
 - S4 remains open and cloud-only. See [STATE.md](../STATE.md).
