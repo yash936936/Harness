@@ -97,6 +97,33 @@ describe('Vercel workspace filesystem enumeration', () => {
     await expect(enumerateWorkspaceTree(tooMany, '/home/harness/workspace', { ...limits, maxFiles: 1 })).rejects.toThrow(/quota/)
   })
 
+  it('rejects duplicate and case-colliding names returned by the provider', async () => {
+    const duplicate = {
+      async realpath(path: string) { return path },
+      async readdir() { return [{ name: 'Readme.md' }, { name: 'README.md' }] },
+      async lstat() { return stat('file', 1) },
+    }
+    await expect(enumerateWorkspaceTree(duplicate, '/home/harness/workspace', limits)).rejects.toThrow(/case-colliding/)
+  })
+
+  it('rejects malformed filesystem metadata before accepting an entry', async () => {
+    const malformed = {
+      async realpath(path: string) { return path },
+      async readdir() { return [{ name: 'file.txt' }] },
+      async lstat() { return { ...stat('file', 1), mode: Number.NaN } },
+    }
+    await expect(enumerateWorkspaceTree(malformed, '/home/harness/workspace', limits)).rejects.toThrow(/invalid filesystem metadata/)
+  })
+
+  it('enforces aggregate byte and total-entry limits', async () => {
+    const files = filesystem(
+      { '/home/harness/workspace': ['a.txt', 'b.txt'] },
+      { '/home/harness/workspace/a.txt': stat('file', 3), '/home/harness/workspace/b.txt': stat('file', 3) },
+    )
+    await expect(enumerateWorkspaceTree(files, '/home/harness/workspace', { ...limits, maxTotalBytes: 5 })).rejects.toThrow(/quota/)
+    await expect(enumerateWorkspaceTree(files, '/home/harness/workspace', { ...limits, maxEntries: 1 })).rejects.toThrow(/entry count/)
+  })
+
   it('honors cancellation during traversal', async () => {
     const controller = new AbortController()
     controller.abort()

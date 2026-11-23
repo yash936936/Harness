@@ -72,7 +72,12 @@ export async function enumerateWorkspaceTree(
       }
       const absolute = posix.join(absoluteDirectory, name)
       const stat = await fs.lstat(absolute, { signal })
+      if (!stat || !Number.isSafeInteger(stat.mode) || stat.mode < 0 || stat.mode > 0o7777 ||
+          typeof stat.isFile !== 'function' || typeof stat.isDirectory !== 'function' || typeof stat.isSymbolicLink !== 'function') {
+        throw new Error('vercel-workspace: provider returned invalid filesystem metadata')
+      }
       if (stat.isSymbolicLink()) throw new Error('vercel-workspace: symbolic links are not transferable')
+      if (stat.isFile() && stat.isDirectory()) throw new Error('vercel-workspace: provider returned conflicting filesystem types')
       const resolved = await fs.realpath(absolute, { signal })
       if (!inside(root, resolved)) throw new Error('vercel-workspace: filesystem entry resolves outside the workspace')
       if (stat.isDirectory()) {
