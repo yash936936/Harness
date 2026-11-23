@@ -1,4 +1,6 @@
-import { canonicalWorkspacePath, isWorkspaceTransferPathAllowed } from '../app-core/workspace-transfer.js'
+import { createHash } from 'node:crypto'
+import type { WorkspaceTransferFile, WorkspaceTransferLimits } from '../../architecture/contracts.js'
+import { canonicalWorkspacePath, isWorkspaceTransferPathAllowed, validateWorkspaceTransferLimits } from '../app-core/workspace-transfer.js'
 
 export interface WorkspaceRemoteEntry {
   readonly path: string
@@ -178,5 +180,90 @@ export class BoundedBase64Decoder {
 
   get bytesDecoded(): number {
     return this.totalBytes
+  }
+}
+
+
+/** Minimal Vercel command surface needed for bounded stdin uploads. */
+export interface WorkspaceStdinCommand {
+  writeStdin(data: Uint8Array): Promise<void>
+  closeStdin(): Promise<void>
+  wait(options?: { signal?: AbortSignal }): Promise<{ readonly exitCode: number | null }>
+  kill(signal?: 'SIGHUP' | 'SIGINT' | 'SIGQUIT' | 'SIGKILL' | 'SIGTERM' | 'SIGCONT' | 'SIGSTOP' | number): Promise<void>
+}
+
+/**
+ * Stream one validated workspace file into a remote staging command.
+ *
+ * The caller must create an exclusive staging target and remove it if this
+ * function rejects. The stream is hashed while it is sent, so no file-sized
+ * buffer is created on the host. A failed stream always attempts to terminate
+ * the remote writer before returning.
+ */
+export async function writeWorkspaceTransferFileToStdin(
+  file: WorkspaceTransferFile,
+  command: WorkspaceStdinCommand,
+  limits: WorkspaceTransferLimits,
+  signal?: AbortSignal,
+): Promise<void> {
+  validateWorkspaceTransferLimits(limits)
+  if (!file || canonicalWorkspacePath(file.path) !== file.path ||
+      !isWorkspaceTransferPathAllowed(file.path)) {
+    throw new TypeError('workspace transfer: upload path is not allowed')
+  }
+  if (!Number.isSafeInteger(file.sizeBytes) || file.sizeBytes < 0 || file.sizeBytes > limits.maxFileBytes) {
+    throw new RangeError('workspace transfer: upload size exceeds its limit')
+  }
+  if (typeof file.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(file.sha256)) {
+    throw new TypeError('workspace transfer: upload SHA-256 is invalid')
+  }
+  if (!file.chunks || typeof file.chunks[Symbol.asyncIterator] !== 'function') {
+    throw new TypeError('workspace transfer: upload chunks must be an async iterable')
+  }
+
+  const digest = createHash('sha256')
+  let offset = 0
+  let closed = false
+  let settled = false
+  try {
+    for await (const chunk of file.chunks) {
+      signal?.throwIfAborted()
+      if (!chunk || !Number.isSafeInteger(chunk.offset) || chunk.offset !== offset) {
+        throw new TypeError('workspace transfer: upload chunks must have contiguous offsets')
+      }
+      if (!(chunk.bytes instanceof Uint8Array) || chunk.bytes.byteLength === 0 ||
+          chunk.bytes.byteLength > limits.chunkBytes) {
+        throw new RangeError('workspace transfer: upload chunk is empty or exceeds its limit')
+      }
+      offset += chunk.bytes.byteLength
+      if (!Number.isSafeInteger(offset) || offset > file.sizeBytes || offset > limits.maxFileBytes) {
+        throw new RangeError('workspace transfer: upload exceeds its declared size')
+      }
+      digest.update(chunk.bytes)
+      await command.writeStdin(chunk.bytes)
+    }
+    if (offset !== file.sizeBytes) {
+      throw new TypeError('workspace transfer: uploaded byte count does not match its declaration')
+    }
+    if (digest.digest('hex') !== file.sha256) {
+      throw new TypeError('workspace transfer: uploaded file SHA-256 mismatch')
+    }
+    signal?.throwIfAborted()
+    await command.closeStdin()
+    closed = true
+    const result = await command.wait({ signal })
+    settled = true
+    if (result.exitCode !== 0) {
+      throw new Error(`workspace transfer: remote staging writer exited with code ${String(result.exitCode)}`)
+    }
+  } catch (error) {
+    if (!settled) {
+      try { await command.kill('SIGTERM') } catch { /* best-effort termination before staging cleanup */ }
+      if (!closed) {
+        try { await command.closeStdin() } catch { /* command may already have exited */ }
+      }
+      try { await command.wait() } catch { /* preserve the original transfer failure */ }
+    }
+    throw error
   }
 }

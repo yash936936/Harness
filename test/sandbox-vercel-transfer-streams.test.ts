@@ -1,5 +1,7 @@
+import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
-import { BoundedBase64Decoder, WorkspaceFindRecordParser } from '../src/bundles/sandbox-vercel/transfer-streams.js'
+import { BoundedBase64Decoder, WorkspaceFindRecordParser, writeWorkspaceTransferFileToStdin, type WorkspaceStdinCommand } from '../src/bundles/sandbox-vercel/transfer-streams.js'
+import type { WorkspaceTransferFile, WorkspaceTransferLimits } from '../src/architecture/contracts.js'
 
 const nul = String.fromCharCode(0)
 const record = (kind: string, size: string, mode: string, path: string) =>
@@ -78,5 +80,95 @@ describe('bounded Vercel workspace transfer streams', () => {
     const nonCanonical = new BoundedBase64Decoder(12, 100)
     nonCanonical.push('YR==', () => {})
     expect(() => nonCanonical.finish(() => {})).toThrow(/not canonical/)
+  })
+})
+
+
+describe('bounded workspace stdin uploads', () => {
+  const limits: WorkspaceTransferLimits = {
+    maxFiles: 4,
+    maxEntries: 8,
+    maxFileBytes: 64,
+    maxTotalBytes: 128,
+    chunkBytes: 8,
+  }
+
+  function file(path: string, source: Uint8Array, chunks?: readonly Uint8Array[]): WorkspaceTransferFile {
+    const parts = chunks ?? [source]
+    return {
+      path,
+      sizeBytes: source.byteLength,
+      sha256: createHash('sha256').update(source).digest('hex'),
+      chunks: (async function* () {
+        let offset = 0
+        for (const bytes of parts) {
+          yield { offset, bytes }
+          offset += bytes.byteLength
+        }
+      })(),
+    }
+  }
+
+  function command(options: { failWrite?: boolean; exitCode?: number } = {}) {
+    const writes: Uint8Array[] = []
+    const calls: string[] = []
+    const fake: WorkspaceStdinCommand = {
+      async writeStdin(bytes) {
+        calls.push('write')
+        if (options.failWrite) throw new Error('stdin write failed')
+        writes.push(new Uint8Array(bytes))
+      },
+      async closeStdin() { calls.push('close') },
+      async wait() { calls.push('wait'); return { exitCode: options.exitCode ?? 0 } },
+      async kill() { calls.push('kill') },
+    }
+    return { fake, writes, calls }
+  }
+
+  it('streams bounded chunks in order and closes stdin after digest verification', async () => {
+    const source = Buffer.from('0123456789abcdef')
+    const target = command()
+    await writeWorkspaceTransferFileToStdin(
+      file('src/data.bin', source, [source.subarray(0, 8), source.subarray(8)]),
+      target.fake,
+      limits,
+    )
+    expect(Buffer.concat(target.writes.map((part) => Buffer.from(part)))).toEqual(source)
+    expect(target.calls).toEqual(['write', 'write', 'close', 'wait'])
+  })
+
+  it('rejects a digest mismatch and terminates the partial staging writer', async () => {
+    const source = Buffer.from('payload')
+    const target = command()
+    const invalid = { ...file('src/data.bin', source), sha256: '0'.repeat(64) }
+    await expect(writeWorkspaceTransferFileToStdin(invalid, target.fake, limits)).rejects.toThrow(/SHA-256 mismatch/)
+    expect(target.calls).toContain('kill')
+    expect(target.calls).toContain('wait')
+    expect(target.calls).not.toContain('close')
+  })
+
+  it('rejects invalid chunk sizes and upload paths before sending bytes', async () => {
+    const source = Buffer.from('payload')
+    const oversized = file('src/data.bin', source, [Buffer.from('012345678')])
+    const target = command()
+    await expect(writeWorkspaceTransferFileToStdin(oversized, target.fake, limits)).rejects.toThrow(/chunk is empty or exceeds/)
+    expect(target.calls).toEqual(['kill', 'close', 'wait'])
+    const secret = command()
+    await expect(writeWorkspaceTransferFileToStdin(file('.env', source), secret.fake, limits)).rejects.toThrow(/path is not allowed/)
+    expect(secret.calls).toEqual([])
+  })
+
+  it('fails when the remote writer exits unsuccessfully', async () => {
+    const source = Buffer.from('payload')
+    const target = command({ exitCode: 2 })
+    await expect(writeWorkspaceTransferFileToStdin(file('src/data.bin', source), target.fake, limits)).rejects.toThrow(/exited with code 2/)
+    expect(target.calls).toEqual(['write', 'close', 'wait'])
+  })
+
+  it('kills and waits for the writer when stdin transport fails', async () => {
+    const source = Buffer.from('payload')
+    const target = command({ failWrite: true })
+    await expect(writeWorkspaceTransferFileToStdin(file('src/data.bin', source), target.fake, limits)).rejects.toThrow(/stdin write failed/)
+    expect(target.calls).toEqual(['write', 'kill', 'close', 'wait'])
   })
 })
