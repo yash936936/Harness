@@ -72,7 +72,7 @@ export async function enumerateWorkspaceTree(
       }
       const absolute = posix.join(absoluteDirectory, name)
       const stat = await fs.lstat(absolute, { signal })
-      if (!stat || !Number.isSafeInteger(stat.mode) || stat.mode < 0 || stat.mode > 0o7777 ||
+      if (!stat || !Number.isSafeInteger(stat.mode) || stat.mode < 0 || stat.mode > 0o177777 ||
           typeof stat.isFile !== 'function' || typeof stat.isDirectory !== 'function' || typeof stat.isSymbolicLink !== 'function') {
         throw new Error('vercel-workspace: provider returned invalid filesystem metadata')
       }
