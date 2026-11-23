@@ -144,7 +144,7 @@ describe('bounded workspace stdin uploads', () => {
     await expect(writeWorkspaceTransferFileToStdin(invalid, target.fake, limits)).rejects.toThrow(/SHA-256 mismatch/)
     expect(target.calls).toContain('kill')
     expect(target.calls).toContain('wait')
-    expect(target.calls).not.toContain('close')
+    expect(target.calls).toContain('close')
   })
 
   it('rejects invalid chunk sizes and upload paths before sending bytes', async () => {

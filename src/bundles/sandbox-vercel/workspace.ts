@@ -30,8 +30,8 @@ const DEFAULT_SNAPSHOT_EXPIRATION_MS = 7 * 24 * 60 * 60 * 1_000
 export interface VercelWorkspaceCommand {
   logs(options?: { signal?: AbortSignal }): AsyncIterable<{ stream: 'stdout' | 'stderr'; data: string }>
   wait(options?: { signal?: AbortSignal }): Promise<{ exitCode: number | null }>
-  writeStdin(data: Uint8Array): Promise<void>
-  closeStdin(): Promise<void>
+  writeStdin?(data: Uint8Array): Promise<void>
+  closeStdin?(): Promise<void>
   kill(signal?: 'SIGHUP' | 'SIGINT' | 'SIGQUIT' | 'SIGKILL' | 'SIGTERM' | 'SIGCONT' | 'SIGSTOP' | number): Promise<void>
 }
 
