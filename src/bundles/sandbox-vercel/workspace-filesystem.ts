@@ -47,7 +47,7 @@ export async function enumerateWorkspaceTree(
   signal?: AbortSignal,
 ): Promise<WorkspaceTreeEnumeration> {
   validateWorkspaceTransferLimits(limits)
-  if (!fs || typeof rootPath !== 'string' || !rootPath.startsWith('/') || rootPath.includes('\\0')) {
+  if (!fs || typeof rootPath !== 'string' || !rootPath.startsWith('/') || rootPath.includes('\0')) {
     throw new TypeError('vercel-workspace: invalid filesystem root')
   }
   const root = await fs.realpath(rootPath, { signal })
@@ -60,7 +60,7 @@ export async function enumerateWorkspaceTree(
     signal?.throwIfAborted()
     const children = await fs.readdir(absoluteDirectory, { withFileTypes: true, signal })
     const names = children.map((entry) => entry.name)
-    if (names.some((name) => typeof name !== 'string' || !name || name === '.' || name === '..' || name.includes('/') || name.includes('\\\\') || name.includes('\\0'))) {
+    if (names.some((name) => typeof name !== 'string' || !name || name === '.' || name === '..' || name.includes('/') || name.includes('\\') || name.includes('\0'))) {
       throw new Error('vercel-workspace: provider returned an invalid directory entry')
     }
     names.sort((a, b) => a < b ? -1 : a > b ? 1 : 0)
