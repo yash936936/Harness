@@ -14,6 +14,7 @@ import type {
   RecoverWorkspaceSessionInput,
   WorkspaceTransferLimits,
 } from '../../architecture/contracts.js'
+import { validateWorkspaceTransferLimits } from '../app-core/workspace-transfer.js'
 import { enumerateWorkspaceTree, type WorkspaceTreeEnumeration, type VercelWorkspaceFileSystem } from './workspace-filesystem.js'
 
 const PROVIDER_TAG = 'harness-workspace-v1'
@@ -557,6 +558,7 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
     limits: WorkspaceTransferLimits,
     signal?: AbortSignal,
   ): Promise<WorkspaceTreeEnumeration> {
+    validateWorkspaceTransferLimits(limits)
     const session = await this.assertSession(workspaceId, ['ready', 'running'])
     if (!capability || capability.workspaceId !== workspaceId || capability.projectId !== session.projectId ||
         capability.taskId !== session.taskId || capability.sessionId !== session.sessionId ||

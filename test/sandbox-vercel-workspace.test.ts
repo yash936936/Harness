@@ -598,4 +598,31 @@ describe('Vercel task-scoped workspace provider', () => {
     await runtime.close(session.workspaceId, 'test cleanup')
   })
 
+
+  it('rejects invalid transfer limits before contacting the remote sandbox', async () => {
+    const { fake, provider, runtime } = await setup()
+    const session = await runtime.open({
+      taskId: 'task-list-limits',
+      sessionId: 'session-list-limits',
+      idempotencyKey: 'open-list-limits',
+      ttlMs: 120_000,
+    })
+    const capability = await runtime.issueCapability({
+      workspaceId: session.workspaceId,
+      operations: ['list'],
+      pathPrefixes: [''],
+      ttlMs: 30_000,
+    })
+    const invalidLimits: WorkspaceTransferLimits = {
+      maxFiles: 0,
+      maxEntries: 20,
+      maxFileBytes: 1_024,
+      maxTotalBytes: 4_096,
+      chunkBytes: 256,
+    }
+    await expect(provider.enumerateWorkspace(session.workspaceId, capability, invalidLimits)).rejects.toThrow(/maxFiles/)
+    expect(fake.calls.some((call) => Array.isArray(call) && call[0] === 'get')).toBe(false)
+    await runtime.close(session.workspaceId, 'test cleanup')
+  })
+
 })
