@@ -94,7 +94,7 @@ describe('bounded workspace stdin uploads', () => {
   }
 
   function file(path: string, source: Uint8Array, chunks?: readonly Uint8Array[]): WorkspaceTransferFile {
-    const parts = chunks ?? [source]
+    const parts = chunks ?? (source.byteLength === 0 ? [] : [source])
     return {
       path,
       sizeBytes: source.byteLength,
@@ -170,5 +170,56 @@ describe('bounded workspace stdin uploads', () => {
     const target = command({ failWrite: true })
     await expect(writeWorkspaceTransferFileToStdin(file('src/data.bin', source), target.fake, limits)).rejects.toThrow(/stdin write failed/)
     expect(target.calls).toEqual(['write', 'kill', 'close', 'wait'])
+  })
+})
+
+
+describe('workspace stdin upload cancellation and empty files', () => {
+  const limits: WorkspaceTransferLimits = {
+    maxFiles: 2,
+    maxEntries: 4,
+    maxFileBytes: 32,
+    maxTotalBytes: 64,
+    chunkBytes: 8,
+  }
+
+  it('accepts an empty file with the SHA-256 of the empty byte sequence', async () => {
+    const empty = Buffer.alloc(0)
+    const calls: string[] = []
+    const command: WorkspaceStdinCommand = {
+      async writeStdin() { calls.push('write') },
+      async closeStdin() { calls.push('close') },
+      async wait() { calls.push('wait'); return { exitCode: 0 } },
+      async kill() { calls.push('kill') },
+    }
+    await writeWorkspaceTransferFileToStdin({
+      path: 'empty.bin',
+      sizeBytes: 0,
+      sha256: createHash('sha256').update(empty).digest('hex'),
+      chunks: (async function* () {})(),
+    }, command, limits)
+    expect(calls).toEqual(['close', 'wait'])
+  })
+
+  it('aborts before forwarding the next chunk and terminates the writer', async () => {
+    const source = Buffer.from('payload')
+    const controller = new AbortController()
+    controller.abort(new Error('cancel transfer'))
+    const calls: string[] = []
+    const command: WorkspaceStdinCommand = {
+      async writeStdin() { calls.push('write') },
+      async closeStdin() { calls.push('close') },
+      async wait() { calls.push('wait'); return { exitCode: null } },
+      async kill() { calls.push('kill') },
+    }
+    const upload: WorkspaceTransferFile = {
+      path: 'cancel.bin',
+      sizeBytes: source.byteLength,
+      sha256: createHash('sha256').update(source).digest('hex'),
+      chunks: (async function* () { yield { offset: 0, bytes: source } })(),
+    }
+    await expect(writeWorkspaceTransferFileToStdin(upload, command, limits, controller.signal))
+      .rejects.toThrow(/cancel transfer/)
+    expect(calls).toEqual(['kill', 'close', 'wait'])
   })
 })
