@@ -35,7 +35,7 @@ A host integration registers `VercelSandboxProvider` with `ctx.sandbox` for one-
 | File | Exports | Responsibility (first header-comment line) |
 |---|---|---|
 | `src/bundles/sandbox-vercel/index.ts` | `VercelSandboxCommand`, `VercelSandboxHandle`, `VercelSandboxClient`, `VercelSandboxConfig`, `VercelSandboxProvider` | Vercel Sandbox remote provider adapter. |
-| `src/bundles/sandbox-vercel/transfer-streams.ts` | `WorkspaceRemoteEntry`, `WorkspaceFindRecordParser`, `BoundedBase64Decoder` | **(no header comment)** |
+| `src/bundles/sandbox-vercel/transfer-streams.ts` | `WorkspaceRemoteEntry`, `WorkspaceFindRecordParser`, `BoundedBase64Decoder`, `WorkspaceStdinCommand` | **(no header comment)** |
 | `src/bundles/sandbox-vercel/workspace-filesystem.ts` | `VercelWorkspaceFileEntry`, `VercelWorkspaceFileStat`, `VercelWorkspaceFileSystem`, `WorkspaceTreeEntry`, `WorkspaceTreeEnumeration` | **(no header comment)** |
 | `src/bundles/sandbox-vercel/workspace.ts` | `VercelWorkspaceCommand`, `VercelWorkspaceUser`, `VercelWorkspaceSandbox`, `VercelWorkspaceClient`, `VercelWorkspaceEgressGate`, `VercelWorkspaceProviderOptions`, `VercelWorkspaceSessionProvider` | Persistent, task-scoped Vercel Sandbox workspace session provider. |
 
