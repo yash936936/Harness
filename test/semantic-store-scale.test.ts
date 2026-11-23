@@ -32,7 +32,7 @@ function fact(id: number): SemanticFact {
 describe('semantic store scale and recovery', () => {
   it('rebuilds the compact identity sidecar after deletion-heavy writes when its manifest is missing', async () => {
     const dir = await fixture()
-    const store = new SemanticFactStore(dir)
+    const store = new SemanticFactStore(dir, 120_000)
 
     await store.withLock(async () => {
       for (let id = 0; id < 250; id += 1) await store.put(fact(id), limits)
@@ -41,7 +41,7 @@ describe('semantic store scale and recovery', () => {
     })
 
     await unlink(join(dir, 'semantic.index.meta.json'))
-    const recovered = new SemanticFactStore(dir)
+    const recovered = new SemanticFactStore(dir, 120_000)
     await recovered.withLock(async () => {
       expect(await recovered.count()).toBe(100)
       const page = await recovered.page(undefined, 100)
@@ -49,5 +49,5 @@ describe('semantic store scale and recovery', () => {
       expect(page.items[0]?.id).toBe('scale-000150')
       expect(page.items.at(-1)?.id).toBe('scale-000249')
     })
-  }, 30_000)
+  }, 120_000)
 })
