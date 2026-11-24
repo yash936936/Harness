@@ -60,7 +60,7 @@ function fakeClient(options: { createUserFails?: boolean; homeDir?: string; asUs
           return options.asUserHomeDir ? { ...user, homeDir: options.asUserHomeDir } : user
         },
         async update(value) { calls.push(['update', value]); if (value.tags) tags = value.tags },
-        async snapshot(value) { calls.push(['snapshot', value]); return { status: 'created' } },
+        async snapshot(value) { calls.push(['snapshot', value]); return { snapshotId: 'snap_workspace_test', status: 'created' } },
         async delete(value) { calls.push(['delete', value]); deleted = true },
         fs: {
           async realpath(path) { return options.realpath ? options.realpath(path) : path },

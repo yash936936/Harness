@@ -55,7 +55,7 @@ export interface VercelWorkspaceSandbox {
   createUser(username: string, options?: { signal?: AbortSignal }): Promise<VercelWorkspaceUser>
   asUser(username: string): VercelWorkspaceUser
   update(options: { networkPolicy: 'deny-all'; timeout?: number; tags?: Record<string, string> }): Promise<void>
-  snapshot(options: { expiration: number }): Promise<{ status: 'created' | 'deleted' | 'failed' }>
+  snapshot(options: { expiration: number }): Promise<{ readonly snapshotId: string; readonly status: 'created' | 'deleted' | 'failed' }>
   delete(options?: { deleteOrphanSnapshots?: boolean }): Promise<void>
   fs: VercelWorkspaceFileSystem
 }
@@ -367,12 +367,13 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
     return fence
   }
 
-  private async stopSandbox(sandbox: VercelWorkspaceSandbox, projectId: string): Promise<void> {
+  private async stopSandbox(sandbox: VercelWorkspaceSandbox, projectId: string): Promise<string> {
     await this.assertEgress(projectId)
     const result = await sandbox.snapshot({ expiration: this.snapshotExpirationMs })
-    if (result.status !== 'created') {
-      throw new Error('vercel-workspace: sandbox stop did not confirm a durable snapshot')
+    if (result.status !== 'created' || typeof result.snapshotId !== 'string' || !/^snap_[A-Za-z0-9]+$/.test(result.snapshotId)) {
+      throw new Error('vercel-workspace: sandbox stop did not confirm a durable snapshot ID')
     }
+    return result.snapshotId
   }
 
   private async getSandbox(session: WorkspaceSession, resume: boolean, signal?: AbortSignal): Promise<VercelWorkspaceSandbox> {
