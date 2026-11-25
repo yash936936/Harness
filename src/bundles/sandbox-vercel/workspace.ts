@@ -370,7 +370,7 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
   private async stopSandbox(sandbox: VercelWorkspaceSandbox, projectId: string): Promise<string> {
     await this.assertEgress(projectId)
     const result = await sandbox.snapshot({ expiration: this.snapshotExpirationMs })
-    if (result.status !== 'created' || typeof result.snapshotId !== 'string' || !/^snap_[A-Za-z0-9]+$/.test(result.snapshotId)) {
+    if (result.status !== 'created' || typeof result.snapshotId !== 'string' || !/^snap_[A-Za-z0-9_-]{1,200}$/.test(result.snapshotId)) {
       throw new Error('vercel-workspace: sandbox stop did not confirm a durable snapshot ID')
     }
     return result.snapshotId
