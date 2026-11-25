@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { SQLiteLeaseStore, SQLiteWorkspaceStore, WorkspaceRuntime } from '../src/bundles/app-core/index.js'
+import type { WorkspaceTransferLimits } from '../src/architecture/contracts.js'
 import {
   VercelWorkspaceSessionProvider,
   type VercelWorkspaceClient,
@@ -59,10 +60,12 @@ function fakeClient(options: { createUserFails?: boolean; homeDir?: string; asUs
           return options.asUserHomeDir ? { ...user, homeDir: options.asUserHomeDir } : user
         },
         async update(value) { calls.push(['update', value]); if (value.tags) tags = value.tags },
-        async snapshot(value) { calls.push(['snapshot', value]); return { status: 'created' } },
+        async snapshot(value) { calls.push(['snapshot', value]); return { snapshotId: 'snap_workspace_test', status: 'created' } },
         async delete(value) { calls.push(['delete', value]); deleted = true },
         fs: {
           async realpath(path) { return options.realpath ? options.realpath(path) : path },
+          async readdir(path, request) { calls.push(['readdir', path, request]); return [] },
+          async lstat(path) { calls.push(['lstat', path]); throw new Error('unexpected lstat for empty workspace') },
         },
       }
       sandbox = created
@@ -540,4 +543,86 @@ describe('Vercel task-scoped workspace provider', () => {
     expect(fake.calls.some((call) => Array.isArray(call) && call[0] === 'run')).toBe(false)
     await runtime.close(session.workspaceId, 'test cleanup')
   })
+ 
+  it('enumerates provider-backed workspace metadata only with a scoped list capability', async () => {
+    const { fake, provider, runtime } = await setup()
+    const session = await runtime.open({
+      taskId: 'task-list-files',
+      sessionId: 'session-list-files',
+      idempotencyKey: 'open-list-files',
+      ttlMs: 120_000,
+    })
+    const capability = await runtime.issueCapability({
+      workspaceId: session.workspaceId,
+      operations: ['list'],
+      pathPrefixes: [''],
+      ttlMs: 30_000,
+    })
+    const limits: WorkspaceTransferLimits = {
+      maxFiles: 10,
+      maxEntries: 20,
+      maxFileBytes: 1_024,
+      maxTotalBytes: 4_096,
+      chunkBytes: 256,
+    }
+    const result = await provider.enumerateWorkspace(session.workspaceId, capability, limits)
+    expect(result).toEqual({ entries: [], fileCount: 0, totalBytes: 0 })
+    expect(fake.calls.some((call) => Array.isArray(call) && call[0] === 'readdir' && call[1] === '/home/harness/workspace')).toBe(true)
+    expect(fake.calls.some((call) => Array.isArray(call) && call[0] === 'snapshot')).toBe(true)
+    await runtime.close(session.workspaceId, 'test cleanup')
+  })
+
+  it('rejects workspace enumeration without list authorization before remote access', async () => {
+    const { fake, provider, runtime } = await setup()
+    const session = await runtime.open({
+      taskId: 'task-list-denied',
+      sessionId: 'session-list-denied',
+      idempotencyKey: 'open-list-denied',
+      ttlMs: 120_000,
+    })
+    const capability = await runtime.issueCapability({
+      workspaceId: session.workspaceId,
+      operations: ['read'],
+      pathPrefixes: [''],
+      ttlMs: 30_000,
+    })
+    const limits: WorkspaceTransferLimits = {
+      maxFiles: 10,
+      maxEntries: 20,
+      maxFileBytes: 1_024,
+      maxTotalBytes: 4_096,
+      chunkBytes: 256,
+    }
+    await expect(provider.enumerateWorkspace(session.workspaceId, capability, limits)).rejects.toThrow(/list capability/)
+    expect(fake.calls.some((call) => Array.isArray(call) && call[0] === 'readdir')).toBe(false)
+    await runtime.close(session.workspaceId, 'test cleanup')
+  })
+
+
+  it('rejects invalid transfer limits before contacting the remote sandbox', async () => {
+    const { fake, provider, runtime } = await setup()
+    const session = await runtime.open({
+      taskId: 'task-list-limits',
+      sessionId: 'session-list-limits',
+      idempotencyKey: 'open-list-limits',
+      ttlMs: 120_000,
+    })
+    const capability = await runtime.issueCapability({
+      workspaceId: session.workspaceId,
+      operations: ['list'],
+      pathPrefixes: [''],
+      ttlMs: 30_000,
+    })
+    const invalidLimits: WorkspaceTransferLimits = {
+      maxFiles: 0,
+      maxEntries: 20,
+      maxFileBytes: 1_024,
+      maxTotalBytes: 4_096,
+      chunkBytes: 256,
+    }
+    await expect(provider.enumerateWorkspace(session.workspaceId, capability, invalidLimits)).rejects.toThrow(/maxFiles/)
+    expect(fake.calls.some((call) => Array.isArray(call) && call[0] === 'get')).toBe(false)
+    await runtime.close(session.workspaceId, 'test cleanup')
+  })
+
 })

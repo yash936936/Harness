@@ -12,7 +12,10 @@ import type {
   WorkspaceSessionProvider,
   WorkspaceSessionStore,
   RecoverWorkspaceSessionInput,
+  WorkspaceTransferLimits,
 } from '../../architecture/contracts.js'
+import { validateWorkspaceTransferLimits } from '../app-core/workspace-transfer.js'
+import { enumerateWorkspaceTree, type WorkspaceTreeEnumeration, type VercelWorkspaceFileSystem } from './workspace-filesystem.js'
 
 const PROVIDER_TAG = 'harness-workspace-v1'
 const WORKSPACE_USER = 'harness'
@@ -27,6 +30,8 @@ const DEFAULT_SNAPSHOT_EXPIRATION_MS = 7 * 24 * 60 * 60 * 1_000
 export interface VercelWorkspaceCommand {
   logs(options?: { signal?: AbortSignal }): AsyncIterable<{ stream: 'stdout' | 'stderr'; data: string }>
   wait(options?: { signal?: AbortSignal }): Promise<{ exitCode: number | null }>
+  writeStdin?(data: Uint8Array): Promise<void>
+  closeStdin?(): Promise<void>
   kill(signal?: 'SIGHUP' | 'SIGINT' | 'SIGQUIT' | 'SIGKILL' | 'SIGTERM' | 'SIGCONT' | 'SIGSTOP' | number): Promise<void>
 }
 
@@ -39,6 +44,7 @@ export interface VercelWorkspaceUser {
     cwd?: string
     timeoutMs?: number
     signal?: AbortSignal
+    stdin?: true
     detached: true
   }): Promise<VercelWorkspaceCommand>
 }
@@ -49,11 +55,9 @@ export interface VercelWorkspaceSandbox {
   createUser(username: string, options?: { signal?: AbortSignal }): Promise<VercelWorkspaceUser>
   asUser(username: string): VercelWorkspaceUser
   update(options: { networkPolicy: 'deny-all'; timeout?: number; tags?: Record<string, string> }): Promise<void>
-  snapshot(options: { expiration: number }): Promise<{ status: 'created' | 'deleted' | 'failed' }>
+  snapshot(options: { expiration: number }): Promise<{ readonly snapshotId: string; readonly status: 'created' | 'deleted' | 'failed' }>
   delete(options?: { deleteOrphanSnapshots?: boolean }): Promise<void>
-  fs: {
-    realpath(path: string, options?: { signal?: AbortSignal }): Promise<string>
-  }
+  fs: VercelWorkspaceFileSystem
 }
 
 export interface VercelWorkspaceClient {
@@ -363,12 +367,13 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
     return fence
   }
 
-  private async stopSandbox(sandbox: VercelWorkspaceSandbox, projectId: string): Promise<void> {
+  private async stopSandbox(sandbox: VercelWorkspaceSandbox, projectId: string): Promise<string> {
     await this.assertEgress(projectId)
     const result = await sandbox.snapshot({ expiration: this.snapshotExpirationMs })
-    if (result.status !== 'created') {
-      throw new Error('vercel-workspace: sandbox stop did not confirm a durable snapshot')
+    if (result.status !== 'created' || typeof result.snapshotId !== 'string' || !/^snap_[A-Za-z0-9_-]{1,200}$/.test(result.snapshotId)) {
+      throw new Error('vercel-workspace: sandbox stop did not confirm a durable snapshot ID')
     }
+    return result.snapshotId
   }
 
   private async getSandbox(session: WorkspaceSession, resume: boolean, signal?: AbortSignal): Promise<VercelWorkspaceSandbox> {
@@ -547,6 +552,46 @@ export class VercelWorkspaceSessionProvider implements WorkspaceSessionProvider 
       operations: [...input.operations],
       pathPrefixes: [...input.pathPrefixes],
       expiresAt: new Date(expiresAtMs).toISOString(),
+    }
+  }
+
+  /** List bounded workspace metadata under a task-scoped list capability. */
+  async enumerateWorkspace(
+    workspaceId: string,
+    capability: WorkspaceCapability,
+    limits: WorkspaceTransferLimits,
+    signal?: AbortSignal,
+  ): Promise<WorkspaceTreeEnumeration> {
+    validateWorkspaceTransferLimits(limits)
+    const session = await this.assertSession(workspaceId, ['ready', 'running'])
+    if (!capability || capability.workspaceId !== workspaceId || capability.projectId !== session.projectId ||
+        capability.taskId !== session.taskId || capability.sessionId !== session.sessionId ||
+        capability.fencingToken !== session.fencingToken || !capability.operations.includes('list') ||
+        !Number.isFinite(Date.parse(capability.expiresAt)) || Date.parse(capability.expiresAt) <= this.now()) {
+      throw new Error('vercel-workspace: list capability or workspace scope is invalid')
+    }
+    const allowed = await this.sessions.authorizeCapability({
+      token: capability.token,
+      projectId: session.projectId,
+      taskId: session.taskId,
+      sessionId: session.sessionId,
+      workspaceId,
+      operation: 'list',
+      path: '',
+      now: this.now(),
+    })
+    if (!allowed) throw new Error('vercel-workspace: workspace list capability denied')
+    signal?.throwIfAborted()
+    const sandbox = await this.getSandbox(session, true, signal)
+    try {
+      const user = assertWorkspaceUserHome(sandbox.asUser(WORKSPACE_USER))
+      const root = posix.join(user.homeDir, 'workspace')
+      const realRoot = await sandbox.fs.realpath(root, { signal })
+      if (realRoot !== root) throw new Error('vercel-workspace: workspace root resolves outside its dedicated home')
+      return await enumerateWorkspaceTree(sandbox.fs, root, limits, signal)
+    } finally {
+      try { await this.stopSandbox(sandbox, session.projectId) }
+      catch (error) { throw new Error(`vercel-workspace: workspace enumeration stop/snapshot was not confirmed (${detail(error)})`) }
     }
   }
 

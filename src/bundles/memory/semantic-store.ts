@@ -42,7 +42,11 @@ export class SemanticFactStore {
   private readonly memoryOrder: string[] = []
   private readonly memoryPositions = new Map<string, number>()
   private memoryRevision = 0
-  constructor(private readonly dir?: string) {}
+  constructor(private readonly dir?: string, private readonly lockTimeoutMs = 10_000) {
+    if (!Number.isSafeInteger(lockTimeoutMs) || lockTimeoutMs < 0 || lockTimeoutMs > 2_147_483_647) {
+      throw new RangeError('memory: lockTimeoutMs must be a non-negative safe integer')
+    }
+  }
 
   private get sourceFile() { return join(this.dir!, 'semantic.events.jsonl') }
   private get indexFile() { return join(this.dir!, 'semantic.index.jsonl') }
@@ -55,7 +59,7 @@ export class SemanticFactStore {
     await assertNoSymlinkParents(this.sourceFile)
     await mkdir(this.dir, { recursive: true, mode: 0o700 })
     await assertNoSymlinkParents(this.sourceFile)
-    return withFileLock(this.lockFile, async () => { await this.migrateLegacy(); return fn() })
+    return withFileLock(this.lockFile, async () => { await this.migrateLegacy(); return fn() }, { timeoutMs: this.lockTimeoutMs })
   }
 
   private async fileSize(path: string): Promise<number> {
